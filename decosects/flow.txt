@@ -1,0 +1,36 @@
+
+get_aptinfo.sh -> aptinfo/*.html.gz -> download
+                                     > WriteNavaidsCsv.cs -> navaids.csv -> download
+                                     > WriteAirportsCsv.cs -> airports.csv -> download
+                                                                            > aptdiags_fetch.sh -> aptdiags_pdfs/*.pdf -> aptdiags_pdf_to_png.sh -> aptdiags_150/*.png -> download
+                                                                                                                                                  > aptdiags_300/*.png -> read_aptdiags.sh -> aptdiags.csv -> download
+
+charts_download.sh -> charts/*.htm,*.tfw,*.tif,*.zip -> ./genallchartcsvs.sh -> charts/*.csv -> download
+                                                                                chartlimits.csv
+                                                                                               \
+                                                                                             -> do_all_tac_chart_limits.sh -> chartlimits.csv -> download
+                                                                                                                                               > readalltiffs.sh -> charts/*.csv -> download
+                                                                                                                                                                    charts/*/*.png -> download
+
+---------------
+
+./get_aptinfo.sh
+adb push aptinfo_$expdate /sdcard/WairTo/aptinfo_$expdate
+adb push aptinfo_css /sdcard/WairTo/aptinfo_css
+adb push navaids_$expdate.csv /sdcard/WairTo/navaids_$expdate.csv
+adb push airports_$expdate.csv /sdcard/WairTo/airports_$expdate.csv
+
+./aptdiags_fetch.sh
+./aptdiags_pdf_to_png.sh
+adb push aptdiags_150 /sdcard/WairTo/aptdiags_150
+./read_aptdiags.sh
+adb push aptdiags.csv /sdcard/WairTo/aptdiags.csv
+
+./charts_download.sh
+./genallchartcsvs.sh
+find charts -name \*.csv -exec adb push {} /sdcard/WairTo/{} \;
+./do_all_tac_chart_limits.sh
+adb push chartlimits.csv /sdcard/WairTo/chartlimits.csv
+./readalltiffs.sh
+find charts -name \*.png -exec adb push {} /sdcard/WairTo/{} \;
+
