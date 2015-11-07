@@ -367,9 +367,8 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
              */
             Cursor result1 = sqldb.query (
                     Waypoint.Airport.dbtable, Waypoint.Airport.dbcols,
-                    Waypoint.Airport.dbkeyid + "='" + fromApt + "'",
-                    null, null, null, null, null
-            );
+                    Waypoint.Airport.dbkeyid + "=?", new String[] { fromApt },
+                    null, null, null, null);
             float fromLat, fromLon;
             try {
                 if (!result1.moveToFirst ()) {
@@ -389,9 +388,7 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
             TreeMap<String,Waypoint.Airport> waypoints = new TreeMap<> ();
             Cursor result2 = sqldb.query (
                     "airports", Waypoint.Airport.dbcols,
-                    null,
-                    null, null, null, null, null
-            );
+                    null, null, null, null, null, null);
             try {
                 if (result2.moveToFirst ()) do {
                     Waypoint.Airport wp = new Waypoint.Airport (result2);

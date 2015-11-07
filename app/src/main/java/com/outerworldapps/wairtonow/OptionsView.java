@@ -52,6 +52,7 @@ public class OptionsView
     public  CheckOption  userWPOption;
     public  DefAltOption ktsMphOption;
     public  DefAltOption magTrueOption;
+    public  DefAltOption listMapOption;
     public  IntOption    chartTrackOption;
     public  IntOption    chartOrientOption;
     public  IntOption    latLonOption;
@@ -82,6 +83,7 @@ public class OptionsView
         powerLockOption   = new CheckOption  ("Power Lock",            false);
         rotationOption    = new CheckOption  ("Manual Rotation",       true);
         magTrueOption     = new DefAltOption ("Magnetic", "True");
+        listMapOption     = new DefAltOption ("Maint Plates List", "Maint Plates Map");
         ktsMphOption      = new DefAltOption ("Kts", "MPH");
 
         latLonOption      = new IntOption (
@@ -121,6 +123,7 @@ public class OptionsView
         ll1.addView (chartOrientOption);
         ll1.addView (chartTrackOption);
         ll1.addView (magTrueOption);
+        ll1.addView (listMapOption);
         ll1.addView (latLonOption);
         ll1.addView (ktsMphOption);
 
@@ -220,7 +223,7 @@ public class OptionsView
 
             // ddd.dddddd^
             case LLO_DDDDDD: {
-                int ival = (int) Math.round (val * 1000000);
+                int ival = Math.round (val * 1000000);
                 int dpts = 6;
                 while ((dpts > 1) && (ival % 10 == 0)) {
                     ival /= 10;
@@ -262,6 +265,7 @@ public class OptionsView
                     if (name.equals ("chartOrient")) chartOrientOption.setKey (valu);
                     if (name.equals ("chartTrack"))  chartTrackOption.setKey  (valu);
                     if (name.equals ("magtrueAlt"))  magTrueOption.setAlt     (valu.equals (boolTrue));
+                    if (name.equals ("plateMap"))    listMapOption.setAlt     (valu.equals (boolTrue));
                     if (name.equals ("latlonAlt"))   latLonOption.setKey      (valu);
                     if (name.equals ("ktsMphAlt"))   ktsMphOption.setAlt      (valu.equals (boolTrue));
                 }
@@ -289,6 +293,7 @@ public class OptionsView
                 csvwriter.write ("chartOrient," + chartOrientOption.getKey ()                              + "\n");
                 csvwriter.write ("chartTrack,"  + chartTrackOption.getKey ()                               + "\n");
                 csvwriter.write ("magtrueAlt,"  + Boolean.toString (magTrueOption.getAlt ())               + "\n");
+                csvwriter.write ("plateMap,"    + Boolean.toString (listMapOption.getAlt ())               + "\n");
                 csvwriter.write ("latlonAlt,"   + latLonOption.getKey ()                                   + "\n");
                 csvwriter.write ("ktsMphAlt,"   + Boolean.toString (ktsMphOption.getAlt ())                + "\n");
             } finally {

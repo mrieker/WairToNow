@@ -68,6 +68,8 @@ public class WairToNow extends Activity {
     private GPSListener gpsListener;
     private GPSStatusView gpsStatusView;
     private HorizontalScrollView tabButtonScroller;
+    public  int displayWidth;
+    public  int displayHeight;
     private LinearLayout tabButtonLayout;
     private LinearLayout tabViewLayout;
     private LinearLayout.LayoutParams ctvllp = new LinearLayout.LayoutParams (
@@ -121,6 +123,12 @@ public class WairToNow extends Activity {
         textSize = dpi / 7;
 
         /*
+         * Also get screen size in pixels.
+         */
+        displayWidth  = metrics.widthPixels;
+        displayHeight = metrics.heightPixels;
+
+        /*
          * Paint used to display GPS NOT AVAILABLE string.
          */
         gpsAvailablePaint = new Paint ();
@@ -159,6 +167,11 @@ public class WairToNow extends Activity {
          * Create a view that browses files.
          */
         FilesView filesView = new FilesView (this);
+
+        /*
+         * Create a view that displays help pages.
+         */
+        HelpView helpView = new HelpView (this);
 
         /*
          * Create a view that simulates a glass cockpit.
@@ -220,6 +233,7 @@ public class WairToNow extends Activity {
         TabButton maintButton     = new TabButton ("Maint",   maintView);
         TabButton gpsStatusButton = new TabButton ("GPS",     gpsStatusView);
         TabButton filesButton     = new TabButton ("Files",   filesView);
+        TabButton helpButton      = new TabButton ("Help",    helpView);
         tabButtonLayout = new LinearLayout (this);
         tabButtonLayout.setOrientation (LinearLayout.HORIZONTAL);
         tabButtonLayout.addView (chartButton);
@@ -233,6 +247,7 @@ public class WairToNow extends Activity {
         tabButtonLayout.addView (maintButton);
         tabButtonLayout.addView (gpsStatusButton);
         tabButtonLayout.addView (filesButton);
+        tabButtonLayout.addView (helpButton);
 
         tabButtonScroller = new HorizontalScrollView (this);
         tabButtonScroller.addView (tabButtonLayout);
@@ -262,7 +277,7 @@ public class WairToNow extends Activity {
      * The button used for each tab.
      */
     private class TabButton extends Button implements View.OnClickListener {
-        public String ident;
+        public final String ident;
         public View view;  // must also be CanBeMainView
 
         public TabButton (String ident, View view)
@@ -587,12 +602,22 @@ public class WairToNow extends Activity {
      */
     public void drawGPSAvailable (Canvas canvas, View view)
     {
-        int w = view.getWidth ();
-        int h = view.getHeight ();
+        String msg = null;
         if (planView.pretendEnabled) {
-            canvas.drawText ("PLAN PRETEND MODE", w / 2, h * 3 / 4, gpsAvailablePaint);
+            msg = "PLAN PRETEND MODE";
         } else if (!gpsAvailable) {
-            canvas.drawText ("GPS NOT UPDATING", w / 2, h * 3 / 4, gpsAvailablePaint);
+            msg = "GPS NOT UPDATING";
+        }
+        if (msg != null) {
+            int w = view.getWidth ();
+            int h = view.getHeight ();
+            float msgw = gpsAvailablePaint.measureText (msg);
+            if (msgw > w * 7 / 8) {
+                float ts = gpsAvailablePaint.getTextSize ();
+                ts *= (w * 7 / 8) / msgw;
+                gpsAvailablePaint.setTextSize (ts);
+            }
+            canvas.drawText (msg, w / 2, h * 3 / 4, gpsAvailablePaint);
         }
     }
 

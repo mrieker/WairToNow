@@ -24,6 +24,10 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.hardware.GeomagneticField;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 
 public class Lib {
@@ -33,6 +37,8 @@ public class Lib {
     public static final float MMPerIn  = 25.4F;    // millimetres per inch
     public static final float SMPerNM  = 1.15078F;
     public static final int   MPerNM   = 1852;     // metres per naut mile
+
+    private final static String[] columns_name = new String[] { "name" };
 
     /**
      * Split a comma-separated value string into its various substrings.
@@ -188,7 +194,7 @@ public class Lib {
         float fLat = dstLat / 180 * Mathf.PI;
         float fLon = dstLon / 180 * Mathf.PI;
         float dLon = fLon - sLon;
-        float t1 = Mathf.cos(sLat) * Mathf.tan(fLat);
+        float t1 = Mathf.cos (sLat) * Mathf.tan (fLat);
         float t2 = Mathf.sin(sLat) * Mathf.cos(dLon);
         return Mathf.atan2 (Mathf.sin (dLon), t1 - t2);
     }
@@ -577,7 +583,10 @@ public class Lib {
      */
     public static boolean SQLiteTableExists (SQLiteDatabase sqldb, String table)
     {
-        Cursor result = sqldb.query ("sqlite_master", new String[] { "name" }, "type='table' AND name='" + table + "'", null, null, null, null, null);
+        Cursor result = sqldb.query (
+                "sqlite_master", columns_name,
+                "type='table' AND name=?", new String[] { table },
+                null, null, null, null);
         try {
             return result.getCount () > 0;
         } finally {
@@ -650,6 +659,62 @@ public class Lib {
         String speedstr = speedint + "." + speeddec + suffix;
         if (speedstr.equals ("1.0 kts")) speedstr = "1.0 kt";
         return speedstr;
+    }
+
+    /**
+     * Rename a file, throwing an exception on error.
+     */
+    public static void RenameFile (String oldname, String newname)
+            throws IOException
+    {
+        if (!new File (oldname).renameTo (new File (newname))) {
+            throw new IOException ("error renaming " + oldname + " => " + newname);
+        }
+    }
+
+    /**
+     * Read a line from the given input stream
+     * @param is = stream to read from
+     * @return string up to but not including \n
+     * @throws IOException
+     */
+    public static String ReadStreamLine (InputStream is)
+            throws IOException
+    {
+        int c;
+        String s = "";
+        while ((c = is.read ()) != '\n') {
+            if (c < 0) throw new IOException ("EOF reading stream");
+            s += (char)c;
+        }
+        return s;
+    }
+
+    /**
+     * Write a given number of bytes from the input stream to the file
+     * @param is = stream to read bytes from
+     * @param bytelen = number of bytes to copy
+     * @param filename = name of file to write to
+     * @throws IOException
+     */
+    public static void WriteStreamToFile (InputStream is, int bytelen, String filename)
+            throws IOException
+    {
+        Ignored (new File (filename.substring (0, filename.lastIndexOf ('/') + 1)).mkdirs ());
+        FileOutputStream os = new FileOutputStream (filename);
+        try {
+            byte[] buf = new byte[4096];
+            while (bytelen > 0) {
+                int rc = buf.length;
+                if (rc > bytelen) rc = bytelen;
+                rc = is.read (buf, 0, rc);
+                if (rc <= 0) throw new IOException ("EOF reading " + filename);
+                os.write (buf, 0, rc);
+                bytelen -= rc;
+            }
+        } finally {
+            os.close ();
+        }
     }
 
     /**

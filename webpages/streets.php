@@ -4,8 +4,29 @@
      *        streets.php?tile=zoom/x/y.png
      */
 
-    $tile = $_GET['tile'];
-    if (strpos ($tile, "..") === FALSE) {
+    // single download
+    if (isset ($_GET['tile'])) {
+        $tile = $_GET['tile'];
+        $newpath = download ($tile);
+        readfile ($newpath);
+        return;
+    }
+
+    // bulk download
+    for ($i = 1; isset ($_POST["tile_$i"]); $i ++) {
+        $tile = $_POST["tile_$i"];
+        $newpath = download ($tile);
+        $size = filesize ($newpath);
+        echo "@@tile=$tile\n";
+        echo "@@size=$size\n";
+        readfile ($newpath);
+        echo "@@eof\n";
+    }
+    echo "@@done\n";
+
+    function download ($tile)
+    {
+        if (strpos ($tile, "..") !== FALSE) return FALSE;
 
         // see if we already have the file
         // also re-download if file is a year old
@@ -54,8 +75,6 @@
                 rename ($tmppath, $newpath);
             }
         }
-
-        // dump tile file to client
-        readfile ($newpath);
+        return $newpath;
     }
 ?>

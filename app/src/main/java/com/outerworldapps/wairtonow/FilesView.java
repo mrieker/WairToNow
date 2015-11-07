@@ -367,6 +367,7 @@ public class FilesView
                 DeleteFile (fileButton.file);
                 completed = true;
             } catch (CanceledException ce) {
+                Lib.Ignored ();
             } finally {
                 filesViewHandler.sendEmptyMessage (FilesViewHandlerWhat_DFPROG);
             }
@@ -392,7 +393,7 @@ public class FilesView
                 Message msg = filesViewHandler.obtainMessage (FilesViewHandlerWhat_DFPROG, 0, 0, file.getPath ());
                 filesViewHandler.sendMessageDelayed (msg, 25);
             }
-            file.delete ();
+            Lib.Ignored (file.delete ());
         }
 
         @SuppressWarnings("serial")

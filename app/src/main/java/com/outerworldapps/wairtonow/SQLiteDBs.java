@@ -24,12 +24,15 @@ import android.database.sqlite.SQLiteDatabase;
 import android.util.Log;
 
 import java.io.File;
+import java.util.HashMap;
 import java.util.TreeMap;
 
 public class SQLiteDBs {
     private final static String TAG = "WairToNow";
 
     private final static TreeMap<String,ThreadLocal<SQLiteDatabase>> databases = MakeEmptyTreeMap ();
+
+    private final static HashMap<String,Object> writelocks = new HashMap<> ();
 
     private static TreeMap<String,ThreadLocal<SQLiteDatabase>> MakeEmptyTreeMap ()
     {
@@ -103,6 +106,23 @@ public class SQLiteDBs {
             tldb.set (sqldb);
         }
         return sqldb;
+    }
+
+    /**
+     * Get object that can be used to make sure only one write going on in database at a time.
+     */
+    public static Object GetWriteLock (SQLiteDatabase sqldb)
+    {
+        Object wl;
+        String path = sqldb.getPath ();
+        synchronized (writelocks) {
+            wl = writelocks.get (path);
+            if (wl == null) {
+                wl = new Object ();
+                writelocks.put (path, wl);
+            }
+        }
+        return wl;
     }
 
     /**

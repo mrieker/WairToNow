@@ -20,6 +20,7 @@
 
 package com.outerworldapps.wairtonow;
 
+import android.content.pm.ActivityInfo;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.util.Log;
@@ -55,6 +56,12 @@ public abstract class Waypoint {
     public int    magvar = VAR_UNKNOWN;  // magnetic variation (+=West; -=East)
     public String ident;                 // for airports, ICAO identifier
 
+    private final static String[] columns_apt_desc = new String[] { "apt_desc" };
+    private final static String[] columns_kw_rowid = new String[] { "kw_rowid" };
+    private final static String[] columns_pl_descrip_pl_filename = new String[] { "pl_descrip", "pl_filename" };
+    private final static String[] columns_runways1 = new String[] { "rwy_faaid", "rwy_number",
+            "rwy_truehdg", "rwy_tdze", "rwy_beglat", "rwy_beglon", "rwy_endlat", "rwy_endlon" };
+
     private static ArrayList<Class<? extends Waypoint>> GetWaypointClasses ()
     {
         ArrayList<Class<? extends Waypoint>> al = new ArrayList<> (4);
@@ -82,9 +89,8 @@ public abstract class Waypoint {
                     String[] dbcols = (String[]) wpclass.getField ("dbcols").get (null);
                     Cursor result = sqldb.query (
                             dbtable, dbcols,
-                            dbkeyid + "='" + ident + "'",
-                            null, null, null, null, null
-                    );
+                            dbkeyid + "=?", new String[] { ident },
+                            null, null, null, null);
                     try {
                         if (result.moveToFirst ()) {
                             do {
@@ -122,9 +128,9 @@ public abstract class Waypoint {
                     String[] dbcols = (String[]) wpclass.getField ("dbcols").get (null);
                     Cursor result = sqldb.query (
                             dbtable, dbcols,
-                            dbkeyid + "='" + ident + "' AND " + prefix + "lat=" + lat + " AND " + prefix + "lon=" + lon,
-                            null, null, null, null, null
-                    );
+                            dbkeyid + "=? AND " + prefix + "lat=? AND " + prefix + "lon=?",
+                            new String[] { ident, Float.toString (lat), Float.toString (lon) },
+                            null, null, null, null);
                     try {
                         if (result.moveToFirst ()) {
                             Constructor<? extends Waypoint> ctor = wpclass.getConstructor (Cursor.class);
@@ -156,8 +162,6 @@ public abstract class Waypoint {
         int aptinfoexpdate = MaintView.GetWaypointExpDate ();
         String dbname = "cycles56_" + aptinfoexpdate + ".db";
         if (SQLiteDBs.Exists (dbname)) {
-            long time = System.nanoTime ();
-
             try {
                 SQLiteDatabase sqldb = SQLiteDBs.GetOrCreate (dbname);
                 String kw = keys[0];
@@ -168,16 +172,18 @@ public abstract class Waypoint {
                 for (Class<? extends Waypoint> wpclass : wpclasses) {
                     String dbkytbl = (String) wpclass.getField ("dbkytbl").get (null);
                     Cursor result = sqldb.query (
-                            dbkytbl, new String[] { "kw_rowid" },
-                            "kw_key='" + kw + "'",
-                            null, null, null, null, null
-                    );
+                            dbkytbl, columns_kw_rowid,
+                            "kw_key=?", new String[] { kw },
+                            null, null, null, null);
                     try {
                         if (result.moveToFirst ()) do {
                             long rowid = result.getLong (0);
                             String dbtable = (String) wpclass.getField ("dbtable").get (null);
                             String[] dbcols = (String[]) wpclass.getField ("dbcols").get (null);
-                            Cursor result2 = sqldb.query (dbtable, dbcols, "ROWID=" + rowid, null, null, null, null, null);
+                            Cursor result2 = sqldb.query (
+                                    dbtable, dbcols,
+                                    "ROWID=?", new String[] { Long.toString (rowid) },
+                                    null, null, null, null);
                             try {
                                 if (result2.moveToFirst ()) {
                                     Constructor<? extends Waypoint> ctor = wpclass.getConstructor (Cursor.class);
@@ -195,9 +201,6 @@ public abstract class Waypoint {
             } catch (Exception e) {
                 Log.e (TAG, "error reading " + dbname, e);
             }
-
-            time = System.nanoTime () - time;
-            Log.i (TAG, "waypoints read time " + (time / 1000000) + " ms");
         } else {
             Log.w (TAG, "no database file");
         }
@@ -306,8 +309,6 @@ public abstract class Waypoint {
                 int aptinfoexpdate = MaintView.GetWaypointExpDate ();
                 String dbname = "cycles56_" + aptinfoexpdate + ".db";
                 if (SQLiteDBs.Exists (dbname)) {
-                    long time = System.nanoTime ();
-
                     try {
                         SQLiteDatabase sqldb = SQLiteDBs.GetOrCreate (dbname);
 
@@ -318,10 +319,11 @@ public abstract class Waypoint {
 
                             Cursor result = sqldb.query (
                                     dbtable, dbcols,
-                                    "(" + prefix + "lat BETWEEN " + bbbLat + " AND " + tttLat + ") AND (" +
-                                            prefix + "lon BETWEEN " + lllLon + " AND " + rrrLon + ")",
-                                    null, null, null, null, null
-                            );
+                                    "(" + prefix + "lat BETWEEN ? AND ?) AND (" +
+                                            prefix + "lon BETWEEN ? AND ?)",
+                                    new String[] { Float.toString (bbbLat), Float.toString (tttLat),
+                                            Float.toString (lllLon), Float.toString (rrrLon) },
+                                    null, null, null, null);
                             Constructor<? extends Waypoint> ctor = wpclass.getConstructor (Cursor.class);
                             try {
                                 if (result.moveToFirst ()) do {
@@ -335,9 +337,6 @@ public abstract class Waypoint {
                     } catch (Exception e) {
                         Log.e (TAG, "error reading " + dbname, e);
                     }
-
-                    time = System.nanoTime () - time;
-                    Log.i ("WaypointView", "waypoints read time " + (time / 1000000) + " ms");
                 } else {
                     Log.w ("WaypointView", "no database file");
                 }
@@ -366,6 +365,23 @@ public abstract class Waypoint {
             name     = result.getString (3);
             lat      = result.getInt (4) / lldbfact;
             lon      = result.getInt (5) / lldbfact;
+        }
+
+        public static Airport GetByFaaID (String faaid)
+        {
+            int aptinfoexpdate = MaintView.GetWaypointExpDate ();
+            String db56name = "cycles56_" + aptinfoexpdate + ".db";
+            SQLiteDatabase sql56db = SQLiteDBs.GetOrCreate (db56name);
+            Cursor resultapt = sql56db.query (
+                    "airports", Waypoint.Airport.dbcols,
+                    "apt_faaid=?", new String[] { faaid },
+                    null, null, null, null);
+            try {
+                if (!resultapt.moveToFirst ()) return null;
+                return new Airport (resultapt);
+            } finally {
+                resultapt.close ();
+            }
         }
 
         @Override
@@ -398,10 +414,9 @@ public abstract class Waypoint {
                         SQLiteDatabase sqldb = SQLiteDBs.GetOrCreate (dbname);
                         if (Lib.SQLiteTableExists (sqldb, "plates")) {
                             Cursor result = sqldb.query (
-                                    "plates", new String[] { "pl_descrip", "pl_filename" },
-                                    "pl_faaid='" + this.faaident + "'",
-                                    null, null, null, null, null
-                            );
+                                    "plates", columns_pl_descrip_pl_filename,
+                                    "pl_faaid=?", new String[] { this.faaident },
+                                    null, null, null, null);
                             try {
                                 if (result.moveToFirst ()) {
                                     latestplates.clear ();
@@ -469,7 +484,6 @@ public abstract class Waypoint {
                 /*
                  * Read list of runways into airport waypoint list.
                  */
-                long time = System.nanoTime ();
                 runways = new HashMap<> ();
                 int aptinfoexpdate = MaintView.GetWaypointExpDate ();
 
@@ -477,10 +491,9 @@ public abstract class Waypoint {
                 try {
                     SQLiteDatabase sqldb = SQLiteDBs.GetOrCreate (dbname);
                     Cursor result = sqldb.query (
-                            "runways", new String[] { "rwy_faaid", "rwy_number", "rwy_truehdg", "rwy_tdze", "rwy_beglat", "rwy_beglon", "rwy_endlat", "rwy_endlon" },
-                            "rwy_faaid='" + this.faaident + "'",
-                            null, null, null, null, null
-                    );
+                            "runways", columns_runways1,
+                            "rwy_faaid=?", new String[] { this.faaident },
+                            null, null, null, null);
                     try {
                         if (result.moveToFirst ()) {
                             do {
@@ -494,8 +507,6 @@ public abstract class Waypoint {
                 } catch (Exception e) {
                     Log.e (TAG, "error reading " + dbname, e);
                 }
-                time = System.nanoTime () - time;
-                Log.i (TAG, "runways read time " + (time / 1000000) + " ms");
             }
             return runways;
         }
@@ -510,10 +521,9 @@ public abstract class Waypoint {
                 String dbname = "cycles56_" + aptinfoexpdate + ".db";
                 SQLiteDatabase sqldb = SQLiteDBs.GetOrCreate (dbname);
                 Cursor result = sqldb.query (
-                        "airports", new String[] { "apt_desc" },
-                        "apt_icaoid='" + this.ident + "'",
-                        null, null, null, null, null
-                );
+                        "airports", columns_apt_desc,
+                        "apt_icaoid=?", new String[] { this.ident },
+                        null, null, null, null);
                 try {
                     result.moveToFirst ();
                     details = result.getString (0);
@@ -529,9 +539,9 @@ public abstract class Waypoint {
          */
         private static class PlateButton extends Button implements View.OnClickListener {
             private Airport aw;  // eg, "KBVY"
-            private int ex;              // eg, 20150527
-            private String fn;           // eg, "gifperm/050/39l16.gif"
-            private String pd;           // eg, "IAP-LOC RWY 16", "APD-AIRPORT DIAGRAM", etc
+            private int ex;      // eg, 20150527
+            private String fn;   // eg, "gifperm/050/39l16.gif"
+            private String pd;   // eg, "IAP-LOC RWY 16", "APD-AIRPORT DIAGRAM", etc
             private WaypointView wpv;
 
             public PlateButton (WaypointView waypointView, String descrip, String filename, int expdate, Airport airport)
@@ -550,7 +560,18 @@ public abstract class Waypoint {
             @Override  // OnClickListener
             public void onClick (View button)
             {
-                new PlateView (wpv, WairToNow.dbdir + "/datums/aptplates_" + ex + "/" + fn, aw, pd, ex);
+                PlateView pv = new PlateView (wpv, WairToNow.dbdir + "/datums/aptplates_" + ex + "/" + fn, aw, pd, ex);
+
+                /*
+                 * Display this view, telling any previous view to release any screen locks.
+                 * Then save the previous screen orientation.
+                 * Finally, lock screen in portrait because:
+                 *   1) portrait-style diagrams fit as is, even if phone is physically rotated
+                 *   2) landscape diagrams also fit as is, the user can rotate phone sideways
+                 *      to read it easier without the phone then flipping the diagram as well
+                 */
+                wpv.wairToNow.SetCurrentTab (pv);
+                wpv.wairToNow.setRequestedOrientation (ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
             }
         }
     }
@@ -622,7 +643,7 @@ public abstract class Waypoint {
 
             trueHdg = Lib.LatLonTC (begLat, begLon, endLat, endLon);
             if (result.isNull (2)) {
-                truehdg = (int) Math.round (trueHdg);
+                truehdg = Math.round (trueHdg);
                 if (truehdg <= 0) truehdg += 360;
             } else {
                 truehdg = result.getInt (2);
@@ -667,6 +688,7 @@ public abstract class Waypoint {
                         try {
                             lengthFt = Integer.parseInt (detline.substring (0, j));
                         } catch (NumberFormatException nfe) {
+                            Lib.Ignored ();
                         }
                     }
                 }

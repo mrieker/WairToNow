@@ -21,7 +21,6 @@
 package com.outerworldapps.wairtonow;
 
 import android.content.ContentValues;
-import android.content.pm.ActivityInfo;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.graphics.Bitmap;
@@ -98,16 +97,33 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
     private int expdate;                // plate expiration date, eg, 20150917
     private PlateImage plateImage;      // displays the plate image bitmap
     private String plateid;             // which plate, eg, "IAP-LOC RWY 16"
+    private WairToNow wairToNow;
     private WaypointView waypointView;  // airport waypoint page we are psrt of
     private Waypoint.Airport airport;   // which airport, eg, "KBVY"
+
+    private final static String[] columns_apdgeorefs1 = new String[] { "gr_wfta", "gr_wftb", "gr_wftc", "gr_wftd", "gr_wfte", "gr_wftf" };
+    private final static String[] columns_georefs1 = new String[] { "rowid", "gr_icaoid", "gr_plate", "gr_waypt", "gr_bmpixx", "gr_bmpixy", "gr_zpixels" };
+    private final static String[] columns_georefs2 = new String[] { "gr_waypt", "gr_bmpixx", "gr_bmpixy", "gr_zpixels" };
+    private final static String[] columns_iapgeorefs1 = new String[] { "gr_waypt", "gr_bmpixx", "gr_bmpixy" };
 
     public PlateView (WaypointView wv, String fn, Waypoint.Airport aw, String pd, int ex)
     {
         super (wv.wairToNow);
+        waypointView = wv;
+        wairToNow = wv.wairToNow;
+        construct (fn, aw, pd, ex);
+    }
+    public PlateView (WairToNow wtn, String fn, Waypoint.Airport aw, String pd, int ex)
+    {
+        super (wtn);
+        wairToNow = wtn;
+        construct (fn, aw, pd, ex);
+    }
+    private void construct (String fn, Waypoint.Airport aw, String pd, int ex)
+    {
         airport = aw;  // airport, eg, "KBVY"
         plateid = pd;  // plate descrip, eg, "IAP-LOC RWY 16", "APD-AIRPORT DIAGRAM", "MIN-ALTERNATE MINIMUMS", etc
         expdate = ex;
-        waypointView = wv;
 
         setOrientation (VERTICAL);
 
@@ -123,17 +139,6 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
 
         plateImage.setLayoutParams (new LayoutParams (LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
         addView (plateImage);
-
-        /*
-         * Display this view, telling any previous view to release any screen locks.
-         * Then save the previous screen orientation.
-         * Finally, lock screen in portrait because:
-         *   1) portrait-style diagrams fit as is, even if phone is physically rotated
-         *   2) landscape diagrams also fit as is, the user can rotate phone sideways
-         *      to read it easier without the phone then flipping the diagram as well
-         */
-        waypointView.wairToNow.SetCurrentTab (this);
-        waypointView.wairToNow.setRequestedOrientation (ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
     }
 
     @Override  // WairToNow.CanBeMainView
@@ -148,7 +153,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
     @Override  // WairToNow.CanBeMainView
     public void CloseDisplay ()
     {
-        waypointView.wairToNow.getWindow ().clearFlags (WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        wairToNow.getWindow ().clearFlags (WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         plateImage.CloseBitmaps ();
     }
 
@@ -158,8 +163,8 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
     @Override  // WairToNow.CanBeMainView
     public void OpenDisplay ()
     {
-        if (waypointView.wairToNow.optionsView.powerLockOption.checkBox.isChecked ()) {
-            waypointView.wairToNow.getWindow ().addFlags (WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        if (wairToNow.optionsView.powerLockOption.checkBox.isChecked ()) {
+            wairToNow.getWindow ().addFlags (WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         }
     }
 
@@ -179,7 +184,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
     @Override
     public void ReClicked ()
     {
-        waypointView.wairToNow.SetCurrentTab (waypointView);
+        wairToNow.SetCurrentTab (waypointView);
     }
 
     /**
@@ -258,9 +263,9 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
 
         protected PlateImage ()
         {
-            super (waypointView.wairToNow);
+            super (wairToNow);
             advPanAndZoom = new ADVPanAndZoom ();
-            waypointView.wairToNow.getWindowManager ().getDefaultDisplay ().getMetrics (metrics);
+            wairToNow.getWindowManager ().getDefaultDisplay ().getMetrics (metrics);
         }
 
         public abstract void CloseBitmaps ();
@@ -284,7 +289,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
 
             public ADVPanAndZoom ()
             {
-                super (waypointView.wairToNow);
+                super (wairToNow);
             }
 
             public void MouseDown (float x, float y)
@@ -390,7 +395,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         /**
          * Set up initial mapping of bitmap->view such that whole bitmap is visible.
          */
-        protected void SetBitmapMapping2 (int bmWidth, int bmHeight)
+        protected void SetBitmapMapping2 (int bmWidth, int bmHeight, int canWidth, int canHeight)
         {
             // get smallest square centered on bitmap that contains whole bitmap
             // ie, there might be unfilled margins on the sides
@@ -405,10 +410,6 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                 bitmapRect.top    = 0;
                 bitmapRect.bottom = bmHeight;
             }
-
-            // get drawring area dimensions in pixels
-            int canWidth  = getWidth  ();
-            int canHeight = getHeight ();
 
             // get drawring area dimensions in inches
             float xdpi = metrics.xdpi;
@@ -497,7 +498,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             int bitmapY = LatLon2BitmapY (waypointView.centerLat, waypointView.centerLon);
             canPoint.x = (int) BitmapX2CanvasX (bitmapX);
             canPoint.y = (int) BitmapY2CanvasY (bitmapY);
-            waypointView.wairToNow.chartView.DrawLocationArrow (canvas, canPoint, 0.0F);
+            wairToNow.chartView.DrawLocationArrow (canvas, canPoint, 0.0F);
             return true;
         }
 
@@ -637,11 +638,10 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             String dbname = "cycles28_" + expdate + ".db";
             try {
                 SQLiteDatabase sqldb = SQLiteDBs.GetOrCreate (dbname);
-                Cursor result = sqldb.query ("apdgeorefs",
-                        new String[] { "gr_wfta", "gr_wftb", "gr_wftc", "gr_wftd", "gr_wfte", "gr_wftf" },
-                        "gr_icaoid='" + airport.ident + "'",
-                        null, null, null, null, null
-                );
+                Cursor result = sqldb.query (
+                        "apdgeorefs", columns_apdgeorefs1,
+                        "gr_icaoid=?", new String[] { airport.ident },
+                        null, null, null, null);
                 try {
                     if (result.moveToFirst ()) {
                         xfmwfta = result.getFloat (0);
@@ -711,7 +711,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                 }
             }
 
-            waypointView.wairToNow.drawGPSAvailable (canvas, this);
+            wairToNow.drawGPSAvailable (canvas, this);
         }
     }
 
@@ -838,7 +838,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             rwyPaint.setStrokeWidth (2);
             rwyPaint.setStyle (Paint.Style.FILL_AND_STROKE);
             rwyPaint.setTextAlign (Paint.Align.CENTER);
-            rwyPaint.setTextSize (waypointView.wairToNow.textSize);
+            rwyPaint.setTextSize (wairToNow.textSize);
             Rect bounds = new Rect ();
             rwyPaint.getTextBounds ("M", 0, 1, bounds);
             qtrTextHeight = bounds.height () / 4.0F;
@@ -897,7 +897,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
 
         public void CloseBitmaps ()
         {
-            waypointView.wairToNow.openStreetMap.CloseBitmaps ();
+            wairToNow.openStreetMap.CloseBitmaps ();
         }
 
         protected void GotMouseDown (float x, float y) { }
@@ -910,37 +910,12 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         public void onDraw (Canvas canvas)
         {
             /*
-             * If first time calling onDraw(), set up initial bitmap=>canvas mapping.
-             * User can then pan/zoom after this.
-             */
-            if (firstDraw) {
-                SetBitmapMapping2 (synthWidth, synthHeight);
-                firstDraw = false;
-            }
-
-            /*
              * Draw Open Street Map as background.
              */
-            int width   = getWidth ();
-            int height  = getHeight ();
-
-            int leftbmx = CanvasX2BitmapX (0);
-            int ritebmx = CanvasX2BitmapX (width);
-            int topbmy  = CanvasY2BitmapY (0);
-            int botbmy  = CanvasY2BitmapY (height);
-
-            float tllat = BitmapXY2Lat (leftbmx, topbmy);
-            float tllon = BitmapXY2Lon (leftbmx, topbmy);
-            float trlat = BitmapXY2Lat (ritebmx, topbmy);
-            float trlon = BitmapXY2Lon (ritebmx, topbmy);
-            float bllat = BitmapXY2Lat (leftbmx, botbmy);
-            float bllon = BitmapXY2Lon (leftbmx, botbmy);
-            float brlat = BitmapXY2Lat (ritebmx, botbmy);
-            float brlon = BitmapXY2Lon (ritebmx, botbmy);
-
-            pmap.setup (width, height, tllat, tllon, trlat, trlon, bllat, bllon, brlat, brlon);
-
-            waypointView.wairToNow.openStreetMap.Draw (canvas, pmap, this, 0.0F);
+            int width  = getWidth ();
+            int height = getHeight ();
+            CalcOSMBackground (width, height);
+            wairToNow.openStreetMap.Draw (canvas, pmap, this, 0.0F);
 
             /*
              * Show debugging lines through airport reference point.
@@ -959,7 +934,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             /*
             rwyPaint.setColor (Color.CYAN);
             float aptlatcos = Mathf.cos (Mathf.toRadians (airport.lat));
-            float smFactor  = waypointView.wairToNow.optionsView.ktsMphOption.getAlt () ? Lib.SMPerNM : 1.0;
+            float smFactor  = wairToNow.optionsView.ktsMphOption.getAlt () ? Lib.SMPerNM : 1.0;
             float canx0     = BitmapX2CanvasX (0);
             float cany0     = BitmapY2CanvasY (synthHeight);
             float canx0lim  = canx0 + metrics.xdpi / 4;
@@ -1052,8 +1027,54 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
              */
             DrawLocationArrow (canvas);
 
-            waypointView.wairToNow.drawGPSAvailable (canvas, this);
+            wairToNow.drawGPSAvailable (canvas, this);
         }
+
+        /**
+         * Calculate OpenStreetMap tile mapping to the canvas.
+         * @param canWidth  = width of the canvas being drawn on
+         * @param canHeight = height of the canvas being drawn on
+         * returns with pmap filled in with pixel mapping
+         */
+        public void CalcOSMBackground (int canWidth, int canHeight)
+        {
+            /*
+             * If first time calling onDraw(), set up initial bitmap=>canvas mapping.
+             * User can then pan/zoom after this.
+             */
+            if (firstDraw) {
+                SetBitmapMapping2 (synthWidth, synthHeight, canWidth, canHeight);
+                firstDraw = false;
+            }
+
+            int leftbmx = CanvasX2BitmapX (0);
+            int ritebmx = CanvasX2BitmapX (canWidth);
+            int topbmy  = CanvasY2BitmapY (0);
+            int botbmy  = CanvasY2BitmapY (canHeight);
+
+            float tllat = BitmapXY2Lat (leftbmx, topbmy);
+            float tllon = BitmapXY2Lon (leftbmx, topbmy);
+            float trlat = BitmapXY2Lat (ritebmx, topbmy);
+            float trlon = BitmapXY2Lon (ritebmx, topbmy);
+            float bllat = BitmapXY2Lat (leftbmx, botbmy);
+            float bllon = BitmapXY2Lon (leftbmx, botbmy);
+            float brlat = BitmapXY2Lat (ritebmx, botbmy);
+            float brlon = BitmapXY2Lon (ritebmx, botbmy);
+
+            pmap.setup (canWidth, canHeight, tllat, tllon, trlat, trlon, bllat, bllon, brlat, brlon);
+        }
+    }
+
+    /**
+     * Get default (not zoomed or panned) runway diagram mapping of OpenStreetMap tiles.
+     */
+    public static PixelMapper GetRWYPlateImageDefaultOSMMapping (Waypoint.Airport apt, WairToNow wairToNow)
+    {
+        PlateView pv = new PlateView (wairToNow, null, apt, "RWY-RUNWAY", 99999999);
+        int width  = wairToNow.displayWidth;
+        int height = wairToNow.displayHeight;
+        ((RWYPlateImage) pv.plateImage).CalcOSMBackground (width, height);
+        return ((RWYPlateImage) pv.plateImage).pmap;
     }
 
     /**
@@ -1091,10 +1112,10 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             geoRefPaint.setStrokeWidth (5);
             geoRefPaint.setStyle (Paint.Style.FILL_AND_STROKE);
             geoRefPaint.setTextAlign (Paint.Align.CENTER);
-            geoRefPaint.setTextSize (waypointView.wairToNow.textSize);
+            geoRefPaint.setTextSize (wairToNow.textSize);
 
-            plateDME   = new PlateDME (waypointView.wairToNow, this, airport.ident, plateid);
-            plateTimer = new PlateTimer (waypointView.wairToNow, this);
+            plateDME   = new PlateDME (wairToNow, this, airport.ident, plateid);
+            plateTimer = new PlateTimer (wairToNow, this);
 
             /*
              * Get any georeference points in database.
@@ -1104,7 +1125,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             /*
              * For instrument approach plates, allow manual entry of waypoints for georeferencing.
              */
-            HorizontalScrollView hsv = new HorizontalScrollView (waypointView.wairToNow);
+            HorizontalScrollView hsv = new HorizontalScrollView (wairToNow);
             hsv.setLayoutParams (new LayoutParams (LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
             iapGeoRefInput = new GeoRefInput ();
             iapGeoRefInput.setVisibility (GONE);
@@ -1130,12 +1151,11 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             do {
                 try {
                     SQLiteDatabase sqldb = manual ? OpenGeoRefDB () : SQLiteDBs.GetOrCreate (machinedbname);
-                    Cursor result = sqldb.query (manual ? "georefs" : "iapgeorefs",
-                            manual ? new String[] { "gr_waypt", "gr_bmpixx", "gr_bmpixy", "gr_zpixels" } :
-                                     new String[] { "gr_waypt", "gr_bmpixx", "gr_bmpixy" },
-                            "gr_icaoid='" + airport.ident + "' AND gr_plate='" + plateid + "'",
-                            null, null, null, null, null
-                    );
+                    Cursor result = sqldb.query (
+                            manual ? "georefs" : "iapgeorefs",
+                            manual ? columns_georefs2 : columns_iapgeorefs1,
+                            "gr_icaoid=? AND gr_plate=?", new String[] { airport.ident, plateid },
+                            null, null, null, null);
                     try {
                         if (result.moveToFirst ()) {
                             do {
@@ -1454,7 +1474,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                 canvas.drawLine (0, crosshairCanvasY, getWidth (), crosshairCanvasY, geoRefPaint);
             }
 
-            waypointView.wairToNow.drawGPSAvailable (canvas, this);
+            wairToNow.drawGPSAvailable (canvas, this);
         }
 
         /**
@@ -1521,7 +1541,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
          */
         private void DrawEditButton (Canvas canvas)
         {
-            float ts = waypointView.wairToNow.textSize;
+            float ts = wairToNow.textSize;
             float xc = getWidth () / 2;
             float xl = xc - ts * 2;
             float xr = xc + ts * 2;
@@ -1554,7 +1574,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         private class GeoRefInput extends LinearLayout {
             public GeoRefInput ()
             {
-                super (waypointView.wairToNow);
+                super (wairToNow);
                 setOrientation (HORIZONTAL);
                 addView (new GeoRefArrow (new int[] { 4, 2, 2, 6, 6, 6, 4, 2 }, 0, -1));  // up
                 addView (new GeoRefArrow (new int[] { 4, 6, 2, 2, 6, 2, 4, 6 }, 0,  1));  // down
@@ -1564,8 +1584,8 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                 addView (geoRefIdent);
                 addView (new GeoRefSave ());
                 addView (new GeoRefDelete ());
-                geoRefInteg = new TextView (waypointView.wairToNow);
-                waypointView.wairToNow.SetTextSize (geoRefInteg);
+                geoRefInteg = new TextView (wairToNow);
+                wairToNow.SetTextSize (geoRefInteg);
                 addView (geoRefInteg);
             }
         }
@@ -1578,7 +1598,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
 
             public GeoRefArrow (int[] logo, int dx, int dy)
             {
-                super (waypointView.wairToNow);
+                super (wairToNow);
                 raw    = logo;
                 deltax = dx;
                 deltay = dy;
@@ -1586,7 +1606,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                 setOnLongClickListener (this);
                 setText (" ");
                 setTypeface (Typeface.MONOSPACE);
-                waypointView.wairToNow.SetTextSize (this);
+                wairToNow.SetTextSize (this);
             }
 
             @Override  // TextView
@@ -1683,21 +1703,21 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         private class GeoRefIdent extends EditText {
             public GeoRefIdent ()
             {
-                super (waypointView.wairToNow);
+                super (wairToNow);
                 setEms (5);
                 setInputType (InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
                 setSingleLine ();
-                waypointView.wairToNow.SetTextSize (this);
+                wairToNow.SetTextSize (this);
             }
         }
 
         private class GeoRefSave extends Button implements OnClickListener {
             public GeoRefSave ()
             {
-                super (waypointView.wairToNow);
+                super (wairToNow);
                 setOnClickListener (this);
                 setText ("SAVE");
-                waypointView.wairToNow.SetTextSize (this);
+                wairToNow.SetTextSize (this);
             }
 
             @Override
@@ -1714,10 +1734,10 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         private class GeoRefDelete extends Button implements OnClickListener {
             public GeoRefDelete ()
             {
-                super (waypointView.wairToNow);
+                super (wairToNow);
                 setOnClickListener (this);
                 setText ("DELETE");
-                waypointView.wairToNow.SetTextSize (this);
+                wairToNow.SetTextSize (this);
             }
 
             @Override
@@ -1842,7 +1862,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                                 }
                                 bm = BitmapFactory.decodeFile (fn);
                             } catch (Throwable e2) {
-                                Log.w ("WaypointView.PlateImage", "onDraw: bitmap load error", e2);
+                                Log.w (TAG, "NGRPlateImage.onDraw: bitmap load error", e2);
                                 continue;
                             }
                         }
@@ -1971,10 +1991,9 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
              * Find all records not saved to webserver.
              */
             Cursor result1 = sqldb.query (
-                    "georefs", new String[] { "rowid", "gr_icaoid", "gr_plate", "gr_waypt", "gr_bmpixx", "gr_bmpixy", "gr_zpixels" },
-                    "gr_saved=0",
-                    null, null, null, null, null
-            );
+                    "georefs", columns_georefs1,
+                    "gr_saved=0", null,
+                    null, null, null, null);
 
             /*
              * Keep track of which ones we are able to save.

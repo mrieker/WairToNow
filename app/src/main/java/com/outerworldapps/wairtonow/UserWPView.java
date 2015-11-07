@@ -259,7 +259,7 @@ public class UserWPView extends LinearLayout
             } finally {
                 csvWriter.close ();
             }
-            MaintView.RenameFile (csvName + ".tmp", csvName);
+            Lib.RenameFile (csvName + ".tmp", csvName);
         } catch (IOException ioe) {
             Log.e ("UserWPView", "error writing " + csvName, ioe);
             AlertDialog.Builder builder = new AlertDialog.Builder (wairToNow);

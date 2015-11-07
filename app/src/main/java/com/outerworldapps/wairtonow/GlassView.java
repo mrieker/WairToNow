@@ -339,7 +339,7 @@ public class GlassView
 
         float spdflt = currPos.speed * KtPerMPS;
         if (wairToNow.optionsView.ktsMphOption.getAlt ()) spdflt *= SMPerNM;
-        int spdint = (int) Math.round (spdflt);
+        int spdint = Math.round (spdflt);
         DrawNumericStrip (canvas, aspCentX, aspCentY, aspHeight, aspWidth, spdint, 10, 8, 0, -1, -1);
 
         int feet = (int) Math.round (altitude * 3.28084);

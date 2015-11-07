@@ -36,6 +36,7 @@ import java.util.AbstractMap;
 import java.util.Calendar;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Locale;
 import java.util.Map;
@@ -102,6 +103,9 @@ public class MaintView
     private WairToNow wairToNow;
     private ProgressDialog downloadProgress;
     private ScrollView itemsScrollView;
+    private StateMapView stateMapView;
+    private TextView runwayDiagramDownloadStatus;
+    private Thread guiThread;
     private UnloadButton unloadButton;
     private UnloadThread unloadThread;
     private volatile boolean downloadCancelled;
@@ -115,12 +119,21 @@ public class MaintView
     private static final int MaintViewHandlerWhat_REMUNLDCHART = 6;
     private static final int MaintViewHandlerWhat_UNLDDONE     = 7;
     private static final int MaintViewHandlerWhat_DLERROR      = 8;
+    private static final int MaintViewHandlerWhat_UPDRWDGMDLST = 9;
+
+    private final static String[] columns_count_rp_faaid = new String[] { "COUNT(rp_faaid)" };
+    private final static String[] columns_pl_state       = new String[] { "pl_state" };
+    private final static String[] columns_name           = new String[] { "name" };
+    private final static String[] columns_gr_bmpixx      = new String[] { "gr_bmpixx" };
+    private final static String[] columns_pl_faaid       = new String[] { "pl_faaid" };
 
     public MaintView (WairToNow ctx)
             throws IOException
     {
         super (ctx);
         wairToNow = ctx;
+
+        guiThread = Thread.currentThread ();
 
         Lib.Ignored (new File (WairToNow.dbdir + "/charts").mkdirs ());
         Lib.Ignored (new File (WairToNow.dbdir + "/datums").mkdirs ());
@@ -167,7 +180,13 @@ public class MaintView
 
         miscCategory.addView (new WaypointsCheckBox ());
 
-        plateCategory.addView (new StateMapView ());
+        runwayDiagramDownloadStatus = new TextView (ctx);
+        wairToNow.SetTextSize (runwayDiagramDownloadStatus);
+
+        stateMapView = new StateMapView ();
+
+        plateCategory.addView (runwayDiagramDownloadStatus);
+        plateCategory.addView (stateMapView);
 
         enrCategory.addView (new ChartDiagView (R.drawable.low_index_us));
         secCategory.addView (new ChartDiagView (R.drawable.faa_sec_diag));
@@ -264,7 +283,7 @@ public class MaintView
                 } catch (FileNotFoundException fnfe) {
                     Lib.Ignored ();
                 } catch (IOException ioe) {
-                    Log.e ("MaintView", "error reading " + csvfile.getAbsolutePath (), ioe);
+                    Log.e (TAG, "error reading " + csvfile.getAbsolutePath (), ioe);
                 }
             }
         }
@@ -299,6 +318,12 @@ public class MaintView
         // force portrait, ie, disallow automatic flipping so it won't restart the app
         // in the middle of downloading some chart just because the screen got tilted.
         wairToNow.setRequestedOrientation (ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+
+        // maybe list/map mode changed for plate display so rebuild buttons
+        stateMapView.Rebuild ();
+
+        // make sure runway diagram download status is up to date
+        UpdateRunwayDiagramDownloadStatus ();
     }
 
     /**
@@ -363,13 +388,14 @@ public class MaintView
                 try {
                     hnc.dcb.DownloadComplete (hnc.csvName);
                 } catch (IOException e) {
-                    Log.e ("MaintView", "can't open downloaded charts", e);
+                    Log.e (TAG, "can't open downloaded charts", e);
                 }
                 break;
             }
             case MaintViewHandlerWhat_REMUNLDCHART: {
-                RemUnldChart ruc = (RemUnldChart)msg.obj;
-                ruc.dcb.RemovedDownloadedChart (ruc.csvName);
+                Downloadable dcb = (Downloadable) msg.obj;
+                dcb.RemovedDownloadedChart ();
+                UpdateDCBsLinkText (dcb);
                 break;
             }
             case MaintViewHandlerWhat_UNLDDONE: {
@@ -394,6 +420,10 @@ public class MaintView
                 dialog.show();
                 break;
             }
+            case MaintViewHandlerWhat_UPDRWDGMDLST: {
+                UpdateRunwayDiagramDownloadStatus ();
+                break;
+            }
         }
         return true;
     }
@@ -406,6 +436,54 @@ public class MaintView
     public void onCancel (DialogInterface dialog)
     {
         downloadCancelled = true;
+    }
+
+    /**
+     * The 'Plate' category page shows how many runway background tiles we have yet to download.
+     */
+    public void UpdateRunwayDiagramDownloadStatus ()
+    {
+        /*
+         * Via handler if not the GUI thread cuz we are going to update a GUI element.
+         */
+        if (Thread.currentThread () != guiThread) {
+            maintViewHandler.sendEmptyMessage (MaintViewHandlerWhat_UPDRWDGMDLST);
+            return;
+        }
+
+        /*
+         * Count the records in the rwyprealoads table, as it is updated as tiles are downloaded.
+         */
+        int expdate = MaintView.GetPlatesExpDate ();
+        String dbname = "cycles28_" + expdate + ".db";
+        if (SQLiteDBs.Exists (dbname)) {
+            SQLiteDatabase sqldb = SQLiteDBs.GetOrCreate ("cycles28_" + expdate + ".db");
+            if (Lib.SQLiteTableExists (sqldb, "rwypreloads")) {
+                Cursor cursor = sqldb.query (
+                        "rwypreloads", columns_count_rp_faaid,
+                        null, null, null, null, null, null);
+                try {
+                    int n = 0;
+                    if (cursor.moveToFirst ()) {
+                        n = cursor.getInt (0);
+                    }
+
+                    /*
+                     * Update text box with number of records.
+                     */
+                    if (n == 0) {
+                        runwayDiagramDownloadStatus.setText ("");
+                        runwayDiagramDownloadStatus.setVisibility (GONE);
+                    } else {
+                        String s = (n == 1) ? "" : "s";
+                        runwayDiagramDownloadStatus.setText ("  " + n + " remaining runway diagram background" + s + " to download");
+                        runwayDiagramDownloadStatus.setVisibility (VISIBLE);
+                    }
+                } finally {
+                    cursor.close ();
+                }
+            }
+        }
     }
 
     /**
@@ -442,9 +520,8 @@ public class MaintView
     }
 
     /**
-     * Update the displayed link text based on what charts we actually
-     * have completely and successfully downloaded pertaining to this
-     * PossibleChart.
+     * Update the displayed link text and color based on what charts we actually
+     * have completely and successfully downloaded pertaining to this PossibleChart.
      */
     private void UpdateDCBsLinkText (Downloadable dcb)
     {
@@ -507,7 +584,7 @@ public class MaintView
         int GetEndDate ();
         boolean HasSomeUnloadableCharts ();
         void DownloadComplete (String csvName) throws IOException;
-        void RemovedDownloadedChart (String csvName);
+        void RemovedDownloadedChart ();
         void UpdateSingleLinkText (int c, String t);
     }
 
@@ -515,10 +592,10 @@ public class MaintView
      * These download checkboxes are a checkbox followed by a text string.
      */
     private abstract class DownloadCheckBox extends LinearLayout implements Downloadable {
-        protected CheckBox checkBox;
-        protected int      enddate;
-        protected String   spacename;
-        protected TextView linkText;
+        protected CheckBox checkBox;    // checkbox to enable {down,un}loading
+        protected int      enddate;     // expiration date yyyymmdd or 0 if not downloaded
+        protected String   spacename;   // name of chart with spaces (not underscores)
+        protected TextView linkText;    // displays chart name and expiration date strings
 
         public DownloadCheckBox ()
         {
@@ -544,7 +621,16 @@ public class MaintView
 
         public abstract boolean HasSomeUnloadableCharts ();
         public abstract void DownloadComplete (String csvName) throws IOException;
-        public abstract void RemovedDownloadedChart (String csvName);
+
+        /**
+         * The named chart has been removed from list of downloaded charts.
+         */
+        @Override  // DownloadCheckBox
+        public void RemovedDownloadedChart ()
+        {
+            // nothing downloaded any more
+            enddate = 0;
+        }
 
         public void UpdateSingleLinkText (int c, String t)
         {
@@ -591,14 +677,6 @@ public class MaintView
             UpdateDCBsLinkText (this);
             wairToNow.waypointView1.waypointsWithin.clear ();
             wairToNow.waypointView2.waypointsWithin.clear ();
-        }
-
-        /**
-         * Waypoint files have been deleted.
-         */
-        public void RemovedDownloadedChart (String csvNname)
-        {
-            enddate = 0;
         }
     }
 
@@ -823,7 +901,7 @@ public class MaintView
             while (lamb_l - lamb_l0 < -Mathf.PI) lamb_l += 2 * Mathf.PI;
             while (lamb_l - lamb_l0 >= Mathf.PI) lamb_l -= 2 * Mathf.PI;
             float lamb_p   = (float) (radius * lamb_F / Math.pow (Math.tan (Math.PI/4 + lamb_o/2), lamb_n));
-            float lamb_t   = (float) (lamb_n * (lamb_l - lamb_l0));
+            float lamb_t   = lamb_n * (lamb_l - lamb_l0);
             float easting  = lamb_p * Mathf.sin (lamb_t);
             float northing = lamb_p0 - lamb_p * Mathf.cos (lamb_t);
 
@@ -901,7 +979,7 @@ public class MaintView
             if (lamb_F < 0) lamb_p = -lamb_p;
             float lamb_t = (float) (Math.asin (easting / lamb_p));
             float lamb_o = (float) (2 * Math.atan (Math.pow (radius * lamb_F / lamb_p, 1.0 / lamb_n)) - Math.PI / 2);
-            float lamb_l = (float) (lamb_t / lamb_n + lamb_l0);
+            float lamb_l = lamb_t / lamb_n + lamb_l0;
 
             ll.lat = lamb_o / Mathf.PI * 180.0F;
             ll.lon = lamb_l / Mathf.PI * 180.0F;
@@ -1055,20 +1133,6 @@ public class MaintView
         }
 
         /**
-         * Remove the named chart from list of downloaded charts.
-         * @param csvName = name of .csv file, eg, "charts/Boston_TAC_81.csv"
-         */
-        @Override  // DownloadCheckBox
-        public void RemovedDownloadedChart (String csvName)
-        {
-            // nothing downloaded any more
-            enddate = 0;
-
-            // update the link showing nothing downloaded
-            UpdateDCBsLinkText (this);
-        }
-
-        /**
          * Start downloading this single chart.
          */
         public void DownloadSingle ()
@@ -1100,11 +1164,12 @@ public class MaintView
      * Displays a US-map-shaped array of checkboxes for each state for downloading plates for those states.
      */
     private class StateMapView extends HorizontalScrollView {
+        private TreeMap<String,StateCheckBox> stateCheckBoxes = new TreeMap<> ();
+        private ViewGroup scbParent;
+
         public StateMapView () throws IOException
         {
             super (wairToNow);
-
-            AbsoluteLayout al = new AbsoluteLayout (wairToNow);
 
             AssetManager am = wairToNow.getAssets ();
             BufferedReader rdr = new BufferedReader (new InputStreamReader (am.open ("statelocation.dat")), 1024);
@@ -1116,22 +1181,55 @@ public class MaintView
                         Integer.parseInt (parts[1]),
                         Integer.parseInt (parts[2])
                 );
-
-                AbsoluteLayout.LayoutParams lp = new AbsoluteLayout.LayoutParams (
-                        ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
-                        sb.xx * 4, sb.yy * 4
-                );
-                al.addView (sb, lp);
+                stateCheckBoxes.put (parts[0], sb);
             }
             rdr.close ();
 
-            ViewGroup.LayoutParams vglp = new ViewGroup.LayoutParams (ViewGroup.LayoutParams.FILL_PARENT, ViewGroup.LayoutParams.FILL_PARENT);
-            RotateLayout.LayoutParams rllp = new RotateLayout.LayoutParams (vglp);
-            rllp.angle = -90;  // clockwise
-            RotateLayout rl = new RotateLayout (wairToNow);
-            rl.addView (al, rllp);
+            Rebuild ();
+        }
 
-            this.addView (rl);
+        /**
+         * The option to use list-shaped or map-shaped display may have changed,
+         * so rebuild the list.
+         */
+        public void Rebuild ()
+        {
+            this.removeAllViews ();
+            if (scbParent != null) scbParent.removeAllViews ();
+
+            if (wairToNow.optionsView.listMapOption.getAlt ()) {
+                AbsoluteLayout al = new AbsoluteLayout (wairToNow);
+
+                for (StateCheckBox sb : stateCheckBoxes.values ()) {
+                    sb.Rebuild ();
+                    AbsoluteLayout.LayoutParams lp = new AbsoluteLayout.LayoutParams (
+                            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                            sb.xx * 4, sb.yy * 4
+                    );
+                    al.addView (sb, lp);
+                }
+
+                ViewGroup.LayoutParams vglp = new ViewGroup.LayoutParams (ViewGroup.LayoutParams.FILL_PARENT, ViewGroup.LayoutParams.FILL_PARENT);
+                RotateLayout.LayoutParams rllp = new RotateLayout.LayoutParams (vglp);
+                rllp.angle = -90;  // clockwise
+                RotateLayout rl = new RotateLayout (wairToNow);
+                rl.addView (al, rllp);
+
+                this.addView (rl);
+
+                scbParent = al;
+            } else {
+                LinearLayout ll = new LinearLayout (wairToNow);
+                ll.setOrientation (LinearLayout.VERTICAL);
+                for (StateCheckBox sb : stateCheckBoxes.values ()) {
+                    sb.Rebuild ();
+                    ll.addView (sb);
+                }
+
+                this.addView (ll);
+
+                scbParent = ll;
+            }
         }
     }
 
@@ -1144,9 +1242,11 @@ public class MaintView
         public int yy;
         public String ss;  // two-letter state code (capital letters)
 
+        private boolean mapStyle;
         private CheckBox cb;
         private int enddate;
         private TextView lb;
+        private ViewGroup cblbParent;
 
         public StateCheckBox (String s, int x, int y)
         {
@@ -1156,26 +1256,51 @@ public class MaintView
             yy = y;
             ss = s;
 
-            LayoutParams lp1 = new LayoutParams (
-                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
-                    Gravity.TOP | Gravity.LEFT
-            );
-            cb = new CheckBox (wairToNow);
-            cb.setOnCheckedChangeListener (MaintView.this);
-            addView (cb, lp1);
-
-            LayoutParams lp2 = new LayoutParams (
-                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
-                    Gravity.TOP | Gravity.LEFT
-            );
-            lb = new TextView (wairToNow);
-            lb.setText (ss);
-            wairToNow.SetTextSize (lb);
-            addView (lb, lp2);
+            allDownloadables.addLast (this);
 
             enddate = GetPlatesExpDate (ss);
 
-            allDownloadables.addLast (this);
+            cb = new CheckBox (wairToNow);
+            cb.setOnCheckedChangeListener (MaintView.this);
+
+            lb = new TextView (wairToNow);
+            wairToNow.SetTextSize (lb);
+        }
+
+        public void Rebuild ()
+        {
+            this.removeAllViews ();
+            if (cblbParent != null) cblbParent.removeAllViews ();
+
+            mapStyle = wairToNow.optionsView.listMapOption.getAlt ();
+            if (mapStyle) {
+                LayoutParams lp1 = new LayoutParams (
+                        ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                        Gravity.TOP | Gravity.LEFT
+                );
+                addView (cb, lp1);
+
+                LayoutParams lp2 = new LayoutParams (
+                        ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                        Gravity.TOP | Gravity.LEFT
+                );
+                addView (lb, lp2);
+
+                cblbParent = this;
+            } else {
+                LinearLayout ll = new LinearLayout (wairToNow);
+                ll.setOrientation (LinearLayout.HORIZONTAL);
+
+                ll.addView (cb);
+                ll.addView (lb);
+
+                addView (ll);
+
+                cblbParent = ll;
+            }
+
+            // maybe change text from just state to state and status or wisa wersa
+            UpdateDCBsLinkText (this);
         }
 
         // Downloadable implementation
@@ -1190,18 +1315,34 @@ public class MaintView
         public int GetEndDate () { return enddate; }
         public boolean HasSomeUnloadableCharts ()
         {
-            return false;
-        }  //TODO
+            return enddate != 0;
+        }
         public void DownloadComplete (String csvName) throws IOException { }
-        public void RemovedDownloadedChart (String csvName) { }  //TODO
+
+        /**
+         * The named chart has been removed from list of downloaded charts.
+         */
+        @Override  // DownloadCheckBox
+        public void RemovedDownloadedChart ()
+        {
+            // nothing downloaded any more
+            enddate = 0;
+        }
+
         public void UpdateSingleLinkText (int c, String t)
         {
             lb.setTextColor (c);
+            if (mapStyle) {
+                lb.setText (ss);
+            } else {
+                lb.setText ("State " + ss + ": " + t);
+            }
         }
     }
 
     /**
      * Get expiration date of the airport plates for the airports of a given state (28-day cycle).
+     * @return 0 if state not downloaded, else expiration date yyyymmdd
      */
     public static int GetPlatesExpDate (String ss)
     {
@@ -1214,10 +1355,9 @@ public class MaintView
                     SQLiteDatabase sqldb = SQLiteDBs.GetOrCreate (dbname);
                     if (Lib.SQLiteTableExists (sqldb, "plates")) {
                         Cursor result = sqldb.query (
-                                "plates", new String [] { "pl_state" },
-                                "pl_state='" + ss + "'",
-                                null, null, null, null, "1"
-                        );
+                                "plates", columns_pl_state,
+                                "pl_state=?", new String[] { ss },
+                                null, null, null, "1");
                         try {
                             if (result.moveToFirst ()) {
                                 lastexpdate = expdate;
@@ -1227,6 +1367,24 @@ public class MaintView
                         }
                     }
                 }
+            }
+        }
+        return lastexpdate;
+    }
+
+    /**
+     * This gets the expiration date of the latest 28-day cycle file.
+     * It only has to contain one state's data.
+     * @return expiration date (or 0 if no file present)
+     */
+    public static int GetPlatesExpDate ()
+    {
+        int lastexpdate = 0;
+        String[] dbnames = SQLiteDBs.Enumerate ();
+        for (String dbname : dbnames) {
+            if (dbname.startsWith ("cycles28_") && dbname.endsWith (".db")) {
+                int expdate = Integer.parseInt (dbname.substring (9, dbname.length () - 3));
+                if (lastexpdate < expdate) lastexpdate = expdate;
             }
         }
         return lastexpdate;
@@ -1249,7 +1407,7 @@ public class MaintView
         /**
          * Set enabled state of button based on whether or not anything
          * has been selected for download.  It is also disabled if we
-         * are already in the middle of a download.
+         * are already in the middle of a {down,un}load.
          */
         public void UpdateEnabled ()
         {
@@ -1298,7 +1456,7 @@ public class MaintView
         /**
          * Set enabled state of button based on whether or not anything
          * has been selected for download.  It is also disabled if we
-         * are already in the middle of a download.
+         * are already in the middle of a {down,up}load.
          */
         public void UpdateEnabled ()
         {
@@ -1365,6 +1523,8 @@ public class MaintView
          */
         public void run ()
         {
+            setName ("MaintView downloader");
+
             Message dlmsg;
 
             try {
@@ -1407,7 +1567,7 @@ public class MaintView
                     filelistReader = new BufferedReader (new FileReader (templistname), 4096);
                     String filelistLine;
                     nlines = 0;
-                    HashMap<String,String> newfilelist  = new HashMap<> ();
+                    HashSet<String> newfilelist         = new HashSet<> ();
                     HashMap<String,String> sameoldfiles = new HashMap<> ();
                     TreeMap<String,String> bulkdownload = new TreeMap<> ();
                     while ((filelistLine = filelistReader.readLine ()) != null) {
@@ -1428,36 +1588,43 @@ public class MaintView
                             oldFileName = filelistLine.substring (++ i);
                         }
 
+                        newfilelist.add (newFileName);
+
                         /*
                          * Use special downloaders for files that go into sqlite databases.
                          */
                         if (newFileName.startsWith ("datums/airports_") && newFileName.endsWith (".csv")) {
                             int expdate = Integer.parseInt (newFileName.substring (16, newFileName.length () - 4));
                             DownloadAirports (newFileName, expdate);
+                            MaybeDeleteOldCycles56 ();
                             UpdateDownloadProgress ();
                             continue;
                         }
                         if (newFileName.startsWith ("datums/fixes_") && newFileName.endsWith (".csv")) {
                             int expdate = Integer.parseInt (newFileName.substring (13, newFileName.length () - 4));
                             DownloadFixes (newFileName, expdate);
+                            MaybeDeleteOldCycles56 ();
                             UpdateDownloadProgress ();
                             continue;
                         }
                         if (newFileName.startsWith ("datums/localizers_") && newFileName.endsWith (".csv")) {
                             int expdate = Integer.parseInt (newFileName.substring (18, newFileName.length () - 4));
                             DownloadLocalizers (newFileName, expdate);
+                            MaybeDeleteOldCycles56 ();
                             UpdateDownloadProgress ();
                             continue;
                         }
                         if (newFileName.startsWith ("datums/navaids_") && newFileName.endsWith (".csv")) {
                             int expdate = Integer.parseInt (newFileName.substring (15, newFileName.length () - 4));
                             DownloadNavaids (newFileName, expdate);
+                            MaybeDeleteOldCycles56 ();
                             UpdateDownloadProgress ();
                             continue;
                         }
                         if (newFileName.startsWith ("datums/runways_") && newFileName.endsWith (".csv")) {
                             int expdate = Integer.parseInt (newFileName.substring (15, newFileName.length () - 4));
                             DownloadRunways (newFileName, expdate);
+                            MaybeDeleteOldCycles56 ();
                             UpdateDownloadProgress ();
                             continue;
                         }
@@ -1466,6 +1633,7 @@ public class MaintView
                             int expdate = Integer.parseInt (newFileName.substring (18, i));
                             String statecode = newFileName.substring (i + 1, newFileName.length () - 4);
                             DownloadMachineAPDGeoRefs (newFileName, expdate, statecode);
+                            MaybeDeleteOldCycles28 ();
                             UpdateDownloadProgress ();
                             continue;
                         }
@@ -1474,6 +1642,7 @@ public class MaintView
                             int expdate = Integer.parseInt (newFileName.substring (18, i));
                             String statecode = newFileName.substring (i + 1, newFileName.length () - 4);
                             DownloadMachineIAPGeoRefs (newFileName, expdate, statecode);
+                            MaybeDeleteOldCycles28 ();
                             UpdateDownloadProgress ();
                             continue;
                         }
@@ -1482,12 +1651,16 @@ public class MaintView
                             int expdate = Integer.parseInt (newFileName.substring (17, i));
                             String statecode = newFileName.substring (i + 7, newFileName.length () - 4);
                             DownloadPlates (newFileName, expdate, statecode);
+                            MaybeDeleteOldCycles28 ();
                             UpdateDownloadProgress ();
+                            wairToNow.openStreetMap.StartPrefetchingRunwayTiles ();
+                            UpdateRunwayDiagramDownloadStatus ();
                             continue;
                         }
 
-                        newfilelist.put (newFileName, newFileName);
-
+                        /*
+                         * Normal file, queue for bulk download.
+                         */
                         String permnewname = WairToNow.dbdir + "/" + newFileName;
                         String permoldname = WairToNow.dbdir + "/" + oldFileName;
                         if (permnewname.endsWith (".csv") || !new File (permnewname).exists ()) {
@@ -1501,6 +1674,10 @@ public class MaintView
                         }
                     }
                     filelistReader.close ();
+
+                    /*
+                     * Perform bulk download of normal files.
+                     */
                     DownloadFileList (bulkdownload, this);
                     maintViewHandler.sendEmptyMessage (MaintViewHandlerWhat_CLOSEDLPROG);
                     if (downloadCancelled) return;
@@ -1514,7 +1691,7 @@ public class MaintView
                         dlmsg = maintViewHandler.obtainMessage (MaintViewHandlerWhat_OPENDLPROG, sameoldfiles.size (), 0, "Renaming old files...");
                         maintViewHandler.sendMessage (dlmsg);
                         for (Map.Entry<String,String> entry : sameoldfiles.entrySet ()) {
-                            RenameFile (entry.getKey (), entry.getValue ());
+                            Lib.RenameFile (entry.getKey (), entry.getValue ());
                         }
                         maintViewHandler.sendEmptyMessage (MaintViewHandlerWhat_CLOSEDLPROG);
                     }
@@ -1527,7 +1704,7 @@ public class MaintView
                             String newFileName = filelistLine;
                             int i = filelistLine.indexOf ('=');
                             if (i > 0) newFileName = filelistLine.substring (0, i);
-                            if (!newfilelist.containsKey (newFileName)) {
+                            if (!newfilelist.contains (newFileName)) {
                                 DeleteChartFile (dcb, newFileName);
                             }
                         }
@@ -1540,7 +1717,7 @@ public class MaintView
                     /*
                      * Rename new filelist over old filelist, so the replacement is complete.
                      */
-                    RenameFile (templistname, permlistname);
+                    Lib.RenameFile (templistname, permlistname);
 
                     /*
                      * Uncheck the download checkbox because it is all downloaded.
@@ -1552,7 +1729,7 @@ public class MaintView
                      * Create one of our own DownloadedCharts objects and insert in chart.downloadedCharts.
                      * This updates our buttons to reflect the new valid until date.
                      */
-                    for (String filename : newfilelist.values ()) {
+                    for (String filename : newfilelist) {
                         if (filename.endsWith (".csv")) {
                             HaveNewChart hnc = new HaveNewChart ();
                             hnc.dcb = dcb;
@@ -1601,18 +1778,18 @@ public class MaintView
 
     private void DownloadChartedLimsCSV () throws IOException
     {
-        Log.i ("MaintView", "downloading chartedlims.csv");
+        Log.i (TAG, "downloading chartedlims.csv");
         String csvname = WairToNow.dbdir + "/chartedlims.csv";
         DownloadFile ("chartedlims.csv", csvname + ".tmp");
-        RenameFile (csvname + ".tmp", csvname);
+        Lib.RenameFile (csvname + ".tmp", csvname);
     }
 
     private void DownloadChartLimitsCSV () throws IOException
     {
-        Log.i ("MaintView", "downloading chartlimits.csv");
+        Log.i (TAG, "downloading chartlimits.csv");
         String csvname = WairToNow.dbdir + "/chartlimits.csv";
         DownloadFile ("chartlimits.php", csvname + ".tmp");
-        RenameFile (csvname + ".tmp", csvname);
+        Lib.RenameFile (csvname + ".tmp", csvname);
     }
 
     /**
@@ -1622,6 +1799,8 @@ public class MaintView
         @Override
         public void run ()
         {
+            setName ("MaintView unloader");
+
             Message dlmsg;
 
             try {
@@ -1643,7 +1822,7 @@ public class MaintView
                                 DeleteChartFile (dcb, filelistLine);
                             }
                         } catch (IOException ioe) {
-                            Log.w ("MaintView", "error deleting chart files " + permlistname, ioe);
+                            Log.w (TAG, "error deleting chart files " + permlistname, ioe);
                         } finally {
                             if (filelistReader != null) try { filelistReader.close (); } catch (IOException ioe) { Lib.Ignored (); }
                         }
@@ -1661,7 +1840,7 @@ public class MaintView
                     maintViewHandler.sendMessage(dlmsg);
                 }
             } catch (Exception e) {
-                Log.e ("MaintView.UnloadThread", "thread exception", e);
+                Log.e (TAG, "thread exception", e);
             } finally {
                 unloadThread = null;
                 maintViewHandler.sendEmptyMessage (MaintViewHandlerWhat_UNLDDONE);
@@ -1673,39 +1852,128 @@ public class MaintView
     /**
      * Delete a chart file
      * @param dcb = which chart the file belongs to
-     * @param filelistLine = name of file being deleted
+     * @param filelistline = name of file being deleted
      */
-    private void DeleteChartFile (Downloadable dcb, String filelistLine)
+    private void DeleteChartFile (Downloadable dcb, String filelistline)
     {
-        // delete the file
-        String fname = WairToNow.dbdir + "/" + filelistLine;
-        Lib.Ignored (new File (fname).delete ());
-
-        // try to delete its directory in case directory is now empty
         int i;
-        while ((i = fname.lastIndexOf ('/')) > WairToNow.dbdir.length ()) {
-            fname = fname.substring (0, i);
-            if (!new File (fname).delete ()) break;
+        boolean plainfile = true;
+
+        /*
+         * Use special unloaders for files that go into sqlite databases.
+         */
+        if (filelistline.startsWith ("datums/airports_") && filelistline.endsWith (".csv")) {
+            // don't allow deleting waypoints
+            plainfile = false;
+        }
+        if (filelistline.startsWith ("datums/fixes_") && filelistline.endsWith (".csv")) {
+            // don't allow deleting waypoints
+            plainfile = false;
+        }
+        if (filelistline.startsWith ("datums/localizers_") && filelistline.endsWith (".csv")) {
+            // don't allow deleting waypoints
+            plainfile = false;
+        }
+        if (filelistline.startsWith ("datums/navaids_") && filelistline.endsWith (".csv")) {
+            // don't allow deleting waypoints
+            plainfile = false;
+        }
+        if (filelistline.startsWith ("datums/runways_") && filelistline.endsWith (".csv")) {
+            // don't allow deleting waypoints
+            plainfile = false;
+        }
+        if (filelistline.startsWith ("datums/apdgeorefs_") && filelistline.endsWith (".csv") &&
+                ((i = filelistline.indexOf ("/", 18)) >= 0)) {
+            int expdate = Integer.parseInt (filelistline.substring (18, i));
+            String statecode = filelistline.substring (i + 1, filelistline.length () - 4);
+            DeleteMachineAPDGeoRefs (expdate, statecode);
+            MaybeDeleteOldCycles28 ();
+            plainfile = false;
+        }
+        if (filelistline.startsWith ("datums/iapgeorefs_") && filelistline.endsWith (".csv") &&
+                ((i = filelistline.indexOf ("/", 18)) >= 0)) {
+            int expdate = Integer.parseInt (filelistline.substring (18, i));
+            String statecode = filelistline.substring (i + 1, filelistline.length () - 4);
+            DeleteMachineIAPGeoRefs (expdate, statecode);
+            MaybeDeleteOldCycles28 ();
+            plainfile = false;
+        }
+        if (filelistline.startsWith ("datums/aptplates_") && filelistline.endsWith (".csv") &&
+                ((i = filelistline.indexOf ("/state/")) >= 0)) {
+            int expdate = Integer.parseInt (filelistline.substring (17, i));
+            String statecode = filelistline.substring (i + 7, filelistline.length () - 4);
+            DeletePlates (expdate, statecode);
+            MaybeDeleteOldCycles28 ();
+            plainfile = false;
+        }
+
+        /*
+         * Some plates files are shared throughout a region, eg, an alternate approach minimums
+         * might be shared between Massachusetts and New Verhampmontshire.
+         */
+        if (filelistline.startsWith ("datums/aptplates_") && filelistline.contains (".gif.p") &&
+                ((i = filelistline.indexOf ("/gif_150/")) >= 0)) {
+            int expdate      = Integer.parseInt (filelistline.substring (17, i));
+            String filename  = filelistline.substring (++ i);
+            String spacename = dcb.GetSpaceName ();
+            if (!spacename.startsWith ("State ") || (spacename.length () != 8)) {
+                throw new RuntimeException ("bad state name " + spacename);
+            }
+            String statecode = spacename.substring (6);
+            plainfile = MaybeDeletePlateFile (filename, expdate, statecode);
+        }
+
+        if (plainfile) {
+
+            // delete the file
+            String fname = WairToNow.dbdir + "/" + filelistline;
+            Lib.Ignored (new File (fname).delete ());
+
+            // try to delete its directory in case directory is now empty
+            while ((i = fname.lastIndexOf ('/')) > WairToNow.dbdir.length ()) {
+                fname = fname.substring (0, i);
+                if (!new File (fname).delete ()) break;
+            }
         }
 
         // for .csv files, notify dcb that the file was deleted
         // we don't need to notify for the other files (eg, .png files)
         // as notifying for the .csv file is sufficient
-        if (filelistLine.endsWith (".csv")) {
-            RemUnldChart ruc = new RemUnldChart ();
-            ruc.dcb     = dcb;
-            ruc.csvName = filelistLine;
-            Message msg = maintViewHandler.obtainMessage (MaintViewHandlerWhat_REMUNLDCHART, ruc);
+        if (filelistline.endsWith (".csv")) {
+            Message msg = maintViewHandler.obtainMessage (MaintViewHandlerWhat_REMUNLDCHART, dcb);
             maintViewHandler.sendMessage(msg);
         }
     }
 
-    private static class HaveNewChart {
-        public Downloadable dcb;
-        public String csvName;
+    /**
+     * See if it is OK to delete the given plate file.
+     * @param filename  = name of gif file, starting with "gif_150/"
+     * @param expdate   = expiration date of the gif file
+     * @param statecode = state code of state it is being deleted from
+     * @return true iff it is ok to delete
+     */
+    private static boolean MaybeDeletePlateFile (String filename, int expdate, String statecode)
+    {
+        String dbname = "cycles28_" + expdate + ".db";
+        SQLiteDatabase sqldb = SQLiteDBs.GetOrCreate (dbname);
+
+        // if no table, can't possible have any references to the gif
+        if (!Lib.SQLiteTableExists (sqldb, "plates")) return true;
+
+        // see if any other state references the gif
+        // if so, can't delete it, otherwise we can
+        Cursor result = sqldb.query (
+                "plates", columns_pl_faaid,
+                "pl_filename=? AND pl_state<>?", new String[] { filename, statecode },
+                null, null, null, "1");
+        try {
+            return !result.moveToFirst ();
+        } finally {
+            result.close ();
+        }
     }
 
-    private static class RemUnldChart {
+    private static class HaveNewChart {
         public Downloadable dcb;
         public String csvName;
     }
@@ -1837,7 +2105,7 @@ public class MaintView
             URL url = new URL (dldir + "/bulkdownload.php");
             while (!bulkfilelist.isEmpty ()) {
                 if (dflupd.isCancelled ()) return;
-                Log.i ("MaintView", "downloading bulk starting with " + bulkfilelist.keySet ().iterator ().next ());
+                Log.i (TAG, "downloading bulk starting with " + bulkfilelist.keySet ().iterator ().next ());
                 try {
                     HttpURLConnection httpCon = (HttpURLConnection)url.openConnection ();
                     try {
@@ -1880,9 +2148,9 @@ public class MaintView
                         BufferedInputStream is = new BufferedInputStream (httpCon.getInputStream (), 32768);
                         while (true) {
                             if (dflupd.isCancelled ()) return;
-                            String nametag    = ReadStreamLine (is);
+                            String nametag    = Lib.ReadStreamLine (is);
                             if (nametag.equals ("@@done")) break;
-                            String sizetag    = ReadStreamLine (is);
+                            String sizetag    = Lib.ReadStreamLine (is);
                             if (!nametag.startsWith ("@@name=")) throw new IOException ("bad download name tag " + nametag);
                             if (!sizetag.startsWith ("@@size=")) throw new IOException ("bad download size tag " + sizetag);
                             String servername = nametag.substring (7);
@@ -1894,10 +2162,10 @@ public class MaintView
                             } catch (NumberFormatException nfe) {
                                 throw new IOException ("bad download size tag " + sizetag);
                             }
-                            WriteStreamToFile (is, bytelen, tempname);
-                            String eoftag = ReadStreamLine (is);
+                            Lib.WriteStreamToFile (is, bytelen, tempname);
+                            String eoftag = Lib.ReadStreamLine (is);
                             if (!eoftag.equals ("@@eof")) throw new IOException ("bad end-of-file tag " + eoftag);
-                            RenameFile (tempname, permname);
+                            Lib.RenameFile (tempname, permname);
                             dflupd.downloaded (servername, permname);
                             bulkfilelist.remove (servername);
                             retry = 0;
@@ -1907,55 +2175,10 @@ public class MaintView
                     }
                 } catch (IOException ioe) {
                     if (++ retry > 3) throw ioe;
-                    Log.i ("MaintView", "retrying bulk download", ioe);
+                    Log.i (TAG, "retrying bulk download", ioe);
                 }
             }
-            Log.i ("MaintView", "bulk download complete");
-        }
-    }
-
-    /**
-     * Read a line from the given input stream
-     * @param is = stream to read from
-     * @return string up to but not including \n
-     * @throws IOException
-     */
-    private static String ReadStreamLine (InputStream is)
-            throws IOException
-    {
-        int c;
-        String s = "";
-        while ((c = is.read ()) != '\n') {
-            if (c < 0) throw new IOException ("EOF reading stream");
-            s += (char)c;
-        }
-        return s;
-    }
-
-    /**
-     * Write a given number of bytes from the input stream to the file
-     * @param is = stream to read bytes from
-     * @param bytelen = number of bytes to copy
-     * @param filename = name of file to write to
-     * @throws IOException
-     */
-    private static void WriteStreamToFile (InputStream is, int bytelen, String filename)
-            throws IOException
-    {
-        Lib.Ignored (new File (filename.substring (0, filename.lastIndexOf ('/') + 1)).mkdirs ());
-        FileOutputStream os = new FileOutputStream (filename);
-        try {
-            byte[] buf = new byte[4096];
-            while (bytelen > 0) {
-                int rc = buf.length;
-                if (rc > bytelen) rc = bytelen;
-                rc = is.read (buf, 0, rc);
-                if (rc <= 0) throw new IOException ("EOF reading " + filename);
-                os.write (buf, 0, rc);
-                bytelen -= rc;
-            }
-        } finally {
-            os.close ();
+            Log.i (TAG, "bulk download complete");
         }
     }
 
@@ -2073,7 +2296,7 @@ public class MaintView
                     sqldb.endTransaction ();
                 }
                 time = System.nanoTime () - time;
-                Log.i ("MaintView", "airports download time " + (time / 1000000) + " ms");
+                Log.i (TAG, "airports download time " + (time / 1000000) + " ms");
             }
         }
     }
@@ -2158,7 +2381,7 @@ public class MaintView
                     sqldb.endTransaction ();
                 }
                 time = System.nanoTime () - time;
-                Log.i ("MaintView", "localizers download time " + (time / 1000000) + " ms");
+                Log.i (TAG, "localizers download time " + (time / 1000000) + " ms");
             }
         }
     }
@@ -2244,7 +2467,7 @@ public class MaintView
                     sqldb.endTransaction ();
                 }
                 time = System.nanoTime () - time;
-                Log.i ("MaintView", "navaids download time " + (time / 1000000) + " ms");
+                Log.i (TAG, "navaids download time " + (time / 1000000) + " ms");
             }
         }
     }
@@ -2312,7 +2535,7 @@ public class MaintView
                     sqldb.endTransaction ();
                 }
                 time = SystemClock.uptimeMillis () - time;
-                Log.i ("MaintView", "fixes download time " + time + " ms");
+                Log.i (TAG, "fixes download time " + time + " ms");
             }
         }
     }
@@ -2372,7 +2595,53 @@ public class MaintView
                     sqldb.endTransaction ();
                 }
                 time = System.nanoTime () - time;
-                Log.i ("MaintView", "runways download time " + (time / 1000000) + " ms");
+                Log.i (TAG, "runways download time " + (time / 1000000) + " ms");
+            }
+        }
+    }
+
+    /**
+     * If the newest cycles56 database file has all the tables that the old one has,
+     * delete the old one.
+     */
+    private static void MaybeDeleteOldCycles56 ()
+    {
+        String[] dbnames = SQLiteDBs.Enumerate ();
+        for (int i = 0; i < dbnames.length; i ++) {
+            String dbnamei = dbnames[i];
+            if (dbnamei == null) continue;
+            if (!dbnamei.startsWith ("cycles56_")) continue;
+            for (int j = 0; j < dbnames.length; j ++ ) {
+                String dbnamej = dbnames[j];
+                if (dbnamej == null) continue;
+                if (!dbnamej.startsWith ("cycles56_")) continue;
+                if (dbnamei.compareTo (dbnamej) > 0) {
+                    SQLiteDatabase sqldbi = SQLiteDBs.GetOrCreate (dbnamei);
+                    SQLiteDatabase sqldbj = SQLiteDBs.GetOrCreate (dbnamej);
+                    Cursor cursorj = sqldbj.query (
+                            "sqlite_master", columns_name,
+                            "type='table'", null,
+                            null, null, null, null);
+                    boolean killj = true;
+                    try {
+                        if (cursorj.moveToFirst ()) {
+                            do {
+                                String tablej = cursorj.getString (0);
+                                killj &= Lib.SQLiteTableExists (sqldbi, tablej);
+                            } while (cursorj.moveToNext ());
+                        }
+                    } finally {
+                        cursorj.close ();
+                    }
+                    if (killj) {
+                        String pathj = sqldbj.getPath ();
+                        SQLiteDBs.CloseAll ();
+                        Log.d (TAG, "deleting " + pathj);
+                        Lib.Ignored (new File (pathj).delete ());
+                        Lib.Ignored (new File (pathj + "-journal").delete ());
+                        dbnames[j] = null;
+                    }
+                }
             }
         }
     }
@@ -2409,8 +2678,15 @@ public class MaintView
                 sqldb.execSQL ("CREATE INDEX plate_faaid ON plates (pl_faaid);");
                 sqldb.execSQL ("CREATE UNIQUE INDEX plate_unique ON plates (pl_faaid,pl_descrip);");
             }
+            if (!Lib.SQLiteTableExists (sqldb, "rwypreloads")) {
+                sqldb.execSQL ("DROP INDEX IF EXISTS rwypld_lastry;");
+                sqldb.execSQL ("DROP TABLE IF EXISTS rwypreloads;");
+                sqldb.execSQL ("CREATE TABLE rwypreloads (rp_faaid TEXT NOT NULL PRIMARY KEY, rp_state TEXT NOT NULL, rp_lastry INTEGER NOT NULL);");
+                sqldb.execSQL ("CREATE INDEX rwypld_lastry ON rwypreloads (rp_lastry);");
+            }
 
             long time = System.nanoTime ();
+            Object sqlock = SQLiteDBs.GetWriteLock (sqldb);
             sqldb.beginTransaction ();
             try {
                 BufferedReader br = new BufferedReader (new InputStreamReader (is), 4096);
@@ -2422,8 +2698,18 @@ public class MaintView
                     values.put ("pl_state",    statecode);
                     values.put ("pl_faaid",    cols[0]);  // eg, "BVY"
                     values.put ("pl_descrip",  cols[1]);  // eg, "IAP-LOC RWY 16"
-                    values.put ("pl_filename", cols[2]);  // eg, "gif/050/39r16.gif"
-                    sqldb.insertWithOnConflict ("plates", null, values, SQLiteDatabase.CONFLICT_IGNORE);
+                    values.put ("pl_filename", cols[2]);  // eg, "gif_150/050/39r16.gif"
+                    synchronized (sqlock) {
+                        sqldb.insertWithOnConflict ("plates", null, values, SQLiteDatabase.CONFLICT_IGNORE);
+                    }
+
+                    values = new ContentValues (3);
+                    values.put ("rp_faaid",  cols[0]);
+                    values.put ("rp_state",  statecode);
+                    values.put ("rp_lastry", 0);
+                    synchronized (sqlock) {
+                        sqldb.insertWithOnConflict ("rwypreloads", null, values, SQLiteDatabase.CONFLICT_IGNORE);
+                    }
 
                     if (++ numAdded == 256) {
                         sqldb.yieldIfContendedSafely ();
@@ -2435,7 +2721,23 @@ public class MaintView
                 sqldb.endTransaction ();
             }
             time = System.nanoTime () - time;
-            Log.i ("MaintView", "plates " + statecode + " download time " + (time / 1000000) + " ms");
+            Log.i (TAG, "plates " + statecode + " download time " + (time / 1000000) + " ms");
+        }
+    }
+
+    /**
+     * Delete all plate records (maps airport id, plate name -> gif filename) for a given state and expiration date.
+     */
+    private static void DeletePlates (int expdate, String statecode)
+    {
+        String dbname = "cycles28_" + expdate + ".db";
+        SQLiteDatabase sqldb = SQLiteDBs.GetOrCreate (dbname);
+
+        if (Lib.SQLiteTableExists (sqldb, "plates")) {
+            sqldb.execSQL ("DELETE FROM plates WHERE pl_state='" + statecode + "'");
+        }
+        if (Lib.SQLiteTableExists (sqldb, "rwypreloads")) {
+            sqldb.execSQL ("DELETE FROM rwypreloads WHERE rp_state='" + statecode + "'");
         }
     }
 
@@ -2460,7 +2762,7 @@ public class MaintView
         {
             SQLiteDatabase sqldb = SQLiteDBs.GetOrCreate (dbname);
             if (!Lib.SQLiteTableExists (sqldb, "apdgeorefs")) {
-                sqldb.execSQL ("CREATE TABLE apdgeorefs (gr_icaoid TEXT NOT NULL, gr_tfwa REAL NOT NULL, gr_tfwb REAL NOT NULL, gr_tfwc REAL NOT NULL, gr_tfwd REAL NOT NULL, gr_tfwe REAL NOT NULL, gr_tfwf REAL NOT NULL, gr_wfta REAL NOT NULL, gr_wftb REAL NOT NULL, gr_wftc REAL NOT NULL, gr_wftd REAL NOT NULL, gr_wfte REAL NOT NULL, gr_wftf REAL NOT NULL);");
+                sqldb.execSQL ("CREATE TABLE apdgeorefs (gr_icaoid TEXT NOT NULL, gr_state TEXT NOT NULL, gr_tfwa REAL NOT NULL, gr_tfwb REAL NOT NULL, gr_tfwc REAL NOT NULL, gr_tfwd REAL NOT NULL, gr_tfwe REAL NOT NULL, gr_tfwf REAL NOT NULL, gr_wfta REAL NOT NULL, gr_wftb REAL NOT NULL, gr_wftc REAL NOT NULL, gr_wftd REAL NOT NULL, gr_wfte REAL NOT NULL, gr_wftf REAL NOT NULL);");
                 sqldb.execSQL ("CREATE UNIQUE INDEX apdgeorefbyicaoid ON apdgeorefs (gr_icaoid);");
             }
 
@@ -2472,8 +2774,9 @@ public class MaintView
                 String csv;
                 while ((csv = br.readLine ()) != null) {
                     String[] cols = Lib.QuotedCSVSplit (csv);
-                    ContentValues values = new ContentValues (5);
-                    values.put ("gr_icaoid", cols[0]);  // eg, "KBVY"
+                    ContentValues values = new ContentValues (14);
+                    values.put ("gr_icaoid", cols[0]);   // eg, "KBVY"
+                    values.put ("gr_state", statecode);  // eg, "MA"
                     values.put ("gr_tfwa", Float.parseFloat (cols[ 1]));
                     values.put ("gr_tfwb", Float.parseFloat (cols[ 2]));
                     values.put ("gr_tfwc", Float.parseFloat (cols[ 3]));
@@ -2486,7 +2789,9 @@ public class MaintView
                     values.put ("gr_wftd", Float.parseFloat (cols[10]));
                     values.put ("gr_wfte", Float.parseFloat (cols[11]));
                     values.put ("gr_wftf", Float.parseFloat (cols[12]));
-                    sqldb.insertWithOnConflict ("apdgeorefs", null, values, SQLiteDatabase.CONFLICT_IGNORE);
+                    synchronized (SQLiteDBs.GetWriteLock (sqldb)) {
+                        sqldb.insertWithOnConflict ("apdgeorefs", null, values, SQLiteDatabase.CONFLICT_IGNORE);
+                    }
 
                     if (++ numAdded == 256) {
                         sqldb.yieldIfContendedSafely ();
@@ -2498,7 +2803,20 @@ public class MaintView
                 sqldb.endTransaction ();
             }
             time = System.nanoTime () - time;
-            Log.i ("MaintView", "apdgeorefs " + statecode + " download time " + (time / 1000000) + " ms");
+            Log.i (TAG, "apdgeorefs " + statecode + " download time " + (time / 1000000) + " ms");
+        }
+    }
+
+    /**
+     * Delete all airport diagram machine-detected georeference records for a given state and expiration date.
+     */
+    private static void DeleteMachineAPDGeoRefs (int expdate, String statecode)
+    {
+        String dbname = "cycles28_" + expdate + ".db";
+        SQLiteDatabase sqldb = SQLiteDBs.GetOrCreate (dbname);
+
+        if (Lib.SQLiteTableExists (sqldb, "apdgeorefs")) {
+            sqldb.execSQL ("DELETE FROM apdgeorefs WHERE gr_state='" + statecode + "'");
         }
     }
 
@@ -2523,7 +2841,7 @@ public class MaintView
         {
             SQLiteDatabase sqldb = SQLiteDBs.GetOrCreate (dbname);
             if (!Lib.SQLiteTableExists (sqldb, "iapgeorefs")) {
-                sqldb.execSQL ("CREATE TABLE iapgeorefs (gr_icaoid TEXT NOT NULL, gr_plate TEXT NOT NULL, gr_waypt TEXT NOT NULL, gr_bmpixx INTEGER NOT NULL, gr_bmpixy INTEGER NOT NULL);");
+                sqldb.execSQL ("CREATE TABLE iapgeorefs (gr_icaoid TEXT NOT NULL, gr_state TEXT NOT NULL, gr_plate TEXT NOT NULL, gr_waypt TEXT NOT NULL, gr_bmpixx INTEGER NOT NULL, gr_bmpixy INTEGER NOT NULL);");
                 sqldb.execSQL ("CREATE INDEX iapgeorefbyplate ON iapgeorefs (gr_icaoid,gr_plate);");
             }
 
@@ -2535,16 +2853,15 @@ public class MaintView
                 String csv;
                 while ((csv = br.readLine ()) != null) {
                     String[] cols = Lib.QuotedCSVSplit (csv);
-                    ContentValues values = new ContentValues (5);
                     String icaoid = cols[0];
                     String plate  = cols[1];
                     String waypt  = cols[2];
 
                     // see if record already exists with same ICAOID/PLATE/WAYPT, ignore the incoming record
-                    String query = "gr_icaoid='" + icaoid + "' AND gr_plate='" + plate + "' AND gr_waypt='" + waypt + "'";
                     Cursor result = sqldb.query (
-                            "iapgeorefs", new String[] { "gr_bmpixx" },
-                            query, null, null, null, null, "1");
+                            "iapgeorefs", columns_gr_bmpixx,
+                            "gr_icaoid=? AND gr_plate=? AND gr_waypt=?", new String[] { icaoid, plate, waypt },
+                            null, null, null, "1");
                     boolean dup;
                     try {
                         dup = result.moveToFirst ();
@@ -2553,10 +2870,12 @@ public class MaintView
                     }
                     if (dup) continue;
 
-                    // not alreay there, insert the new record
-                    values.put ("gr_icaoid", icaoid);   // eg, "KBVY"
-                    values.put ("gr_plate",  plate);    // eg, "IAP-LOC RWY 16"
-                    values.put ("gr_waypt",  waypt);    // eg, "TAITS"
+                    // not already there, insert the new record
+                    ContentValues values = new ContentValues (6);
+                    values.put ("gr_icaoid", icaoid);     // eg, "KBVY"
+                    values.put ("gr_state",  statecode);  // eg, "MA"
+                    values.put ("gr_plate",  plate);      // eg, "IAP-LOC RWY 16"
+                    values.put ("gr_waypt",  waypt);      // eg, "TAITS"
                     values.put ("gr_bmpixx", Integer.parseInt (cols[3]));
                     values.put ("gr_bmpixy", Integer.parseInt (cols[4]));
                     sqldb.insertWithOnConflict ("iapgeorefs", null, values, SQLiteDatabase.CONFLICT_IGNORE);
@@ -2572,7 +2891,95 @@ public class MaintView
                 sqldb.endTransaction ();
             }
             time = System.nanoTime () - time;
-            Log.i ("MaintView", "iapgeorefs " + statecode + " download time " + (time / 1000000) + " ms");
+            Log.i (TAG, "iapgeorefs " + statecode + " download time " + (time / 1000000) + " ms");
+        }
+    }
+
+    /**
+     * Delete all instrument apporach procedure machine-detected georeference records for a given state and expiration date.
+     */
+    private static void DeleteMachineIAPGeoRefs (int expdate, String statecode)
+    {
+        String dbname = "cycles28_" + expdate + ".db";
+        SQLiteDatabase sqldb = SQLiteDBs.GetOrCreate (dbname);
+
+        if (Lib.SQLiteTableExists (sqldb, "iapgeorefs")) {
+            sqldb.execSQL ("DELETE FROM iapgeorefs WHERE gr_state='" + statecode + "'");
+        }
+    }
+
+    /**
+     * If we have all the new tables and states of the cycles28_expdate.db file,
+     * delete any old versions.
+     */
+    private static void MaybeDeleteOldCycles28 ()
+    {
+        String[] dbnames = SQLiteDBs.Enumerate ();
+        for (int i = 0; i < dbnames.length; i ++) {
+            String dbnamei = dbnames[i];
+            if (dbnamei == null) continue;
+            if (!dbnamei.startsWith ("cycles28_")) continue;
+            for (int j = 0; j < dbnames.length; j ++ ) {
+                String dbnamej = dbnames[j];
+                if (dbnamej == null) continue;
+                if (!dbnamej.startsWith ("cycles28_")) continue;
+                if (dbnamei.compareTo (dbnamej) > 0) {
+                    SQLiteDatabase sqldbi = SQLiteDBs.GetOrCreate (dbnamei);
+                    SQLiteDatabase sqldbj = SQLiteDBs.GetOrCreate (dbnamej);
+
+                    // it's ok to kill J if I has all the tables that J has
+                    Cursor cursorj = sqldbj.query (
+                            "sqlite_master", columns_name,
+                            "type='table'", null,
+                            null, null, null, null);
+                    boolean killj = true;
+                    try {
+                        if (cursorj.moveToFirst ()) {
+                            do {
+                                String tablej = cursorj.getString (0);
+                                killj &= Lib.SQLiteTableExists (sqldbi, tablej);
+                            } while (cursorj.moveToNext ());
+                        }
+                    } finally {
+                        cursorj.close ();
+                    }
+
+                    // and I must have all the states that J has in order to kill J
+                    if (killj && Lib.SQLiteTableExists (sqldbi, "plates") && Lib.SQLiteTableExists (sqldbj, "plates")) {
+                        cursorj = sqldbj.query (
+                                true, "plates", columns_pl_state,
+                                null, null, null, null, null, null);
+                        try {
+                            if (cursorj.moveToFirst ()) {
+                                do {
+                                    String statej = cursorj.getString (0);
+                                    Cursor cursori = sqldbi.query (
+                                            "plates", columns_pl_faaid,
+                                            "pl_state=?", new String[] { statej },
+                                            null, null, null, "1");
+                                    try {
+                                        killj &= cursori.moveToFirst ();
+                                    } finally {
+                                        cursori.close ();
+                                    }
+                                } while (cursorj.moveToNext ());
+                            }
+                        } finally {
+                            cursorj.close ();
+                        }
+                    }
+
+                    // I contains everything J has, so kill J
+                    if (killj) {
+                        String pathj = sqldbj.getPath ();
+                        SQLiteDBs.CloseAll ();
+                        Log.d (TAG, "deleting " + pathj);
+                        Lib.Ignored (new File (pathj).delete ());
+                        Lib.Ignored (new File (pathj + "-journal").delete ());
+                        dbnames[j] = null;
+                    }
+                }
+            }
         }
     }
 
@@ -2583,7 +2990,7 @@ public class MaintView
         // servername = name of file on server
         public void DownloadWhat (String servername) throws IOException
         {
-            Log.i ("MaintView", "downloading from " + servername);
+            Log.i (TAG, "downloading from " + servername);
             int retry = 0;
             URL url = new URL (dldir + "/" + servername);
             while (true) {
@@ -2604,7 +3011,7 @@ public class MaintView
                     }
                 } catch (IOException ioe) {
                     if (++ retry > 3) throw ioe;
-                    Log.i ("MaintView", "retrying download of " + servername, ioe);
+                    Log.i (TAG, "retrying download of " + servername, ioe);
                 }
             }
         }
@@ -2613,16 +3020,5 @@ public class MaintView
          * This says what to do with the contents.
          */
         public abstract void DownloadContents (InputStream is) throws IOException;
-    }
-
-    /**
-     * Rename a file, throwing an exception on error.
-     */
-    public static void RenameFile (String oldname, String newname)
-            throws IOException
-    {
-        if (!new File (oldname).renameTo (new File (newname))) {
-            throw new IOException ("error renaming " + oldname + " => " + newname);
-        }
     }
 }

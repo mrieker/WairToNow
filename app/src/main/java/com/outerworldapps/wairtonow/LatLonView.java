@@ -125,7 +125,7 @@ public class LatLonView extends LinearLayout {
         if (neg) val = -val;
         negtv.setVal (neg);
         if (mintv == null) {
-            degtv.setVal ((int) Math.round (val * 1000000));
+            degtv.setVal (Math.round (val * 1000000));
         } else if (sectv == null) {
             val *= 600000;
             val += 0.5;

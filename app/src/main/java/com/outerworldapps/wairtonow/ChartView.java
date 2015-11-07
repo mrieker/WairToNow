@@ -122,6 +122,7 @@ public class ChartView
     private float blLat, blLon;               // lat/lon at bottom left of canvas
     private float brLat, brLon;               // lat/lon at bottom right of canvas
 
+    private AirTileLoader airTileLoader = null;
     private ArrayList<DrawWaypoint> allDrawWaypoints = new ArrayList<> ();
     private AutoAirChart autoSecAirChart = new AutoAirChart ("SEC");
     private AutoAirChart autoWacAirChart = new AutoAirChart ("WAC");
@@ -160,6 +161,7 @@ public class ChartView
     private float[] trackpoints        = new float[tracktotal/trackspace*2];
     private LatLon newCtrLL = new LatLon ();
     private LatLon[] canvasCornersLatLon = new LatLon[] { new LatLon (), new LatLon (), new LatLon (), new LatLon () };
+    private final LinkedList<AirTile> tilesToLoad = new LinkedList<> ();
     private LinkedList<CapGrid> capgrids = new LinkedList<> ();
     private int canvasWidth, canvasHeight;     // last seen canvas width,height
     private int centerInfoCanvasHeight;
@@ -2280,7 +2282,7 @@ public class ChartView
                  */
                 tileMat.setTranslate (tile.leftPixel, tile.topPixel);
                                                             // translate tile into position within whole chart
-                tileMat.postConcat (drawOnCanvasChartMat);  // position chart onto canvas
+                tileMat.postConcat (drawOnCanvasChartMat);  // position tile onto canvas
 
                 /*
                  * Compute the canvas points corresponding to the four corners of the tile.
@@ -2376,6 +2378,7 @@ public class ChartView
         public AirChart chart;         // chart that this tile is part of
         public boolean isChartedOnly;  // tile contains only pixels that are in charted area
         public boolean isLegendOnly;   // tile contains only pixels that are in legend area
+        public boolean queued;         // queued to AirTileLoader thread
         public int leftPixel;          // where the left edge is within the chart
         public int topPixel;           // where the top edge is within the chart
         public int width;              // width of this tile (always wstep+overlap except for rightmost tiles)
@@ -2414,37 +2417,66 @@ public class ChartView
          *          1: full size
          *          2: half-sized, eg, condense 256x256 image down to 128x128 pixels
          *          3: third-sized, etc
-         * @return bitmap of the tile (or null if no such file)
-         * @throws IOException
+         * @return bitmap of the tile (or null if not available right now)
          */
         public Bitmap GetScaledBitmap (int s)
-            throws IOException
         {
-            if (scaling != s) {
-                if (bitmap != null) {
-                    bitmap.recycle ();
-                    bitmap = null;
+            Bitmap bm = null;
+            synchronized (tilesToLoad) {
+
+                // don't mess with it if it is queued for loading
+                if (!queued) {
+
+                    // not queued, make sure same scaling as before
+                    // discard previous bitmap if scaling different
+                    if (scaling != s) {
+                        if (bitmap != null) {
+                            bitmap.recycle ();
+                            bitmap = null;
+                        }
+                        scaling = s;
+                    }
+
+                    // if we don't have bitmap in memory,
+                    // queue to thread for loading
+                    bm = bitmap;
+                    if (bm == null) {
+                        tilesToLoad.addLast (this);
+                        queued = true;
+                        if (airTileLoader == null) {
+                            airTileLoader = new AirTileLoader ();
+                            airTileLoader.start ();
+                        } else {
+                            tilesToLoad.notifyAll ();
+                        }
+                    }
                 }
-                scaling = s;
             }
-            if (bitmap == null) {
-                String pngName = WairToNow.dbdir + "/charts/" +
-                        chart.basename.replace (' ', '_') + "/" +
-                        Integer.toString (topPixel / hstep) + "/" +
-                        Integer.toString (leftPixel / wstep) + ".png";
-                BitmapFactory.Options bfo = new BitmapFactory.Options ();
-                bfo.inDensity = scaling;
-                bfo.inInputShareable = true;
-                bfo.inPurgeable = true;
-                bfo.inScaled = true;
-                bfo.inTargetDensity = 1;
-                Bitmap bm = BitmapFactory.decodeFile (pngName, bfo);
-                if (bm == null) {
-                    throw new IOException ("error loading bitmap from " + pngName);
-                }
-                bitmap = bm;
+            return bm;
+        }
+
+        /**
+         * Called by AirTileThread to read bitmap into memorie.
+         */
+        public Bitmap LoadBitmap ()
+        {
+            BitmapFactory.Options bfo = new BitmapFactory.Options ();
+            bfo.inDensity = scaling;
+            bfo.inInputShareable = true;
+            bfo.inPurgeable = true;
+            bfo.inScaled = true;
+            bfo.inTargetDensity = 1;
+
+            String pngName = WairToNow.dbdir + "/charts/" +
+                    chart.basename.replace (' ', '_') + "/" +
+                    Integer.toString (topPixel / hstep) + "/" +
+                    Integer.toString (leftPixel / wstep) + ".png";
+            try {
+                return BitmapFactory.decodeFile (pngName, bfo);
+            } catch (Throwable t) {
+                Log.e ("WairToNow", "error loading bitmap " + pngName, t);
+                return null;
             }
-            return bitmap;
         }
 
         @Override  // LoadedBitmap
@@ -2494,6 +2526,58 @@ public class ChartView
             clip.lineTo (atc[4], atc[5]);
             clip.lineTo (atc[6], atc[7]);
             clip.lineTo (atc[0], atc[1]);
+        }
+    }
+
+    /**
+     * Load air tiles in a background thread to keep GUI responsive.
+     */
+    private class AirTileLoader extends Thread {
+
+        @Override
+        public void run ()
+        {
+            setName ("AirTile loader");
+
+            try {
+                /*
+                 * Once started, we keep going forever.
+                 */
+                while (true) {
+
+                    /*
+                     * Get a tile to load.  If none, wait for something.
+                     * But tell GUI thread to re-draw screen cuz we probably
+                     * just loaded a bunch of tiles.
+                     */
+                    AirTile tile;
+                    synchronized (tilesToLoad) {
+                        while (tilesToLoad.isEmpty ()) {
+                            postInvalidate ();
+                            tilesToLoad.wait ();
+                        }
+                        tile = tilesToLoad.removeFirst ();
+                    }
+
+                    /*
+                     * Got something to do, try to load the tile in memory.
+                     */
+                    Bitmap bm = tile.LoadBitmap ();
+
+                    /*
+                     * Mark that we are done trying to load the bitmap.
+                      */
+                    synchronized (tilesToLoad) {
+                        tile.bitmap = bm;
+                        tile.queued = false;
+                    }
+                }
+            } catch (InterruptedException ie) {
+                Log.e ("WairToNow", "error loading tiles", ie);
+            } finally {
+                SQLiteDBs.CloseAll ();
+                airTileLoader = null;
+            }
         }
     }
 

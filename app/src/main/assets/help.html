@@ -1,0 +1,49 @@
+<HTML>
+    <BODY>
+        <H2>WairToNow, version <SCRIPT LANGUAGE=JAVASCRIPT>document.write (hvjso.getVersionName ())</SCRIPT></H2>
+        <H3>... an aviation oriented map program from <A HREF="http://www.outerworldapps.com">Outer World Apps</A>.</H3>
+
+        <P>The menu buttons at the bottom select the basic screen:</P>
+        <UL>
+            <LI><B><A HREF="p_chart.html">Chart</A></B> - main moving-map display using the selected chart as background
+            <LI><B><A HREF="p_faawp.html">FAAWP1</A></B> - search for FAA-defined waypoint and display information about it
+            <LI><B><A HREF="p_faawp.html">FAAWP2</A></B> - same as FAAWP1
+            <LI><B><A HREF="p_userwp.html">UserWP</A></B> - search for user-defined waypoint
+            <LI><B><A HREF="p_glass.html">Glass</A></B> - glass cockpit style display
+            <LI><B><A HREF="p_crumbs.html">Crumbs</A></B> - record/display a breadcrumb trail
+            <LI><B><A HREF="p_plan.html">Plan</A></B> - some flight planning tools
+            <LI><B><A HREF="p_options.html">Options</A></B> - option settings
+            <LI><B><A HREF="p_maint.html">Maint</A></B> - chart and data downloading
+            <LI><B><A HREF="p_gps.html">GPS</A></B> - GPS receiver status
+            <LI><B><A HREF="p_files.html">Files</A></B> - data file explorer
+        </UL>
+
+        <H3>Downloading charts</H3>
+        <P>You must download data before using the app.  Download by clicking
+            <B><A HREF="p_maint.html">Maint</A></B> button.</P>
+        <P>NOTE:  If you download plates, it will give you the airport diagrams, SIDs STARs, IAPs, etc.
+            It will also give you a runway diagram that is synthesized by WairToNow as many airports do
+            not have an official FAA airport diagram.  These are constructed from the FAA data that has
+            the lat/lon of <I>most</I> but not necessarily <I>all</I> runways for an airport.  Some
+            airports don't have any runway lat/lon information provided at all, so you may not see some
+            or any runways for a given airport.</P>
+        <P>That being said, WairToNow will use OpenStreetMap tiles as a background for the diagram which
+            most times has runway and taxiway outlines which are generally useful.  When you download
+            the plates, WairToNow will start downloading the tiles for the corresponding runway
+            backgrounds in a background thread.  The app will still function while this downloading is
+            happening.</P>
+        <UL>
+            <LI>You must download the waypoints from the <B><A HREF="p_maint.html#misc">Misc</A></B>
+                button.  This waypoint data includes airports, fixes, localizers, navaids and runways
+                for the entire country.
+            <LI>Everything else is optional, select what you want.  Avoid over-selecting as the download
+                times can be significant.
+            <LI>NOTE:  There is no selection for the Street maps, they are downloaded as needed, which
+                requires an Internet connection at the time of use.  You can preload areas of interest
+                by previewing the area where you have an internet connection, and WairToNow will save
+                the tiles, so in that case an Internet connection would not be needed to view those same
+                areas again.  Be sure to use a wide range of zoom when previewing so it will load all the
+                tiles for the different zoom levels.
+        </UL>
+    </BODY>
+</HTML>

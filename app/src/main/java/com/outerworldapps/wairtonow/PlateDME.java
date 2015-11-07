@@ -70,6 +70,8 @@ public class PlateDME {
     private TreeMap<String,DMECheckboxes> dmeCheckboxeses = new TreeMap<> ();
     private WairToNow wairToNow;
 
+    private final static String[] columns_dc_dmeid_dc_checked = new String[] { "dc_dmeid", "dc_checked" };
+
     public PlateDME (WairToNow wtn, PlateView.IAPPlateImage pv, String ii, String pi)
     {
         wairToNow = wtn;
@@ -137,10 +139,10 @@ public class PlateDME {
             if (SQLiteDBs.Exists (dbname)) {
                 SQLiteDatabase sqldb = SQLiteDBs.GetOrCreate (dbname);
                 if (Lib.SQLiteTableExists (sqldb, "dmecheckboxes")) {
-                    Cursor result = sqldb.query ("dmecheckboxes",
-                            new String[] { "dc_dmeid", "dc_checked" },
-                            "dc_icaoid='" + icaoid + "' AND dc_plate='" + plateid + "'",
-                            null, null, null, null, null);
+                    Cursor result = sqldb.query (
+                            "dmecheckboxes", columns_dc_dmeid_dc_checked,
+                            "dc_icaoid=? AND dc_plate=?", new String[] { icaoid, plateid },
+                            null, null, null, null);
                     try {
                         if (result.moveToFirst ()) {
                             do {
