@@ -1045,7 +1045,7 @@ public class ChartView
         allDrawWaypoints.clear ();
         if (wairToNow.optionsView.faaWPOption.checkBox.isChecked ()) {
             for (Waypoint faaWP : waypointsWithin.Get (
-                    canvasSouthLat, canvasNorthLat, canvasEastLon, canvasWestLon)) {
+                    canvasSouthLat, canvasNorthLat, canvasWestLon, canvasEastLon)) {
                 if (pmap.LatLonToCanvasPix (faaWP.lat, faaWP.lon, pt)) {
                     allDrawWaypoints.add (new DrawWaypoint (faaWP.ident, pt, faaWPPaints));
                 }
@@ -1565,8 +1565,8 @@ public class ChartView
         float southlat = Mathf.floor (canvasSouthLat * 4.0F) / 4.0F;
         float northlat = Mathf.ceil  (canvasNorthLat * 4.0F) / 4.0F;
 
-        for (float lat = southlat; lat <= northlat; lat += 0.25) {
-            for (float lon = westlon; lon <= eastlon; lon += 0.25) {
+        for (float lat = southlat; lat <= northlat; lat += 0.25F) {
+            for (float lon = westlon; lon <= eastlon; lon += 0.25F) {
                 pmap.LatLonToCanvasPix (lat, lon, canpix1);
                 pmap.LatLonToCanvasPix (lat, lon + 0.25F, canpix2);
                 pmap.LatLonToCanvasPix (lat + 0.25F, lon, canpix3);
@@ -1574,20 +1574,26 @@ public class ChartView
                 int y1 = canpix1.y;
                 canvas.drawLine (x1, y1, canpix2.x, canpix2.y, capGridLnPaint);
                 canvas.drawLine (x1, y1, canpix3.x, canpix3.y, capGridLnPaint);
+
+                int bestn = 999;
+                String bestid = null;
                 for (CapGrid cg : capgrids) {
                     int n = cg.number (lon, lat);
-                    if (n > 0) {
-                        canvas.save ();
-                        try {
-                            float theta = Mathf.atan2 (canpix2.y - y1, canpix2.x - x1);
-                            canvas.rotate (Mathf.toDegrees (theta), x1, y1);
-                            String s = cg.id + " " + n;
-                            canvas.drawText (s, x1 + 10, y1 - 10, capGridBGPaint);
-                            canvas.drawText (s, x1 + 10, y1 - 10, capGridTxPaint);
-                        } finally {
-                            canvas.restore ();
-                        }
-                        break;
+                    if ((n > 0) && (bestn > n)) {
+                        bestn = n;
+                        bestid = cg.id;
+                    }
+                }
+                if (bestid != null) {
+                    canvas.save ();
+                    try {
+                        float theta = Mathf.atan2 (canpix2.y - y1, canpix2.x - x1);
+                        canvas.rotate (Mathf.toDegrees (theta), x1, y1);
+                        String s = bestid + " " + bestn;
+                        canvas.drawText (s, x1 + 10, y1 - 10, capGridBGPaint);
+                        canvas.drawText (s, x1 + 10, y1 - 10, capGridTxPaint);
+                    } finally {
+                        canvas.restore ();
                     }
                 }
             }

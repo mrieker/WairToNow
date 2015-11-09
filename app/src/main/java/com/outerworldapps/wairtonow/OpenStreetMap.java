@@ -110,15 +110,17 @@ public class OpenStreetMap {
          * Draw tiles.
          */
         mainTileDrawer.canvas = canvas;
-        mainTileDrawer.DrawTiles (wairToNow, pmap, canvasHdgRads);
+        boolean gotatile = mainTileDrawer.DrawTiles (wairToNow, pmap, canvasHdgRads);
 
         /*
          * Copyright message in lower left corner.
          */
-        int h = pmap.canvasHeight;
-        String copyrtMessage = "Copyright OpenStreetMap contributors";
-        canvas.drawText (copyrtMessage, 5, h - 5, copyrtBGPaint);
-        canvas.drawText (copyrtMessage, 5, h - 5, copyrtTxPaint);
+        if (gotatile) {
+            int h = pmap.canvasHeight;
+            String copyrtMessage = "Copyright OpenStreetMap contributors";
+            canvas.drawText (copyrtMessage, 5, h - 5, copyrtBGPaint);
+            canvas.drawText (copyrtMessage, 5, h - 5, copyrtTxPaint);
+        }
     }
 
     /**
@@ -141,21 +143,21 @@ public class OpenStreetMap {
         private Path canvasclip = new Path ();
 
         @Override  // TileDrawer
-        public void DrawTile ()
+        public boolean DrawTile ()
         {
             /*
              * Try to draw the bitmap or start downloaded it if we don't have it.
              * Meanwhile, try to draw zoomed out tile if we have one.
              */
-            if (!TryToDrawTile (canvas, zoom, tileX, tileY, true)) {
-                int tileXOut = tileX;
-                int tileYOut = tileY;
-                for (int zoomOut = zoom; -- zoomOut >= MINZOOM;) {
-                    tileXOut /= 2;
-                    tileYOut /= 2;
-                    if (TryToDrawTile (canvas, zoomOut, tileXOut, tileYOut, false)) break;
-                }
+            if (TryToDrawTile (canvas, zoom, tileX, tileY, true)) return true;
+            int tileXOut = tileX;
+            int tileYOut = tileY;
+            for (int zoomOut = zoom; -- zoomOut >= MINZOOM;) {
+                tileXOut /= 2;
+                tileYOut /= 2;
+                if (TryToDrawTile (canvas, zoomOut, tileXOut, tileYOut, false)) return true;
             }
+            return false;
         }
 
         /**
@@ -300,7 +302,7 @@ public class OpenStreetMap {
         protected Point botritecanpix = new Point ();
 
         // draw tile zoom/tileX/tileY.png
-        public abstract void DrawTile ();
+        public abstract boolean DrawTile ();
 
         /**
          * Draw OpenStreetMap tiles that fill the given pmap area.
@@ -309,8 +311,10 @@ public class OpenStreetMap {
          * @param pmap = what pixels to draw to and the corresponding lat/lon mapping
          * @param canvasHdgRads = heading for 'up'
          */
-        public void DrawTiles (WairToNow wairToNow, PixelMapper pmap, float canvasHdgRads)
+        public boolean DrawTiles (WairToNow wairToNow, PixelMapper pmap, float canvasHdgRads)
         {
+            boolean gotatile = false;
+
             /*
              * Read display metrics each time in case of orientation change.
              */
@@ -394,9 +398,10 @@ public class OpenStreetMap {
                     /*
                      * At least some part of tile is on canvas, draw it.
                      */
-                    DrawTile ();
+                    gotatile |= DrawTile ();
                 }
             }
+            return gotatile;
         }
 
         /**
@@ -645,10 +650,11 @@ public class OpenStreetMap {
             public boolean successful;
 
             @Override
-            public void DrawTile ()
+            public boolean DrawTile ()
             {
                 String tilename = zoom + "/" + tileX + "/" + tileY + ".png";
                 bulkDownloads.add (tilename);
+                return false;
             }
         }
 

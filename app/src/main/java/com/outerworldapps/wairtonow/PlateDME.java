@@ -35,6 +35,9 @@ import android.graphics.RectF;
 import android.graphics.Typeface;
 import android.os.SystemClock;
 import android.text.InputType;
+import android.text.Spannable;
+import android.text.SpannableStringBuilder;
+import android.text.style.ForegroundColorSpan;
 import android.util.Log;
 import android.view.ViewGroup;
 import android.view.ViewParent;
@@ -228,26 +231,32 @@ public class PlateDME {
                 int checked = dmecb.getChecked ();
                 if (checked != 0) {
                     Waypoint wp = dmecb.waypoint;
-                    StringBuilder sb = new StringBuilder (numchars);
+                    StringBuilder sb = new StringBuilder ();
                     sb.append (dmeIdent);
-                    while (sb.length () < 5) sb.append (' ');
+                    while (sb.length () < 5) sb.append (" ");
 
                     // distance (in nautical miles) to DME station
                     float distBin = Lib.LatLonDist (gpslat, gpslon, wp.lat, wp.lon);
+                    boolean slantRange = false;
+                    int slantRangeBeg = 0;
+                    int slantRangeEnd = 0;
                     if (wp.elev != Waypoint.ELEV_UNKNOWN) {
                         distBin = Mathf.hypot (distBin, (gpsalt - wp.elev / Lib.FtPerM) / Lib.MPerNM);
+                        slantRange = true;
                     }
                     if ((checked & DMECB_DIST) != 0) {
+                        slantRangeBeg = sb.length ();
                         int dist10Bin = (int) (distBin * 10 + 0.5);
                         int len = sb.length ();
                         if (dist10Bin > 9999) {
                             sb.append ("--.-");
                         } else {
-                            sb.append (dist10Bin / 10);
+                            sb.append (Integer.toString (dist10Bin / 10));
                             sb.append ('.');
-                            sb.append (dist10Bin % 10);
+                            sb.append (Integer.toString (dist10Bin % 10));
                         }
-                        while (sb.length () - len < 5) sb.insert (len, ' ');
+                        while (sb.length () - len < 5) sb.insert (len, " ");
+                        slantRangeEnd = sb.length ();
                     }
 
                     // compute nautical miles per second we are closing in on the station
@@ -279,15 +288,15 @@ public class PlateDME {
                                     sb.append ('-');
                                     seconds = - seconds;
                                 }
-                                sb.append (seconds / 60);
+                                sb.append (Integer.toString (seconds / 60));
                                 sb.append (':');
                                 int len2 = sb.length ();
-                                sb.append (seconds % 60);
-                                while (sb.length () - len2 < 2) sb.insert (len2, '0');
+                                sb.append (Integer.toString (seconds % 60));
+                                while (sb.length () - len2 < 2) sb.insert (len2, "0");
                             }
                         }
                         if (sb.length () == len1) sb.append ("--:--");
-                        while (sb.length () - len1 < 6) sb.insert (len1, ' ');
+                        while (sb.length () - len1 < 6) sb.insert (len1, " ");
                     }
 
                     // get what radial we are on from the navaid (should match what's on an IAP plate)
@@ -296,14 +305,26 @@ public class PlateDME {
                         float varDeg = (wp.magvar == Waypoint.VAR_UNKNOWN) ? Lib.MagVariation (wp.lat, wp.lon, wp.elev) : wp.magvar;
                         int hdgMag = ((int) (hdgDeg + varDeg + 0.5F) + 359) % 360 + 1;
                         int len = sb.length ();
-                        sb.append (hdgMag);
+                        sb.append (Integer.toString (hdgMag));
                         sb.append ((char) 0x00B0);
-                        while (sb.length () - len < 5) sb.insert (len, ' ');
+                        while (sb.length () - len < 5) sb.insert (len, " ");
                     }
 
                     // display resultant string
                     dmey += Mathf.ceil (dmeTextHeight);
-                    canvas.drawText (sb.toString (), dmex, dmey, dmeTxPaint);
+                    String str = sb.toString ();
+                    if (slantRange) {
+                        float x = dmex;
+                        canvas.drawText (str, 0, slantRangeBeg, x, dmey, dmeTxPaint);
+                        x += dmeTxPaint.measureText (str, 0, slantRangeBeg);
+                        dmeTxPaint.setTextSkewX (-0.25F);
+                        canvas.drawText (str, slantRangeBeg, slantRangeEnd, x, dmey, dmeTxPaint);
+                        x += dmeTxPaint.measureText (str, slantRangeBeg, slantRangeEnd);
+                        dmeTxPaint.setTextSkewX (0.0F);
+                        canvas.drawText (str, slantRangeEnd, str.length (), x, dmey, dmeTxPaint);
+                    } else {
+                        canvas.drawText (str, dmex, dmey, dmeTxPaint);
+                    }
                 }
             }
         }

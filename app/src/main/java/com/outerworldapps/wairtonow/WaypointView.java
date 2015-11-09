@@ -29,6 +29,9 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Locale;
@@ -387,25 +390,52 @@ public class WaypointView extends LinearLayout
     /**
      * Find waypoints near the given lat/lon and let user select one and open it.
      */
-    public void OpenWaypointAtLatLon (float lat, float lon)
+    public void OpenWaypointAtLatLon (final float lat, final float lon)
     {
+        // get all waypoints within box from given lat/lon
         float del = nearbynm / wairToNow.chartView.scaling / Lib.NMPerDeg;
-        LinkedList<Waypoint> wps = new Waypoint.Within ().Get (lat - del, lat + del, lon - del, lon + del);
-        for (Iterator<Waypoint> it = wps.iterator (); it.hasNext ();) {
+        Collection<Waypoint> wpcollection = new Waypoint.Within ().Get (lat - del, lat + del, lon - del, lon + del);
+
+        // remove all waypoints greater than radius from the collection
+        for (Iterator<Waypoint> it = wpcollection.iterator (); it.hasNext ();) {
             Waypoint wp = it.next ();
             float dist = Lib.LatLonDist (lat, lon, wp.lat, wp.lon);
             if (dist > nearbynm / wairToNow.chartView.scaling) {
                 it.remove ();
             }
         }
-        OpenWaypointFromList (wps);
+
+        // sort collection by ascending distance from given lat/lon
+        Waypoint[] wparray = new Waypoint[wpcollection.size()];
+        wpcollection.toArray (wparray);
+        Arrays.sort (wparray, new WPSorter (lat, lon));
+
+        // present resultant list to user as a menu
+        OpenWaypointFromList (Arrays.asList (wparray));
+    }
+
+    private static class WPSorter implements Comparator<Waypoint> {
+        private float llat, llon;
+        public WPSorter (float lat, float lon)
+        {
+            llat = lat;
+            llon = lon;
+        }
+        public int compare (Waypoint a, Waypoint b)
+        {
+            float dista = Lib.LatLonDist (llat, llon, a.lat, a.lon);
+            float distb = Lib.LatLonDist (llat, llon, b.lat, b.lon);
+            if (dista < distb) return -1;
+            if (dista > distb) return  1;
+            return 0;
+        }
     }
 
     /**
      * Present list for user to select a waypoint and open it.
      * @param waypoints = list of waypoints to choose from
      */
-    private void OpenWaypointFromList (LinkedList<Waypoint> waypoints)
+    private void OpenWaypointFromList (Collection<Waypoint> waypoints)
     {
         int npoints = waypoints.size ();
         if (npoints == 1) {
@@ -413,7 +443,7 @@ public class WaypointView extends LinearLayout
             /*
              * Just one waypoint within range, select it directly.
              */
-            WaypointSelected (waypoints.getFirst ());
+            WaypointSelected (waypoints.iterator ().next ());
         } else if (npoints > 1) {
 
             /*
@@ -435,15 +465,21 @@ public class WaypointView extends LinearLayout
      * One of the waypoints from the selection dialog was picked.
      */
     private class OpenWaypointAtLatLonSelected implements DialogInterface.OnClickListener {
-        private LinkedList<Waypoint> nearby;
-        public OpenWaypointAtLatLonSelected (LinkedList<Waypoint>  ns)
+        private Collection<Waypoint> nearby;
+        public OpenWaypointAtLatLonSelected (Collection<Waypoint>  ns)
         {
             nearby = ns;
         }
         @Override
-        public void onClick(DialogInterface dialog, int which)
+        public void onClick (DialogInterface dialog, int which)
         {
-            WaypointSelected (nearby.get (which));
+            int n = -1;
+            for (Waypoint wp : nearby) {
+                if (++ n == which) {
+                    WaypointSelected (wp);
+                    break;
+                }
+            }
         }
     }
 

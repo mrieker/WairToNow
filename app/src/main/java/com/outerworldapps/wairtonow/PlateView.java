@@ -716,7 +716,8 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
     }
 
     /**
-     * Display a runway diagram made up from runway information.
+     * Display a runway diagram made up from runway information,
+     * and backed by OpenStreetMap tiles.
      */
     private class RWYPlateImage extends GRPlateImage {
 
@@ -888,7 +889,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
 
             // find waypoints within the area depicted
             // we don't want fixes as there are a lot of them adding clutter
-            LinkedList<Waypoint> wps = new Waypoint.Within ().Get (minlat, maxlat, minlon, maxlon);
+            Collection<Waypoint> wps = new Waypoint.Within ().Get (minlat, maxlat, minlon, maxlon);
             for (Waypoint wp : wps) {
                 String type = wp.GetType ();
                 if (!type.startsWith ("FIX")) waypoints.put (wp.ident, new WpInfo (wp));

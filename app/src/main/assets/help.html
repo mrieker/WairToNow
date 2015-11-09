@@ -3,12 +3,12 @@
         <H2>WairToNow, version <SCRIPT LANGUAGE=JAVASCRIPT>document.write (hvjso.getVersionName ())</SCRIPT></H2>
         <H3>... an aviation oriented map program from <A HREF="http://www.outerworldapps.com">Outer World Apps</A>.</H3>
 
-        <P>The menu buttons at the bottom select the basic screen:</P>
+        <P>The buttons at the bottom of the screen scroll horizontally and select the page to display:</P>
         <UL>
-            <LI><B><A HREF="p_chart.html">Chart</A></B> - main moving-map display using the selected chart as background
-            <LI><B><A HREF="p_faawp.html">FAAWP1</A></B> - search for FAA-defined waypoint and display information about it
+            <LI><B><A HREF="p_chart.html">Chart</A></B> - main moving-map page
+            <LI><B><A HREF="p_faawp.html">FAAWP1</A></B> - search for FAA-defined waypoint
             <LI><B><A HREF="p_faawp.html">FAAWP2</A></B> - same as FAAWP1
-            <LI><B><A HREF="p_userwp.html">UserWP</A></B> - search for user-defined waypoint
+            <LI><B><A HREF="p_userwp.html">UserWP</A></B> - define and search for user-defined waypoint
             <LI><B><A HREF="p_glass.html">Glass</A></B> - glass cockpit style display
             <LI><B><A HREF="p_crumbs.html">Crumbs</A></B> - record/display a breadcrumb trail
             <LI><B><A HREF="p_plan.html">Plan</A></B> - some flight planning tools
@@ -19,31 +19,60 @@
         </UL>
 
         <H3>Downloading charts</H3>
-        <P>You must download data before using the app.  Download by clicking
+        <P>You must download data before using the app.  Download by clicking the
             <B><A HREF="p_maint.html">Maint</A></B> button.</P>
-        <P>NOTE:  If you download plates, it will give you the airport diagrams, SIDs STARs, IAPs, etc.
-            It will also give you a runway diagram that is synthesized by WairToNow as many airports do
-            not have an official FAA airport diagram.  These are constructed from the FAA data that has
-            the lat/lon of <I>most</I> but not necessarily <I>all</I> runways for an airport.  Some
-            airports don't have any runway lat/lon information provided at all, so you may not see some
-            or any runways for a given airport.</P>
-        <P>That being said, WairToNow will use OpenStreetMap tiles as a background for the diagram which
-            most times has runway and taxiway outlines which are generally useful.  When you download
-            the plates, WairToNow will start downloading the tiles for the corresponding runway
-            backgrounds in a background thread.  The app will still function while this downloading is
-            happening.</P>
         <UL>
             <LI>You must download the waypoints from the <B><A HREF="p_maint.html#misc">Misc</A></B>
                 button.  This waypoint data includes airports, fixes, localizers, navaids and runways
                 for the entire country.
             <LI>Everything else is optional, select what you want.  Avoid over-selecting as the download
                 times can be significant.
-            <LI>NOTE:  There is no selection for the Street maps, they are downloaded as needed, which
-                requires an Internet connection at the time of use.  You can preload areas of interest
-                by previewing the area where you have an internet connection, and WairToNow will save
-                the tiles, so in that case an Internet connection would not be needed to view those same
-                areas again.  Be sure to use a wide range of zoom when previewing so it will load all the
-                tiles for the different zoom levels.
+        </UL>
+
+        <H3>Licenses</H3>
+        <P>
+            Copyright (C) 2015, Outer World Apps, Beverly, MA USA.
+            All rights reserved.
+        </P>
+        <UL>
+            <LI>This program is free software; you can redistribute it and/or modify
+            it under the terms of the <A HREF="http://www.gnu.org/licenses/gpl-2.0.html">
+            GNU General Public License as published by
+            the Free Software Foundation; version 2 of the License</A>.</LI>
+
+            <LI>This program is distributed in the hope that it will be useful,
+            but WITHOUT ANY WARRANTY; without even the implied warranty of
+            MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+            GNU General Public License for more details.</LI>
+
+            <LI>THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESSED OR IMPLIED WARRANTIES,
+            INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
+            FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL OUTER WORLD
+            APPS OR ANY CONTRIBUTORS TO THIS SOFTWARE BE LIABLE FOR ANY DIRECT, INDIRECT,
+            INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+            LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA,
+            OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+            LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+            NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+            EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.</LI>
+
+            <LI><B><FONT COLOR=RED>Always be skeptical regarding any information provided
+                by WairToNow.  Accept it only if and when it is confirmed by your aircraft's
+                approved navigation systems and any other information you have available.
+                EXPECT it to FAIL when someone's HeALTh or PROpeRTy is at RISk.</FONT></B></LI>
+
+            <LI>You should have received a copy of the GNU General Public License
+            along with this program; if not, write to the Free Software
+            Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+            </LI>
+        </UL>
+        <UL><LI><A HREF="http://www.github.com/mrieker/WairToNow">Source code</A></UL>
+        <P>We also use map tiles from <A HREF="http://www.openstreetmap.org">OpenStreetMap</A>:</P>
+        <UL>
+            <LI>The data is available under the <A HREF="http://opendatacommons.org/licenses/odbl/">Open
+                Database License</A>.
+            <LI>The cartography is licensed as CC BY-SA.
+            <LI><A HREF="http://www.openstreetmap.org/copyright">Copyright and license</A>.</P>
         </UL>
     </BODY>
 </HTML>

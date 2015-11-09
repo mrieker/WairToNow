@@ -9,27 +9,47 @@
                 information for the whole country.  This database is required
                 for operation and can not be unloaded.
             <LI><B>Plates</B> - has per-state airport detail information, including
-                AFD-like data, approach plates, SIDs, STARs etc.  It fills in the
-                information displayed on the <B><A HREF="p_faawp.html">FAAWP</A></B>
-                pages.
+                AFD-like data, <A HREF="iap_plate.html">approach plates</A>,
+                SIDs, STARs etc.  It fills in the information displayed on the
+                <B><A HREF="p_faawp.html">FAAWP</A></B> pages.
             <LI><B>ENR</B> - IFR enroute charts
             <LI><B>HEL</B> - helicopter charts
             <LI><B>SEC</B> - sectional charts
-            <LI><B>WAC</B> - world charts (Note:  the FAA has stopped updating these)
+            <LI><B>TAC</B> - terminal area charts
+            <LI><B>WAC</B> - world charts (the FAA has stopped updating these)
         </UL>
         <UL>
             <LI>Check the charts/databases you want downloaded to your flash drive
                 then click the <I>Download</I> button at the top.  You may click
                 checkboxes on more than one page before clikcing <I>Download</I>.
-            <LI>You may also click <I>Unload</I> to remove the charts/databases from
-                your flash.
+                <I>Needless to say, Internet connectivity is required for this
+                function.</I>
+            <LI>You may also click <I>Unload</I> to remove the selected
+                charts/databases from your flash to free up some space.
         </UL>
-        <P>NOTE:  When downloading plates, it will also read OpenStreetMap tiles in the
+        <UL>
+            <LI>Green text indicates the currently downloaded data is up-to-date and
+                will remain so at least for several more days.
+            <LI>Yellow text indicates the currently downloaded data is up-to-date but
+                will expire in the next few days.
+            <LI>Red text indicates the currently downloaded data has expired.
+        </UL>
+        <P>NOTE:  When downloading plates, it will also read
+            <A HREF="http://www.openstreetmap.org">OpenStreetMap</A> tiles in the
             background and it may take longer to load the tiles than the database itself.
             These tiles are used for the WairToNow runway diagrams that are useful when
             there is no FAA-supplied airport diagram for a particular airport.  Internet
             connectivity is required for this process to complete, but it is OK if you
             disconnect before it completes as it will start back up automatically when
             you re-connect to the Internet.</P>
+        <P>NOTE:  There is no download button for Street chart data.  The
+            <A HREF="http://www.openstreetmap.org">OpenStreetMap</A>
+            tiles are downloaded as needed and so requires access to the Internet.  You
+            can preload the tiles by viewing the area ahead of time and WairToNow will
+            save those tiles to flash for viewing later.  Be sure to use various zoom
+            levels when previewing so those levels will be available when no Internet
+            access is available.  The intent of the Street map is for walking or biking
+            from an airport to a nearby "$100 hamburger" stand, not for long distances
+            as needed for driving.</P>
     </BODY>
 </HTML>

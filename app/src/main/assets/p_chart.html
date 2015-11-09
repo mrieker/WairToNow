@@ -1,62 +1,100 @@
 <HTML>
     <BODY>
         <H2>Chart page</H2>
-        <P>This is the main moving map page.</P>
-        <UL>
-            <LI>Backgroud is the moving map.
-            <LI>Select which moving map by clicking the <B>Chart</B> button or the
-                black triangle button in the lower right corner.  You will be presented
-                with a list of charts that are applicable to the lat/lon of the screen.
-            <LI>Upper left corner shows the latest position received by the GPS.
-                It can be hidden by clicking on it and it will shrink to a red triangle
-                button.  The latest GPS position is indicated by the red airplane icon
-                on the map, provided the display contains the lat/lon of the latest GPS
-                position.  Click the red triangle button to have it displayed again.
-            <LI>Lower left corner shows the lat/lon position of the center of the display.
-                The center will be identified by a blue cross in the center.  The numerics
-                may be hidden by clicking on the numbers and they will shrink into a blue
-                triangle button and the cross will be removed from the display.  Click the
-                blue triangle button to have it displayed again.
-            <LI>If a course is selected, the course information will be shown in the upper
-                right corner in green along with a green course line.  The course information
-                and line may be hidden by clicking on the numbers and it will shrink to a
-                triangle button and the course line will be remove from the display.  Click
-                the green triangle button to have it displayed again.
-            <LI>The gray triangle button in the middle of the bottom edge of the display will
-                hide/show the page selection buttons along the bottom.
+        <P>This is the main moving map page.  There are primary and secondary pages.</P>
+        <TABLE>
+            <TR>
+                <TH WIDTH=50% ALIGN=LEFT>Primary (moving map)</TH>
+                <TH WIDTH=50% ALIGN=LEFT>Secondary (chart selector)</TH>
+            </TR>
+            <TR>
+                <TD ALIGN=CENTER><IMG SRC="near-kpym-going-to-katama-400.png"></TD>
+                <TD ALIGN=CENTER><IMG SRC="chart-selection-400.png"></TD>
+            </TR>
+            <TR>
+                <TD ALIGN=LEFT VALIGN=TOP>
+                    <UL>
+                        <LI>Background is the moving map.  If black, select a chart by switching to
+                            the secondary page by clicking the <B>Chart</B> button at the bottom or
+                            clicking the <B>select chart</B> cloud in lower right corner.
+                        <LI>Upper left corner cloud shows the latest position received by the GPS.
+                            The cloud will shrink to a red triangle button when clicked and can be
+                            restored by clicking the red triangle.
+                            The latest GPS position is indicated by the red airplane icon
+                            on the map, provided the display contains the lat/lon of the latest GPS
+                            position.
+                        <LI>Lower left corner cloud shows the lat/lon position of the center of the
+                            display, zoom factor and map rotation (see below).  There will also be a
+                            blue cross in the center if the airplane is not centered in the display.
+                            The cloud and line will shrink to a blue triangle button when clicked and
+                            can be restored by clicking the blue triangle.
+                        <LI>If a course is selected, the course information will be shown in the upper
+                            right corner cloud in green along with a green course line.  The cloud
+                            and line may be hidden by clicking on the cloud,shrinking it to a green
+                            triangle and can be restored by clicking the green triangle.
+                        <LI>The gray triangle button in the middle of the bottom edge of the display will
+                            hide/show the page selection buttons along the bottom.
+                        <LI>Switch to the secondary page by either clicking the <B>Chart</B> button in
+                            the menu bar at the bottom of the screen or by clicking the black triangle
+                            or <B>select chart</B> cloud in the lower right corner of the map.
+                    </UL>
+                    <P>The details of what appears in the lower left corner cloud may vary based
+                        on the current situation.  At most, lines such as these will appear:</P>
+                    <PRE><FONT COLOR=BLUE>
+       6.79 nm
+      011&#176; Mag
+    42&#176;41.4634'N
+    70&#176;53.3888'W
+        x 1
+      015&#176; Mag
+                    </FONT></PRE>
+                    <UL>
+                        <LI><TT><FONT COLOR=BLUE>6.79 nm</FONT></TT> - distance from airplane icon to center
+                            of screen.  Not shown if aircraft is centered on screen.
+                        <LI><TT><FONT COLOR=BLUE>011&#176; Mag</FONT></TT> - heading rom airplane icon to center
+                            of screen.  Not shown if aircraft is centered on screen.
+                        <LI><TT><FONT COLOR=BLUE>42&#176;41.4634'N</FONT></TT> - latitude of center of screen.
+                            Not shown if aircraft is centered on screen.
+                        <LI><TT><FONT COLOR=BLUE>70&#176;53.3888'W</FONT></TT> - longitude f center of screen.
+                            Not shown if aircraft is centered on screen.
+                        <LI><TT><FONT COLOR=BLUE>x 1</FONT></TT> - chart magnification factor.  x1 indicates
+                            standard 500,000:1 sectional magnification.
+                        <LI><TT><FONT COLOR=BLUE>015&#176; Mag</FONT></TT> - chart chart rotation factor, ie,
+                            what chart heading is 'UP'.
+                    </UL>
+                    <P><B>NOTE:</B>  If you manually pan the display, the chart will fix in place and
+                        will not track movement of the airplane.  The airplane will move but the chart
+                        will not.  To re-engage tracking, click the Android <I>Menu</I> button then
+                        click <I>Re-center</I>.  The map will move to maintain the airplane in the
+                        center of the display, the blue cross will be taken away and the information
+                        in the lower left corner cloud will be reduced to a minimum.
+                    </P>
+                </TD>
+                <TD ALIGN=LEFT VALIGN=TOP>
+                    <UL>
+                        <LI>White charts are not downloaded, clicking the link will download
+                            the chart (provided Internet access is available).
+                        <LI>Cyan indicates various things:
+                            <UL>
+                                <LI><B>Street</B> -
+                                    <A HREF="http://www.openstreetmap.org">OpenStreetMap</A>
+                                    tiles, Internet access required for any tiles not already
+                                    cached
+                                <LI><B>Auto SEC</B> - selects downloaded sectionals to fill
+                                    the screen
+                                <LI><B>Auto WAC</B> - selects downloaded world charts to fill
+                                    the screen
+                            </UL>
+                        <LI>Green - valid downloaded chart
+                        <LI>Yellow - valid downloaded chart, will soon expire, go to
+                            <B><A HREF="p_maint.html">Maint</A></B> page to update
+                        <LI>Red - expired downloaded chart, go to
+                            <B><A HREF="p_maint.html">Maint</A></B> page to update
+                        <LI>Switch to the primary page by selecting a chart from the menu.
+                    </UL>
+                </TD>
+            </TR>
+        </TABLE>
         </UL>
-        <P>The details of what appears in the lower left corner may vary based on the current
-            situation.  At most, lines such as these will appear:</P>
-        <PRE><FONT COLOR=BLUE>
-
-              6.79 nm
-              011&#176; Mag
-            42&#176;41.4634'N
-            70&#176;53.3888'W
-                 x 1
-              015&#176; Mag
-        </FONT></PRE>
-        <UL>
-            <LI><TT><FONT COLOR=BLUE>6.79 nm</FONT></TT> - distance from airplane icon to center
-                of screen.  Not shown if aircraft is centered on screen.
-            <LI><TT><FONT COLOR=BLUE>011&#176; Mag</FONT></TT> - heading rom airplane icon to center
-                of screen.  Not shown if aircraft is centered on screen.
-            <LI><TT><FONT COLOR=BLUE>42&#176;41.4634'N</FONT></TT> - latitude of center of screen.
-                Not shown if aircraft is centered on screen.
-            <LI><TT><FONT COLOR=BLUE>70&#176;53.3888'W</FONT></TT> - longitude f center of screen.
-                Not shown if aircraft is centered on screen.
-            <LI><TT><FONT COLOR=BLUE>x 1</FONT></TT> - chart magnification factor.  x1 indicates
-                standard 500,000:1 sectional magnification.
-            <LI><TT><FONT COLOR=BLUE>015&#176; Mag</FONT></TT> - chart chart rotation factor, ie,
-                what chart heading is 'UP'.
-        </UL>
-        <P><B>NOTE:</B>  If you manually pan the display, the chart will fix in place and will not
-            track movement of the airplane.  The airplane will move but the chart will not.  To
-            re-engage tracking, click the Android <I>Menu</I> button then click <I>Re-center</I>.
-            The map will move to place the airplane in the center of the display, the blue cross
-            will be taken away and the information in the lower left corner will be reduced to a
-            minimum.
-        </P>
-        <P><IMG SRC="near-kpym-going-to-katama-400.png"></P>
     </BODY>
 </HTML>

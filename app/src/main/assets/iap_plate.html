@@ -1,0 +1,110 @@
+<HTML>
+    <BODY>
+        <H2>Instrument Approach Procedure Plates</H2>
+
+        <P>The plates are the images as provided by the FAA.  Be sure to
+            validate that the ones you will be using are current and correct
+            before using them in flight.
+
+        <P><FONT COLOR=RED>Always be skeptical regarding any information provided
+            by WairToNow.  Accept it only if and when it is confirmed by your
+            aircraft's approved navigation systems and as provided by the FAA on
+            the plate itself.  If there is <B>any uncertainty</B> in flight using
+            these plates, <B><I>immediately execute your missed approach
+            instructions!</I></B></FONT></P>
+
+        <H3>Timer</H3>
+        <P>In the upper-right corner is a yellow triangle button.  Clicking
+            on it will start a count-up timer that can be of use during a
+            non-precision approach.  To reset the time to 0:00, click the
+            numbers and it will collapse back to the triangle button, then
+            click the button again to start the counter back up.</P>
+
+        <H3>DME</H3>
+        <P>The button in the lower-left corner can be used to obtain DME
+            information.  Needless to say, the DME information is calculated
+            by using the latest GPS position and the lat/lon of the waypoint
+            from the database.  If there is elevation information available
+            for the waypoint (such as with a VOR or localizer), the slant range
+            distance will be shown, otherwise it is a simple over-the-ground
+            distance.  Slant-range distances will be shown in <I>italics</I>,
+            and over-the-ground distances will be shown normally.</P>
+        <P>Clicking the button will bring up a dialog box that you can type a
+            waypoint name in.  It will accept airport ICAO ids (eg, <TT>KBOS</TT>),
+            navaid ids (eg, <TT>BOS</TT>), and localizers beginning with 
+            <TT>I</TT>, (eg, <TT>IBOS</TT> or <TT>I-BOS</TT>), five-letter fix ids,
+            and runway thresholds given by <TT>RW<I>number</I></TT> (eg,
+            <TT>RW04R</TT>).  You can enter them in upper or lower case, it doesn't
+            matter.</P>
+        <P>There are also 3 checkboxes provided:</P>
+        <UL>
+            <LI><B>D</B> - display distance information, always in nautical miles
+            <LI><B>T</B> - display time-to-waypoint information, in minutes:seconds
+                            (negative means the waypoint is behind you)
+            <LI><B>R</B> - display radial FROM information, always in magnetic degrees
+                            (useful for validating cross-radials along the approach course)
+        </UL>
+        <P>If you do not check any boxes, <B>D</B> will be assumed.</P>
+        <P>The text is formatted in the box to minimize screen area consumed.</P>
+        <P>To remove the DME information display, click on the numbers and they
+            will collapse back into the triangle button.  Click the triangle button
+            to get the numbers back.</P>
+        <P>To add additional waypoints or modify the list, long-click on the numbers
+            or the triangle button.  You may select as many waypoints as you like,
+            provided there is sufficient area on the screen to display them.</P>
+
+        <H3>Georeferencing</H3>
+        <P>WairToNow provides a database of machine-detected reference points for
+            most approach procedures.  They are indicated by blue dots on the plate.
+            It is recommended to verify these points before using the plate:</P>
+        <UL>
+            <LI>Click the triangle button at the top center of the plate.
+                You should see blue boxes appear around the reference points with
+                the names of the fixes below the boxes in blue.
+            <LI>Verify that the name below each of the boxes in blue <I>matches
+                the name of the fix as printed on the plate by the FAA</I>.
+                <BR><IMG WIDTH=128 HEIGHT=128 SRC="iap_waypt_verify.png">
+            <LI>Verify that the black FAA-drawn runway lines are overdrawn by
+                magenta WairToNow-drawn runway lines.  You may need to zoom in
+                on the airport area quite a bit to see them.  The lines do not
+                need to exactly match position but should be close.  Also, sometimes
+                a runway line or two will be missing one way or the other which
+                doesn't matter.  It is the position that is important.
+                <BR><IMG WIDTH=128 HEIGHT=128 SRC="iap_rwy_verify_example.png">
+            <LI>Click the triangle button again and the boxes will go away.
+        </UL>
+        <P>If these points are missing or incorrectly named or otherwise inadequate,
+            you may manually enter reference points and they will override the
+            provided points. The procedure is:</P>
+        <UL>
+            <LI>Click the triangle button at the top center of the plate.
+                It should open a row of buttons and a text box, along with
+                some crosshairs.  Any reference points currently defined
+                for the plate should have a box drawn around them with the
+                waypoint name shown below the box.
+            <LI>Position the crosshairs over a fix you wish to add to the
+                ones used.  You may want to zoom in quite a bit to get good
+                positioning.  Then type the name of the fix in the text box
+                and click the <B>Save</B> button.  If the fix name is valid,
+                a dot will be placed at the crosshair position along with a
+                box and the fix name.
+            <LI>To delete a reference point, including a machine-detected
+                one, type the fix name in the box and click the <B>Delete</B>
+                button.
+        </UL>
+        <P>The dot/box color has these meanings:</P>
+        <UL>
+            <LI><FONT COLOR=BLUE>Blue</FONT> - machine generated point being used for georeferencing
+            <LI><FONT COLOR=CYAN>Cyan</FONT> - machine generated point not being used for georeferencing
+            <LI><FONT COLOR=RED>Red</FONT> - manually entered point giving poor geometry
+            <LI><FONT COLOR=YELLOW>Yellow</FONT> - manually entered point not being used for georeferencing
+            <LI><FONT COLOR=GREEN>Green</FONT> - manually entered point being used for georeferencing
+        </UL>
+        <P>Two reference points are required for georeferencing to work.  WairToNow will
+            pick two out of those it has that give the best geometry.</P>
+        <P><FONT COLOR=RED>Be aware that even though there is nothing on a plate
+            indicating that a fix as drawn by the FAA is not drawn to scale,
+            <I>sometimes they are not</I>.  So you may need to try several points
+            before getting everything, including the runways, to line up.</FONT></P>
+    </BODY>
+</HTML>

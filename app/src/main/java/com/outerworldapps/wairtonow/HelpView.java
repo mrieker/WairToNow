@@ -24,7 +24,10 @@ package com.outerworldapps.wairtonow;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.view.View;
+import android.view.ViewGroup;
+import android.webkit.WebSettings;
 import android.webkit.WebView;
+import android.widget.LinearLayout;
 
 /**
  * Display help page in a web view.
@@ -42,6 +45,9 @@ public class HelpView extends WebView
 
         getSettings ().setBuiltInZoomControls (true);
         getSettings ().setJavaScriptEnabled (true);
+        getSettings ().setDefaultFontSize (Math.round (wairToNow.textSize / 2.0F));
+        getSettings ().setDefaultFixedFontSize (Math.round (wairToNow.textSize / 2.0F));
+        getSettings ().setSupportZoom (true);
         addJavascriptInterface (new JavaScriptObject (), "hvjso");
 
         ReClicked ();

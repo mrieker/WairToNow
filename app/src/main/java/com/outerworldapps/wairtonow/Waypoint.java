@@ -32,6 +32,7 @@ import android.widget.TextView;
 import java.io.File;
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -263,8 +264,9 @@ public abstract class Waypoint {
     /**
      * Get waypoints within a lat/lon area.
      */
-    public static class Within extends LinkedList<Waypoint> {
+    public static class Within {
         private float leftLon, riteLon, topLat, botLat;
+        private HashMap<String,Waypoint> found = new HashMap<> ();
 
         public Within ()
         {
@@ -274,10 +276,9 @@ public abstract class Waypoint {
         /**
          * Set up to (re-)read waypoints within boundaries (GetWaypointsWithin()).
          */
-        @Override
         public void clear ()
         {
-            super.clear ();
+            found.clear ();
             botLat  =  1000.0F;
             topLat  = -1000.0F;
             leftLon =  1000.0F;
@@ -288,18 +289,30 @@ public abstract class Waypoint {
          * Return list of all waypoints within the given latitude & longitude.
          * May include waypoints outside that range as well.
          */
-        public LinkedList<Waypoint> Get (float bLat, float tLat, float lLon, float rLon)
+        public Collection<Waypoint> Get (float bLat, float tLat, float lLon, float rLon)
         {
-            if ((botLat > bLat) || (topLat < tLat) || (leftLon > lLon) || (riteLon < rLon)) {
-                bLat -= 1.0 / 64.0;
-                tLat += 1.0 / 64.0;
-                lLon -= 1.0 / 64.0;
-                rLon += 1.0 / 64.0;
+            // if new box is completely separate from old box, wipe out everything and start over
+            if ((bLat > topLat) || (tLat < botLat) || (lLon > riteLon) || (rLon < leftLon)) {
+                clear ();
+            }
 
-                if (botLat  > bLat) botLat  = bLat;
-                if (topLat  < tLat) topLat  = tLat;
-                if (leftLon > lLon) leftLon = lLon;
-                if (riteLon < rLon) riteLon = rLon;
+            // if new box goes outside old box, re-scan database
+            if ((botLat > bLat) || (topLat < tLat) || (leftLon > lLon) || (riteLon < rLon)) {
+
+                // expand borders a little so we don't read each time for small changes
+                bLat -= 3.0 / 64.0;
+                tLat += 3.0 / 64.0;
+                lLon -= 3.0 / 64.0;
+                rLon += 3.0 / 64.0;
+
+                // re-scanning database, get rid of all previous points
+                found.clear ();
+
+                // save exact limits of what we are scanning for
+                botLat  = bLat;
+                topLat  = tLat;
+                leftLon = lLon;
+                riteLon = rLon;
 
                 int bbbLat = (int) (botLat  * Waypoint.lldbfact);
                 int tttLat = (int) (topLat  * Waypoint.lldbfact);
@@ -328,7 +341,7 @@ public abstract class Waypoint {
                             try {
                                 if (result.moveToFirst ()) do {
                                     Waypoint wp = ctor.newInstance (result);
-                                    this.addLast (wp);
+                                    found.put (wp.ident, wp);
                                 } while (result.moveToNext ());
                             } finally {
                                 result.close ();
@@ -341,7 +354,7 @@ public abstract class Waypoint {
                     Log.w ("WaypointView", "no database file");
                 }
             }
-            return this;
+            return found.values ();
         }
     }
 
@@ -356,6 +369,7 @@ public abstract class Waypoint {
 
         private HashMap<String,Runway> runways;
         private String details;
+        private String menuKey;
 
         public Airport (Cursor result)
         {
@@ -457,7 +471,13 @@ public abstract class Waypoint {
         @Override
         public String MenuKey ()
         {
-            return "APT " + ident + ": " + name;
+            if (menuKey == null) {
+                String details = GetArptDetails ();
+                String[] lines = details.split ("\n");
+                menuKey = "APT " + ident + ": " + name;
+                if (lines.length > 0) menuKey += " " + lines[0];
+            }
+            return menuKey;
         }
 
         @Override

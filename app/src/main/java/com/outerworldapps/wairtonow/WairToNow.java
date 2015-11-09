@@ -24,6 +24,7 @@ import java.io.File;
 import java.io.IOException;
 
 import android.app.Activity;
+import android.content.SharedPreferences;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -56,6 +57,7 @@ public class WairToNow extends Activity {
     public  ChartView chartView;
     public  CrumbsView crumbsView;
     private boolean gpsAvailable;
+    private boolean hasAgreed;
     private boolean lastLocQueued;
     private boolean tabsVisible;
     public  float currentGPSLat;
@@ -84,6 +86,7 @@ public class WairToNow extends Activity {
     private Paint gpsAvailablePaint;
     private PlanView planView;
     private String pendingCourseSetName;
+    private TabButton agreeButton;
     public  TabButton currentTabButton;
     public  UserWPView userWPView;
     public  WaypointView waypointView1, waypointView2;
@@ -135,6 +138,11 @@ public class WairToNow extends Activity {
         gpsAvailablePaint.setColor (Color.RED);
         gpsAvailablePaint.setTextAlign (Paint.Align.CENTER);
         gpsAvailablePaint.setTextSize (textSize * 2);
+
+        /*
+         * License agreement.
+         */
+        AgreeView agreeView = new AgreeView (this);
 
         /*
          * Load options before doing anything else.
@@ -222,20 +230,22 @@ public class WairToNow extends Activity {
         /*
          * Set up tab system.
          */
-        TabButton chartButton     = new TabButton ("Chart",   chartView);
-        TabButton waypt1Button    = new TabButton ("FAAWP1",  waypointView1);
-        TabButton waypt2Button    = new TabButton ("FAAWP2",  waypointView2);
-        TabButton userWPButton    = new TabButton ("UserWP",  userWPView);
-        TabButton glassButton     = new TabButton ("Glass",   glassView);
-        TabButton crumbsButton    = new TabButton ("Crumbs",  crumbsView);
-        TabButton planButton      = new TabButton ("Plan",    planView);
-        TabButton optionsButton   = new TabButton ("Options", optionsView);
-        TabButton maintButton     = new TabButton ("Maint",   maintView);
-        TabButton gpsStatusButton = new TabButton ("GPS",     gpsStatusView);
-        TabButton filesButton     = new TabButton ("Files",   filesView);
-        TabButton helpButton      = new TabButton ("Help",    helpView);
+        agreeButton               = new TabButton (agreeView);
+        TabButton chartButton     = new TabButton (chartView);
+        TabButton waypt1Button    = new TabButton (waypointView1);
+        TabButton waypt2Button    = new TabButton (waypointView2);
+        TabButton userWPButton    = new TabButton (userWPView);
+        TabButton glassButton     = new TabButton (glassView);
+        TabButton crumbsButton    = new TabButton (crumbsView);
+        TabButton planButton      = new TabButton (planView);
+        TabButton optionsButton   = new TabButton (optionsView);
+        TabButton maintButton     = new TabButton (maintView);
+        TabButton gpsStatusButton = new TabButton (gpsStatusView);
+        TabButton filesButton     = new TabButton (filesView);
+        TabButton helpButton      = new TabButton (helpView);
         tabButtonLayout = new LinearLayout (this);
         tabButtonLayout.setOrientation (LinearLayout.HORIZONTAL);
+        tabButtonLayout.addView (agreeButton);
         tabButtonLayout.addView (chartButton);
         tabButtonLayout.addView (waypt1Button);
         tabButtonLayout.addView (waypt2Button);
@@ -259,7 +269,7 @@ public class WairToNow extends Activity {
         setContentView (tabViewLayout);
         tabsVisible = true;
 
-        SetCurrentTab ("Chart");
+        chartButton.DisplayNewTab ();
     }
 
     /**
@@ -280,10 +290,10 @@ public class WairToNow extends Activity {
         public final String ident;
         public View view;  // must also be CanBeMainView
 
-        public TabButton (String ident, View view)
+        public TabButton (View view)
         {
             super (WairToNow.this);
-            this.ident = ident;
+            this.ident = ((CanBeMainView) view).GetTabName ();
             this.view  = view;
             setText (ident);
             SetTextSize (this);
@@ -296,7 +306,7 @@ public class WairToNow extends Activity {
             // maybe it's a re-click of the current tab
             if (this == currentTabButton) {
                 ((CanBeMainView)view).ReClicked ();
-            } else {
+            } else if (hasAgreed) {
                 DisplayNewTab ();
             }
         }
@@ -492,6 +502,27 @@ public class WairToNow extends Activity {
     public void onResume ()
     {
         super.onResume ();
+
+        hasAgreed = false;
+        SharedPreferences prefs = getPreferences (Activity.MODE_PRIVATE);
+        long now = System.currentTimeMillis ();
+        long agreed = prefs.getLong ("hasAgreed", 0);
+        if (now - agreed < 30*24*60*60*1000L) {
+            HasAgreed ();
+        } else {
+            agreeButton.setVisibility (View.VISIBLE);
+            agreeButton.DisplayNewTab ();
+        }
+    }
+
+    /**
+     * Once we think they have agreed to licenses,
+     * start sampling GPS and allow other tab buttons to work.
+     */
+    public void HasAgreed ()
+    {
+        hasAgreed = true;
+        agreeButton.setVisibility (View.GONE);
         locationManager.requestLocationUpdates (LocationManager.GPS_PROVIDER, 1000L, 1.0F, gpsListener);
         locationManager.addGpsStatusListener (gpsListener);
     }
@@ -651,7 +682,7 @@ public class WairToNow extends Activity {
         if ("Hide".equals (sel)) {
             SetTabVisibility (false);
         }
-        if ("Re-center".equals (sel)) {
+        if ("Re-center".equals (sel) && hasAgreed) {
             chartView.ReCenter ();
             SetCurrentTab (chartView);
         }
@@ -669,7 +700,7 @@ public class WairToNow extends Activity {
     @Override
     public void onBackPressed()
     {
-        View backView = ((CanBeMainView)currentTabButton.view).GetBackPage ();
+        View backView = ((CanBeMainView) currentTabButton.view).GetBackPage ();
         if (backView != null) {
             SetCurrentTab (backView);
         } else {
