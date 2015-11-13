@@ -77,7 +77,7 @@ public class AgreeView extends ScrollView implements WairToNow.CanBeMainView {
                 editr.commit ();
 
                 wairToNow.HasAgreed ();
-                wairToNow.SetCurrentTab ("Chart");
+                wairToNow.SetCurrentTab (wairToNow.chartView);
             }
         });
         llv.addView (butok);

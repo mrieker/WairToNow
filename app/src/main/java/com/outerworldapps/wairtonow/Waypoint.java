@@ -22,7 +22,6 @@ package com.outerworldapps.wairtonow;
 
 import android.content.pm.ActivityInfo;
 import android.database.Cursor;
-import android.database.sqlite.SQLiteDatabase;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -81,9 +80,9 @@ public abstract class Waypoint {
         LinkedList<Waypoint> wplist = new LinkedList<> ();
         int aptinfoexpdate = MaintView.GetWaypointExpDate ();
         String dbname = "cycles56_" + aptinfoexpdate + ".db";
-        if (SQLiteDBs.Exists (dbname)) {
+        SQLiteDBs sqldb = SQLiteDBs.open (dbname);
+        if (sqldb != null) {
             try {
-                SQLiteDatabase sqldb = SQLiteDBs.GetOrCreate (dbname);
                 for (Class<? extends Waypoint> wpclass : wpclasses) {
                     String dbtable  = (String) wpclass.getField ("dbtable").get (null);
                     String dbkeyid  = (String) wpclass.getField ("dbkeyid").get (null);
@@ -112,43 +111,6 @@ public abstract class Waypoint {
     }
 
     /**
-     * Return exact waypoint with the exact identifier at the exact lat/lon
-     * @return null if not found; else waypoint
-     */
-    public static Waypoint FindWaypoint (String ident, float lat, float lon)
-    {
-        int aptinfoexpdate = MaintView.GetWaypointExpDate ();
-        String dbname = "cycles56_" + aptinfoexpdate + ".db";
-        if (SQLiteDBs.Exists (dbname)) {
-            try {
-                SQLiteDatabase sqldb = SQLiteDBs.GetOrCreate (dbname);
-                for (Class<? extends Waypoint> wpclass : wpclasses) {
-                    String dbtable  = (String) wpclass.getField ("dbtable").get (null);
-                    String dbkeyid  = (String) wpclass.getField ("dbkeyid").get (null);
-                    String prefix   = dbkeyid.substring (0, 4);
-                    String[] dbcols = (String[]) wpclass.getField ("dbcols").get (null);
-                    Cursor result = sqldb.query (
-                            dbtable, dbcols,
-                            dbkeyid + "=? AND " + prefix + "lat=? AND " + prefix + "lon=?",
-                            new String[] { ident, Float.toString (lat), Float.toString (lon) },
-                            null, null, null, null);
-                    try {
-                        if (result.moveToFirst ()) {
-                            Constructor<? extends Waypoint> ctor = wpclass.getConstructor (Cursor.class);
-                            return ctor.newInstance (result);
-                        }
-                    } finally {
-                        result.close ();
-                    }
-                }
-            } catch (Exception e) {
-                Log.e (TAG, "error reading " + dbname, e);
-            }
-        }
-        return null;
-    }
-
-    /**
      * Scan database for all waypoints matching the given key.
      * @param key = keywords with all redundant spaces removed and converted to upper case
      */
@@ -162,9 +124,9 @@ public abstract class Waypoint {
          */
         int aptinfoexpdate = MaintView.GetWaypointExpDate ();
         String dbname = "cycles56_" + aptinfoexpdate + ".db";
-        if (SQLiteDBs.Exists (dbname)) {
+        SQLiteDBs sqldb = SQLiteDBs.open (dbname);
+        if (sqldb != null) {
             try {
-                SQLiteDatabase sqldb = SQLiteDBs.GetOrCreate (dbname);
                 String kw = keys[0];
 
                 /*
@@ -321,10 +283,9 @@ public abstract class Waypoint {
 
                 int aptinfoexpdate = MaintView.GetWaypointExpDate ();
                 String dbname = "cycles56_" + aptinfoexpdate + ".db";
-                if (SQLiteDBs.Exists (dbname)) {
+                SQLiteDBs sqldb = SQLiteDBs.open (dbname);
+                if (sqldb != null) {
                     try {
-                        SQLiteDatabase sqldb = SQLiteDBs.GetOrCreate (dbname);
-
                         for (Class<? extends Waypoint> wpclass : Waypoint.wpclasses) {
                             String dbtable = (String) wpclass.getField ("dbtable").get (null);
                             String prefix = ((String) wpclass.getField ("dbkeyid").get (null)).substring (0, 4);
@@ -385,7 +346,8 @@ public abstract class Waypoint {
         {
             int aptinfoexpdate = MaintView.GetWaypointExpDate ();
             String db56name = "cycles56_" + aptinfoexpdate + ".db";
-            SQLiteDatabase sql56db = SQLiteDBs.GetOrCreate (db56name);
+            SQLiteDBs sql56db = SQLiteDBs.open (db56name);
+            if (sql56db == null) return null;
             Cursor resultapt = sql56db.query (
                     "airports", Waypoint.Airport.dbcols,
                     "apt_faaid=?", new String[] { faaid },
@@ -425,8 +387,8 @@ public abstract class Waypoint {
                 if (dbname.startsWith ("cycles28_") && dbname.endsWith (".db")) {
                     int expdate = Integer.parseInt (dbname.substring (9, dbname.length () - 3));
                     if (latestexpdate < expdate) {
-                        SQLiteDatabase sqldb = SQLiteDBs.GetOrCreate (dbname);
-                        if (Lib.SQLiteTableExists (sqldb, "plates")) {
+                        SQLiteDBs sqldb = SQLiteDBs.open (dbname);
+                        if ((sqldb != null) && sqldb.tableExists ("plates")) {
                             Cursor result = sqldb.query (
                                     "plates", columns_pl_descrip_pl_filename,
                                     "pl_faaid=?", new String[] { this.faaident },
@@ -508,24 +470,26 @@ public abstract class Waypoint {
                 int aptinfoexpdate = MaintView.GetWaypointExpDate ();
 
                 String dbname = "cycles56_" + aptinfoexpdate + ".db";
-                try {
-                    SQLiteDatabase sqldb = SQLiteDBs.GetOrCreate (dbname);
-                    Cursor result = sqldb.query (
-                            "runways", columns_runways1,
-                            "rwy_faaid=?", new String[] { this.faaident },
-                            null, null, null, null);
+                SQLiteDBs sqldb = SQLiteDBs.open (dbname);
+                if (sqldb != null) {
                     try {
-                        if (result.moveToFirst ()) {
-                            do {
-                                Runway rw = new Runway (result, this);
-                                this.runways.put (rw.number, rw);
-                            } while (result.moveToNext ());
+                        Cursor result = sqldb.query (
+                                "runways", columns_runways1,
+                                "rwy_faaid=?", new String[] { this.faaident },
+                                null, null, null, null);
+                        try {
+                            if (result.moveToFirst ()) {
+                                do {
+                                    Runway rw = new Runway (result, this);
+                                    this.runways.put (rw.number, rw);
+                                } while (result.moveToNext ());
+                            }
+                        } finally {
+                            result.close ();
                         }
-                    } finally {
-                        result.close ();
+                    } catch (Exception e) {
+                        Log.e (TAG, "error reading " + dbname, e);
                     }
-                } catch (Exception e) {
-                    Log.e (TAG, "error reading " + dbname, e);
                 }
             }
             return runways;
@@ -539,13 +503,14 @@ public abstract class Waypoint {
             if (details == null) {
                 int aptinfoexpdate = MaintView.GetWaypointExpDate ();
                 String dbname = "cycles56_" + aptinfoexpdate + ".db";
-                SQLiteDatabase sqldb = SQLiteDBs.GetOrCreate (dbname);
+                SQLiteDBs sqldb = SQLiteDBs.open (dbname);
+                if (sqldb == null) return "<missing>";
                 Cursor result = sqldb.query (
                         "airports", columns_apt_desc,
                         "apt_icaoid=?", new String[] { this.ident },
                         null, null, null, null);
                 try {
-                    result.moveToFirst ();
+                    if (!result.moveToFirst ()) return "<missing>";
                     details = result.getString (0);
                 } finally {
                     result.close ();

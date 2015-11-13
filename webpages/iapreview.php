@@ -5,7 +5,13 @@
     <BODY>
         <P ID="count"></P>
         <?php
+            /**
+             * Compare the current IAP georef info to previously confirmed values.
+             */
+
             require_once 'iaputil.php';
+
+            echo "<P>$iapdir</P>";
 
             if (isset ($_POST['func']) && ($_POST['func'] == 'reset')) {
                 unlink ("$datdir/laststate");

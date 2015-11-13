@@ -79,6 +79,8 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
     private final static int GEOREFBOX = 64;
     private final static float GEOREFDIMND = 1;
     private final static int GEOREFMAXNM = 50;
+    private final static int MAXZOOMIN = 16;
+    private final static int MAXZOOMOUT = 8;
     private final static String GeoRefDBName = "georefs.db";
     private final static String GeoRefLastPath = WairToNow.dbdir + "/georefs.last";
 
@@ -257,6 +259,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         protected DisplayMetrics metrics = new DisplayMetrics ();
 
         private ADVPanAndZoom advPanAndZoom;
+        private float         unzoomedCanvasWidth;
         private Rect          bitmapRect = new Rect ();    // biggest centered square completely filled by bitmap
         private RectF         canvasRect = new RectF ();   // initially biggest centered square completely filled by display area
                                                            // ... but gets panned/zoomed by user
@@ -313,10 +316,14 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
 
             public void Scaling (float fx, float fy, float sf)
             {
-                canvasRect.left   = (canvasRect.left   - fx) * sf + fx;
-                canvasRect.right  = (canvasRect.right  - fx) * sf + fx;
-                canvasRect.top    = (canvasRect.top    - fy) * sf + fy;
-                canvasRect.bottom = (canvasRect.bottom - fy) * sf + fy;
+                float canvasWidth = canvasRect.width () * sf;
+                if ((canvasWidth > unzoomedCanvasWidth / MAXZOOMOUT) &&
+                    (canvasWidth < unzoomedCanvasWidth * MAXZOOMIN)){
+                    canvasRect.left   = (canvasRect.left   - fx) * sf + fx;
+                    canvasRect.right  = (canvasRect.right  - fx) * sf + fx;
+                    canvasRect.top    = (canvasRect.top    - fy) * sf + fy;
+                    canvasRect.bottom = (canvasRect.bottom - fy) * sf + fy;
+                }
                 invalidate ();
             }
         }
@@ -390,6 +397,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                 canvasRect.top    = 0;
                 canvasRect.bottom = canHeight;
             }
+            unzoomedCanvasWidth = canvasRect.width ();
         }
 
         /**
@@ -430,6 +438,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                 canvasRect.top    = 0;
                 canvasRect.bottom = canHeight;
             }
+            unzoomedCanvasWidth = canvasRect.width ();
         }
 
         /**
@@ -637,7 +646,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
              */
             String dbname = "cycles28_" + expdate + ".db";
             try {
-                SQLiteDatabase sqldb = SQLiteDBs.GetOrCreate (dbname);
+                SQLiteDBs sqldb = SQLiteDBs.create (dbname);
                 Cursor result = sqldb.query (
                         "apdgeorefs", columns_apdgeorefs1,
                         "gr_icaoid=?", new String[] { airport.ident },
@@ -1151,7 +1160,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             String machinedbname = "cycles28_" + expdate + ".db";
             do {
                 try {
-                    SQLiteDatabase sqldb = manual ? OpenGeoRefDB () : SQLiteDBs.GetOrCreate (machinedbname);
+                    SQLiteDBs sqldb = manual ? OpenGeoRefDB () : SQLiteDBs.create (machinedbname);
                     Cursor result = sqldb.query (
                             manual ? "georefs" : "iapgeorefs",
                             manual ? columns_georefs2 : columns_iapgeorefs1,
@@ -1251,7 +1260,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
              * Write georef data to local database file.
              */
             try {
-                SQLiteDatabase sqldb = OpenGeoRefDB ();
+                SQLiteDBs sqldb = OpenGeoRefDB ();
                 WriteGeoRefRec (sqldb, airport.ident, plateid, ident, pixx, pixy, saved, zblob);
             } catch (Exception e) {
                 Log.e (TAG, "error writing " + GeoRefDBName, e);
@@ -1285,7 +1294,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                  * Delete georef data from local database file.
                  */
                 try {
-                    SQLiteDatabase sqldb = OpenGeoRefDB ();
+                    SQLiteDBs sqldb = OpenGeoRefDB ();
                     WriteGeoRefRec (sqldb, airport.ident, plateid, ident, 0, 0, saved, nullblob);
                 } catch (Exception e) {
                     Log.e (TAG, "error writing " + GeoRefDBName, e);
@@ -1894,14 +1903,14 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
      * Open georeferencing database, creating it if it doesn't exist.
      * Also try to check for updates from the webserver.
      */
-    private static SQLiteDatabase OpenGeoRefDB ()
+    private static SQLiteDBs OpenGeoRefDB ()
     {
-        SQLiteDatabase sqldb = SQLiteDBs.GetOrCreate (GeoRefDBName);
+        SQLiteDBs sqldb = SQLiteDBs.create (GeoRefDBName);
 
         /*
          * Create table if it doesn't already exist.
          */
-        if (!Lib.SQLiteTableExists (sqldb, "georefs")) {
+        if (!sqldb.tableExists ("georefs")) {
             sqldb.execSQL ("CREATE TABLE georefs (gr_icaoid TEXT NOT NULL, gr_plate TEXT NOT NULL, gr_waypt TEXT NOT NULL, gr_bmpixx INTEGER NOT NULL, gr_bmpixy INTEGER NOT NULL, gr_saved INTEGER NOT NULL, gr_zpixels BLOB NOT NULL);");
             sqldb.execSQL ("CREATE UNIQUE INDEX georefuniques ON georefs (gr_icaoid, gr_plate, gr_waypt);");
             sqldb.execSQL ("CREATE INDEX georefbyplate ON georefs (gr_icaoid, gr_plate);");
@@ -1919,7 +1928,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
     /**
      * Get any updates from web server.
      */
-    private static void FetchGeoRefUpdates (SQLiteDatabase sqldb)
+    private static void FetchGeoRefUpdates (SQLiteDBs sqldb)
     {
         if (disableWebServer) return;
 
@@ -2067,7 +2076,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
      * @param saved   = 0: has not been saved to webserver; 1: has been saved to webserver
      * @param zblob   = compressed bitmap pixels surrounding the waypoint
      */
-    private static void WriteGeoRefRec (SQLiteDatabase sqldb, String icaoid, String plateid, String wayptid,
+    private static void WriteGeoRefRec (SQLiteDBs sqldb, String icaoid, String plateid, String wayptid,
                                         int bmpixx, int bmpixy, int saved, byte[] zblob)
     {
         ContentValues values = new ContentValues (7);

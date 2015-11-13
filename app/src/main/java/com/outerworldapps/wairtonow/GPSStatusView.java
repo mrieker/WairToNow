@@ -21,12 +21,19 @@
 package com.outerworldapps.wairtonow;
 
 import java.text.DecimalFormat;
-import java.util.Date;
+import java.text.SimpleDateFormat;
+import java.util.Locale;
+import java.util.TimeZone;
 
+import android.content.Context;
 import android.content.pm.ActivityInfo;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.location.GpsSatellite;
 import android.location.GpsStatus;
 import android.location.Location;
@@ -37,15 +44,23 @@ import android.view.View;
  */
 public class GPSStatusView
         extends View
-        implements WairToNow.CanBeMainView {
+        implements WairToNow.CanBeMainView,
+                SensorEventListener {
     private static final float SMPerNM = 1.15078F;
+
+    private final static String[] compDirs = new String[] { "N", "E", "S", "W" };
 
     private DecimalFormat formatter = new DecimalFormat ("#.#");
     private float altitude;    // metres MSL
+    private float compRotDeg;  // compass rotation
     private float latitude;    // degrees
     private float longitude;   // degrees
     private float heading;     // degrees true
     private float speed;       // metres per second
+    private float[] geomag;
+    private float[] gravity;
+    private float[] orient = new float[3];
+    private float[] rotmat = new float[9];
     private Iterable<GpsSatellite> satellites;
     private long  time;        // milliseconds since Jan 1, 1970 UTC
     private WairToNow wairToNow;
@@ -53,6 +68,8 @@ public class GPSStatusView
     private Paint ringsPaint        = new Paint ();
     private Paint textPaint         = new Paint ();
     private Paint usedSpotsPaint    = new Paint ();
+    private SensorManager instrSM;
+    private SimpleDateFormat utcfmt;
 
     public GPSStatusView (WairToNow na)
     {
@@ -72,7 +89,11 @@ public class GPSStatusView
 
         textPaint.setColor (Color.WHITE);
         textPaint.setStrokeWidth (3);
+        textPaint.setTextAlign (Paint.Align.CENTER);
         textPaint.setTextSize (wairToNow.textSize);
+
+        utcfmt = new SimpleDateFormat ("yyyy-MM-dd HH:mm:ss.SSS 'UTC'''", Locale.US);
+        utcfmt.setTimeZone (TimeZone.getTimeZone ("UTC"));
     }
 
     @Override  // WairToNow.CanBeMainView
@@ -110,12 +131,23 @@ public class GPSStatusView
     }
 
     /**
-     * The screen is about to be made current so force portrait mode.
+     * The screen is about to be made current so force portrait mode and maybe turn compass on.
      */
     @Override  // WairToNow.CanBeMainView
     public void OpenDisplay ()
     {
         wairToNow.setRequestedOrientation (ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+
+        geomag     = null;
+        gravity    = null;
+        compRotDeg = 99999;
+        instrSM    = (SensorManager) wairToNow.getSystemService (Context.SENSOR_SERVICE);
+        if (wairToNow.optionsView.gpsCompassOption.checkBox.isChecked ()) {
+            Sensor smf = instrSM.getDefaultSensor (Sensor.TYPE_MAGNETIC_FIELD);
+            Sensor sac = instrSM.getDefaultSensor (Sensor.TYPE_ACCELEROMETER);
+            instrSM.registerListener (this, smf, SensorManager.SENSOR_DELAY_UI);
+            instrSM.registerListener (this, sac, SensorManager.SENSOR_DELAY_UI);
+        }
     }
 
     /**
@@ -123,13 +155,46 @@ public class GPSStatusView
      */
     @Override  // WairToNow.CanBeMainView
     public void CloseDisplay ()
-    { }
+    {
+        instrSM.unregisterListener (this);
+    }
 
     /**
      * Tab is being re-clicked when already active.
      */
     @Override  // WairToNow.CanBeMainView
     public void ReClicked ()
+    { }
+
+    /**
+     * Got a compass reading.
+     */
+    @Override  // SensorEventListener
+    public void onSensorChanged (SensorEvent event)
+    {
+        switch (event.sensor.getType ()) {
+            case Sensor.TYPE_MAGNETIC_FIELD: {
+                geomag = event.values;
+                break;
+            }
+            case Sensor.TYPE_ACCELEROMETER: {
+                gravity = event.values;
+                break;
+            }
+        }
+
+        if ((geomag != null) && (gravity != null)) {
+            SensorManager.getRotationMatrix (rotmat, null, gravity, geomag);
+            SensorManager.getOrientation (rotmat, orient);
+            compRotDeg = - Mathf.toDegrees (orient[0]);
+            geomag  = null;
+            gravity = null;
+            postInvalidate ();
+        }
+    }
+
+    @Override  // SensorEventListener
+    public void onAccuracyChanged (Sensor sensor, int accuracy)
     { }
 
     /**
@@ -143,56 +208,55 @@ public class GPSStatusView
             return;
         }
 
-        int canvasWidth   = canvas.getWidth ();
+        int canvasWidth   = getWidth ();
         int circleCenterX = canvasWidth / 2;
         int circleCenterY = canvasWidth / 2;
         int circleRadius  = canvasWidth * 3 / 8;
 
-        canvas.drawCircle (circleCenterX, circleCenterY, circleRadius * 30 / 90, ringsPaint);
-        canvas.drawCircle (circleCenterX, circleCenterY, circleRadius * 60 / 90, ringsPaint);
-        canvas.drawCircle (circleCenterX, circleCenterY, circleRadius * 90 / 90, ringsPaint);
-
-        for (GpsSatellite sat : satellites) {
-            // hasAlmanac() and hasEphemeris() seem to always return false
-            // getSnr() in range 0..30 approx
-            float size   = sat.getSnr () / 3;
-            float radius = (90 - sat.getElevation()) * circleRadius / 90;
-            float azideg = sat.getAzimuth ();
-            float deltax = radius * Mathf.sindeg (azideg);
-            float deltay = radius * Mathf.cosdeg (azideg);
-            Paint paint  = sat.usedInFix () ? usedSpotsPaint : ignoredSpotsPaint;
-            canvas.drawCircle (circleCenterX + deltax, circleCenterY - deltay, size, paint);
+        if (compRotDeg != 99999) {
+            String cmphdgstr = Integer.toString (1360 - Math.round (compRotDeg + 360.0F) % 360).substring (1) + '\u00B0';
+            canvas.drawText (cmphdgstr, circleCenterX, circleCenterY / 8, textPaint);
         }
 
-        float x  = 10;
-        float y  = canvasWidth;
+        canvas.save ();
+        try {
+            if (compRotDeg != 99999) canvas.rotate (compRotDeg, circleCenterX, circleCenterY);
+
+            for (String compDir : compDirs) {
+                canvas.drawText (compDir, circleCenterX, circleCenterY - circleRadius, textPaint);
+                canvas.rotate (90.0F, circleCenterX, circleCenterY);
+            }
+
+            canvas.drawCircle (circleCenterX, circleCenterY, circleRadius * 30 / 90, ringsPaint);
+            canvas.drawCircle (circleCenterX, circleCenterY, circleRadius * 60 / 90, ringsPaint);
+            canvas.drawCircle (circleCenterX, circleCenterY, circleRadius * 90 / 90, ringsPaint);
+
+            for (GpsSatellite sat : satellites) {
+                // hasAlmanac() and hasEphemeris() seem to always return false
+                // getSnr() in range 0..30 approx
+                float size = sat.getSnr () / 3;
+                float radius = (90 - sat.getElevation ()) * circleRadius / 90;
+                float azideg = sat.getAzimuth ();
+                float deltax = radius * Mathf.sindeg (azideg);
+                float deltay = radius * Mathf.cosdeg (azideg);
+                Paint paint = sat.usedInFix () ? usedSpotsPaint : ignoredSpotsPaint;
+                canvas.drawCircle (circleCenterX + deltax, circleCenterY - deltay, size, paint);
+            }
+        } finally {
+            canvas.restore ();
+        }
+
+        float yy = canvasWidth;
         float dy = textPaint.getTextSize () * 1.25F;
 
-        Date date = new Date (time);
-        int tzoff = date.getTimezoneOffset ();
-        date.setTime (time + tzoff * 60000);
-        int year  = date.getYear ();
-        int month = date.getMonth ();
-        int day   = date.getDate ();
-        int hour  = date.getHours ();
-        int min   = date.getMinutes ();
-        int sec   = date.getSeconds ();
-        int mill  = (int)(time % 1000);
-
-        String timestr = Integer.toString (year  + 11900).substring (1) + "-" +
-                         Integer.toString (month +   101).substring (1) + "-" +
-                         Integer.toString (day   +   100).substring (1) + " " +
-                         Integer.toString (hour  +   100).substring (1) + ":" +
-                         Integer.toString (min   +   100).substring (1) + ":" +
-                         Integer.toString (sec   +   100).substring (1) + "." +
-                         Integer.toString (mill  +  1000).substring (1) + " UTC";
-        canvas.drawText (timestr, x, y, textPaint);
-        y += dy;
+        String timestr = utcfmt.format (time);
+        canvas.drawText (timestr, circleCenterX, yy, textPaint);
+        yy += dy;
 
         String locstr = wairToNow.optionsView.LatLonString (latitude,  'N', 'S') + "    " +
                         wairToNow.optionsView.LatLonString (longitude, 'E', 'W');
-        canvas.drawText (locstr, x, y, textPaint);
-        y += dy;
+        canvas.drawText (locstr, circleCenterX, yy, textPaint);
+        yy += dy;
 
         String althdgstr = Integer.toString ((int) (altitude / 3.28084)) + " ft MSL    " +
                            wairToNow.optionsView.HdgString (heading, latitude, longitude, altitude) + "    ";
@@ -202,7 +266,7 @@ public class GPSStatusView
             althdgstr += formatter.format (speed * 3600 / Lib.MPerNM) + " kts";
         }
 
-        canvas.drawText (althdgstr, x, y, textPaint);
+        canvas.drawText (althdgstr, circleCenterX, yy, textPaint);
 
         wairToNow.drawGPSAvailable (canvas, this);
     }

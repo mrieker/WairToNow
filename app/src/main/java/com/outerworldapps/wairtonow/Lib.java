@@ -20,8 +20,6 @@
 
 package com.outerworldapps.wairtonow;
 
-import android.database.Cursor;
-import android.database.sqlite.SQLiteDatabase;
 import android.hardware.GeomagneticField;
 
 import java.io.File;
@@ -31,14 +29,15 @@ import java.io.InputStream;
 import java.util.ArrayList;
 
 public class Lib {
-    public static final float FtPerM   = 3.28084F;
-    public static final float KtPerMPS = 1.94384F;
-    public static final float NMPerDeg = 60.0F;
-    public static final float MMPerIn  = 25.4F;    // millimetres per inch
-    public static final float SMPerNM  = 1.15078F;
-    public static final int   MPerNM   = 1852;     // metres per naut mile
 
-    private final static String[] columns_name = new String[] { "name" };
+    // fine-tuned constants
+    public static final float FtPerM    = 3.28084F;
+    public static final float KtPerMPS  = 1.94384F;
+    public static final float NMPerDeg  = 60.0F;
+    public static final float MMPerIn   = 25.4F;    // millimetres per inch
+    public static final float SMPerNM   = 1.15078F;
+    public static final int   MPerNM    = 1852;     // metres per naut mile
+    public static final float GRAVACCEL = 9.80665F;  // metres per second squared
 
     /**
      * Split a comma-separated value string into its various substrings.
@@ -575,22 +574,6 @@ public class Lib {
                     }
                 }
             }
-        }
-    }
-
-    /**
-     * See whether the given table exists in the database or not.
-     */
-    public static boolean SQLiteTableExists (SQLiteDatabase sqldb, String table)
-    {
-        Cursor result = sqldb.query (
-                "sqlite_master", columns_name,
-                "type='table' AND name=?", new String[] { table },
-                null, null, null, null);
-        try {
-            return result.getCount () > 0;
-        } finally {
-            result.close ();
         }
     }
 

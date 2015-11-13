@@ -114,7 +114,7 @@ public class UserWPView extends LinearLayout
         addView (sv1);
 
         for (UserWP wp : waypoints.values ()) {
-            waypointListView.addView (wp);
+            waypointListView.addView (wp.button);
         }
 
         /*
@@ -348,10 +348,10 @@ public class UserWPView extends LinearLayout
             UserWP oldwp = waypoints.get (oldText);
             UserWP newwp = waypoints.get (newText);
             if (newwp != oldwp) {
-                if (oldwp != null) oldwp.setTextColor (Color.BLACK);
+                if (oldwp != null) oldwp.button.setTextColor (Color.BLACK);
                 if (newwp != null) {
-                    newwp.setTextColor (Color.RED);
-                    waypointListView.requestChildFocus (newwp, newwp);
+                    newwp.button.setTextColor (Color.RED);
+                    waypointListView.requestChildFocus (newwp.button, newwp.button);
                     saveButton.setTextColor (Color.RED);
                     deleteButton.setTextColor (Color.RED);
                     deleteButton.setEnabled (true);
@@ -515,7 +515,7 @@ public class UserWPView extends LinearLayout
                     if (id.equals (wp.ident)) break;
                     index ++;
                 }
-                waypointListView.addView (wp, index);
+                waypointListView.addView (wp.button, index);
                 UserWPSelected (wp);
             } else {
                 wp.setVal (lat, lon, descr);
@@ -555,7 +555,7 @@ public class UserWPView extends LinearLayout
 
             // remove entry from internal list and from displayed list
             waypoints.remove (wp.ident);
-            waypointListView.removeView (wp);
+            waypointListView.removeView (wp.button);
 
             // set edit values to the original values
             // in case they clicked delete by mistake
@@ -587,7 +587,13 @@ public class UserWPView extends LinearLayout
         @Override
         public void onClick (View v)
         {
-            wairToNow.SetDestinationWaypoint (latView.getVal (), lonView.getVal (), identTextView.getText ().toString ());
+            String ident = identTextView.getText ().toString ();
+            UserWP wp = waypoints.get (ident);
+            if ((wp == null) || (wp.lat != latView.getVal ()) || (wp.lon != lonView.getVal ())) {
+                String descr = descrEditText.getText ().toString ();
+                wp = new UserWP (ident, latView.getVal (), lonView.getVal (), descr);
+            }
+            wairToNow.SetDestinationWaypoint (wp);
         }
     }
 
@@ -620,36 +626,53 @@ public class UserWPView extends LinearLayout
      * Each individual user waypoint in the database.
      * Click on it to select it.
      */
-    public class UserWP extends Button implements OnClickListener {
-        public float lat;
-        public float lon;
-        public String ident;
+    public class UserWP extends Waypoint implements OnClickListener {
+        public Button button;
         public String descr;
 
         public UserWP (String csvLine)
         {
-            super (wairToNow);
-
             String[] tokens = Lib.QuotedCSVSplit (csvLine);
             ident = tokens[0];
-            lat   = Float.parseFloat (tokens[1]);
-            lon   = Float.parseFloat (tokens[2]);
-            descr = tokens[3];
 
-            wairToNow.SetTextSize (this);
-            setOnClickListener (this);
-            Reformat ();
+            button = new Button (wairToNow);
+            wairToNow.SetTextSize (button);
+            button.setOnClickListener (this);
+            button.setTag (this);
+
+            setVal (Float.parseFloat (tokens[1]), Float.parseFloat (tokens[2]), tokens[3]);
         }
 
         public UserWP (String ident, float lat, float lon, String descr)
         {
-            super (wairToNow);
-            wairToNow.SetTextSize (this);
-            setOnClickListener (this);
+            button = new Button (wairToNow);
+            wairToNow.SetTextSize (button);
+            button.setOnClickListener (this);
+            button.setTag (this);
+
             this.ident = ident;
             setVal (lat, lon, descr);
         }
 
+        @Override  // Waypoint
+        public String GetType ()
+        {
+            return "USER";
+        }
+        @Override  // Waypoint
+        public String GetDetailText ()
+        {
+            return descr;
+        }
+        @Override  // Waypoint
+        public String MenuKey ()
+        {
+            return "USER " + ident;
+        }
+
+        /**
+         * Update user waypoint's value.
+         */
         public void setVal (float lat, float lon, String descr)
         {
             this.lat   = lat;
@@ -665,7 +688,7 @@ public class UserWPView extends LinearLayout
         {
             String text = ident + " " + wairToNow.optionsView.LatLonString (lat, 'N', 'S') + " " +
                                         wairToNow.optionsView.LatLonString (lon, 'E', 'W') + "\n" + descr;
-            setText (text);
+            button.setText (text);
         }
 
         /**

@@ -35,9 +35,6 @@ import android.graphics.RectF;
 import android.graphics.Typeface;
 import android.os.SystemClock;
 import android.text.InputType;
-import android.text.Spannable;
-import android.text.SpannableStringBuilder;
-import android.text.style.ForegroundColorSpan;
 import android.util.Log;
 import android.view.ViewGroup;
 import android.view.ViewParent;
@@ -139,9 +136,9 @@ public class PlateDME {
         dmeCheckboxeses.clear ();
         String dbname = "dmecheckboxes.db";
         try {
-            if (SQLiteDBs.Exists (dbname)) {
-                SQLiteDatabase sqldb = SQLiteDBs.GetOrCreate (dbname);
-                if (Lib.SQLiteTableExists (sqldb, "dmecheckboxes")) {
+            SQLiteDBs sqldb = SQLiteDBs.open (dbname);
+            if (sqldb != null) {
+                if (sqldb.tableExists ("dmecheckboxes")) {
                     Cursor result = sqldb.query (
                             "dmecheckboxes", columns_dc_dmeid_dc_checked,
                             "dc_icaoid=? AND dc_plate=?", new String[] { icaoid, plateid },
@@ -231,9 +228,9 @@ public class PlateDME {
                 int checked = dmecb.getChecked ();
                 if (checked != 0) {
                     Waypoint wp = dmecb.waypoint;
-                    StringBuilder sb = new StringBuilder ();
+                    StringBuilder sb = new StringBuilder (numchars);
                     sb.append (dmeIdent);
-                    while (sb.length () < 5) sb.append (" ");
+                    while (sb.length () < 5) sb.append (' ');
 
                     // distance (in nautical miles) to DME station
                     float distBin = Lib.LatLonDist (gpslat, gpslon, wp.lat, wp.lon);
@@ -255,7 +252,7 @@ public class PlateDME {
                             sb.append ('.');
                             sb.append (Integer.toString (dist10Bin % 10));
                         }
-                        while (sb.length () - len < 5) sb.insert (len, " ");
+                        while (sb.length () - len < 5) sb.insert (len, ' ');
                         slantRangeEnd = sb.length ();
                     }
 
@@ -292,11 +289,11 @@ public class PlateDME {
                                 sb.append (':');
                                 int len2 = sb.length ();
                                 sb.append (Integer.toString (seconds % 60));
-                                while (sb.length () - len2 < 2) sb.insert (len2, "0");
+                                while (sb.length () - len2 < 2) sb.insert (len2, '0');
                             }
                         }
                         if (sb.length () == len1) sb.append ("--:--");
-                        while (sb.length () - len1 < 6) sb.insert (len1, " ");
+                        while (sb.length () - len1 < 6) sb.insert (len1, ' ');
                     }
 
                     // get what radial we are on from the navaid (should match what's on an IAP plate)
@@ -307,7 +304,7 @@ public class PlateDME {
                         int len = sb.length ();
                         sb.append (Integer.toString (hdgMag));
                         sb.append ((char) 0x00B0);
-                        while (sb.length () - len < 5) sb.insert (len, " ");
+                        while (sb.length () - len < 5) sb.insert (len, ' ');
                     }
 
                     // display resultant string
@@ -386,8 +383,8 @@ public class PlateDME {
 
                 String dbname = "dmecheckboxes.db";
                 try {
-                    SQLiteDatabase sqldb = SQLiteDBs.GetOrCreate (dbname);
-                    if (!Lib.SQLiteTableExists (sqldb, "dmecheckboxes")) {
+                    SQLiteDBs sqldb = SQLiteDBs.create (dbname);
+                    if (!sqldb.tableExists ("dmecheckboxes")) {
                         sqldb.execSQL ("DROP INDEX IF EXISTS dmecbs_idplate");
                         sqldb.execSQL ("DROP INDEX IF EXISTS dmecbs_idplateid");
                         sqldb.execSQL ("CREATE TABLE dmecheckboxes (dc_icaoid TEXT NOT NULL, dc_plate TEXT NOT NULL, dc_dmeid TEXT NOT NULL, dc_checked INTEGER NOT NULL)");

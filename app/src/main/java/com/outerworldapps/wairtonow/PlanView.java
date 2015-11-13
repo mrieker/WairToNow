@@ -22,7 +22,6 @@ package com.outerworldapps.wairtonow;
 
 import android.app.AlertDialog;
 import android.database.Cursor;
-import android.database.sqlite.SQLiteDatabase;
 import android.location.Location;
 import android.text.InputType;
 import android.util.TypedValue;
@@ -360,7 +359,7 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
              */
             int aptinfoexpdate = MaintView.GetWaypointExpDate ();
             String dbname = "cycles56_" + aptinfoexpdate + ".db";
-            SQLiteDatabase sqldb = SQLiteDBs.GetOrCreate (dbname);
+            SQLiteDBs sqldb = SQLiteDBs.create (dbname);
 
             /*
              * Find starting point airport's lat/lon.

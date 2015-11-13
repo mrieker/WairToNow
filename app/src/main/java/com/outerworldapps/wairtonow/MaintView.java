@@ -109,6 +109,7 @@ public class MaintView
     private UnloadButton unloadButton;
     private UnloadThread unloadThread;
     private volatile boolean downloadCancelled;
+    private WaypointsCheckBox waypointsCheckBox;
 
     private static final int MaintViewHandlerWhat_OPENDLPROG   = 0;
     private static final int MaintViewHandlerWhat_UPDATEDLPROG = 1;
@@ -178,7 +179,8 @@ public class MaintView
         itemsScrollView = new ScrollView (ctx);
         addView (itemsScrollView);
 
-        miscCategory.addView (new WaypointsCheckBox ());
+        waypointsCheckBox = new WaypointsCheckBox ();
+        miscCategory.addView (waypointsCheckBox);
 
         runwayDiagramDownloadStatus = new TextView (ctx);
         wairToNow.SetTextSize (runwayDiagramDownloadStatus);
@@ -377,6 +379,11 @@ public class MaintView
                 downloadButton.UpdateEnabled ();
                 unloadButton.UpdateEnabled ();
                 wairToNow.chartView.DiscoverAirChartFiles ();
+
+                // maybe some database was marked for delete in the download thread
+                // (as a result of an upgrade, we delete old database files)
+                // so close our handle so that it will actually delete
+                SQLiteDBs.CloseAll ();
                 break;
             }
             case MaintViewHandlerWhat_UNCHECKBOX: {
@@ -404,6 +411,10 @@ public class MaintView
                     unloadButton.unloadAlertDialog = null;
                 }
                 wairToNow.chartView.DiscoverAirChartFiles ();
+
+                // maybe some database was marked for delete in the unload thread
+                // so close our handle so that it will actually delete
+                SQLiteDBs.CloseAll ();
                 break;
             }
             case MaintViewHandlerWhat_DLERROR: {
@@ -456,9 +467,9 @@ public class MaintView
          */
         int expdate = MaintView.GetPlatesExpDate ();
         String dbname = "cycles28_" + expdate + ".db";
-        if (SQLiteDBs.Exists (dbname)) {
-            SQLiteDatabase sqldb = SQLiteDBs.GetOrCreate ("cycles28_" + expdate + ".db");
-            if (Lib.SQLiteTableExists (sqldb, "rwypreloads")) {
+        SQLiteDBs sqldb = SQLiteDBs.open (dbname);
+        if (sqldb != null) {
+            if (sqldb.tableExists ("rwypreloads")) {
                 Cursor cursor = sqldb.query (
                         "rwypreloads", columns_count_rp_faaid,
                         null, null, null, null, null, null);
@@ -696,12 +707,13 @@ public class MaintView
                 try {
                     int i = Integer.parseInt (dbname.substring (9, dbname.length () - 3));
                     if (enddate_database < i) {
-                        SQLiteDatabase sqldb = SQLiteDBs.GetOrCreate (dbname);
-                        if (Lib.SQLiteTableExists (sqldb, "airports") &&
-                                Lib.SQLiteTableExists (sqldb, "fixes") &&
-                                Lib.SQLiteTableExists (sqldb, "localizers") &&
-                                Lib.SQLiteTableExists (sqldb, "navaids") &&
-                                Lib.SQLiteTableExists (sqldb, "runways")) {
+                        SQLiteDBs sqldb = SQLiteDBs.open (dbname);
+                        if ((sqldb != null) &&
+                                sqldb.tableExists ("airports") &&
+                                sqldb.tableExists ("fixes") &&
+                                sqldb.tableExists ("localizers") &&
+                                sqldb.tableExists ("navaids") &&
+                                sqldb.tableExists ("runways")) {
                             enddate_database = i;
                         }
                     }
@@ -1352,8 +1364,8 @@ public class MaintView
             if (dbname.startsWith ("cycles28_") && dbname.endsWith (".db")) {
                 int expdate = Integer.parseInt (dbname.substring (9, dbname.length () - 3));
                 if (lastexpdate < expdate) {
-                    SQLiteDatabase sqldb = SQLiteDBs.GetOrCreate (dbname);
-                    if (Lib.SQLiteTableExists (sqldb, "plates")) {
+                    SQLiteDBs sqldb = SQLiteDBs.open (dbname);
+                    if ((sqldb != null) && sqldb.tableExists ("plates")) {
                         Cursor result = sqldb.query (
                                 "plates", columns_pl_state,
                                 "pl_state=?", new String[] { ss },
@@ -1429,7 +1441,17 @@ public class MaintView
         public void onClick (View v)
         {
             if (downloadThread == null) {
+
+                // block clicking the download button while thread running
                 setEnabled (false);
+
+                // if we don't have any waypoint database,
+                // force downloading it along with whatever user wants
+                if (GetWaypointExpDate () == 0) {
+                    waypointsCheckBox.checkBox.setChecked (true);
+                }
+
+                // start download thread going
                 downloadCancelled = false;
                 downloadThread = new DownloadThread ();
                 downloadThread.start ();
@@ -1955,10 +1977,11 @@ public class MaintView
     private static boolean MaybeDeletePlateFile (String filename, int expdate, String statecode)
     {
         String dbname = "cycles28_" + expdate + ".db";
-        SQLiteDatabase sqldb = SQLiteDBs.GetOrCreate (dbname);
+        SQLiteDBs sqldb = SQLiteDBs.open (dbname);
 
-        // if no table, can't possible have any references to the gif
-        if (!Lib.SQLiteTableExists (sqldb, "plates")) return true;
+        // if no file or table, can't possible have any references to the gif
+        if (sqldb == null) return true;
+        if (!sqldb.tableExists ("plates")) return true;
 
         // see if any other state references the gif
         // if so, can't delete it, otherwise we can
@@ -2224,18 +2247,18 @@ public class MaintView
             throws IOException
     {
         DownloadStuffAirports dsa = new DownloadStuffAirports ();
-        dsa.dname = "cycles56_" + expdate + ".db";
+        dsa.dbname = "cycles56_" + expdate + ".db";
         dsa.DownloadWhat (servername);
     }
 
     private static class DownloadStuffAirports extends DownloadStuff {
-        public String dname;
+        public String dbname;
 
         @Override
         public void DownloadContents (InputStream is) throws IOException
         {
-            SQLiteDatabase sqldb = SQLiteDBs.GetOrCreate (dname);
-            if (!Lib.SQLiteTableExists (sqldb, "airports")) {
+            SQLiteDBs sqldb = SQLiteDBs.create (dbname);
+            if (!sqldb.tableExists ("airports")) {
                 long time = System.nanoTime ();
                 sqldb.execSQL ("DROP INDEX IF EXISTS airports_lats;");
                 sqldb.execSQL ("DROP INDEX IF EXISTS airports_lons;");
@@ -2320,8 +2343,8 @@ public class MaintView
         @Override
         public void DownloadContents (InputStream is) throws IOException
         {
-            SQLiteDatabase sqldb = SQLiteDBs.GetOrCreate (dbname);
-            if (!Lib.SQLiteTableExists (sqldb, "localizers")) {
+            SQLiteDBs sqldb = SQLiteDBs.create (dbname);
+            if (!sqldb.tableExists ("localizers")) {
                 long time = System.nanoTime ();
                 sqldb.execSQL ("DROP INDEX IF EXISTS localizers_lats;");
                 sqldb.execSQL ("DROP INDEX IF EXISTS localizers_lons;");
@@ -2405,8 +2428,8 @@ public class MaintView
         @Override
         public void DownloadContents (InputStream is) throws IOException
         {
-            SQLiteDatabase sqldb = SQLiteDBs.GetOrCreate (dbname);
-            if (!Lib.SQLiteTableExists (sqldb, "navaids")) {
+            SQLiteDBs sqldb = SQLiteDBs.create (dbname);
+            if (!sqldb.tableExists ("navaids")) {
                 long time = System.nanoTime ();
                 sqldb.execSQL ("DROP INDEX IF EXISTS navaids_lats;");
                 sqldb.execSQL ("DROP INDEX IF EXISTS navaids_lons;");
@@ -2491,8 +2514,8 @@ public class MaintView
         @Override
         public void DownloadContents (InputStream is) throws IOException
         {
-            SQLiteDatabase sqldb = SQLiteDBs.GetOrCreate (dbname);
-            if (!Lib.SQLiteTableExists (sqldb, "fixes")) {
+            SQLiteDBs sqldb = SQLiteDBs.create (dbname);
+            if (!sqldb.tableExists ("fixes")) {
                 long time = SystemClock.uptimeMillis ();
                 sqldb.execSQL ("DROP INDEX IF EXISTS fixes_lats;");
                 sqldb.execSQL ("DROP INDEX IF EXISTS fixes_lons;");
@@ -2559,8 +2582,8 @@ public class MaintView
         @Override
         public void DownloadContents (InputStream is) throws IOException
         {
-            SQLiteDatabase sqldb = SQLiteDBs.GetOrCreate (dbname);
-            if (!Lib.SQLiteTableExists (sqldb, "runways")) {
+            SQLiteDBs sqldb = SQLiteDBs.create (dbname);
+            if (!sqldb.tableExists ("runways")) {
                 long time = System.nanoTime ();
                 sqldb.execSQL ("DROP INDEX IF EXISTS runways_faaids");
                 sqldb.execSQL ("DROP TABLE IF EXISTS tmprwys;");
@@ -2616,8 +2639,10 @@ public class MaintView
                 if (dbnamej == null) continue;
                 if (!dbnamej.startsWith ("cycles56_")) continue;
                 if (dbnamei.compareTo (dbnamej) > 0) {
-                    SQLiteDatabase sqldbi = SQLiteDBs.GetOrCreate (dbnamei);
-                    SQLiteDatabase sqldbj = SQLiteDBs.GetOrCreate (dbnamej);
+                    SQLiteDBs sqldbi = SQLiteDBs.open (dbnamei);
+                    if (sqldbi == null) continue;
+                    SQLiteDBs sqldbj = SQLiteDBs.open (dbnamej);
+                    if (sqldbj == null) continue;
                     Cursor cursorj = sqldbj.query (
                             "sqlite_master", columns_name,
                             "type='table'", null,
@@ -2627,18 +2652,15 @@ public class MaintView
                         if (cursorj.moveToFirst ()) {
                             do {
                                 String tablej = cursorj.getString (0);
-                                killj &= Lib.SQLiteTableExists (sqldbi, tablej);
+                                killj &= sqldbi.tableExists (tablej);
                             } while (cursorj.moveToNext ());
                         }
                     } finally {
                         cursorj.close ();
                     }
                     if (killj) {
-                        String pathj = sqldbj.getPath ();
+                        sqldbj.markForDelete ();
                         SQLiteDBs.CloseAll ();
-                        Log.d (TAG, "deleting " + pathj);
-                        Lib.Ignored (new File (pathj).delete ());
-                        Lib.Ignored (new File (pathj + "-journal").delete ());
                         dbnames[j] = null;
                     }
                 }
@@ -2667,8 +2689,8 @@ public class MaintView
         @Override
         public void DownloadContents (InputStream is) throws IOException
         {
-            SQLiteDatabase sqldb = SQLiteDBs.GetOrCreate (dbname);
-            if (!Lib.SQLiteTableExists (sqldb, "plates")) {
+            SQLiteDBs sqldb = SQLiteDBs.create (dbname);
+            if (!sqldb.tableExists ("plates")) {
                 sqldb.execSQL ("DROP INDEX IF EXISTS plate_state;");
                 sqldb.execSQL ("DROP INDEX IF EXISTS plate_faaid;");
                 sqldb.execSQL ("DROP INDEX IF EXISTS plate_unique;");
@@ -2678,7 +2700,7 @@ public class MaintView
                 sqldb.execSQL ("CREATE INDEX plate_faaid ON plates (pl_faaid);");
                 sqldb.execSQL ("CREATE UNIQUE INDEX plate_unique ON plates (pl_faaid,pl_descrip);");
             }
-            if (!Lib.SQLiteTableExists (sqldb, "rwypreloads")) {
+            if (!sqldb.tableExists ("rwypreloads")) {
                 sqldb.execSQL ("DROP INDEX IF EXISTS rwypld_lastry;");
                 sqldb.execSQL ("DROP TABLE IF EXISTS rwypreloads;");
                 sqldb.execSQL ("CREATE TABLE rwypreloads (rp_faaid TEXT NOT NULL PRIMARY KEY, rp_state TEXT NOT NULL, rp_lastry INTEGER NOT NULL);");
@@ -2686,7 +2708,6 @@ public class MaintView
             }
 
             long time = System.nanoTime ();
-            Object sqlock = SQLiteDBs.GetWriteLock (sqldb);
             sqldb.beginTransaction ();
             try {
                 BufferedReader br = new BufferedReader (new InputStreamReader (is), 4096);
@@ -2699,17 +2720,13 @@ public class MaintView
                     values.put ("pl_faaid",    cols[0]);  // eg, "BVY"
                     values.put ("pl_descrip",  cols[1]);  // eg, "IAP-LOC RWY 16"
                     values.put ("pl_filename", cols[2]);  // eg, "gif_150/050/39r16.gif"
-                    synchronized (sqlock) {
-                        sqldb.insertWithOnConflict ("plates", null, values, SQLiteDatabase.CONFLICT_IGNORE);
-                    }
+                    sqldb.insertWithOnConflict ("plates", null, values, SQLiteDatabase.CONFLICT_IGNORE);
 
                     values = new ContentValues (3);
                     values.put ("rp_faaid",  cols[0]);
                     values.put ("rp_state",  statecode);
                     values.put ("rp_lastry", 0);
-                    synchronized (sqlock) {
-                        sqldb.insertWithOnConflict ("rwypreloads", null, values, SQLiteDatabase.CONFLICT_IGNORE);
-                    }
+                    sqldb.insertWithOnConflict ("rwypreloads", null, values, SQLiteDatabase.CONFLICT_IGNORE);
 
                     if (++ numAdded == 256) {
                         sqldb.yieldIfContendedSafely ();
@@ -2731,13 +2748,14 @@ public class MaintView
     private static void DeletePlates (int expdate, String statecode)
     {
         String dbname = "cycles28_" + expdate + ".db";
-        SQLiteDatabase sqldb = SQLiteDBs.GetOrCreate (dbname);
-
-        if (Lib.SQLiteTableExists (sqldb, "plates")) {
-            sqldb.execSQL ("DELETE FROM plates WHERE pl_state='" + statecode + "'");
-        }
-        if (Lib.SQLiteTableExists (sqldb, "rwypreloads")) {
-            sqldb.execSQL ("DELETE FROM rwypreloads WHERE rp_state='" + statecode + "'");
+        SQLiteDBs sqldb = SQLiteDBs.open (dbname);
+        if (sqldb != null) {
+            if (sqldb.tableExists ("plates")) {
+                sqldb.execSQL ("DELETE FROM plates WHERE pl_state='" + statecode + "'");
+            }
+            if (sqldb.tableExists ("rwypreloads")) {
+                sqldb.execSQL ("DELETE FROM rwypreloads WHERE rp_state='" + statecode + "'");
+            }
         }
     }
 
@@ -2760,8 +2778,8 @@ public class MaintView
         @Override
         public void DownloadContents (InputStream is) throws IOException
         {
-            SQLiteDatabase sqldb = SQLiteDBs.GetOrCreate (dbname);
-            if (!Lib.SQLiteTableExists (sqldb, "apdgeorefs")) {
+            SQLiteDBs sqldb = SQLiteDBs.create (dbname);
+            if (!sqldb.tableExists ("apdgeorefs")) {
                 sqldb.execSQL ("CREATE TABLE apdgeorefs (gr_icaoid TEXT NOT NULL, gr_state TEXT NOT NULL, gr_tfwa REAL NOT NULL, gr_tfwb REAL NOT NULL, gr_tfwc REAL NOT NULL, gr_tfwd REAL NOT NULL, gr_tfwe REAL NOT NULL, gr_tfwf REAL NOT NULL, gr_wfta REAL NOT NULL, gr_wftb REAL NOT NULL, gr_wftc REAL NOT NULL, gr_wftd REAL NOT NULL, gr_wfte REAL NOT NULL, gr_wftf REAL NOT NULL);");
                 sqldb.execSQL ("CREATE UNIQUE INDEX apdgeorefbyicaoid ON apdgeorefs (gr_icaoid);");
             }
@@ -2789,9 +2807,7 @@ public class MaintView
                     values.put ("gr_wftd", Float.parseFloat (cols[10]));
                     values.put ("gr_wfte", Float.parseFloat (cols[11]));
                     values.put ("gr_wftf", Float.parseFloat (cols[12]));
-                    synchronized (SQLiteDBs.GetWriteLock (sqldb)) {
-                        sqldb.insertWithOnConflict ("apdgeorefs", null, values, SQLiteDatabase.CONFLICT_IGNORE);
-                    }
+                    sqldb.insertWithOnConflict ("apdgeorefs", null, values, SQLiteDatabase.CONFLICT_IGNORE);
 
                     if (++ numAdded == 256) {
                         sqldb.yieldIfContendedSafely ();
@@ -2813,9 +2829,9 @@ public class MaintView
     private static void DeleteMachineAPDGeoRefs (int expdate, String statecode)
     {
         String dbname = "cycles28_" + expdate + ".db";
-        SQLiteDatabase sqldb = SQLiteDBs.GetOrCreate (dbname);
+        SQLiteDBs sqldb = SQLiteDBs.open (dbname);
 
-        if (Lib.SQLiteTableExists (sqldb, "apdgeorefs")) {
+        if ((sqldb != null) && sqldb.tableExists ("apdgeorefs")) {
             sqldb.execSQL ("DELETE FROM apdgeorefs WHERE gr_state='" + statecode + "'");
         }
     }
@@ -2839,8 +2855,8 @@ public class MaintView
         @Override
         public void DownloadContents (InputStream is) throws IOException
         {
-            SQLiteDatabase sqldb = SQLiteDBs.GetOrCreate (dbname);
-            if (!Lib.SQLiteTableExists (sqldb, "iapgeorefs")) {
+            SQLiteDBs sqldb = SQLiteDBs.create (dbname);
+            if (! sqldb.tableExists ("iapgeorefs")) {
                 sqldb.execSQL ("CREATE TABLE iapgeorefs (gr_icaoid TEXT NOT NULL, gr_state TEXT NOT NULL, gr_plate TEXT NOT NULL, gr_waypt TEXT NOT NULL, gr_bmpixx INTEGER NOT NULL, gr_bmpixy INTEGER NOT NULL);");
                 sqldb.execSQL ("CREATE INDEX iapgeorefbyplate ON iapgeorefs (gr_icaoid,gr_plate);");
             }
@@ -2901,9 +2917,9 @@ public class MaintView
     private static void DeleteMachineIAPGeoRefs (int expdate, String statecode)
     {
         String dbname = "cycles28_" + expdate + ".db";
-        SQLiteDatabase sqldb = SQLiteDBs.GetOrCreate (dbname);
+        SQLiteDBs sqldb = SQLiteDBs.open (dbname);
 
-        if (Lib.SQLiteTableExists (sqldb, "iapgeorefs")) {
+        if ((sqldb != null) && sqldb.tableExists ("iapgeorefs")) {
             sqldb.execSQL ("DELETE FROM iapgeorefs WHERE gr_state='" + statecode + "'");
         }
     }
@@ -2924,8 +2940,10 @@ public class MaintView
                 if (dbnamej == null) continue;
                 if (!dbnamej.startsWith ("cycles28_")) continue;
                 if (dbnamei.compareTo (dbnamej) > 0) {
-                    SQLiteDatabase sqldbi = SQLiteDBs.GetOrCreate (dbnamei);
-                    SQLiteDatabase sqldbj = SQLiteDBs.GetOrCreate (dbnamej);
+                    SQLiteDBs sqldbi = SQLiteDBs.open (dbnamei);
+                    if (sqldbi == null) continue;
+                    SQLiteDBs sqldbj = SQLiteDBs.open (dbnamej);
+                    if (sqldbj == null) continue;
 
                     // it's ok to kill J if I has all the tables that J has
                     Cursor cursorj = sqldbj.query (
@@ -2937,7 +2955,7 @@ public class MaintView
                         if (cursorj.moveToFirst ()) {
                             do {
                                 String tablej = cursorj.getString (0);
-                                killj &= Lib.SQLiteTableExists (sqldbi, tablej);
+                                killj &= sqldbi.tableExists (tablej);
                             } while (cursorj.moveToNext ());
                         }
                     } finally {
@@ -2945,7 +2963,7 @@ public class MaintView
                     }
 
                     // and I must have all the states that J has in order to kill J
-                    if (killj && Lib.SQLiteTableExists (sqldbi, "plates") && Lib.SQLiteTableExists (sqldbj, "plates")) {
+                    if (killj && sqldbi.tableExists ("plates") && sqldbj.tableExists ("plates")) {
                         cursorj = sqldbj.query (
                                 true, "plates", columns_pl_state,
                                 null, null, null, null, null, null);
@@ -2971,11 +2989,8 @@ public class MaintView
 
                     // I contains everything J has, so kill J
                     if (killj) {
-                        String pathj = sqldbj.getPath ();
+                        sqldbj.markForDelete ();
                         SQLiteDBs.CloseAll ();
-                        Log.d (TAG, "deleting " + pathj);
-                        Lib.Ignored (new File (pathj).delete ());
-                        Lib.Ignored (new File (pathj + "-journal").delete ());
                         dbnames[j] = null;
                     }
                 }

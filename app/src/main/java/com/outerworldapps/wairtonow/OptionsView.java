@@ -47,8 +47,8 @@ public class OptionsView
 
     public  CheckOption  capGridOption;
     public  CheckOption  faaWPOption;
+    public  CheckOption  gpsCompassOption;
     public  CheckOption  powerLockOption;
-    public  CheckOption  rotationOption;
     public  CheckOption  userWPOption;
     public  DefAltOption ktsMphOption;
     public  DefAltOption magTrueOption;
@@ -81,7 +81,7 @@ public class OptionsView
         faaWPOption       = new CheckOption  ("Show FAA waypoints",    false);
         userWPOption      = new CheckOption  ("Show User waypoints",   true);
         powerLockOption   = new CheckOption  ("Power Lock",            false);
-        rotationOption    = new CheckOption  ("Manual Rotation",       true);
+        gpsCompassOption  = new CheckOption  ("GPS status compass",    false);
         magTrueOption     = new DefAltOption ("Magnetic", "True");
         listMapOption     = new DefAltOption ("Maint Plates List", "Maint Plates Map");
         ktsMphOption      = new DefAltOption ("Kts", "MPH");
@@ -120,6 +120,7 @@ public class OptionsView
         ll1.addView (faaWPOption);
         ll1.addView (userWPOption);
         ll1.addView (powerLockOption);
+        ll1.addView (gpsCompassOption);
         ll1.addView (chartOrientOption);
         ll1.addView (chartTrackOption);
         ll1.addView (magTrueOption);
@@ -258,10 +259,11 @@ public class OptionsView
                     String[] csvtokens = Lib.QuotedCSVSplit (csvline);
                     String name = csvtokens[0];
                     String valu = csvtokens[1];
-                    if (name.equals ("capGrid"))     capGridOption.checkBox.setChecked   (valu.equals (boolTrue));
-                    if (name.equals ("faaWPs"))      faaWPOption.checkBox.setChecked     (valu.equals (boolTrue));
-                    if (name.equals ("userWPs"))     userWPOption.checkBox.setChecked    (valu.equals (boolTrue));
-                    if (name.equals ("powerLock"))   powerLockOption.checkBox.setChecked (valu.equals (boolTrue));
+                    if (name.equals ("capGrid"))     capGridOption.checkBox.setChecked    (valu.equals (boolTrue));
+                    if (name.equals ("faaWPs"))      faaWPOption.checkBox.setChecked      (valu.equals (boolTrue));
+                    if (name.equals ("userWPs"))     userWPOption.checkBox.setChecked     (valu.equals (boolTrue));
+                    if (name.equals ("powerLock"))   powerLockOption.checkBox.setChecked  (valu.equals (boolTrue));
+                    if (name.equals ("gpsCompass"))  gpsCompassOption.checkBox.setChecked (valu.equals (boolTrue));
                     if (name.equals ("chartOrient")) chartOrientOption.setKey (valu);
                     if (name.equals ("chartTrack"))  chartTrackOption.setKey  (valu);
                     if (name.equals ("magtrueAlt"))  magTrueOption.setAlt     (valu.equals (boolTrue));
@@ -286,16 +288,17 @@ public class OptionsView
         try {
             BufferedWriter csvwriter = new BufferedWriter (new FileWriter (csvname), 1024);
             try {
-                csvwriter.write ("capGrid,"     + Boolean.toString (capGridOption.checkBox.isChecked ())   + "\n");
-                csvwriter.write ("faaWPs,"      + Boolean.toString (faaWPOption.checkBox.isChecked ())     + "\n");
-                csvwriter.write ("userWPs,"     + Boolean.toString (userWPOption.checkBox.isChecked ())    + "\n");
-                csvwriter.write ("powerLock,"   + Boolean.toString (powerLockOption.checkBox.isChecked ()) + "\n");
-                csvwriter.write ("chartOrient," + chartOrientOption.getKey ()                              + "\n");
-                csvwriter.write ("chartTrack,"  + chartTrackOption.getKey ()                               + "\n");
-                csvwriter.write ("magtrueAlt,"  + Boolean.toString (magTrueOption.getAlt ())               + "\n");
-                csvwriter.write ("plateMap,"    + Boolean.toString (listMapOption.getAlt ())               + "\n");
-                csvwriter.write ("latlonAlt,"   + latLonOption.getKey ()                                   + "\n");
-                csvwriter.write ("ktsMphAlt,"   + Boolean.toString (ktsMphOption.getAlt ())                + "\n");
+                csvwriter.write ("capGrid,"     + Boolean.toString (capGridOption.checkBox.isChecked ())    + "\n");
+                csvwriter.write ("faaWPs,"      + Boolean.toString (faaWPOption.checkBox.isChecked ())      + "\n");
+                csvwriter.write ("userWPs,"     + Boolean.toString (userWPOption.checkBox.isChecked ())     + "\n");
+                csvwriter.write ("powerLock,"   + Boolean.toString (powerLockOption.checkBox.isChecked ())  + "\n");
+                csvwriter.write ("gpsCompass,"  + Boolean.toString (gpsCompassOption.checkBox.isChecked ()) + "\n");
+                csvwriter.write ("chartOrient," + chartOrientOption.getKey ()                               + "\n");
+                csvwriter.write ("chartTrack,"  + chartTrackOption.getKey ()                                + "\n");
+                csvwriter.write ("magtrueAlt,"  + Boolean.toString (magTrueOption.getAlt ())                + "\n");
+                csvwriter.write ("plateMap,"    + Boolean.toString (listMapOption.getAlt ())                + "\n");
+                csvwriter.write ("latlonAlt,"   + latLonOption.getKey ()                                    + "\n");
+                csvwriter.write ("ktsMphAlt,"   + Boolean.toString (ktsMphOption.getAlt ())                 + "\n");
             } finally {
                 csvwriter.close ();
             }

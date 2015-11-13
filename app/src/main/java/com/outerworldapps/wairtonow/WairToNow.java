@@ -62,8 +62,6 @@ public class WairToNow extends Activity {
     private boolean tabsVisible;
     public  float currentGPSLat;
     public  float currentGPSLon;
-    private float pendingCourseSetLat;
-    private float pendingCourseSetLon;
     private float currentGPSHdg;
     public  float textSize;
     private GlassView glassView;
@@ -85,11 +83,11 @@ public class WairToNow extends Activity {
     public  OptionsView optionsView;
     private Paint gpsAvailablePaint;
     private PlanView planView;
-    private String pendingCourseSetName;
     private TabButton agreeButton;
     public  TabButton currentTabButton;
     public  UserWPView userWPView;
     public  WaypointView waypointView1, waypointView2;
+    private Waypoint pendingCourseSetWP;
 
     /** Called when the activity is first created. */
     @Override
@@ -258,6 +256,7 @@ public class WairToNow extends Activity {
         tabButtonLayout.addView (gpsStatusButton);
         tabButtonLayout.addView (filesButton);
         tabButtonLayout.addView (helpButton);
+        //tabButtonLayout.addView (new TabButton (new ExpView (this)));
 
         tabButtonScroller = new HorizontalScrollView (this);
         tabButtonScroller.addView (tabButtonLayout);
@@ -336,6 +335,8 @@ public class WairToNow extends Activity {
 
     /**
      * Set the currently displayed tab and change the view therein.
+     * @param view = view to make currently displayed and attached
+     *               to it's GetTabName() tab
      */
     public void SetCurrentTab (View view)
     {
@@ -345,17 +346,6 @@ public class WairToNow extends Activity {
             TabButton tb = (TabButton) tabButtonLayout.getChildAt (i);
             if (tb.ident.equals (ident)) {
                 tb.view = view;
-                tb.DisplayNewTab ();
-                break;
-            }
-        }
-    }
-
-    public void SetCurrentTab (String ident)
-    {
-        for (int i = tabButtonLayout.getChildCount (); -- i >= 0;) {
-            TabButton tb = (TabButton) tabButtonLayout.getChildAt (i);
-            if (tb.ident.equals (ident)) {
                 tb.DisplayNewTab ();
                 break;
             }
@@ -375,11 +365,6 @@ public class WairToNow extends Activity {
         }
     }
 
-    public boolean GetTabVisibility ()
-    {
-        return tabsVisible;
-    }
-
     /**
      * Set standard text size used throughout.
      */
@@ -390,20 +375,15 @@ public class WairToNow extends Activity {
 
     /**
      * Set destination waypoint for the course line
-     * @param lat = destination latitude (degrees)
-     * @param lon = destination longitude (degrees)
-     * @param name = name of waypoint (null to clear course line)
      */
-    public void SetDestinationWaypoint (float lat, float lon, String name)
+    public void SetDestinationWaypoint (Waypoint wp)
     {
-        if (name == null) {
-            chartView.SetCourseLine (0, 0, 0, 0, null);
+        if (wp == null) {
+            chartView.SetCourseLine (0, 0, null);
         } else if ((currentGPSLat != 0) && (currentGPSLon != 0)) {
-            chartView.SetCourseLine (currentGPSLat, currentGPSLon, lat, lon, name);
+            chartView.SetCourseLine (currentGPSLat, currentGPSLon, wp);
         } else {
-            pendingCourseSetLat  = lat;
-            pendingCourseSetLon  = lon;
-            pendingCourseSetName = name;
+            pendingCourseSetWP  = wp;
         }
         SetCurrentTab (chartView);
     }
@@ -477,10 +457,9 @@ public class WairToNow extends Activity {
             currentGPSHdg = loc.getBearing ();
         }
 
-        if (pendingCourseSetName != null) {
-            chartView.SetCourseLine (currentGPSLat, currentGPSLon,
-                    pendingCourseSetLat, pendingCourseSetLon, pendingCourseSetName);
-            pendingCourseSetName = null;
+        if (pendingCourseSetWP != null) {
+            chartView.SetCourseLine (currentGPSLat, currentGPSLon, pendingCourseSetWP);
+            pendingCourseSetWP = null;
         }
 
         chartView.SetGPSLocation (loc);
@@ -536,6 +515,10 @@ public class WairToNow extends Activity {
         super.onPause ();
         locationManager.removeUpdates (gpsListener);
         locationManager.removeGpsStatusListener (gpsListener);
+
+        // maybe some database files marked for delete
+        // so close our handles so they will be deleted
+        SQLiteDBs.CloseAll ();
     }
 
     /***************************************\

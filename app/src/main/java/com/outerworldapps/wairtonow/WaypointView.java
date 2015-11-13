@@ -457,6 +457,7 @@ public class WaypointView extends LinearLayout
             AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
             adb.setTitle ("Select waypoint");
             adb.setItems (names, new OpenWaypointAtLatLonSelected (waypoints));
+            adb.setNegativeButton ("Cancel", null);
             adb.create ().show ();
         }
     }
@@ -618,11 +619,7 @@ public class WaypointView extends LinearLayout
         @Override
         public void onClick (View v)
         {
-            if (selectedWaypoint != null) {
-                wairToNow.SetDestinationWaypoint (selectedWaypoint.lat, selectedWaypoint.lon, selectedWaypoint.ident);
-            } else {
-                wairToNow.SetDestinationWaypoint (0, 0, null);
-            }
+            wairToNow.SetDestinationWaypoint (selectedWaypoint);
         }
     }
 

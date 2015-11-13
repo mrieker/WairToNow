@@ -40,18 +40,14 @@ import android.view.WindowManager;
 public class GlassView
         extends View
         implements WairToNow.CanBeMainView {
-    private static final float APPMODEFS = 5;         // approach mode full scale deflection degrees
-    private static final float APPMODEGS = 3.25F;     // approach mode glide slope degrees
-    private static final float FtPerM    = 3.28084F;  // feet per metre
-    private static final float GRAVACCEL = 9.80665F;  // metres per second squared
-    private static final float GSFTABVTH = 25;        // glideslope feet above threshold
-    private static final float NMPerDeg  = 60.0F;     // naut.mi per degree (lat)
-    private static final float HSISCALE  = 2.0F;      // HSI scale full deflection = 2.0nm
-    private static final float KtPerMPS  = 1.94384F;
-    private static final float SMPerNM   = 1.15078F;
+    private static final float APPMODEGS   = 3.25F;   // approach mode glide slope degrees
+    private static final float GSFTABVTH   = 25.0F;   // glideslope feet above threshold
+    private static final float HSISCALEAPP = 0.5F;    // HSI scale full deflection = 0.5nm
+    private static final float HSISCALEENR = 2.0F;    // HSI scale full deflection = 2.0nm
 
     private static final CompareRWNumbers compareRWNumbers = new CompareRWNumbers ();
 
+    private float chartUpHdg;
     private float magvariation;
     private float[][] inv_bank_rot = new float[][] { new float[3], new float[3], new float[3] };
     private float[][] inv_pich_rot = new float[][] { new float[3], new float[3], new float[3] };
@@ -251,11 +247,11 @@ public class GlassView
     protected void onDraw (Canvas canvas)
     {
         Position currPos = positions[posIndex];
-        Position prevPos = positions[(posIndex+positions.length-1)%positions.length];
+        //Position prevPos = positions[(posIndex+positions.length-1)%positions.length];
         magvariation = Lib.MagVariation (currPos.latitude, currPos.longitude, currPos.altitude);
 
-        int canvasWidth  = canvas.getWidth ();   // eg (600,1024)
-        int canvasHeight = canvas.getHeight ();
+        int canvasWidth  = getWidth ();   // eg (600,1024)
+        int canvasHeight = getHeight ();
         canvas.drawColor (Color.GRAY);
 
         /*
@@ -273,10 +269,10 @@ public class GlassView
          * Rate of turn can be computed from two most recent GPS reports.
          * Units are radians per second.
          */
-        float prevHdg = prevPos.heading;
-        if (prevHdg - truehdg >  180) prevHdg -= 360;
-        if (prevHdg - truehdg < -180) prevHdg += 360;
-        float rateOfTurn = (truehdg - prevHdg) / (currPos.time - prevPos.time) * 1000.0F / 180.0F * Mathf.PI;
+        //float prevHdg = prevPos.heading;
+        //if (prevHdg - truehdg >  180) prevHdg -= 360;
+        //if (prevHdg - truehdg < -180) prevHdg += 360;
+        //float rateOfTurn = (truehdg - prevHdg) / (currPos.time - prevPos.time) * 1000.0F / 180.0F * Mathf.PI;
 
         /*
          * Calculate turn radius (metres).
@@ -286,7 +282,7 @@ public class GlassView
         /*
          * Calculate centripetal acceleration (metres per second squared).
          */
-        float centripAccel = currPos.speed * rateOfTurn;
+        //float centripAccel = currPos.speed * rateOfTurn;
 
         /*
          * Bank angle is arctan (centripAccel / gravity).
@@ -330,32 +326,30 @@ public class GlassView
         int dgCentX   = canvasWidth  * 16 / 32;
         int altCentX  = canvasWidth  * 28 / 32;
 
-        //DrawArtificialHorizon (canvas, ahCentX, ahCentY, ahRadius, pitchAngle, bankAngle);
-        DrawChart (canvas, ahCentX, ahCentY, ahRadius);
-
         DrawDestinationInfo (canvas, dstCentX, dstCentY, currPos);
 
+        chartUpHdg = truehdg;
         DrawDirectionalGyro (canvas, dgCentX, dgCentY, dgRadius, maghdg);
 
-        float spdflt = currPos.speed * KtPerMPS;
-        if (wairToNow.optionsView.ktsMphOption.getAlt ()) spdflt *= SMPerNM;
+        //DrawArtificialHorizon (canvas, ahCentX, ahCentY, ahRadius, pitchAngle, bankAngle);
+        DrawChart (canvas, ahCentX, ahCentY, ahRadius, chartUpHdg);
+
+        float spdflt = currPos.speed * Lib.KtPerMPS;
+        if (wairToNow.optionsView.ktsMphOption.getAlt ()) spdflt *= Lib.SMPerNM;
         int spdint = Math.round (spdflt);
         DrawNumericStrip (canvas, aspCentX, aspCentY, aspHeight, aspWidth, spdint, 10, 8, 0, -1, -1);
 
-        int feet = (int) Math.round (altitude * 3.28084);
+        int feet = Math.round (altitude * Lib.FtPerM);
         DrawNumericStrip (canvas, altCentX, altCentY, altHeight, altWidth, feet, -100, 8, -999998, gsalt, tdze);
 
         /*
          * Display destination approach selector boxes.
          */
-        String clName = wairToNow.chartView.clName;
-        if (clName != null) {
-            float dstLat = wairToNow.chartView.dstLat;
-            float dstLon = wairToNow.chartView.dstLon;
-            Waypoint wp = Waypoint.FindWaypoint (clName, dstLat, dstLon);
-            if ((wp != null) && !(wp instanceof Waypoint.Airport)) wp = null;
-            if (dstAirport != wp) {
-                dstAirport = (Waypoint.Airport)wp;
+        Waypoint clDest = wairToNow.chartView.clDest;
+        if (clDest != null) {
+            if (!(clDest instanceof Waypoint.Airport)) clDest = null;
+            if (dstAirport != clDest) {
+                dstAirport = (Waypoint.Airport) clDest;
                 rwNumbers  = null;
                 if (dstAirport != null) {
                     int n = dstAirport.GetRunways ().values ().size ();
@@ -547,8 +541,9 @@ public class GlassView
      * @param centX  = center of where to put chart on canvas
      * @param centY  = center of where to put chart on canvas
      * @param radius = half width & height to put on canvas
+     * @param course = course line degrees ("UP" direction of chart)
      */
-    private void DrawChart (Canvas canvas, int centX, int centY, int radius)
+    private void DrawChart (Canvas canvas, int centX, int centY, int radius, float course)
     {
         canvas.save ();
         if (canvas.clipRect (centX - radius, centY - radius, centX + radius, centY + radius)) {
@@ -556,7 +551,9 @@ public class GlassView
             int canCentY = getHeight () / 2;
             canvas.translate (centX - canCentX, centY - canCentY);
             wairToNow.chartView.ReCenter ();
+            wairToNow.chartView.SetCanvasHdgRad (Mathf.toRadians (course));
             wairToNow.chartView.OnDraw (canvas);  // avoid asinine 'suspicious method call' error by using OnDraw()
+            wairToNow.chartView.UnSetCanvasHdgRad ();
         }
         canvas.restore ();
     }
@@ -566,14 +563,15 @@ public class GlassView
      */
     private void DrawDestinationInfo (Canvas canvas, int centX, int centY, Position currPos)
     {
-        if (wairToNow.chartView.clName != null) {
-            float distnm   = Lib.LatLonDist (currPos.latitude, currPos.longitude, wairToNow.chartView.dstLat, wairToNow.chartView.dstLon);
+        if (wairToNow.chartView.clDest != null) {
+            float distnm   = Lib.LatLonDist (currPos.latitude, currPos.longitude,
+                    wairToNow.chartView.clDest.lat, wairToNow.chartView.clDest.lon);
             int dist10ths  = (int)(distnm * 10 + 0.5);
             String diststr = (dist10ths >= 10000) ? Integer.toString (dist10ths / 10) :
                     Integer.toString (dist10ths / 10) + "." + Integer.toString (dist10ths % 10);
-            String hdgstr = wairToNow.chartView.clName + "  " + diststr;
+            String hdgstr = wairToNow.chartView.clDest.ident + "  " + diststr;
             if (currPos.speed > 1.0) {
-                int    timesec = (int)(distnm / currPos.speed / KtPerMPS * 3600.0 + 0.5);
+                int    timesec = (int)(distnm / currPos.speed / Lib.KtPerMPS * 3600.0 + 0.5);
                 String timestr = ((timesec >= 3600) ?
                         Integer.toString (timesec / 3600) + ":" + Integer.toString (timesec / 60 % 60 + 100).substring (1) :
                         Integer.toString (timesec / 60)) + ":" +
@@ -585,7 +583,7 @@ public class GlassView
     }
 
     /**
-     * Draw the directional gyro instrument.
+     * Draw the directional gyro instrument possibly with HSI needles.
      * @param canvas  = what to draw it on
      * @param centX,Y = center of the circle on the canvas
      * @param radius  = radius of the circle to draw
@@ -624,16 +622,16 @@ public class GlassView
         /*
          * Maybe draw HSI needle for selected course.
          */
-        String clName = wairToNow.chartView.clName;
-        if (clName != null) {
+        Waypoint clDest = wairToNow.chartView.clDest;
+        if (clDest != null) {
 
             /*
              * Current course origination and destination points.
              */
             float orgLat = wairToNow.chartView.orgLat;
             float orgLon = wairToNow.chartView.orgLon;
-            float dstLat = wairToNow.chartView.dstLat;
-            float dstLon = wairToNow.chartView.dstLon;
+            float dstLat = clDest.lat;
+            float dstLon = clDest.lon;
 
             /*
              * Our current position.
@@ -649,37 +647,32 @@ public class GlassView
             if ((appRunway != null) && ((rw = appRunway.rw) != null)) {
 
                 // true course degrees from current position to runway end
-                float tcDegCurToRWEnd = Lib.LatLonTC (curLat,    curLon,    rw.endLat, rw.endLon);
+                float tcDegCurToRWEnd = Lib.LatLonTC (curLat, curLon, rw.endLat, rw.endLon);
 
                 // true course degrees from runway beginning to runway end
-                float tcDegRWBegToEnd = Lib.LatLonTC (rw.begLat, rw.begLon, rw.endLat, rw.endLon);
+                float tcDegRWBegToEnd = rw.trueHdg;
 
-                // degrees of needle deflection to the right
-                float degDeflectRite = tcDegRWBegToEnd - tcDegCurToRWEnd;
-                while (degDeflectRite < -180.0) degDeflectRite += 360.0;
-                while (degDeflectRite >= 180.0) degDeflectRite -= 360.0;
+                // nautical miles of needle deflection to the right
+                float nmDeflectRite = Lib.GCOffCourseDist (rw.begLat, rw.begLon, rw.endLat, rw.endLon, curLat, curLon);
 
                 // draw the HSI needles in approach mode for this runway
-                DrawHSINeedles (canvas,                          // canvas to draw HSI needles on
-                                radius,                          // radius of dg circle on canvas
-                                heading,                         // current heading (actually current track)
-                                tcDegRWBegToEnd + magvariation,  // course of runway centerline
-                                tcDegCurToRWEnd + magvariation,  // bearing from current position to runway
-                                degDeflectRite,                  // how much HSI needle is to be deflected right
-                                APPMODEFS);                      // full scale right deflection
+                chartUpHdg = tcDegRWBegToEnd;
+                DrawHSINeedles (canvas,                  // canvas to draw HSI needles on
+                        radius,                          // radius of dg circle on canvas
+                        heading,                         // current heading (actually current track)
+                        tcDegRWBegToEnd + magvariation,  // course of runway centerline
+                        tcDegCurToRWEnd + magvariation,  // bearing from current position to runway
+                        nmDeflectRite,                   // how much HSI needle is to be deflected right
+                        HSISCALEAPP);                    // full scale right deflection
 
                 // nautical miles from current position to runway beginning
                 float nmCurToRWBeg = Lib.LatLonDist (curLat, curLon, rw.begLat, rw.begLon);
-
-                // project that distance onto runway centerline
-                // also makes it negative if beyond runway threshold
-                nmCurToRWBeg *= Math.cos (degDeflectRite / 180.0 * Math.PI);
 
                 // for this far from the runway, compute altitude above runway where glideslope center is
                 float nmGSAboveRWBeg = Mathf.tan (APPMODEGS / 180.0F * Mathf.PI) * nmCurToRWBeg;
 
                 // compute feet MSL where glideslope center is
-                gsalt = (int)(nmGSAboveRWBeg * Lib.MPerNM * FtPerM + rw.elev + GSFTABVTH);
+                gsalt = (int)(nmGSAboveRWBeg * Lib.MPerNM * Lib.FtPerM + rw.elev + GSFTABVTH);
                 tdze  = (int)rw.elev;
             }
 
@@ -696,13 +689,14 @@ public class GlassView
                 // this is heading to take to get great circle from wherever we currently are
                 float bearing = Lib.LatLonTC (curLat, curLon, dstLat, dstLon);
 
+                chartUpHdg = onCourseHdg;
                 DrawHSINeedles (canvas,                      // canvas to draw HSI needles on
                                 radius,                      // radius of dg circle on canvas
                                 heading,                     // current heading (actually current track)
                                 onCourseHdg + magvariation,  // desired course line
                                 bearing + magvariation,      // actual bearing from current position to destination point
                                 offCourseDist,               // how far off course we are
-                                HSISCALE);                   // full-scale deflection distance
+                                HSISCALEENR);                // full-scale deflection distance
             }
         }
 

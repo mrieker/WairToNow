@@ -32,7 +32,6 @@ import java.util.Iterator;
 import java.util.TreeSet;
 
 import android.database.Cursor;
-import android.database.sqlite.SQLiteDatabase;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
@@ -556,14 +555,10 @@ public class OpenStreetMap {
                      */
                     int platesexpdate = MaintView.GetPlatesExpDate ();
                     String dbname = "cycles28_" + platesexpdate + ".db";
-                    if (!SQLiteDBs.Exists (dbname)) {
-                        haveRwyPrefetches = 0;
-                        continue;
-                    }
                     try {
                         // get a few airports that haven't been processed yet
-                        SQLiteDatabase sqldb = SQLiteDBs.GetOrCreate (dbname);
-                        if (!Lib.SQLiteTableExists (sqldb, "rwypreloads")) {
+                        SQLiteDBs sqldb = SQLiteDBs.open (dbname);
+                        if ((sqldb == null) || !sqldb.tableExists ("rwypreloads")) {
                             haveRwyPrefetches = 0;
                             continue;
                         }
@@ -608,18 +603,14 @@ public class OpenStreetMap {
 
                                 // if successfully downloaded all the tiles, mark that airport as complete
                                 if (FetchTiles ()) {
-                                    synchronized (SQLiteDBs.GetWriteLock (sqldb)) {
-                                        sqldb.execSQL ("DELETE FROM rwypreloads WHERE rp_faaid='" + faaid + "'");
-                                    }
+                                    sqldb.execSQL ("DELETE FROM rwypreloads WHERE rp_faaid='" + faaid + "'");
                                     if (wairToNow.maintView != null) {
                                         wairToNow.maintView.UpdateRunwayDiagramDownloadStatus ();
                                     }
                                 } else {
                                     bulkDownloads.clear ();
                                     now = System.currentTimeMillis ();
-                                    synchronized (SQLiteDBs.GetWriteLock (sqldb)) {
-                                        sqldb.execSQL ("UPDATE rwypreloads SET rp_lastry=" + now + " WHERE rp_faaid='" + faaid + "'");
-                                    }
+                                    sqldb.execSQL ("UPDATE rwypreloads SET rp_lastry=" + now + " WHERE rp_faaid='" + faaid + "'");
                                 }
 
                                 // stop this if there are some in the downloadTilenames queue
