@@ -59,8 +59,6 @@ public abstract class Waypoint {
     private final static String[] columns_apt_desc = new String[] { "apt_desc" };
     private final static String[] columns_kw_rowid = new String[] { "kw_rowid" };
     private final static String[] columns_pl_descrip_pl_filename = new String[] { "pl_descrip", "pl_filename" };
-    private final static String[] columns_runways1 = new String[] { "rwy_faaid", "rwy_number",
-            "rwy_truehdg", "rwy_tdze", "rwy_beglat", "rwy_beglon", "rwy_endlat", "rwy_endlon" };
 
     private static ArrayList<Class<? extends Waypoint>> GetWaypointClasses ()
     {
@@ -474,7 +472,7 @@ public abstract class Waypoint {
                 if (sqldb != null) {
                     try {
                         Cursor result = sqldb.query (
-                                "runways", columns_runways1,
+                                "runways", Runway.dbcols,
                                 "rwy_faaid=?", new String[] { this.faaident },
                                 null, null, null, null);
                         try {
@@ -602,6 +600,9 @@ public abstract class Waypoint {
      * Every record in runways.csv that we are able to parse.
      */
     public static class Runway extends Waypoint {
+        public final static String[] dbcols = new String[] { "rwy_faaid", "rwy_number",
+                "rwy_truehdg", "rwy_tdze", "rwy_beglat", "rwy_beglon", "rwy_endlat", "rwy_endlon" };
+
         public Airport airport;
         public String aptid;    // faa ident
         public String number;   // eg, "02L"
@@ -619,7 +620,7 @@ public abstract class Waypoint {
         {
             aptid   = result.getString (0);
             number  = result.getString (1);
-            elev    = result.getFloat  (3);
+            elev    = result.isNull (3) ? apt.elev : result.getFloat (3);
             begLat  = result.getInt (4) / lldbfact;
             begLon  = result.getInt (5) / lldbfact;
             endLat  = result.getInt (6) / lldbfact;

@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<HTML>
+    <HEAD>
+        <SCRIPT LANGUAGE=JAVASCRIPT>
+            %%%%
+
+            function subs (nvps, template)
+            {
+                var c, i, j, len, name;
+
+                len = template.length;
+                for (i = 0; (j = template.indexOf ('$', i)) >= 0; i = j) {
+                    document.write (template.substring (i, j));
+                    c = template.charAt (++ j);
+                    if (c == '$') {
+                        document.write ('$');
+                        j ++;
+                    } else {
+                        name = '';
+                        while ('abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_'.indexOf (c) >= 0) {
+                            name += c;
+                            c = template.charAt (++ j);
+                        }
+                        document.write (nvps[name]);
+                    }
+                }
+                document.write (template.substring (i));
+            }
+        </SCRIPT>
+    </HEAD>
+    <BODY>
+        <SCRIPT LANGUAGE=JAVASCRIPT>
+            status = apt['status'];
+            if (status == 'CI') status = 'Closed indefinitely';
+            if (status == 'CI') status = 'Closed permanently';
+            if (status == 'O')  status = 'Operational';
+            apt['status'] = status;
+
+            if (apt['faciluse'] == 'PR') apt['faciluse'] = 'Private';
+            if (apt['faciluse'] == 'PU') apt['faciluse'] = 'Public';
+
+            effdate = new Date (apt['effdate']);
+            expdate = new Date (effdate.getTime () + 1000*60*60*24*57);
+            apt['effdate'] = (effdate.getMonth () + 1) + '/' + effdate.getDate () + '/' + (effdate.getYear () + 1900);
+            apt['expdate'] = (expdate.getMonth () + 1) + '/' + expdate.getDate () + '/' + (expdate.getYear () + 1900);
+
+            if (apt['towered'] != 'Y') apt['hourslocal'] = '(none)';
+
+            subs (apt, '  \
+                <TITLE>$facilname</TITLE></HEAD>  \
+                <H2>$faaid ($icaoid) $facilname</H2>  \
+                <P>$city, $statelong</P>  \
+                <HR>  \
+                <TABLE>  \
+                    <TR><TD VALIGN=TOP>Data is effective:</TD><TD VALIGN=TOP>$effdate - $expdate</TD></TR>  \
+                    <TR><TD VALIGN=TOP>Status:</TD><TD VALIGN=TOP>$status $faciluse</TD></TR>  \
+                    <TR><TD VALIGN=TOP>Latitude:</TD><TD VALIGN=TOP>$latitude</TD></TR>  \
+                    <TR><TD VALIGN=TOP>Longitude:</TD><TD VALIGN=TOP>$longitude</TD></TR>  \
+                    <TR><TD VALIGN=TOP>Elevation:</TD><TD VALIGN=TOP>$elevation ft.</TD></TR>  \
+                    <TR><TD VALIGN=TOP>Variation:</TD><TD VALIGN=TOP>$magvar $magvaryear</TD></TR>  \
+                    <TR><TD VALIGN=TOP>From city:</TD><TD VALIGN=TOP>$nmfromcity nm $dirfromcity of $city, $state2let</TD></TR>  \
+                    <TR><TD VALIGN=TOP>Sectional chart:</TD><TD VALIGN=TOP>$secchart</TD></TR>  \
+                    <TR><TD VALIGN=TOP>Tower hours:</TD><TD VALIGN=TOP>$hourslocal</TD></TR>  \
+                    <TR><TD VALIGN=TOP>Traffic pattern AGL:</TD><TD VALIGN=TOP>$trafpatagl</TD></TR>  \
+                </TABLE>  \
+                <P></P>  \
+                <TABLE>  \
+                    <TR><TH ALIGN=LEFT>Owner</TH><TH ALIGN=LEFT>Manager</TH></TR>  \
+                    <TR><TD>$ownername</TD><TD>$mangrname</TD></TR>  \
+                    <TR><TD>$owneraddr</TD><TD>$mangraddr</TD></TR>  \
+                    <TR><TD>$ownercityetc</TD><TD>$mangrcityetc</TD></TR>  \
+                    <TR><TD>Phone: $ownerphone</TD><TD>Phone: $mangrphone</TD></TR>  \
+                </TABLE>  \
+                <P></P>  \
+                <B>Communications</B>  \
+                <TABLE>  \
+                    <TR><TD>Unicom:</TD><TD>$unicom</TD></TR>  \
+                    <TR><TD>CTAF:</TD><TD>$ctaf</TD></TR>  \
+            ');
+            for (name in apt) {
+                if (name.substring (0, 5) == 'FREQ-') {
+                    var type = name.substring (5);
+                    type = type.replace ('CD', 'ClncDel');
+                    type = type.replace ('LCL', 'Tower');
+                    document.write ('<TR><TD VALIGN=TOP>' + type + ':</TD><TD>' + apt[name] + '</TD></TR>');
+                }
+            }
+            document.write ('</TABLE>');
+
+            document.write ('<P></P><B>Remarks</B><TABLE>');
+            for (name in apt) {
+                if (name.substring (0, 4) == 'RMK-') {
+                    document.write ('<TR><TD NOWRAP VALIGN=TOP>' + name.substring (4) + ':</TD><TD>' + apt[name] + '</TD></TR>');
+                }
+                if (name.substring (0, 6) == 'TWRMK-') {
+                    document.write ('<TR><TD NOWRAP VALIGN=TOP>' + name + ':</TD><TD>' + apt[name] + '</TD></TR>');
+                }
+            }
+            document.write ('</TABLE>');
+
+            for (name in rwps) {
+                var rwp = rwps[name];
+                rwp['base_trafpat']  = (rwp['base_ritraf']  == 'Y') ? 'Right' : 'Left';
+                rwp['recip_trafpat'] = (rwp['recip_ritraf'] == 'Y') ? 'Right' : 'Left';
+                rwp['base_reil']     = (rwp['base_reil']    == 'Y') ? 'Yes'   : 'No';
+                rwp['recip_reil']    = (rwp['recip_reil']   == 'Y') ? 'Yes'   : 'No';
+
+                var surftype = rwp['surftype'];
+                var surfcond = '';
+                if (surftype.indexOf ('-E') >= 0) { surftype = surftype.replace ('-E', ''); surfcond = 'Excellent'; }
+                if (surftype.indexOf ('-G') >= 0) { surftype = surftype.replace ('-G', ''); surfcond = 'Good'; }
+                if (surftype.indexOf ('-F') >= 0) { surftype = surftype.replace ('-F', ''); surfcond = 'Fair'; }
+                if (surftype.indexOf ('-P') >= 0) { surftype = surftype.replace ('-P', ''); surfcond = 'Poor'; }
+                if (surftype.indexOf ('-L') >= 0) { surftype = surftype.replace ('-L', ''); surfcond = 'Failed'; }
+                rwp['surftype'] = surftype;
+                rwp['surfcond'] = surfcond;
+
+                subs (rwp, '  \
+                    <HR>  \
+                    <H3>Runway $rwidpair</H3>  \
+                    <TABLE>  \
+                        <TR><TD>Dimensions:</TD><TD>$rwlen ft. x $width ft.</TD></TR>  \
+                        <TR><TD>Surface Type:</TD><TD>$surftype</TD></TR>  \
+                        <TR><TD>Surface Condition:</TD><TD>$surfcond</TD></TR>  \
+                        <TR><TD>Runway Edge Lights:</TD><TD>$edgelights</TD></TR>  \
+                    </TABLE>  \
+                    <TABLE>  \
+                        <TR><TD></TD><TH ALIGN=LEFT>Runway $base_id</TH><TH ALIGN=LEFT>Runway $recip_id</TH></TR>  \
+                        <TR><TD>True Alignment:</TD><TD>$base_trualn\u00B0</TD><TD>$recip_trualn\u00B0</TD></TR>  \
+                        <TR><TD>Traffic Pattern:</TD><TD>$base_trafpat</TD><TD>$recip_trafpat</TD></TR>  \
+                        <TR><TD>Markings:</TD><TD>$base_markng</TD><TD>$recip_markng</TD></TR>  \
+                        <TR><TD>Markings Condition:</TD><TD>$base_marcnd</TD><TD>$recip_marcnd</TD></TR>  \
+                        <TR><TD>Latitude:</TD><TD>$base_lat</TD><TD>$recip_lat</TD></TR>  \
+                        <TR><TD>Longitude:</TD><TD>$base_lon</TD><TD>$recip_lon</TD></TR>  \
+                        <TR><TD>Elevation:</TD><TD>$base_elevat</TD><TD>$recip_elevat</TD></TR>  \
+                        <TR><TD>Runway End Identifier Lights:</TD><TD>$base_reil</TD><TD>$recip_reil</TD></TR>  \
+                    </TABLE>  \
+                ');
+            }
+        </SCRIPT>
+        <HR>
+        The End.
+    </BODY>
+</HTML>

@@ -1765,7 +1765,9 @@ public class MaintView
                 Log.e (TAG, "MaintView thread exception", e);
                 maintViewHandler.sendEmptyMessage (MaintViewHandlerWhat_CLOSEDLPROG);
                 maintViewHandler.sendEmptyMessage (MaintViewHandlerWhat_DLCOMPLETE);
-                dlmsg = maintViewHandler.obtainMessage (MaintViewHandlerWhat_DLERROR, e.getMessage ());
+                String emsg = e.getMessage ();
+                if (emsg == null) emsg = e.getClass ().toString ();
+                dlmsg = maintViewHandler.obtainMessage (MaintViewHandlerWhat_DLERROR, emsg);
                 maintViewHandler.sendMessage (dlmsg);
             } finally {
                 downloadThread = null;
@@ -2587,7 +2589,7 @@ public class MaintView
                 long time = System.nanoTime ();
                 sqldb.execSQL ("DROP INDEX IF EXISTS runways_faaids");
                 sqldb.execSQL ("DROP TABLE IF EXISTS tmprwys;");
-                sqldb.execSQL ("CREATE TABLE tmprwys (rwy_faaid TEXT, rwy_number TEXT NOT NULL, rwy_truehdg INTEGER, rwy_tdze REAL NOT NULL, rwy_beglat INTEGER NOT NULL, rwy_beglon INTEGER NOT NULL, rwy_endlat INTEGER NOT NULL, rwy_endlon INTEGER NOT NULL);");
+                sqldb.execSQL ("CREATE TABLE tmprwys (rwy_faaid TEXT, rwy_number TEXT NOT NULL, rwy_truehdg INTEGER, rwy_tdze REAL, rwy_beglat INTEGER NOT NULL, rwy_beglon INTEGER NOT NULL, rwy_endlat INTEGER NOT NULL, rwy_endlon INTEGER NOT NULL);");
                 sqldb.execSQL ("CREATE INDEX runways_faaids ON tmprwys (rwy_faaid);");
                 sqldb.beginTransaction ();
                 try {
@@ -2600,7 +2602,7 @@ public class MaintView
                         values.put ("rwy_faaid",   cols[0]);  // eg, "BOS"
                         values.put ("rwy_number",  cols[1]);  // eg, "04L"
                         values.put ("rwy_truehdg", cols[2].equals ("") ? null : Integer.parseInt (cols[2]));
-                        values.put ("rwy_tdze",    Float.parseFloat (cols[3]));
+                        values.put ("rwy_tdze",    cols[3].equals ("") ? null : Float.parseFloat (cols[3]));
                         values.put ("rwy_beglat", (int) (Float.parseFloat (cols[4]) * Waypoint.lldbfact));
                         values.put ("rwy_beglon", (int) (Float.parseFloat (cols[5]) * Waypoint.lldbfact));
                         values.put ("rwy_endlat", (int) (Float.parseFloat (cols[6]) * Waypoint.lldbfact));

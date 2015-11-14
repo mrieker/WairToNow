@@ -416,19 +416,16 @@ public class PlateDME {
 
                     // save the checkbox state of the existing checkboxes to the database
                     // also enable showing DMEs if any are enabled
-                    SQLiteStatement updateStmt = sqldb.compileStatement ("UPDATE dmecheckboxes SET dc_checked=? WHERE dc_icaoid=? AND dc_plate=? AND dc_dmeid=?");
                     for (DMECheckboxes dmecb : dmeCheckboxeses.values ()) {
                         Waypoint wp = dmecb.waypoint;
                         dmecb.dmeLastTime = 0;
                         int checked = dmecb.getChecked ();
                         dmeShowing |= checked != 0;
                         if (checked != dmecb.dmeWasChecked) {
-                            updateStmt.clearBindings ();
-                            updateStmt.bindLong (1, checked);
-                            updateStmt.bindString (2, icaoid);
-                            updateStmt.bindString (3, plateid);
-                            updateStmt.bindString (4, wp.ident);
-                            updateStmt.execute ();
+                            ContentValues values = new ContentValues (1);
+                            values.put ("dc_checked", checked);
+                            String[] whargs = new String[] { icaoid, plateid, wp.ident };
+                            sqldb.update ("dmecheckboxes", values, "dc_icaoid=? AND dc_plate=? AND dc_dmeid=?", whargs);
                         }
                     }
                 } catch (Exception e) {

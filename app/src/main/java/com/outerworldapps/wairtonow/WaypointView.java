@@ -736,7 +736,12 @@ public class WaypointView extends LinearLayout
         public MyWebView (String content)
         {
             super (wairToNow);
+
             getSettings ().setBuiltInZoomControls (true);
+            getSettings ().setDefaultFontSize (Math.round (wairToNow.textSize / 2.0F));
+            getSettings ().setDefaultFixedFontSize (Math.round (wairToNow.textSize / 2.0F));
+            getSettings ().setJavaScriptEnabled (true);
+
             loadData (content, "text/html", null);
         }
 

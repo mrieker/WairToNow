@@ -40,17 +40,17 @@ public class SQLiteDBs {
     private final static String[] columns_name = new String[] { "name" };
 
     // one pointer per thread accessing this database
-    public ThreadLocal<SQLiteDatabase> tlsqldb = new ThreadLocal<> ();
+    private ThreadLocal<SQLiteDatabase> tlsqldb = new ThreadLocal<> ();
 
     // used by various threads to modify database
-    public ReentrantLock dblock = new ReentrantLock ();
+    private ReentrantLock dblock = new ReentrantLock ();
 
     // number of threads that have database open
-    public int refcount;
+    private int refcount;
 
     // some thread has marked the database for delete
     // database will be deleted when refcount goes zero
-    public boolean markedfordel;
+    private boolean markedfordel;
 
     // list of all databases we have in our directory
     private final static TreeMap<String,SQLiteDBs> databases = MakeEmptyTreeMap ();
@@ -98,7 +98,8 @@ public class SQLiteDBs {
     }
 
     /**
-     * SQLite wrappers...
+     * Create database if it does not exist.
+     * Otherwise just open it.
      */
     public static SQLiteDBs create (String dbname)
     {
@@ -116,11 +117,16 @@ public class SQLiteDBs {
                 Log.i (TAG, Thread.currentThread ().getName () + " opening " + dbname);
                 String dbpath = WairToNow.dbdir + "/" + dbname;
                 db.tlsqldb.set (SQLiteDatabase.openDatabase (dbpath, null, SQLiteDatabase.CREATE_IF_NECESSARY | SQLiteDatabase.NO_LOCALIZED_COLLATORS));
+                db.refcount ++;
             }
             return db;
         }
     }
 
+    /**
+     * Open existing database.
+     * If it doesn't exist, return null.
+     */
     public static SQLiteDBs open (String dbname)
     {
         if (dbname.contains ("/")) throw new IllegalArgumentException (dbname);
@@ -134,21 +140,15 @@ public class SQLiteDBs {
                 Log.i (TAG, Thread.currentThread ().getName () + " opening " + dbname);
                 String dbpath = WairToNow.dbdir + "/" + dbname;
                 db.tlsqldb.set (SQLiteDatabase.openDatabase (dbpath, null, SQLiteDatabase.NO_LOCALIZED_COLLATORS));
+                db.refcount ++;
             }
             return db;
         }
     }
 
-    public SQLiteStatement compileStatement (String stmt)
-    {
-        dblock.lock ();
-        try {
-            return tlsqldb.get ().compileStatement (stmt);
-        } finally {
-            dblock.unlock ();
-        }
-    }
-
+    /**
+     * See if the given table exists within the database.
+     */
     public boolean tableExists (String table)
     {
         dblock.lock ();
@@ -162,6 +162,40 @@ public class SQLiteDBs {
             } finally {
                 result.close ();
             }
+        } finally {
+            dblock.unlock ();
+        }
+    }
+
+    /**
+     * SQLite wrappers...
+     */
+    public void beginTransaction ()
+    {
+        boolean keep = false;
+        dblock.lock ();
+        try {
+            tlsqldb.get ().beginTransaction ();
+            keep = true;
+        } finally {
+            if (!keep) dblock.unlock ();
+        }
+    }
+
+    public int delete (String table, String where, String[] whargs)
+    {
+        dblock.lock ();
+        try {
+            return tlsqldb.get ().delete (table, where, whargs);
+        } finally {
+            dblock.unlock ();
+        }
+    }
+
+    public void endTransaction ()
+    {
+        try {
+            tlsqldb.get ().endTransaction ();
         } finally {
             dblock.unlock ();
         }
@@ -197,41 +231,6 @@ public class SQLiteDBs {
         }
     }
 
-    public void beginTransaction ()
-    {
-        boolean keep = false;
-        dblock.lock ();
-        try {
-            tlsqldb.get ().beginTransaction ();
-            keep = true;
-        } finally {
-            if (!keep) dblock.unlock ();
-        }
-    }
-
-    public void endTransaction ()
-    {
-        try {
-            tlsqldb.get ().endTransaction ();
-        } finally {
-            dblock.unlock ();
-        }
-    }
-
-    public void yieldIfContendedSafely ()
-    {
-        setTransactionSuccessful ();
-        endTransaction ();
-        dblock.unlock ();
-        dblock.lock ();
-        beginTransaction ();
-    }
-
-    public void setTransactionSuccessful ()
-    {
-        tlsqldb.get ().setTransactionSuccessful ();
-    }
-
     public Cursor query (String table, String[] columns, String where, String[] whargs, String groupBy, String having, String orderBy, String limit)
     {
         dblock.lock ();
@@ -252,14 +251,9 @@ public class SQLiteDBs {
         }
     }
 
-    public int delete (String table, String where, String[] whargs)
+    public void setTransactionSuccessful ()
     {
-        dblock.lock ();
-        try {
-            return tlsqldb.get ().delete (table, where, whargs);
-        } finally {
-            dblock.unlock ();
-        }
+        tlsqldb.get ().setTransactionSuccessful ();
     }
 
     public int update (String table, ContentValues values, String where, String[] whargs)
@@ -270,6 +264,13 @@ public class SQLiteDBs {
         } finally {
             dblock.unlock ();
         }
+    }
+
+    public void yieldIfContendedSafely ()
+    {
+        setTransactionSuccessful ();
+        endTransaction ();
+        beginTransaction ();
     }
 
     /**
