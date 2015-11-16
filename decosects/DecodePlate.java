@@ -238,6 +238,7 @@ public class DecodePlate {
             String line;
             while ((line = br4.readLine ()) != null) {
                 String[] csvs = Lib.QuotedCSVSplit (line);
+                if (csvs[6].equals ("")) continue;
                 Airport apt = new Airport ();
                 apt.name    = csvs[0];  // icaoid
                 apt.faaid   = csvs[1];
@@ -299,6 +300,7 @@ public class DecodePlate {
                 String[] csvs = Lib.QuotedCSVSplit (line);
                 String faaid  = csvs[0];
                 Airport apt   = allAirports.get (faaid);
+                if (apt == null) continue;
                 apt.addRunway ("RW" + csvs[1],  // eg, "RW04L" for plate fix name
                         Double.parseDouble (csvs[4]),
                         Double.parseDouble (csvs[5]),
@@ -377,7 +379,13 @@ public class DecodePlate {
                         if (verbose) System.out.println ("");
                         System.out.print ("---------------- " + faaid + " " + plateid + "\n");
                         long started = System.nanoTime ();
-                        ProcessPlate (csvs[2]);
+                        try {
+                            ProcessPlate (csvs[2]);
+                        } catch (Throwable t) {
+                            System.out.println ("error processing plate " + faaid + " " + plateid);
+                            t.printStackTrace (System.out);
+                            WriteRejectsRecord ();
+                        }
                         long finished = System.nanoTime ();
                         if (verbose) System.out.println ("---------------- " + ((finished - started + 500000) / 1000000) + " ms");
                     }
@@ -476,6 +484,25 @@ public class DecodePlate {
             }
         }
         pddoc.close ();
+    }
+
+    /**
+     * Write plate info to rejects file.
+     * Input:
+     *   rejectsname = name of rejects file (or null to not bother)
+     *   rejectsfile = file if already open
+     *   airport = airport the plate is for
+     *   plateid = plate id
+     *   pdfName = name of pdf file containing plate
+     */
+    public static void WriteRejectsRecord () throws IOException
+    {
+        if (rejectsname != null) {
+            if (rejectsfile == null) rejectsfile = new PrintWriter (rejectsname);
+            String quotedplateid = Lib.QuotedString (plateid);
+            rejectsfile.println (airport.faaid + "," + quotedplateid + "," + pdfName + ",");
+            rejectsfile.flush ();
+        }
     }
 
     /**
@@ -1433,20 +1460,7 @@ public class DecodePlate {
             String quotedplateid = Lib.QuotedString (plateid);
             if (besti == null) {
                 if (verbose) System.out.println ("no best pair found");
-                if (rejectsname != null) {
-                    if (rejectsfile == null) rejectsfile = new PrintWriter (rejectsname);
-                    rejectsfile.print (airport.faaid + "," + quotedplateid + "," + pdfName + ",");
-                    boolean first = true;
-                    for (DBFix dbfix : nearDBFixes.values ()) {
-                        if (dbfix.mentioned) {
-                            if (!first) rejectsfile.print (" ");
-                            rejectsfile.print (dbfix.name);
-                            first = false;
-                        }
-                    }
-                    rejectsfile.println ("");
-                    rejectsfile.flush ();
-                }
+                WriteRejectsRecord ();
             } else {
                 if (verbose) {
                     double ad = CalcAngleDiff (besti, bestj);

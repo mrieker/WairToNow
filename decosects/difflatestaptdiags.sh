@@ -1,17 +1,43 @@
-#!/bin/bash
+#!/bin/bash -v
+#
+#  Find out which airport diagram georefs have changed since last revision if any
+#
+#  For each difference found, bring plate up in app and see if
+#  WairToNow-drawn purple lines overlay FAA-drawn black runway lines
+#
 
-function readnames
+function findrevisions
 {
-    last1=
-    last2=
-    while read name
+    thisrev=
+    lastrev=
+
+    while read dirname
     do
-        last2=$last1
-        last1=$name
+        lastrev=$thisrev
+        thisrev=$dirname
     done
-    set -x
-    mono --debug DiffArptDgmCsvs.exe $last1 $last2
+
+    ls $thisrev $lastrev | sort -u | processcsvfile $thisrev $lastrev
+}
+
+function processcsvfile
+{
+    while read csvname
+    do
+        if [ "${csvname:2:4}" == ".csv" ]
+        then
+            echo Comparing $1/$csvname $2/$csvname
+            mono --debug DiffArptDgmCsvs.exe $1/$csvname $2/$csvname
+        fi
+    done
 }
 
 cd `dirname $0`
-ls datums/aptdiags_300_*.csv | readnames
+
+if [ DiffArptDgmCsvs.exe -ot DiffArptDgmCsvs.cs ]
+then
+    gmcs -out:DiffArptDgmCsvs.exe DiffArptDgmCsvs.cs
+fi
+
+ls -d datums/apdgeorefs_* | findrevisions
+

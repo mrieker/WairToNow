@@ -76,6 +76,10 @@ public class GetAirportIDs {
 
             // write airport record
             if (line.StartsWith ("APT")) {
+                if (line.Substring (1210, 4) == "K2I0") {
+                    line = line.Substring (0, 1210) + "    " + line.Substring (1214);
+                }
+
                 string keyid = line.Substring (3, 11).Trim ();
 
                 Airport apt;

@@ -106,8 +106,17 @@ function downloadone
             if [ ! -f $pdftemp ]
             then
                 mkdir -p `dirname $pdftemp`
+                rm -f $pdftemp.$stream
                 wget -nv $pdfurl -O $pdftemp.$stream
-                mv -f $pdftemp.$stream $pdftemp
+                if [ ! -s $pdftemp.$stream ]
+                then
+                    rm -f $pdftemp.$stream
+                    wget -nv $pdfurl -O $pdftemp.$stream
+                fi
+                if [ -s $pdftemp.$stream ]
+                then
+                    mv -f $pdftemp.$stream $pdftemp
+                fi
             fi
 
             ## Maybe we already have the corresponding PNG file(s)

@@ -32,7 +32,7 @@
         <SCRIPT LANGUAGE=JAVASCRIPT>
             status = apt['status'];
             if (status == 'CI') status = 'Closed indefinitely';
-            if (status == 'CI') status = 'Closed permanently';
+            if (status == 'CP') status = 'Closed permanently';
             if (status == 'O')  status = 'Operational';
             apt['status'] = status;
 

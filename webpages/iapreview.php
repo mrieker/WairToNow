@@ -1,21 +1,65 @@
-<?php session_start (); ?>
+<?php
+    session_start ();
+    require_once 'iaputil.php';
+
+    if (!empty ($_GET['delgood'])) {
+        $icaoid_plate = $_GET['delgood'];
+        $gooddb = OpenGoodDB ();
+        $gooddb->exec ("DELETE FROM LatLons WHERE icaoid_plate='$icaoid_plate'");
+        checkSQLiteError ($gooddb, __LINE__);
+        echo "OK\n";
+        exit;
+    }
+?>
 <!DOCTYPE html>
 <HTML>
-    <HEAD><TITLE>IAP Review</TITLE></HEAD>
+    <HEAD>
+        <TITLE>IAP Review</TITLE>
+        <SCRIPT LANGUAGE=JAVASCRIPT>
+            function popUp (icaoid)
+            {
+                var cycle = <?php echo getAiracCycle (); ?>;
+                var url = 'http://www.faa.gov/air_traffic/flight_info/aeronav/digital_products/dtpp/search/' +
+                        'results/?cycle=' + cycle + '&ident=' + icaoid + '&page=1';
+                window.open (url, 'faainfo_' + icaoid, 'resizable=yes,scrollbars=yes');
+            }
+
+            function okToDel (icaoid_plate)
+            {
+                var req = new XMLHttpRequest ();
+                req.addEventListener ('load', function ()
+                {
+                    var rt = req.responseText.trim ();
+                    if (rt == 'OK') {
+                        document.getElementById (icaoid_plate).innerHTML = '';
+                    } else {
+                        window.alert ('error deleting ' + icaoid_plate + ': ' + rt);
+                    }
+                });
+                req.addEventListener ('error', function ()
+                {
+                    var st = req.statusText;
+                    window.alert ('error deleting ' + icaoid_plate + ': ' + st);
+                });
+                req.open ('GET', location.href + '?delgood=' +
+                        encodeURIComponent (icaoid_plate));
+                req.send ();
+            }
+        </SCRIPT>
+    </HEAD>
     <BODY>
-        <P ID="count"></P>
         <?php
             /**
              * Compare the current IAP georef info to previously confirmed values.
              */
 
-            require_once 'iaputil.php';
-
             echo "<P>$iapdir</P>";
+            echo "<P ID=\"count\"></P>";
 
             if (isset ($_POST['func']) && ($_POST['func'] == 'reset')) {
                 unlink ("$datdir/laststate");
                 unlink ("$datdir/lastplate");
+                unlink ("$datdir/lastcheck");
                 unlink ("$datdir/bad.txt");
             }
 
@@ -39,6 +83,10 @@ END;
 
                 // get next plate to process
 
+                if (!file_exists ("$datdir/lastcheck")) {
+                    file_put_contents ("$datdir/lastcheck", time ());
+                }
+
                 $statecode = file_get_contents ("$datdir/laststate");
                 $lastpos   = intval (file_get_contents ("$datdir/lastplate"));
                 if ($statecode) {
@@ -60,7 +108,10 @@ END;
                         }
                     }
                     endTopStuff ();
-                    echo "</A><P>ALL DONE!!</P>";
+
+                    MissedPlates ();
+
+                    echo "<P>ALL DONE!!</P>";
                     ResetForm ();
                     exit;
                 }
@@ -398,6 +449,38 @@ END;
                         echo $line;
                     }
                     $topstuff = 0;
+                }
+            }
+
+            /**
+             * Display list of plates previously validated that weren't
+             * validated this time.
+             */
+            function MissedPlates ()
+            {
+                global $datdir;
+
+                $lastcheck = trim (file_get_contents ("$datdir/lastcheck"));
+                $gooddb = OpenGoodDB ();
+                $missed = $gooddb->query ("SELECT icaoid_plate FROM LatLons WHERE lastcheck < $lastcheck");
+                if (!$missed) die ("<P>good.db SELECT error<P>");
+                $first = TRUE;
+                while ($row = $missed->fetchArray (SQLITE3_ASSOC)) {
+                    if ($first) {
+                        echo "<P><B>Missing plates:</B></P><UL>\n";
+                        $first = FALSE;
+                    }
+                    $icaoid_plate = $row['icaoid_plate'];
+                    $parts  = explode (':', $icaoid_plate);
+                    $icaoid = $parts[0];
+                    $plate  = substr ($icaoid_plate, strlen ($icaoid));
+                    echo "<SPAN ID=\"$icaoid_plate\"><LI><INPUT TYPE=BUTTON ONCLICK=\"popUp('$icaoid')\" VALUE=\"$icaoid\">$plate ";
+                    echo "<INPUT TYPE=BUTTON VALUE=\"D'LEET\" ONCLICK=\"okToDel ('$icaoid_plate')\"></LI></SPAN>\n";
+                }
+                if ($first) {
+                    echo "<P>No missing plates since last check.</P>";
+                } else {
+                    echo "</UL>";
                 }
             }
 

@@ -43,6 +43,8 @@ END;
      */
     function MarkImageGood ($icaoid, $plate, $xfmwft)
     {
+        global $datdir;
+
         if (strpos  ($plate, ',"') ===  0) $plate = substr ($plate, 2);
         $i = strlen ($plate) - 2;
         if (strrpos ($plate, '",') === $i) $plate = substr ($plate, 0, $i);
@@ -54,8 +56,11 @@ END;
         $e = $xfmwft[4];
         $f = $xfmwft[5];
 
+        $lastcheck = trim (file_get_contents ("$datdir/lastcheck"));
+
+        $q = "INSERT OR REPLACE INTO LatLons (icaoid_plate,a,b,c,d,e,f,lastcheck) VALUES ('$icaoid:$plate',$a,$b,$c,$d,$e,$f,$lastcheck)";
         $sqldb = OpenGoodDB ();
-        $sqldb->exec ("INSERT OR REPLACE INTO LatLons (icaoid_plate,a,b,c,d,e,f) VALUES ('$icaoid:$plate',$a,$b,$c,$d,$e,$f)");
+        $sqldb->exec ("INSERT OR REPLACE INTO LatLons (icaoid_plate,a,b,c,d,e,f,lastcheck) VALUES ('$icaoid:$plate',$a,$b,$c,$d,$e,$f,$lastcheck)");
         checkSQLiteError ($sqldb, __LINE__);
     }
 
@@ -98,7 +103,8 @@ END;
                 checkSQLiteError ($sqldb, __LINE__);
                 $sqldb->query ("CREATE TABLE LatLons (icaoid_plate TEXT NOT NULL PRIMARY KEY, " .
                         "a REAL NOT NULL, b REAL NOT NULL, c REAL NOT NULL, " .
-                        "d REAL NOT NULL, e REAL NOT NULL, f REAL NOT NULL)");
+                        "d REAL NOT NULL, e REAL NOT NULL, f REAL NOT NULL, " .
+                        "lastcheck INTEGER NOT NULL)");
                 checkSQLiteError ($sqldb, __LINE__);
             } else {
                 $sqldb = new SQLite3 ("$datdir/good_$cycles56.db");
@@ -593,6 +599,37 @@ END;
 
         if (!isset ($aptinfoarray[$icaoid])) return FALSE;
         return $aptinfoarray[$icaoid];
+    }
+
+    /**
+     * Get current AIRAC cycle number.
+     * https://en.wikipedia.org/wiki/Aeronautical_Information_Publication
+     */
+    function getAiracCycle ($when = FALSE)
+    {
+        $cycleyear  = 2014;         // cycle 1401 ...
+        $cyclemonth = 1;            // ... started at ...
+        $cycletime  = 1389258060;   // 2014-01-09@09:01:00 UTC'
+
+        if ($when === FALSE) $when = time ();
+        if ($when < $cycletime) return FALSE;
+
+        $oldtz = date_default_timezone_get ();
+        date_default_timezone_set ('UTC');
+
+        while (($nexttime = $cycletime + 60*60*24*28) <= $when) {
+            $cycletime = $nexttime;
+            $cyclemonth ++;
+            $nextyear = intval (date ("Y", $nexttime));
+            if ($cycleyear < $nextyear) {
+                $cycleyear  = $nextyear;
+                $cyclemonth = 1;
+            }
+        }
+
+        date_default_timezone_set ($oldtz);
+
+        return ($cycleyear - 2000) * 100 + $cyclemonth;
     }
 
     /*
