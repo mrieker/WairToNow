@@ -1,5 +1,23 @@
 <?php
-    //$_SESSION['isok'] = TRUE;
+//    Copyright (C) 2015, Mike Rieker, Beverly, MA USA
+//    www.outerworldapps.com
+//
+//    This program is free software; you can redistribute it and/or modify
+//    it under the terms of the GNU General Public License as published by
+//    the Free Software Foundation; version 2 of the License.
+//
+//    This program is distributed in the hope that it will be useful,
+//    but WITHOUT ANY WARRANTY; without even the implied warranty of
+//    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//    GNU General Public License for more details.
+//
+//    EXPECT it to FAIL when someone's HeALTh or PROpeRTy is at RISk.
+//
+//    You should have received a copy of the GNU General Public License
+//    along with this program; if not, write to the Free Software
+//    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+//
+//    http://www.gnu.org/licenses/gpl-2.0.html
 
     $thisscript = $_SERVER['PHP_SELF'];
 
@@ -58,7 +76,6 @@ END;
 
         $lastcheck = trim (file_get_contents ("$datdir/lastcheck"));
 
-        $q = "INSERT OR REPLACE INTO LatLons (icaoid_plate,a,b,c,d,e,f,lastcheck) VALUES ('$icaoid:$plate',$a,$b,$c,$d,$e,$f,$lastcheck)";
         $sqldb = OpenGoodDB ();
         $sqldb->exec ("INSERT OR REPLACE INTO LatLons (icaoid_plate,a,b,c,d,e,f,lastcheck) VALUES ('$icaoid:$plate',$a,$b,$c,$d,$e,$f,$lastcheck)");
         checkSQLiteError ($sqldb, __LINE__);
@@ -93,127 +110,38 @@ END;
      */
     function OpenGoodDB ()
     {
-        global $cycles56, $datdir;
+        global $cycles28, $datdir;
 
         static $sqldb = FALSE;
 
         if ($sqldb === FALSE) {
-            if (!file_exists ("$datdir/good_$cycles56.db")) {
-                $sqldb = new SQLite3 ("$datdir/good_$cycles56.db");
-                checkSQLiteError ($sqldb, __LINE__);
-                $sqldb->query ("CREATE TABLE LatLons (icaoid_plate TEXT NOT NULL PRIMARY KEY, " .
-                        "a REAL NOT NULL, b REAL NOT NULL, c REAL NOT NULL, " .
-                        "d REAL NOT NULL, e REAL NOT NULL, f REAL NOT NULL, " .
-                        "lastcheck INTEGER NOT NULL)");
-                checkSQLiteError ($sqldb, __LINE__);
-            } else {
-                $sqldb = new SQLite3 ("$datdir/good_$cycles56.db");
-                checkSQLiteError ($sqldb, __LINE__);
+            if (!file_exists ("$datdir/good_$cycles28.db")) {
+                $oldnames  = scandir ($datdir);
+                $oldlatest = '';
+                foreach ($oldnames as $oldname) {
+                    if ((strlen ($oldname) == 16) && (substr ($oldname, 0, 5) == 'good_') &&
+                            (substr ($oldname, 13) == '.db') && ($oldlatest < $oldname)) {
+                        $oldlatest = $oldname;
+                    }
+                }
+                if ($oldlatest == '') {
+                    echo "<P>creating $datdir/good_$cycles28.db</P>\n";
+                    $sqldb = new SQLite3 ("$datdir/good_$cycles28.db");
+                    checkSQLiteError ($sqldb, __LINE__);
+                    $sqldb->query ("CREATE TABLE LatLons (icaoid_plate TEXT NOT NULL PRIMARY KEY, " .
+                            "a REAL NOT NULL, b REAL NOT NULL, c REAL NOT NULL, " .
+                            "d REAL NOT NULL, e REAL NOT NULL, f REAL NOT NULL, " .
+                            "lastcheck INTEGER NOT NULL)");
+                    checkSQLiteError ($sqldb, __LINE__);
+                    return $sqldb;
+                }
+                echo "<P>copying $datdir/$oldlatest $datdir/good_$cycles28.db</P>\n";
+                system ("cp $datdir/$oldlatest $datdir/good_$cycles28.db");
             }
+            $sqldb = new SQLite3 ("$datdir/good_$cycles28.db");
+            checkSQLiteError ($sqldb, __LINE__);
         }
         return $sqldb;
-    }
-
-    /**
-     * See if a .../good/...gz (as written by MarkImageGood()) file exists and it matches the image.
-     */
-    function ImageMarkedGood ($faaid, $icaoid, $newfixes, $goodname, $gifname)
-    {
-        global $boxsize, $usLeewy;
-
-        if (!file_exists ($goodname)) return FALSE;
-
-        $goodfile = gzopen ($goodname, "r");
-
-        // open gif image file
-
-        $image = OpenGifTrueColor ($gifname, $width, $height);
-
-        // make sure image width and height matches
-        $goodline = fgets ($goodfile);
-        if ($goodline != "$width,$height\n") goto goodisbad;
-
-        // check pixels around each fix saved in the good file
-
-        $oldfixes = array ();
-        while ($goodline = fgets ($goodfile)) {
-
-            // read fixid,xcord,ycord and save the mapping
-
-            $goodline = explode (",", $goodline);
-            $fixid = $goodline[0];
-            $xcord = intval ($goodline[1]);
-            $ycord = intval ($goodline[2]);
-            $ll = getFixLatLon ($faaid, $fixid);
-            if (!$ll) goto goodisbad;
-            $oldfixes[] = array ($fixid, $xcord, $ycord, $ll['lat'], $ll['lon']);
-
-            // make sure the corresponding pixel values match
-
-            for ($y = $ycord - $boxsize / 2; $y <= $ycord + $boxsize / 2; $y ++) {
-                $goodline = fgets ($goodfile);
-                if (!$goodline) goto goodisbad;
-                $pixels = explode (",", $goodline);
-                $i = 0;
-                for ($x = $xcord - $boxsize / 2; $x <= $xcord + $boxsize / 2; $x ++) {
-                    $rgb = 0;
-                    if (($y >= 0) && ($y < $height) && ($x >= 0) && ($x < $width)) {
-                        $rgb = imagecolorat ($image, $x, $y);
-                    }
-                    if ($rgb != $pixels[$i++]) goto goodisbad;
-                }
-            }
-        }
-
-        // if all the old fixes are identical to the new fixes, it is good as is
-
-        foreach ($oldfixes as $oldfix) {
-            $fixid = $oldfix[0];
-            if (!isset ($newfixes[$fixid])) goto newisdiff;
-            $newfixvals = $newfixes[$fixid];
-            if ($newfixvals[0] != $oldfix[1]) goto newisdiff;
-            if ($newfixvals[1] != $oldfix[2]) goto newisdiff;
-        }
-        gzclose ($goodfile);
-        return TRUE;
-
-        // different fixes, see if that lat/lon mapping is the same
-
-    newisdiff:
-        // set up lat/lon => pixel transformation
-        if (count ($oldfixes) != 2) goto goodisbad;
-        $oldfix0 = $oldfixes[0];
-        $oldfix1 = $oldfixes[1];
-        $avglat  = getFixLatLon ($faaid, $icaoid)['lat'];
-        $xfmwft  = SetLatLon2Bitmap ($avglat,
-                $oldfix0[3], $oldfix0[4], $oldfix1[3], $oldfix1[4],
-                $oldfix0[1], $oldfix0[2], $oldfix1[1], $oldfix1[2]);
-
-        $difftot = 0;
-        foreach ($newfixes as $fixid => $newfix) {
-            $xcord = $newfix[0];
-            $ycord = $newfix[1];
-            $lat   = $newfix[2];
-            $lon   = $newfix[3];
-            $xcomp = LatLon2BitmapX ($xfmwft, $lat, $lon);
-            $ycomp = LatLon2BitmapY ($xfmwft, $lat, $lon);
-            $difftot += hypot ($xcomp - $xcord, $ycomp - $ycord);
-        }
-        $difftot /= count ($newfixes);
-        if ($difftot > $usLeewy) goto goodisbad;
-
-        // different fixes but lat/lon mapping matches the old fix mapping,
-        // so store the new fixes as verified
-
-        MarkImageGood ($gifname, $goodname, $newfixes);
-        return TRUE;
-
-        // mismatch of sorts, discard old good file and display image for verification
-
-    goodisbad:
-        gzclose ($goodfile);
-        // unlink ($goodname);
-        return FALSE;
     }
 
     /**
@@ -460,13 +388,18 @@ END;
             if (!file_exists ("$datdir/avare_$cycles28.db")) {
 
                 // download latest zip file from Avare
-                echo "<P>Downloading Avare geoplates</P>\n";
                 $netfile = FALSE;
-                for ($cycle4 = 1520; $cycle4 > 1501; -- $cycle4) {
-                    $netfile = @fopen ("http://208.113.226.170/new/$cycle4/geoplates.zip", "r");
-                    if ($netfile) break;
-                }
-                if (!$netfile) die ("error opening Avare geoplates.zip\n");
+
+                $oldtz = @date_default_timezone_get ();
+                date_default_timezone_set ('UTC');
+                $airac = strval ($cycles28);
+                $airac = substr ($airac, 0, 4) . '-' . substr ($airac, 4, 2) . '-' . substr ($airac, 6, 2) . 'T00:00:00';
+                $airac = strtotime ($airac);
+                date_default_timezone_set ($oldtz);
+                $airac = getAiracCycle ($airac - 48*60*60);
+                echo "<P>downloading Avare $airac/geoplates.zip</P>\n";
+                $netfile = @fopen ("http://208.113.226.170/new/$airac/geoplates.zip", "r");
+                if (!$netfile) die ("error opening Avare http://208.113.226.170/new/$airac/geoplates.zip\n");
                 @unlink ("$datdir/avare/geoplates.zip");
                 $zipfile = fopen ("$datdir/avare/geoplates.zip", "w");
                 if (!$zipfile) die ("error creating $datdir/avare/geoplates.zip\n");
@@ -477,7 +410,7 @@ END;
                 fclose ($zipfile);
 
                 // extract SQLite3 file from zip file
-                echo "<P>Extracting Avare geoplates</P>\n";
+                echo "<P>extracting Avare geoplates</P>\n";
                 $zipfile = new ZipArchive ();
                 $rc = $zipfile->open ("$datdir/avare/geoplates.zip");
                 if ($rc !== TRUE) die ("error $rc opening $datdir/avare/geoplates.zip\n");
@@ -487,7 +420,7 @@ END;
                 $zipfile->close ();
 
                 // open the downloaded Avare database
-                echo "<P>Converting Avare geoplates</P>\n";
+                echo "<P>converting Avare geoplates</P>\n";
                 $olddb = new SQLite3 ("$datdir/avare/geoplates.db", SQLITE3_OPEN_READONLY);
                 checkSQLiteError ($olddb, __LINE__);
                 $oldres = $olddb->query ("SELECT * FROM geoplates");
@@ -614,7 +547,7 @@ END;
         if ($when === FALSE) $when = time ();
         if ($when < $cycletime) return FALSE;
 
-        $oldtz = date_default_timezone_get ();
+        $oldtz = @date_default_timezone_get ();
         date_default_timezone_set ('UTC');
 
         while (($nexttime = $cycletime + 60*60*24*28) <= $when) {

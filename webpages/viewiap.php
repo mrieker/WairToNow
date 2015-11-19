@@ -1,3 +1,43 @@
+<?php
+//    Copyright (C) 2015, Mike Rieker, Beverly, MA USA
+//    www.outerworldapps.com
+//
+//    This program is free software; you can redistribute it and/or modify
+//    it under the terms of the GNU General Public License as published by
+//    the Free Software Foundation; version 2 of the License.
+//
+//    This program is distributed in the hope that it will be useful,
+//    but WITHOUT ANY WARRANTY; without even the implied warranty of
+//    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//    GNU General Public License for more details.
+//
+//    EXPECT it to FAIL when someone's HeALTh or PROpeRTy is at RISk.
+//
+//    You should have received a copy of the GNU General Public License
+//    along with this program; if not, write to the Free Software
+//    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+//
+//    http://www.gnu.org/licenses/gpl-2.0.html
+
+    /**
+     * Look at IAP plates.
+     * Not needed for normal operation.
+     */
+
+    if (!empty ($_GET['good'])) {
+        $goodname  = $_GET['good'];
+        $goodcyc28 = intval (substr ($goodname, 5, 8));
+        $goodpath  = "../webdata/iaputil/good_$goodcyc28.db";
+        header ("Content-description: file transfer");
+        header ("Content-disposition: attachment; filename=\"$goodname\"");
+        header ("Content-length: " . filesize ($goodpath));
+        header ("Content-type: application/x-sqlite3");
+        header ("Expires: 0");
+        flush ();
+        readfile ($goodpath);
+        exit;
+    }
+?>
 <!DOCTYPE html>
 <HTML>
     <HEAD>
@@ -44,7 +84,19 @@
                 for ($i = 0; $i < strlen ($firstx); $i ++) $firsts[] = $firstx[$i];
                 outputLinkTable ("first", $firsts, 10);
 
-                echo "<P><A HREF=\"generateavare.php\">Avare DB</A></P>";
+                echo "<P><A HREF=\"generateavare.php\">Avare Compatible DB</A></P>\n";
+
+                $goodnames = scandir ("../webdata/iaputil");
+                $goodlatest = '';
+                foreach ($goodnames as $goodname) {
+                    if ((strlen ($goodname) == 16) && (substr ($goodname, 0, 5) == 'good_') &&
+                            (substr ($goodname, 13) == '.db') && ($goodlatest < $goodname)) {
+                        $goodlatest = $goodname;
+                    }
+                }
+                if ($goodlatest > '') {
+                    echo "<P><A HREF=\"viewiap.php?good=$goodlatest\">$goodlatest</A></P>\n";
+                }
             }
 
             /**
