@@ -43,7 +43,6 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -53,6 +52,7 @@ import android.widget.TextView;
  */
 public class UserWPView extends LinearLayout
         implements WairToNow.CanBeMainView {
+    private final static String TAG = "WairToNow";
     private final static String csvName = WairToNow.dbdir + "/userwaypts.csv";
 
     private DeleteButton deleteButton;
@@ -63,7 +63,7 @@ public class UserWPView extends LinearLayout
     private LatLonView lonView;
     private LinearLayout waypointListView;
     private SaveButton saveButton;
-    private TreeMap<String,UserWP> waypoints;
+    public  TreeMap<String,UserWP> waypoints;
 
     public UserWPView (WairToNow ctx)
             throws IOException
@@ -171,7 +171,8 @@ public class UserWPView extends LinearLayout
         LocationButton locationButton = new LocationButton (ctx);
         ll2.addView (locationButton);
 
-        HorizontalScrollView hs2 = new HorizontalScrollView (ctx);
+        DetentHorizontalScrollView hs2 = new DetentHorizontalScrollView (ctx);
+        ctx.SetDetentSize (hs2);
         hs2.addView (ll2);
         addView (hs2);
     }
@@ -261,7 +262,7 @@ public class UserWPView extends LinearLayout
             }
             Lib.RenameFile (csvName + ".tmp", csvName);
         } catch (IOException ioe) {
-            Log.e ("UserWPView", "error writing " + csvName, ioe);
+            Log.e (TAG, "error writing " + csvName, ioe);
             AlertDialog.Builder builder = new AlertDialog.Builder (wairToNow);
             builder.setTitle ("Error writing user waypoint database");
             builder.setMessage (ioe.getMessage ());

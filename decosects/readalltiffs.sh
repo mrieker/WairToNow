@@ -56,7 +56,7 @@ cd charts
 
 rm -f readalltiffs.tmp.*
 
-ls *.tif | splittiffnames 6
+ls *.tif | splittiffnames 8
 
 readtiffnames readalltiffs.tmp.1 < readalltiffs.tmp.1 &
 readtiffnames readalltiffs.tmp.2 < readalltiffs.tmp.2 &
@@ -64,6 +64,8 @@ readtiffnames readalltiffs.tmp.3 < readalltiffs.tmp.3 &
 readtiffnames readalltiffs.tmp.4 < readalltiffs.tmp.4 &
 readtiffnames readalltiffs.tmp.5 < readalltiffs.tmp.5 &
 readtiffnames readalltiffs.tmp.6 < readalltiffs.tmp.6 &
+readtiffnames readalltiffs.tmp.7 < readalltiffs.tmp.7 &
+readtiffnames readalltiffs.tmp.8 < readalltiffs.tmp.8 &
 
 while [ "`echo readalltiffs.tmp.*`" != "readalltiffs.tmp.*" ]
 do

@@ -24,6 +24,8 @@ import java.io.File;
 import java.io.IOException;
 
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.DialogInterface;
 import android.content.SharedPreferences;
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -44,22 +46,23 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
-import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
 public class WairToNow extends Activity {
+    private final static String TAG = "WairToNow";
     public final static long gpsDownDelay = 15000;
-    public final static String dbdir = "/sdcard/WairToNow";
 
+    public static String dbdir;
     public static WTNHandler wtnHandler;
 
-    public  ChartView chartView;
-    public  CrumbsView crumbsView;
     private boolean gpsAvailable;
     private boolean hasAgreed;
     private boolean lastLocQueued;
     private boolean tabsVisible;
+    public  ChartView chartView;
+    public  CrumbsView crumbsView;
+    private DetentHorizontalScrollView tabButtonScroller;
     public  float currentGPSLat;
     public  float currentGPSLon;
     private float currentGPSHdg;
@@ -67,7 +70,6 @@ public class WairToNow extends Activity {
     private GlassView glassView;
     private GPSListener gpsListener;
     private GPSStatusView gpsStatusView;
-    private HorizontalScrollView tabButtonScroller;
     public  int displayWidth;
     public  int displayHeight;
     private LinearLayout tabButtonLayout;
@@ -81,8 +83,10 @@ public class WairToNow extends Activity {
     public  MaintView maintView;
     public  OpenStreetMap openStreetMap;
     public  OptionsView optionsView;
-    private Paint gpsAvailablePaint;
+    private Paint gpsAvailableBGPaint;
+    private Paint gpsAvailableTxPaint;
     private PlanView planView;
+    public  RouteView routeView;
     private TabButton agreeButton;
     public  TabButton currentTabButton;
     public  UserWPView userWPView;
@@ -99,6 +103,13 @@ public class WairToNow extends Activity {
 
         ctvllp.weight = 1;
 
+        File efd = getExternalFilesDir (null);
+        if (efd == null) {
+            StartupError ("external storage not available");
+            return;
+        }
+        dbdir = efd.getAbsolutePath ();
+
         /*
          * Make sure database directory exists.
          * Also mark it nomedia so meadia scanner will leave it alone
@@ -111,7 +122,7 @@ public class WairToNow extends Activity {
             try {
                 Lib.Ignored (nmf.createNewFile ());
             } catch (IOException ioe) {
-                Log.w ("WairToNow", "error creating " + nmf.getAbsolutePath (), ioe);
+                Log.w (TAG, "error creating " + nmf.getAbsolutePath (), ioe);
             }
         }
 
@@ -132,10 +143,17 @@ public class WairToNow extends Activity {
         /*
          * Paint used to display GPS NOT AVAILABLE string.
          */
-        gpsAvailablePaint = new Paint ();
-        gpsAvailablePaint.setColor (Color.RED);
-        gpsAvailablePaint.setTextAlign (Paint.Align.CENTER);
-        gpsAvailablePaint.setTextSize (textSize * 2);
+        gpsAvailableBGPaint = new Paint ();
+        gpsAvailableBGPaint.setColor (Color.WHITE);
+        gpsAvailableBGPaint.setStrokeWidth (20);
+        gpsAvailableBGPaint.setStyle (Paint.Style.FILL_AND_STROKE);
+        gpsAvailableBGPaint.setTextAlign (Paint.Align.CENTER);
+        gpsAvailableBGPaint.setTextSize (textSize * 2);
+        gpsAvailableTxPaint = new Paint ();
+        gpsAvailableTxPaint.setColor (Color.RED);
+        gpsAvailableTxPaint.setStrokeWidth (2);
+        gpsAvailableTxPaint.setTextAlign (Paint.Align.CENTER);
+        gpsAvailableTxPaint.setTextSize (textSize * 2);
 
         /*
          * License agreement.
@@ -165,8 +183,8 @@ public class WairToNow extends Activity {
             maintView = new MaintView (this);
             chartView = new ChartView (this);
         } catch (IOException ioe) {
-            Log.e ("WairToNow", "error reading chart database", ioe);
-            System.exit (-1);
+            StartupError ("error reading chart database", ioe);
+            return;
         }
 
         /*
@@ -185,13 +203,18 @@ public class WairToNow extends Activity {
         glassView = new GlassView (this);
 
         /*
+         * Create a new that analyzes a route clearance.
+         */
+        routeView = new RouteView (this);
+
+        /*
          * Create a view that can manage user waypoints.
          */
         try {
             userWPView = new UserWPView (this);
         } catch (IOException ioe) {
-            Log.e ("WairToNow", "error reading user waypoints", ioe);
-            System.exit (-1);
+            StartupError ("error reading user waypoints", ioe);
+            return;
         }
 
         /*
@@ -234,6 +257,7 @@ public class WairToNow extends Activity {
         TabButton waypt2Button    = new TabButton (waypointView2);
         TabButton userWPButton    = new TabButton (userWPView);
         TabButton glassButton     = new TabButton (glassView);
+        TabButton routeButton     = new TabButton (routeView);
         TabButton crumbsButton    = new TabButton (crumbsView);
         TabButton planButton      = new TabButton (planView);
         TabButton optionsButton   = new TabButton (optionsView);
@@ -249,6 +273,7 @@ public class WairToNow extends Activity {
         tabButtonLayout.addView (waypt2Button);
         tabButtonLayout.addView (userWPButton);
         tabButtonLayout.addView (glassButton);
+        tabButtonLayout.addView (routeButton);
         tabButtonLayout.addView (crumbsButton);
         tabButtonLayout.addView (planButton);
         tabButtonLayout.addView (optionsButton);
@@ -258,7 +283,8 @@ public class WairToNow extends Activity {
         tabButtonLayout.addView (helpButton);
         //tabButtonLayout.addView (new TabButton (new ExpView (this)));
 
-        tabButtonScroller = new HorizontalScrollView (this);
+        tabButtonScroller = new DetentHorizontalScrollView (this);
+        SetDetentSize (tabButtonScroller);
         tabButtonScroller.addView (tabButtonLayout);
 
         tabViewLayout = new LinearLayout (this);
@@ -269,6 +295,30 @@ public class WairToNow extends Activity {
         tabsVisible = true;
 
         chartButton.DisplayNewTab ();
+    }
+
+    /**
+     * Some error starting up, display error message dialog then die.
+     */
+    private void StartupError (String msg, Exception e)
+    {
+        String emsg = e.getMessage ();
+        if (emsg == null) emsg = e.getClass ().getSimpleName ();
+        StartupError (msg + ": " + emsg);
+    }
+
+    private void StartupError (String msg)
+    {
+        AlertDialog.Builder adb = new AlertDialog.Builder (this);
+        adb.setTitle ("Startup error");
+        adb.setMessage (msg);
+        adb.setPositiveButton ("OK", new DialogInterface.OnClickListener () {
+            @Override
+            public void onClick (DialogInterface dialogInterface, int i) {
+                System.exit (- 1);
+            }
+        });
+        adb.show ();
     }
 
     /**
@@ -374,16 +424,25 @@ public class WairToNow extends Activity {
     }
 
     /**
+     * Set standard horizontal scroller detent size.
+     */
+    public void SetDetentSize (DetentHorizontalScrollView dhsv)
+    {
+        dhsv.setDetentSize (Math.min (displayWidth, displayHeight) / 4.0F);
+    }
+
+    /**
      * Set destination waypoint for the course line
      */
     public void SetDestinationWaypoint (Waypoint wp)
     {
+        routeView.ShutTrackingOff ();
         if (wp == null) {
             chartView.SetCourseLine (0, 0, null);
         } else if ((currentGPSLat != 0) && (currentGPSLon != 0)) {
             chartView.SetCourseLine (currentGPSLat, currentGPSLon, wp);
         } else {
-            pendingCourseSetWP  = wp;
+            pendingCourseSetWP = wp;
         }
         SetCurrentTab (chartView);
     }
@@ -466,6 +525,7 @@ public class WairToNow extends Activity {
         crumbsView.SetGPSLocation (loc);
         glassView.SetGPSLocation (loc);
         gpsStatusView.SetGPSLocation (loc);
+        routeView.SetGPSLocation (loc);
         waypointView1.SetGPSLocation (loc);
         waypointView2.SetGPSLocation (loc);
 
@@ -625,13 +685,15 @@ public class WairToNow extends Activity {
         if (msg != null) {
             int w = view.getWidth ();
             int h = view.getHeight ();
-            float msgw = gpsAvailablePaint.measureText (msg);
+            float msgw = gpsAvailableTxPaint.measureText (msg);
             if (msgw > w * 7 / 8) {
-                float ts = gpsAvailablePaint.getTextSize ();
+                float ts = gpsAvailableTxPaint.getTextSize ();
                 ts *= (w * 7 / 8) / msgw;
-                gpsAvailablePaint.setTextSize (ts);
+                gpsAvailableBGPaint.setTextSize (ts);
+                gpsAvailableTxPaint.setTextSize (ts);
             }
-            canvas.drawText (msg, w / 2, h * 3 / 4, gpsAvailablePaint);
+            canvas.drawText (msg, w / 2, h * 3 / 4, gpsAvailableBGPaint);
+            canvas.drawText (msg, w / 2, h * 3 / 4, gpsAvailableTxPaint);
         }
     }
 

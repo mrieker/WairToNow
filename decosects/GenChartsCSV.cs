@@ -19,18 +19,12 @@
 //    http://www.gnu.org/licenses/gpl-2.0.html
 
 /**
- * @brief Generate <chartname>.csv file
- *        It contains all the parameters needed to convert lat/lon <-> chart/pixel
+ * @brief Generate <chartname>.csv file that contains all the parameters needed to convert lat/lon <-> chart/pixel
  */
-
 // gmcs -debug -out:GenChartsCSV.exe GenChartsCSV.cs
 
 // cd charts
-// mono --debug ../GenChartsCSV.exe New_York_86_North.csv 'New York 86 North' 'New York SEC 88.htm' chartlist_all.htm
-
-// Download all zip files from http://aeronav.faa.gov/index.asp?xml=aeronav/applications/VFR/chartlist_sect
-// ... into a subdirectory called 'charts' and unzip them all in that subdirectory
-// ... then run this program for each zip file, passing the space-separated name
+// mono --debug ../GenChartsCSV.exe 'New York 86 North' chartlist_all.htm
 
 using System;
 using System.Collections.Generic;
@@ -40,77 +34,44 @@ using System.Text;
 public class GenChartsCSV {
     public static void Main (string[] args)
     {
-        string csvname   = args[0]; // output .csv file, eg, "New_York_86_North.csv"
-        string spacename = args[1]; // chart name with spaces, eg, "New York 86 North"
-        string htmname   = args[2]; // input .htm file, eg, "New York SEC 88.htm"
-        string clistname = args[3]; // input .htm file with all charts and their expiration dates
-        string tfwname   = args[4]; // input .tfw file, eg, "New York SEC 88.tfw"
+        string spacename = args[0]; // chart name with spaces, eg, "New York 86 North"
+        string clistname = args[1]; // input .htm file with all charts and their expiration dates
 
-        Chart chart = new Chart (spacename, htmname, clistname, tfwname);
-        
-        StringBuilder sb = new StringBuilder ();
-        sb.Append (chart.centerLat);
-        sb.Append (',');
-        sb.Append (chart.centerLon);
-        sb.Append (',');
-        sb.Append (chart.stanPar1);
-        sb.Append (',');
-        sb.Append (chart.stanPar2);
-        sb.Append (',');
-        sb.Append (chart.width);
-        sb.Append (',');
-        sb.Append (chart.height);
-        sb.Append (',');
-        sb.Append (chart.radius);
-        sb.Append (',');
-        sb.Append (chart.tfw_a);
-        sb.Append (',');
-        sb.Append (chart.tfw_b);
-        sb.Append (',');
-        sb.Append (chart.tfw_c);
-        sb.Append (',');
-        sb.Append (chart.tfw_d);
-        sb.Append (',');
-        sb.Append (chart.tfw_e);
-        sb.Append (',');
-        sb.Append (chart.tfw_f);
-        sb.Append (',');
-        sb.Append (chart.begdate);
-        sb.Append (',');
-        sb.Append (chart.enddate);
-        sb.Append (',');
-        sb.Append (spacename);
-
-        StreamWriter csvwriter = new StreamWriter (csvname);
-        csvwriter.WriteLine (sb.ToString ());
-        csvwriter.Close ();
+        Chart chart = new Chart ();
+        chart.spacename = spacename;
+        chart.ReadParams (clistname);
+        chart.GenEllipseCsv ();
     }
 }
 
 public class Chart {
-    private double rada; // earth radius at equator (metres)
-    private double radb; // earth radius at poles (metres)
+    public string spacename;
 
     public double centerLat;
     public double centerLon;
-    public double radius;
     public double stanPar1;
     public double stanPar2;
-    public double tfw_a;
-    public double tfw_b;
-    public double tfw_c;
-    public double tfw_d;
-    public double tfw_e;
-    public double tfw_f;
-    public int abspixx, abspixy;
     public int begdate, enddate;
-    public int height, width;
+
+    public double e_rada; // earth radius at equator (metres)
+    public double e_radb; // earth radius at poles (metres)
+
+    public double e_tfw_a;
+    public double e_tfw_b;
+    public double e_tfw_c;
+    public double e_tfw_d;
+    public double e_tfw_e;
+    public double e_tfw_f;
+    public int e_height, e_width;
 
     /**
-     * @brief Read chart parameter files.
+     * @brief Read elliptical chart parameter files.
      */
-    public Chart (string spacename, string htmname, string clistname, string tfwname)
+    public void ReadParams (string clistname)
     {
+        string htmname = spacename + ".htm";
+        string tfwname = spacename + ".tfw";
+
         /*
          * Read image parameters from HTM file.
          */
@@ -121,9 +82,9 @@ public class Chart {
         foreach (char c in htmfile) {
             if (c > ' ') sb.Append (c);
         }
-        htmfile   = sb.ToString ();
+        htmfile = sb.ToString ();
         try {
-            begdate   = GetHtmInteger (htmfile, "Beginning_Date");
+            begdate = GetHtmInteger (htmfile, "Beginning_Date");
         } catch (Exception) {
             Console.WriteLine ("no beginning date");
         }
@@ -144,18 +105,18 @@ public class Chart {
         centerLat = GetHtmDouble  (htmfile, "Latitude_of_Projection_Origin");
         stanPar1  = GetHtmDouble  (htmfile, "Standard_Parallel", 1);
         stanPar2  = GetHtmDouble  (htmfile, "Standard_Parallel", 2);
-        width     = GetHtmInteger (htmfile, "Column_Count");
-        height    = GetHtmInteger (htmfile, "Row_Count");
+        e_width   = GetHtmInteger (htmfile, "Column_Count");
+        e_height  = GetHtmInteger (htmfile, "Row_Count");
 
-        if (width < height) {
-            int hh = height;
-            height = width;
-            width  = hh;
+        if (e_width < e_height) {
+            int swap = e_height;
+            e_height = e_width;
+            e_width  = swap;
         }
 
         double invflat = GetHtmDouble (htmfile, "Denominator_of_Flattening_Ratio");
-        rada      = GetHtmDouble  (htmfile, "Semi-major_Axis");
-        radb      = rada * (1.0 - 1.0 / invflat);
+        e_rada = GetHtmDouble  (htmfile, "Semi-major_Axis");
+        e_radb = e_rada * (1.0 - 1.0 / invflat);
 
         /*
          * chartlist_all.htm contains more up-to-date ending date information.
@@ -194,19 +155,6 @@ public class Chart {
         }
 
         /*
-         * Compute radius of earth at the Latitude_of_Projection_Origin
-         * given that the radius is not constant.
-         * http://en.wikipedia.org/wiki/Earth_radius
-         */
-        double latrad = centerLat / 180 * Math.PI;
-        double coslat = Math.Cos (latrad);
-        double sinlat = Math.Sin (latrad);
-        radius = Math.Sqrt (
-            (Square (Square (rada) * coslat) + Square (Square (radb) * sinlat)) /
-            (Square (        rada  * coslat) + Square (        radb  * sinlat))
-        );
-
-        /*
          * Read more image parameters from TFW file.
          *
          *   x = number of horizontal pixels from upper left (0,0)
@@ -222,12 +170,12 @@ public class Chart {
          *   y = [B(easting - E) - A(northing - F)] / (CB - AD)
          */
         StreamReader tfwreader = new StreamReader (tfwname);
-        tfw_a = ReadDouble (tfwreader);
-        tfw_b = ReadDouble (tfwreader);
-        tfw_c = ReadDouble (tfwreader);
-        tfw_d = ReadDouble (tfwreader);
-        tfw_e = ReadDouble (tfwreader);
-        tfw_f = ReadDouble (tfwreader);
+        e_tfw_a = ReadDouble (tfwreader);
+        e_tfw_b = ReadDouble (tfwreader);
+        e_tfw_c = ReadDouble (tfwreader);
+        e_tfw_d = ReadDouble (tfwreader);
+        e_tfw_e = ReadDouble (tfwreader);
+        e_tfw_f = ReadDouble (tfwreader);
         tfwreader.Close ();
     }
 
@@ -320,8 +268,51 @@ public class Chart {
         return d;
     }
 
-    public static double Square (double z)
+    /**
+     * Write ellipsoidal parameters to .csv file.
+     */
+    public void GenEllipseCsv ()
     {
-        return z * z;
+        string undername = spacename.Replace (' ', '_');
+        string csvname   = undername + ".csv";
+        
+        StringBuilder sb = new StringBuilder ();
+        sb.Append (centerLat);
+        sb.Append (',');
+        sb.Append (centerLon);
+        sb.Append (',');
+        sb.Append (stanPar1);
+        sb.Append (',');
+        sb.Append (stanPar2);
+        sb.Append (',');
+        sb.Append (e_width);
+        sb.Append (',');
+        sb.Append (e_height);
+        sb.Append (',');
+        sb.Append (e_rada);
+        sb.Append (',');
+        sb.Append (e_radb);
+        sb.Append (',');
+        sb.Append (e_tfw_a);
+        sb.Append (',');
+        sb.Append (e_tfw_b);
+        sb.Append (',');
+        sb.Append (e_tfw_c);
+        sb.Append (',');
+        sb.Append (e_tfw_d);
+        sb.Append (',');
+        sb.Append (e_tfw_e);
+        sb.Append (',');
+        sb.Append (e_tfw_f);
+        sb.Append (',');
+        sb.Append (begdate);
+        sb.Append (',');
+        sb.Append (enddate);
+        sb.Append (',');
+        sb.Append (spacename);
+
+        StreamWriter csvwriter = new StreamWriter (csvname);
+        csvwriter.WriteLine (sb.ToString ());
+        csvwriter.Close ();
     }
 }

@@ -91,6 +91,11 @@ then
     gmcs -debug -out:WriteNavaidsCsv.exe WriteNavaidsCsv.cs
 fi
 
+if [ MakeWaypoints.exe -ot MakeWaypoints.cs ]
+then
+    gmcs -debug -out:MakeWaypoints.exe MakeWaypoints.cs -reference:System.Data.dll -reference:Mono.Data.Sqlite.dll
+fi
+
 #
 #  See if we already have this 56-day cycle done
 #
@@ -109,11 +114,12 @@ fi
 #
 #  Fetch FAA data files
 #
-rm -rf APT.txt FIX.txt ILS.txt NAV.txt TWR.txt aptinfo.tmp
+rm -rf APT.txt AWY.txt FIX.txt ILS.txt NAV.txt TWR.txt aptinfo.tmp
 mkdir -p datums
 
 effdate=`./cureffdate`
 getzip APT
+getzip AWY
 getzip FIX
 getzip ILS
 getzip NAV
@@ -127,6 +133,13 @@ unzip datums/TWR.$expdate.zip
 mkdir aptinfo.tmp
 cat APT.txt TWR.txt | mono --debug GetAirportIDs.exe airports.tmp runways.tmp aptinfo.tmp aptinfo.html
 rm -f APT.txt TWR.txt
+
+#
+#  Generate airway info
+#
+unzip datums/AWY.$expdate.zip
+mono --debug WriteAirwaysCsv.exe < AWY.txt
+rm -f AWY.txt
 
 #
 #  Generate fix info
@@ -152,16 +165,22 @@ rm -f NAV.txt
 #
 #  Generate summary files named by the expiration date
 #
-rm -rf datums/aptinfo_$expdate datums/airports_$expdate.csv datums/fixes_$expdate.csv datums/localizers_$expdate.csv datums/navaids_$expdate.csv datums/runways_$expdate.csv
+rm -rf datums/aptinfo_$expdate datums/airports_$expdate.csv datums/fixes_$expdate.csv datums/intersections_$expdate.csv
+rm -rf datums/localizers_$expdate.csv datums/navaids_$expdate.csv datums/runways_$expdate.csv
 
 ls aptinfo.tmp | moveaptinfofiles datums/aptinfo_$expdate
-sort airports.tmp > datums/airports_$expdate.csv
-mv fixes.csv        datums/fixes_$expdate.csv
-mv localizers.csv   datums/localizers_$expdate.csv
-mv navaids.csv      datums/navaids_$expdate.csv
-sort runways.tmp  > datums/runways_$expdate.csv
+sort airports.tmp >  datums/airports_$expdate.csv
+mv airways.csv       datums/airways_$expdate.csv
+mv fixes.csv         datums/fixes_$expdate.csv
+mv intersections.csv datums/intersections_$expdate.csv
+mv localizers.csv    datums/localizers_$expdate.csv
+mv navaids.csv       datums/navaids_$expdate.csv
+sort runways.tmp  >  datums/runways_$expdate.csv
 
 rm -rf aptinfo.tmp airports.tmp runways.tmp
+
+mono --debug MakeWaypoints.exe $expdate
+gzip datums/waypoints_$expdate.db
 
 echo $expdate > datums/aptinfo_expdate.dat
 

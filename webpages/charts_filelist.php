@@ -33,26 +33,18 @@
 
         /*
          * Waypoints (gives lat/lon of all waypoints):
-         *   the datums/airports_<expdate>.csv file
-         *   the datums/fixes_<expdate>.csv file
-         *   the datums/localizers_<expdate>.csv file
-         *   the datums/navaids_<expdate>.csv file
-         *   the datums/runways_<expdate>.csv file
+         *   the datums/waypoints_<expdate>.db.gz file
          */
 
         $dir_entries = scandir ('datums');
         $cycles56 = 0;
         foreach ($dir_entries as $dir_entry) {
-            if (strpos ($dir_entry, 'aptinfo_') === 0) {
-                $xd = intval (substr ($dir_entry, 8));
+            if (strpos ($dir_entry, 'waypoints_') === 0) {
+                $xd = intval (substr ($dir_entry, 10, 8));
                 if ($cycles56 < $xd) $cycles56 = $xd;
             }
         }
-        echo "datums/airports_$cycles56.csv\n";
-        echo "datums/fixes_$cycles56.csv\n";
-        echo "datums/localizers_$cycles56.csv\n";
-        echo "datums/navaids_$cycles56.csv\n";
-        echo "datums/runways_$cycles56.csv\n";
+        echo "datums/waypoints_$cycles56.db.gz\n";
     } else if (strpos ($undername, 'State_') === 0) {
 
         /*
@@ -164,6 +156,7 @@
                 }
             }
         }
+        echo "$dirname/icon.png\n";
         echo "$dirname.csv\n";
     }
 ?>

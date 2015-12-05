@@ -32,6 +32,8 @@ import java.util.Random;
  * Test SQLiteDBs stuff.
  */
 public class ExpView extends ScrollView implements WairToNow.CanBeMainView {
+    private final static String TAG = "WairToNow";
+
     private TextView textView;
 
     private boolean enabled;
@@ -131,7 +133,7 @@ public class ExpView extends ScrollView implements WairToNow.CanBeMainView {
             } catch (Exception e) {
                 enabled = false;
                 AppendTextLine ("ThreadA exception: " + e.getMessage ());
-                Log.e ("WairToNow", "ThreadA exception", e);
+                Log.e (TAG, "ThreadA exception", e);
             }
             AppendTextLine ("ThreadA exiting");
             SQLiteDBs.CloseAll ();
@@ -188,7 +190,7 @@ public class ExpView extends ScrollView implements WairToNow.CanBeMainView {
             } catch (Exception e) {
                 enabled = false;
                 AppendTextLine ("ThreadB exception: " + e.getMessage ());
-                Log.e ("WairToNow", "ThreadB exception", e);
+                Log.e (TAG, "ThreadB exception", e);
             }
             AppendTextLine ("ThreadB exiting");
             SQLiteDBs.CloseAll ();

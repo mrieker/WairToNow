@@ -127,10 +127,7 @@ public class Lib {
         // if lon2 is east of lon1 by more than 180, lon2 is westmost
         float westmost = (lon2 - lon1 < 180.0) ? lon1 : lon2;
 
-        // normalize
-        while (westmost < -180.0) westmost += 360.0;
-        while (westmost >= 180.0) westmost -= 360.0;
-        return westmost;
+        return NormalLon (westmost);
     }
 
     /**
@@ -146,10 +143,27 @@ public class Lib {
         // if lon2 is east of lon1 by more than 180, lon1 is eastmost
         float eastmost = (lon2 - lon1 < 180.0) ? lon2 : lon1;
 
-        // normalize
-        while (eastmost < -180.0) eastmost += 360.0;
-        while (eastmost >= 180.0) eastmost -= 360.0;
-        return eastmost;
+        return NormalLon (eastmost);
+    }
+
+    /**
+     * Normalize a longitude in range -180.0..+179.999999999
+     */
+    public static float NormalLon (float lon)
+    {
+        while (lon < -180.0F) lon += 360.0F;
+        while (lon >= 180.0F) lon -= 360.0F;
+        return lon;
+    }
+
+    /**
+     * Given two normalized longitudes, find the normalized average longitude.
+     */
+    public static float AvgLons (float lona, float lonb)
+    {
+        if (lonb - lona > 180.0F) lona += 360.0F;
+        if (lona - lonb > 180.0F) lonb += 360.0F;
+        return NormalLon ((lona + lonb) / 2.0F);
     }
 
     /**
@@ -179,7 +193,7 @@ public class Lib {
 
     /**
      * Compute great-circle true course from one lat/lon to another lat/lon
-     * @return true course (in degrees) at source point
+     * @return true course (in degrees) at source point (-180..+179.999999)
      */
     public static float LatLonTC (float srcLat, float srcLon, float dstLat, float dstLon)
     {
@@ -219,7 +233,7 @@ public class Lib {
 
         float newlatrad = Mathf.asin (Mathf.sin (latrad) * Mathf.cos (distrad) + Mathf.cos (latrad) * Mathf.sin (distrad) * Mathf.cos (hdgrad));
         float lonrad = Mathf.atan2 (Mathf.sin (hdgrad) * Mathf.sin (distrad) * Mathf.cos (latrad), Mathf.cos (distrad) - Mathf.sin (latrad) * Mathf.sin (newlatrad));
-        return Mathf.toDegrees (lonrad) + londeg;
+        return NormalLon (Mathf.toDegrees (lonrad) + londeg);
     }
 
     /**
@@ -382,7 +396,7 @@ public class Lib {
     }
 
     /**
-     * Given a course from beg to end and a current poistion cur, find what the on-course heading is at the
+     * Given a course from beg to end and a current position cur, find what the on-course heading is at the
      * point on the course adjacent to the current position
      * @param beglatdeg = course beginning latitude
      * @param beglondeg = course beginning longitude

@@ -24,10 +24,7 @@ package com.outerworldapps.wairtonow;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.view.View;
-import android.view.ViewGroup;
-import android.webkit.WebSettings;
 import android.webkit.WebView;
-import android.widget.LinearLayout;
 
 /**
  * Display help page in a web view.

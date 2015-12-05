@@ -21,43 +21,37 @@
 package com.outerworldapps.wairtonow;
 
 import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.TreeMap;
 
+import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
+import android.content.SharedPreferences;
 import android.content.res.AssetManager;
 import android.database.DataSetObserver;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
-import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.Point;
-import android.graphics.PointF;
 import android.graphics.Rect;
 import android.location.Location;
 import android.support.annotation.NonNull;
 import android.util.DisplayMetrics;
-import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.ListAdapter;
-import android.widget.TextView;
 
 /**
  * Display chart and current position and a specified course line.
@@ -65,37 +59,27 @@ import android.widget.TextView;
 public class ChartView
         extends View
         implements WairToNow.CanBeMainView {
-    private static final int wstep = 256;
-    private static final int hstep = 256;
-    private static final int overlap = 10;
+
     private static final int coursecleartime  = 1000;
     private static final int waypointopentime = 1000;
     private final static float rotatestep = Mathf.toRadians (5.0F);  // manual rotation stepping
     private final static float[] scalesteps = new float[] {       // manual scale stepping
-        1.00F, 1.25F, 1.50F, 2.00F, 2.50F, 3.00F, 4.00F, 5.00F, 6.00F, 8.00F, 10.0F, 99.0F
+                      0.20F, 0.25F, 0.30F, 0.40F, 0.50F, 0.60F, 0.80F, 1.00F,
+        1.25F, 1.50F, 2.00F, 2.50F, 3.00F, 4.00F, 5.00F, 6.00F, 8.00F, 10.0F,
+        12.5F, 15.0F, 20.0F, 25.0F, 30.0F, 40.0F, 50.0F, 60.0F, 80.0F, 100.0F
     };
+    private final static boolean enablesteps = true;   // enables discrete steps
+
     private final static int   tracktotal = 60;        // total number of seconds for tracking ahead
     private final static int   trackspace = 10;        // number of seconds spacing between tracking dots
-    public  static final float scalemin   = 0.2F;      // how far to allow zoom out
-    public  static final float scalemax   = 100.0F;    // how far to allow zoom in
     private static final float scalebase  = 500000;    // chart scale factor (when scaling=1.0, using 500000
                                                        // makes sectionals appear actual size theoretically)
 
-    private static final int capGridColor = Color.MAGENTA;
+    private static final int capGridColor = Color.DKGRAY;
     private static final int centerColor  = Color.BLUE;
-    private static final int courseColor  = Color.rgb (0, 128, 0);
+    public  static final int courseColor  = Color.MAGENTA;
     private static final int currentColor = Color.RED;
     private static final int selectColor  = Color.BLACK;
-
-    private abstract class Chart {
-        public String basename;    // chart name, eg, "New York 86"
-        public abstract int DownldLinkColor ();
-        public abstract void DrawOnCanvas (Canvas canvas);
-    }
-
-    private interface LoadedBitmap {
-        void CloseBitmap ();
-    }
 
     private static class Pointer {
         public int id;        // event pointer id
@@ -103,35 +87,35 @@ public class ChartView
         public float sx, sy;  // starting x,y on the canvas
     }
 
+    private boolean reselectLastChart = true;
     private boolean showCenterInfo = true;
     private boolean showCourseInfo = true;
     private boolean showGPSInfo    = true;
-    private DisplayMetrics metrics = new DisplayMetrics ();
+    public  DisplayMetrics metrics = new DisplayMetrics ();
     private float altitude;                   // metres MSL
     private float canvasEastLon, canvasWestLon;
     private float canvasNorthLat, canvasSouthLat;
-    private float userRotationRad;            // user applied rotation (only in north-up mode, zero otherwise, radians)
+    private float userRotationRad;            // user applied rotation (only in finger-rotation mode)
     private float heading;                    // degrees
     private float pixelHeightM;               // how many chart metres high pixels are
     private float pixelWidthM;                // how many chart metres wide pixels are
     private float speed;                      // metres/second
-    private float tlLat, tlLon;               // lat/lon at top left of canvas
-    private float trLat, trLon;               // lat/lon at top right of canvas
-    private float blLat, blLon;               // lat/lon at bottom left of canvas
-    private float brLat, brLon;               // lat/lon at bottom right of canvas
+    public  float tlLat, tlLon;               // lat/lon at top left of canvas
+    public  float trLat, trLon;               // lat/lon at top right of canvas
+    public  float blLat, blLon;               // lat/lon at bottom left of canvas
+    public  float brLat, brLon;               // lat/lon at bottom right of canvas
 
-    private AirTileLoader airTileLoader = null;
     private ArrayList<DrawWaypoint> allDrawWaypoints = new ArrayList<> ();
     private AutoAirChart autoSecAirChart = new AutoAirChart ("SEC");
     private AutoAirChart autoWacAirChart = new AutoAirChart ("WAC");
-    private Bitmap airplaneBitmap;
     private boolean centerInfoMphOption, centerInfoTrueOption;
     private boolean courseInfoMphOpt, courseInfoTrueOpt;
     private boolean gpsInfoMphOpt;
     private boolean gpsInfoTrueOpt;
-    private Chart selectedChart;
     private ChartSelectDialog chartSelectDialog;
-    private Collection<Waypoint.Runway> dstRunways;
+    private DisplayableChart waitingForChartDownload;
+    private DisplayableChart selectedChart;
+    private float airplaneScale;
     private float canvasHdgRadOverride;
     private float centerInfoAltitude;
     private float centerInfoArrowLat, centerInfoArrowLon;
@@ -154,33 +138,26 @@ public class ChartView
     private float mouseDownPosX, mouseDownPosY;
     private float smoothSpeed;                 // metres per second
     private float smoothTurnRate;              // degrees per second
-    private float[] airTileCorners     = new float[8];
-    private float[] drawOnCanvasPoints = new float[16];
     private float[] trackpoints        = new float[tracktotal/trackspace*2];
     private LatLon newCtrLL = new LatLon ();
-    private LatLon[] canvasCornersLatLon = new LatLon[] { new LatLon (), new LatLon (), new LatLon (), new LatLon () };
-    private final LinkedList<AirTile> tilesToLoad = new LinkedList<> ();
+    public  LatLon[] canvasMappingLatLons = new LatLon[] {
+            new LatLon (), new LatLon (), new LatLon (), new LatLon (),
+            new LatLon (), new LatLon (), new LatLon (), new LatLon () };
     private LinkedList<CapGrid> capgrids = new LinkedList<> ();
-    private int canvasWidth, canvasHeight;     // last seen canvas width,height
+    public  int canvasWidth, canvasHeight;     // last seen canvas width,height
     private int centerInfoCanvasHeight;
     private int centerInfoLLOption;
     private int courseInfoCanvasWidth;
     private int gpsInfoLLOpt;
     private int mappingCanvasHeight;
     private int mappingCanvasWidth;
-    private LinkedList<AirChart> allDownloadedAirCharts = new LinkedList<> ();
-    private LinkedList<LoadedBitmap>  loadedBitmaps = new LinkedList<> ();
     private long downOnCenterInfo   = 0;
     private long downOnChartSelect  = 0;
     private long downOnCourseInfo   = 0;
     private long downOnGPSInfo      = 0;
     private long lastGPSTimestamp   = 0;
     private long thisGPSTimestamp   = 0;
-    private long viewDrawCycle      = 0;       // incremented each drawing cycle
     private long waypointOpenAt     = Long.MAX_VALUE;
-    private Matrix airplaneMatrix;
-    private Matrix drawOnCanvasChartMat = new Matrix ();
-    private Matrix drawOnCanvasTileMat  = new Matrix ();
     private Paint capGridBGPaint    = new Paint ();
     private Paint capGridLnPaint    = new Paint ();
     private Paint capGridTxPaint    = new Paint ();
@@ -195,29 +172,24 @@ public class ChartView
     private Paint currentBGPaint    = new Paint ();
     private Paint currentLnPaint    = new Paint ();
     private Paint currentTxPaint    = new Paint ();
-    private Paint fillBlackPaint    = new Paint ();
     private Paint trailPaint        = new Paint ();
     private Paint wayptBGPaint      = new Paint ();
     private Paint[] faaWPPaints     = new Paint[] { new Paint (), new Paint () };
     private Paint[] userWPPaints    = new Paint[] { new Paint (), new Paint () };
+    private Path airplanePath       = new Path ();
     private Path centerInfoPath     = new Path ();
     private Path chartSelectPath    = new Path ();
     private Path courseInfoPath     = new Path ();
-    private Path drawOnCanvasPath   = new Path ();
-    private Path fillPath           = new Path ();
     private Path gpsInfoPath;
     private Path trailPath          = new Path ();
-    private PixelMapper pmap        = new PixelMapper ();
+    public  PixelMapper pmap        = new PixelMapper ();
     private Point onDrawPt          = new Point ();
     private Point canpix1           = new Point ();
     private Point canpix2           = new Point ();
     private Point canpix3           = new Point ();
-    private Point drawOnCanvasPoint = new Point ();
-    private PointF onDrawPtD        = new PointF ();
     private Pointer firstPointer;
     private Pointer secondPointer;
     private Pointer transPointer    = new Pointer ();
-    private Rect canvasBounds       = new Rect (0, 0, 0, 0);
     private Rect centerInfoBounds   = new Rect ();
     private Rect chartSelectBounds  = new Rect ();
     private Rect courseInfoBounds   = new Rect ();
@@ -233,12 +205,11 @@ public class ChartView
     private String gpsInfoLonStr;
     private String gpsInfoHdgStr;
     private String gpsInfoSpdStr;
-    private String waitingForChartDownload;
-    private WairToNow wairToNow;
+    public  WairToNow wairToNow;
     private Waypoint.Within waypointsWithin = new Waypoint.Within ();
 
     private boolean holdPosition;          // gps updates centering screen are blocked (eg, when screen has been panned)
-    private float arrowLat, arrowLon;      // degrees
+    public  float arrowLat, arrowLon;      // degrees
     public  float centerLat, centerLon;    // lat/lon at center+displaceX,Y of canvas
     public  float orgLat, orgLon;          // course origination lat/lon
     public  float scaling = 1.0F;          // 0.5 = can see 2x as much as with 1.0, ie, 4 chart pixels -> 1 canvas pixel
@@ -250,31 +221,35 @@ public class ChartView
         super (na);
 
         wairToNow = na;
+        float ts = wairToNow.textSize;
 
         UnSetCanvasHdgRad ();
 
-        airplaneMatrix = new Matrix ();
-        Bitmap abm = BitmapFactory.decodeResource (na.getResources (), R.drawable.airplane);
-        int abmw = abm.getWidth ();
-        int abmh = abm.getHeight ();
-        float abmwhalf = abmw / 2.0F;
-        float abmhhalf = abmh / 2.0F;
-        airplaneBitmap = Bitmap.createBitmap (abmw, abmh, Bitmap.Config.ARGB_4444);
-        for (int y = abmh; -- y >= 0;) {
-            for (int x = abmw; -- x >= 0;) {
-                float radsq = Sq (x - abmwhalf) + Sq (y - abmhhalf);
-                if (radsq >= abmwhalf * abmhhalf) {
-                    airplaneBitmap.setPixel (x, y, Color.TRANSPARENT);
-                } else if (abm.getPixel (x, y) != Color.WHITE) {
-                    airplaneBitmap.setPixel (x, y, Color.TRANSPARENT);
-                } else {
-                    airplaneBitmap.setPixel (x, y, currentColor);
-                }
-            }
-        }
+        // airplane icon pointing up with center at (0,0)
+        int acy = 181;
+        airplanePath.moveTo (   0, 313 - acy);
+        airplanePath.lineTo ( -44, 326 - acy);
+        airplanePath.lineTo ( -42, 301 - acy);
+        airplanePath.lineTo ( -15, 281 - acy);
+        airplanePath.lineTo ( -18, 216 - acy);
+        airplanePath.lineTo (-138, 255 - acy);
+        airplanePath.lineTo (-138, 219 - acy);
+        airplanePath.lineTo ( -17, 150 - acy);
+        airplanePath.lineTo ( -17,  69 - acy);
+        airplanePath.cubicTo (  0,  39 - acy,
+                                0,  39 - acy,
+                              +17,  69 - acy);
+        airplanePath.lineTo ( +17, 150 - acy);
+        airplanePath.lineTo (+138, 219 - acy);
+        airplanePath.lineTo (+138, 255 - acy);
+        airplanePath.lineTo ( +18, 216 - acy);
+        airplanePath.lineTo ( +15, 281 - acy);
+        airplanePath.lineTo ( +42, 301 - acy);
+        airplanePath.lineTo ( +44, 326 - acy);
+        airplanePath.lineTo (   0, 313 - acy);
+        airplaneScale = ts * 1.5F / (313 - 69);
 
-        float ts = wairToNow.textSize;
-        capGridBGPaint.setColor (Color.argb (170,255,255,255));
+        capGridBGPaint.setColor (Color.argb (170, 255, 255, 255));
         capGridBGPaint.setStyle (Paint.Style.STROKE);
         capGridBGPaint.setStrokeWidth (30);
         capGridBGPaint.setTextSize (ts);
@@ -368,9 +343,6 @@ public class ChartView
         userWPPaints[0].setColor (Color.CYAN);
         userWPPaints[1].setColor (Color.argb (255, 180, 180, 250));
 
-        fillBlackPaint.setColor (Color.BLACK);
-        fillBlackPaint.setStyle (Paint.Style.FILL_AND_STROKE);
-
         AssetManager assetManager = na.getAssets ();
         BufferedReader caprdr = new BufferedReader (new InputStreamReader (assetManager.open ("capgrid.dat")), 1024);
         String caprec;
@@ -390,69 +362,6 @@ public class ChartView
          * Used to display menu that selects which chart to display.
          */
         chartSelectDialog = new ChartSelectDialog ();
-
-        /*
-         * See what air charts we currently have downloaded.
-         */
-        DiscoverAirChartFiles ();
-    }
-
-    /**
-     * Figure out what air chart files we have.
-     */
-    public void DiscoverAirChartFiles ()
-    {
-        allDownloadedAirCharts.clear ();
-        autoSecAirChart.ClearCharts ();
-        autoWacAirChart.ClearCharts ();
-
-        /*
-         * Read about all charts from charts/<undername>.csv.
-         * These .csv files tell us the lat/lon <-> pixel conversion parameters for the corresponding chart.
-         * These may change from revision to revision.
-         * Don't use chartlimits.csv cuz it can have numbers that don't match the version that is downloaded.
-         */
-        File[] chartsCSVFiles = new File (WairToNow.dbdir + "/charts").listFiles ();
-        if (chartsCSVFiles != null) {
-            for (File csvFile : chartsCSVFiles) {
-                String csvName = csvFile.getPath ();
-                if (!csvName.endsWith (".csv")) continue;
-                AirChart chart = null;
-                try {
-                    BufferedReader csvReader = new BufferedReader (new FileReader (csvName), 256);
-                    try {
-                        String csvLine = csvReader.readLine ();
-                        chart = new AirChart (csvLine);
-                    } finally {
-                        csvReader.close ();
-                    }
-                } catch (Exception e) {
-                    Log.w ("ChartView", "error loading chart " + csvName);
-                    Log.w ("ChartView", " - " + e.getMessage ());
-                }
-                if (chart != null) {
-                    allDownloadedAirCharts.add (chart);
-                    if (csvName.contains ("SEC")) autoSecAirChart.AddChart (chart);
-                    if (csvName.contains ("WAC")) autoWacAirChart.AddChart (chart);
-                }
-            }
-        }
-
-        /*
-         * Maybe this is a call as a result of requesting a download from
-         * the ChartSelectDialog menu.  If so, select the chart now.
-         */
-        if (waitingForChartDownload != null) {
-            String spnsp = waitingForChartDownload + " ";
-            for (Chart chart : allDownloadedAirCharts) {
-                if (chart.basename.startsWith (spnsp)) {
-                    selectedChart = chart;
-                    invalidate ();
-                    break;
-                }
-            }
-            waitingForChartDownload = null;
-        }
     }
 
     @Override  // WairToNow.CanBeMainView
@@ -481,6 +390,27 @@ public class ChartView
             centerLat = arrowLat;
             centerLon = arrowLon;
         }
+
+        if (reselectLastChart) {
+            reselectLastChart = false;
+            SharedPreferences prefs = wairToNow.getPreferences (Activity.MODE_PRIVATE);
+            String spacenamesansrev = prefs.getString ("selectedChart", null);
+            if (spacenamesansrev != null) {
+                TreeMap<String,DisplayableChart> charts = new TreeMap<> ();
+                charts.put (streetChart.GetSpacenameSansRev (), streetChart);
+                charts.put (autoSecAirChart.GetSpacenameSansRev (), autoSecAirChart);
+                charts.put (autoWacAirChart.GetSpacenameSansRev (), autoWacAirChart);
+                for (Iterator<AirChart> it = wairToNow.maintView.GetAirChartIterator (); it.hasNext ();) {
+                    AirChart ac = it.next ();
+                    charts.put (ac.GetSpacenameSansRev (), ac);
+                }
+                DisplayableChart dc = charts.get (spacenamesansrev);
+                if ((dc != null) && dc.IsDownloaded ()) {
+                    selectedChart = dc;
+                    invalidate ();
+                }
+            }
+        }
     }
 
     /**
@@ -491,7 +421,7 @@ public class ChartView
     public void SetCenterLatLon (float lat, float lon)
     {
         centerLat    = lat;   // put this point in center of display
-        centerLon    = lon;
+        centerLon    = Lib.NormalLon (lon);
         holdPosition = true;  // don't re-center on GPS updates (until ReCenter() is called)
 
         invalidate ();
@@ -511,28 +441,24 @@ public class ChartView
 
     /**
      * Set course line to be drawn on charts.
-     * Use name=null to disable.
+     * Use dest=null to disable.
      * @param oLat = origination latitude
      * @param oLon = origination longitude
      * @param dest = destination
      */
     public void SetCourseLine (float oLat, float oLon, Waypoint dest)
     {
-        orgLat = oLat;
-        orgLon = oLon;
-        clDest = dest;
-
-        dstRunways = null;
-        if (dest instanceof Waypoint.Airport) {
-            Waypoint.Airport awp = (Waypoint.Airport) dest;
-            dstRunways = awp.GetRunways ().values ();
+        if ((orgLat != oLat) || (orgLon != oLon) || (clDest != dest)) {
+            orgLat = oLat;
+            orgLon = Lib.NormalLon (oLon);
+            clDest = dest;
         }
     }
 
     /**
      * See how much to rotate chart by.
      */
-    private float GetCanvasHdgRads ()
+    public float GetCanvasHdgRads ()
     {
         if (canvasHdgRadOverride != -99999.0F) return canvasHdgRadOverride;
 
@@ -542,21 +468,29 @@ public class ChartView
             // that is adjacent to the current position.  If no route, use track-up mode.
             case OptionsView.CTO_COURSEUP: {
                 if (clDest != null) {
-                    userRotationRad = 0.0F;  // reset so when they next do 'north up' they get north up
-                    return Mathf.toRadians (Lib.GCOnCourseHdg (orgLat, orgLon,
+                    float courseUpRad = Mathf.toRadians (Lib.GCOnCourseHdg (orgLat, orgLon,
                             clDest.lat, clDest.lon, arrowLat, arrowLon));
+                    userRotationRad = Math.round (courseUpRad / rotatestep) * rotatestep;
+                    return courseUpRad;
                 }
                 // fall through
             }
 
             // Track up : rotate charts counter-clockwise by the current heading
             case OptionsView.CTO_TRACKUP: {
-                userRotationRad = 0.0F;  // reset so when they next do 'north up' they get north up
-                return Mathf.toRadians (heading);
+                float trackUpRad = Mathf.toRadians (heading);
+                userRotationRad = Math.round (trackUpRad / rotatestep) * rotatestep;
+                return trackUpRad;
             }
 
-            // North Up : leave chart rotated as per user's manual rotation
+            // North Up : north is always up
             case OptionsView.CTO_NORTHUP: {
+                userRotationRad = 0.0F;
+                return 0.0F;
+            }
+
+            // Finger Rotation : leave chart rotated as per user's manual rotation
+            case OptionsView.CTO_FINGEROT: {
                 return userRotationRad;
             }
 
@@ -581,7 +515,7 @@ public class ChartView
     /**
      * What to show when the back button is pressed
      */
-    @Override
+    @Override  // WairToNow.CanBeMainView
     public View GetBackPage ()
     {
         return this;
@@ -606,11 +540,12 @@ public class ChartView
     public void CloseDisplay ()
     {
         wairToNow.getWindow ().clearFlags (WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        LoadedBitmap tile;
-        while ((tile = loadedBitmaps.poll ()) != null) {
-            tile.CloseBitmap ();
+        for (Iterator<AirChart> it = wairToNow.maintView.GetAirChartIterator (); it.hasNext ();) {
+            it.next ().CloseBitmaps ();
         }
-        wairToNow.openStreetMap.CloseBitmaps ();
+        autoSecAirChart.CloseBitmaps ();
+        autoWacAirChart.CloseBitmaps ();
+        streetChart.CloseBitmaps ();
     }
 
     /**
@@ -642,13 +577,13 @@ public class ChartView
         if (actionInt == MotionEvent.ACTION_UP) actionName = "UP";
 
         int pointerCount = event.getPointerCount ();
-        Log.d ("ChartView", "onTouchEvent*: action=" + actionName + " pointerCount=" + pointerCount + " actionIndex=" + event.getActionIndex ());
+        Log.d (TAG, "onTouchEvent*: action=" + actionName + " pointerCount=" + pointerCount + " actionIndex=" + event.getActionIndex ());
         for (int pointerIndex = 0; pointerIndex < pointerCount; pointerIndex ++) {
             int pointerId = event.getPointerId (pointerIndex);
             float p = event.getPressure (pointerIndex);
             float x = event.getX (pointerIndex);
             float y = event.getY (pointerIndex);
-            Log.d ("ChartView", "onTouchEvent*: " + pointerId + ": p=" + p + " " + " x=" + x + " y=" + y);
+            Log.d (TAG, "onTouchEvent*: " + pointerId + ": p=" + p + " " + " x=" + x + " y=" + y);
         }
         */
         switch (event.getActionMasked ()) {
@@ -799,8 +734,6 @@ public class ChartView
     private void TransformView (float oldx1, float oldy1, float newx1, float newy1,
                                 float oldx2, float oldy2, float newx2, float newy2)
     {
-        boolean steps = true;  // enables discrete steps
-
         // canvasHdgRads = what true heading is up on display
         // scaling = scaling factor, < 1: zoomed out; > 1: zoomed in
         // center{Lat,Lon} = what lat/lon is in center of display
@@ -824,7 +757,6 @@ public class ChartView
         float rold = Mathf.atan2 (oldx2 - oldx1, oldy2 - oldy1);  // angle of old line, cw from up
         float rnew = Mathf.atan2 (newx2 - newx1, newy2 - newy1);  // angle of new line, cw from up
         float r    = rold - rnew;                                // difference of angles
-
 
         float fc = f * Mathf.cos (r);  // scale/rotation cosine
         float fs = f * Mathf.sin (r);  // scale/rotation sine
@@ -860,49 +792,28 @@ public class ChartView
 
         // rotate chart by this much counterclockwise
         float rotInt = rotStart - r;
-        while (rotInt < -Mathf.PI) rotInt += Mathf.PI * 2.0;
-        while (rotInt >= Mathf.PI) rotInt -= Mathf.PI * 2.0;
-        userRotationRad = steps ? Mathf.round (rotInt / rotatestep) * rotatestep : rotInt;
+        while (rotInt < -Mathf.PI) rotInt += Mathf.PI * 2.0F;
+        while (rotInt >= Mathf.PI) rotInt -= Mathf.PI * 2.0F;
+        if (enablesteps) rotInt = Math.round (rotInt / rotatestep) * rotatestep;
+        userRotationRad = rotInt;
 
         // zoom out on chart by this much
-        float scaInt = scaStart / f;
-        if (scaInt < scalemin) scaInt = scalemin;
-        if (scaInt > scalemax) scaInt = scalemax;
-        float scaletemp = scaInt;
-        if (steps) {
-            int scalexpon = 0;
-            while (scaletemp >= 10.0) {
-                scaletemp /= 10.0;
-                scalexpon ++;
+        scaling = scaStart / f;
+        int m = scalesteps.length - 1;
+        if (enablesteps) {
+            while (m > 0) {
+                float a = scalesteps[m-1];
+                float b = scalesteps[m];
+                float e = scaling / a;
+                float g = b / scaling;
+                if (e > g) break;  // scaling closer to scalesteps[m] than scalesteps[m-1]
+                -- m;
             }
-            while (scaletemp < 1.0) {
-                scaletemp *= 10.0;
-                scalexpon --;
-            }
-            for (int i = 0; i < scalesteps.length - 1; i ++) {
-                float a = scalesteps[i+0];
-                float b = scalesteps[i+1];
-                float e = scaletemp / a;
-                float g = b / scaletemp;
-                if ((e >= 1.0) && (e < g)) {
-                    scaletemp = a;
-                    break;
-                }
-                if (g >= 1.0) {
-                    scaletemp = b;
-                    break;
-                }
-            }
-            while (scalexpon < 0) {
-                scaletemp /= 10.0;
-                scalexpon ++;
-            }
-            while (scalexpon > 0) {
-                scaletemp *= 10.0;
-                scalexpon --;
-            }
+            scaling = scalesteps[m];
+        } else {
+            if (scaling < scalesteps[0]) scaling = scalesteps[0];
+            if (scaling > scalesteps[m]) scaling = scalesteps[m];
         }
-        scaling = scaletemp;
     }
 
     /**
@@ -976,8 +887,6 @@ public class ChartView
         invalidate ();
     }
 
-    private static float Sq (float x) { return x*x; }
-
     /**
      * Long click on course info clears destination fix and course line.
      */
@@ -991,6 +900,7 @@ public class ChartView
                 @Override
                 public void onClick (DialogInterface dialogInterface, int i)
                 {
+                    wairToNow.routeView.ShutTrackingOff ();
                     clDest = null;
                     invalidate ();
                 }
@@ -1117,20 +1027,13 @@ public class ChartView
          */
         if ((clDest != null) && showCourseInfo) {
             DrawCourseLine (canvas);
-
-            /*
-             * If we are nearby and it has runways, draw runway approach lines.
-             */
-            if (dstRunways != null) {
-                DrawRunways (canvas);
-            }
         }
 
         /*
          * Draw an airplane icon where the GPS (current) lat/lon point is.
          */
         if (pmap.LatLonToCanvasPix (arrowLat, arrowLon, pt)) {
-            DrawLocationArrow (canvas, pt, GetCanvasHdgRads ());
+            DrawLocationArrow (canvas, pt, GetCanvasHdgRads (), pixelWidthM, pixelHeightM);
         }
 
         /*
@@ -1363,22 +1266,34 @@ public class ChartView
      */
     private void DrawCourseLine (Canvas canvas)
     {
-        Point pt = onDrawPt;
+        // draw solid line to current destination waypoint
+        DrawCourseLine (canvas, orgLat, orgLon, clDest.lat, clDest.lon, true);
 
-        float dstLat = clDest.lat;
-        float dstLon = clDest.lon;
+        // if route being tracked on route page, draw rest of route with dotted line
+        Waypoint lastwp = clDest;
+        Iterator<Waypoint> it = wairToNow.routeView.GetActiveWaypointsAfter (clDest);
+        if (it != null) while (it.hasNext ()) {
+            Waypoint wp = it.next ();
+            DrawCourseLine (canvas, lastwp.lat, lastwp.lon, wp.lat, wp.lon, false);
+            lastwp = wp;
+        }
+    }
+
+    private void DrawCourseLine (Canvas canvas, float srcLat, float srcLon, float dstLat, float dstLon, boolean solid)
+    {
+        Point pt = onDrawPt;
 
         /*
          * Find east/west limits of course.  Wrap east to be .ge. west if necessary.
          */
-        float courseWestLon = Lib.Westmost (orgLon, dstLon);
-        float courseEastLon = Lib.Eastmost (orgLon, dstLon);
-        if (courseEastLon < courseWestLon) courseEastLon += 360.0;
+        float courseWestLon = Lib.Westmost (srcLon, dstLon);
+        float courseEastLon = Lib.Eastmost (srcLon, dstLon);
+        if (courseEastLon < courseWestLon) courseEastLon += 360.0F;
 
         /*
          * See if primarily east/west or north/south route.
          */
-        if (Math.abs (dstLat - orgLat) < courseEastLon - courseWestLon) {
+        if (Math.abs (dstLat - srcLat) < courseEastLon - courseWestLon) {
 
             /*
              * If canvas is completely west of course, try wrapping canvas eastbound.
@@ -1392,8 +1307,8 @@ public class ChartView
             float cwl = canvasWestLon;
             float cel = canvasEastLon;
             if (cel < courseWestLon) {
-                cwl += 360.0;
-                cel += 360.0;
+                cwl += 360.0F;
+                cel += 360.0F;
             }
 
             /*
@@ -1405,14 +1320,16 @@ public class ChartView
             float pixelWidthDeg = pixelWidthM / Lib.MPerNM / Lib.NMPerDeg / Mathf.cos (Mathf.toRadians (canvasSouthLat + canvasNorthLat) / 2.0);
 
             for (float lon = cwl; lon <= cel; lon += pixelWidthDeg * 2) {
-                float lat = Lib.GCLon2Lat (orgLat, orgLon, dstLat, dstLon, lon);
+                float lat = Lib.GCLon2Lat (srcLat, srcLon, dstLat, dstLon, lon);
                 pmap.LatLonToCanvasPix (lat, lon, pt);
-                canvas.drawPoint (pt.x, pt.y, courseLnPaint);
+                if (solid || (Math.round (Lib.LatLonDist (srcLat, srcLon, lat, lon) * scaling) % 2 == 0)) {
+                    canvas.drawPoint (pt.x, pt.y, courseLnPaint);
+                }
             }
         } else {
             // primarily north/south
-            float courseSouthLon = Math.min (orgLat, dstLat);
-            float courseNorthLon = Math.max (orgLat, dstLat);
+            float courseSouthLon = Math.min (srcLat, dstLat);
+            float courseNorthLon = Math.max (srcLat, dstLat);
 
             float csl = canvasSouthLat;
             float cnl = canvasNorthLat;
@@ -1422,35 +1339,12 @@ public class ChartView
             float pixelHeightDeg = pixelHeightM / Lib.MPerNM / Lib.NMPerDeg;
 
             for (float lat = csl; lat <= cnl; lat += pixelHeightDeg * 2) {
-                float lon = Lib.GCLat2Lon (orgLat, orgLon, dstLat, dstLon, lat);
+                float lon = Lib.GCLat2Lon (srcLat, srcLon, dstLat, dstLon, lat);
                 pmap.LatLonToCanvasPix (lat, lon, pt);
-                canvas.drawPoint (pt.x, pt.y, courseLnPaint);
+                if (solid || (Math.round (Lib.LatLonDist (srcLat, srcLon, lat, lon) * scaling) % 2 == 0)) {
+                    canvas.drawPoint (pt.x, pt.y, courseLnPaint);
+                }
             }
-        }
-    }
-
-    /**
-     * Draw lines showing approach path to the runways for the destination airport.
-     */
-    private void DrawRunways (Canvas canvas)
-    {
-        float distnm = 10.0F;
-        if (wairToNow.optionsView.ktsMphOption.getAlt ()) distnm /= Lib.SMPerNM;
-
-        PointF dpt = onDrawPtD;
-        for (Waypoint.Runway rwy : dstRunways) {
-            pmap.LatLonToCanvasPix (rwy.begLat, rwy.begLon, dpt);
-            float begX = dpt.x;
-            float begY = dpt.y;
-
-            float rwyTrueRevHdg = rwy.trueHdg + 180.0F;
-            float appLat = Lib.LatHdgDist2Lat (rwy.begLat, rwyTrueRevHdg, distnm);
-            float appLon = Lib.LatLonHdgDist2Lon (rwy.begLat, rwy.begLon, rwyTrueRevHdg, distnm);
-            pmap.LatLonToCanvasPix (appLat, appLon, dpt);
-            float appX = dpt.x;
-            float appY = dpt.y;
-
-            canvas.drawLine (appX, appY, begX, begY, wairToNow.waypointView1.rwPaint);
         }
     }
 
@@ -1459,31 +1353,38 @@ public class ChartView
      * @param canvas     = canvas to draw it on
      * @param pt         = where on canvas to draw symbol
      * @param canHdgRads = true heading on canvas that is up
+     * @param mPerXPix   = real-world metres per canvas X pixel
+     * @param mPerYPix   = real-world metres per canvas Y pixel
      * Other inputs:
      *   heading = true heading for the arrow symbol (degrees, latest gps sample)
      *   speed = airplane speed (mps, latest gps sample)
-     *   airplaneBitmap = bitmap of drawing with airplane pointing at heading 30deg true
+     *   airplanePath,Scaling = drawing of airplane pointing at 0deg true
      *   thisGPSTimestamp = time of latest gps sample
      *   lastGPSTimestamp = time of previous gps sample
      *   lastGPSHeading = true heading for the arrow symbol (previous gps sample)
      */
-    public void DrawLocationArrow (Canvas canvas, Point pt, float canHdgRads)
+    public void DrawLocationArrow (Canvas canvas, Point pt, float canHdgRads, float mPerXPix, float mPerYPix)
     {
+        float hdg = heading - Mathf.toDegrees (canHdgRads); // heading angle relative to UP on screen
+
         /*
          * Draw the icon.
          */
-        float hdg  = heading - Mathf.toDegrees (canHdgRads);
-        float diam = wairToNow.textSize * 2.75F;
-        airplaneMatrix.setScale (diam / airplaneBitmap.getWidth (), diam / airplaneBitmap.getHeight ());
-        airplaneMatrix.postRotate (hdg - 30, diam / 2, diam / 2);
-        airplaneMatrix.postTranslate (pt.x - diam / 2, pt.y - diam / 2);
-        canvas.drawBitmap (airplaneBitmap, airplaneMatrix, null);
+        canvas.save ();
+        try {
+            canvas.translate (pt.x, pt.y);                  // anything drawn below will be translated this much
+            canvas.scale (airplaneScale, airplaneScale);    // anything drawn below will be scaled this much
+            canvas.rotate (hdg);                            // anything drawn below will be rotated this much
+            canvas.drawPath (airplanePath, currentTxPaint); // draw the airplane with vectors and filling
+        } finally {
+            canvas.restore ();                              // remove translation/scaling/rotation
+        }
 
         /*
          * If we have two fairly recent GPS samples, draw track forward for next 60 seconds.
          */
         long gpsTimeDiff = thisGPSTimestamp - lastGPSTimestamp;
-        if ((gpsTimeDiff > 100) && (gpsTimeDiff < 10000)) {
+        if ((mPerXPix > 0) && (mPerYPix > 0) && (gpsTimeDiff > 100) && (gpsTimeDiff < 10000)) {
 
             // smoothed metres per second
             smoothSpeed = smoothSpeed * 3 / 4 + speed * 1 / 4;
@@ -1500,10 +1401,6 @@ public class ChartView
             // components of heading of icon drawn on chart
             float hdgcos = Mathf.cosdeg (hdg);
             float hdgsin = Mathf.sindeg (hdg);
-
-            // real-world metres per pixel
-            float mPerXPix = pixelWidthM;
-            float mPerYPix = pixelHeightM;
 
             // low turn rate means we are going straight ahead
             // (to avoid divide-by-zero errors)
@@ -1552,31 +1449,15 @@ public class ChartView
      */
     private void DrawMapImage (Canvas canvas)
     {
-        /*
-         * Invalidate cached stuff.
-         */
-        viewDrawCycle ++;
-
-        /*
-         * Display the selected chart.
-         */
         if (selectedChart != null) {
-            selectedChart.DrawOnCanvas (canvas);
-        }
-
-        /*
-         * Close any unreferenced bitmaps so we don't run out of memory.
-         */
-        for (Iterator<LoadedBitmap> it = loadedBitmaps.iterator (); it.hasNext();) {
-            LoadedBitmap lbm = it.next ();
-            if (lbm instanceof AirTile) {
-                AirTile tile = (AirTile) lbm;
-                if (tile.tileDrawCycle < viewDrawCycle) {
-                    tile.CloseBitmap ();
-                    tile.tileDrawCycle = 0;
-                    it.remove ();
-                }
-            }
+            selectedChart.DrawOnCanvas (this, canvas);
+        } else {
+            Bitmap bm = BitmapFactory.decodeResource (wairToNow.getResources (), R.drawable.splash);
+            Rect src = new Rect (0, 0, bm.getWidth (), bm.getHeight ());
+            int  rad = Math.min (canvasWidth, canvasHeight) * 3 / 8;
+            Rect dst = new Rect (canvasWidth / 2 - rad, canvasHeight / 2 - rad,
+                                 canvasWidth / 2 + rad, canvasHeight / 2 + rad);
+            canvas.drawBitmap (bm, src, dst, null);
         }
     }
 
@@ -1589,6 +1470,8 @@ public class ChartView
         float eastlon  = Mathf.ceil  (canvasEastLon  * 4.0F) / 4.0F;
         float southlat = Mathf.floor (canvasSouthLat * 4.0F) / 4.0F;
         float northlat = Mathf.ceil  (canvasNorthLat * 4.0F) / 4.0F;
+
+        if (eastlon < westlon) eastlon += 360.0F;
 
         for (float lat = southlat; lat <= northlat; lat += 0.25F) {
             for (float lon = westlon; lon <= eastlon; lon += 0.25F) {
@@ -1603,7 +1486,7 @@ public class ChartView
                 int bestn = 999;
                 String bestid = null;
                 for (CapGrid cg : capgrids) {
-                    int n = cg.number (lon, lat);
+                    int n = cg.number (Lib.NormalLon (lon), lat);
                     if ((n > 0) && (bestn > n)) {
                         bestn = n;
                         bestid = cg.id;
@@ -1707,17 +1590,31 @@ public class ChartView
         tlLat = centerLat - metresFromCenterToTopLeftY / Lib.MPerNM / Lib.NMPerDeg;
         tlLon = centerLon + metresFromCenterToTopLeftX / Lib.MPerNM / Lib.NMPerDeg / Mathf.cos (tlLat / 180.0 * Mathf.PI);
 
+        tlLon = Lib.NormalLon (tlLon);
+        trLon = Lib.NormalLon (trLon);
+        blLon = Lib.NormalLon (blLon);
+        brLon = Lib.NormalLon (brLon);
+
         /*
-         * Put canvas corner lat/lons in an array.
+         * Put canvas lat/lons in an array for detecting which maps are displayable.
+         * Includes four corners and midpoints along each edge.
          */
-        canvasCornersLatLon[0].lat = tlLat;
-        canvasCornersLatLon[0].lon = tlLon;
-        canvasCornersLatLon[1].lat = trLat;
-        canvasCornersLatLon[1].lon = trLon;
-        canvasCornersLatLon[2].lat = blLat;
-        canvasCornersLatLon[2].lon = blLon;
-        canvasCornersLatLon[3].lat = brLat;
-        canvasCornersLatLon[3].lon = brLon;
+        canvasMappingLatLons[0].lat = tlLat;
+        canvasMappingLatLons[0].lon = tlLon;
+        canvasMappingLatLons[1].lat = trLat;
+        canvasMappingLatLons[1].lon = trLon;
+        canvasMappingLatLons[2].lat = blLat;
+        canvasMappingLatLons[2].lon = blLon;
+        canvasMappingLatLons[3].lat = brLat;
+        canvasMappingLatLons[3].lon = brLon;
+        canvasMappingLatLons[4].lat = (tlLat + trLat) / 2.0F;
+        canvasMappingLatLons[4].lon = Lib.AvgLons (tlLon, trLon);
+        canvasMappingLatLons[5].lat = (trLat + brLat) / 2.0F;
+        canvasMappingLatLons[5].lon = Lib.AvgLons (trLon, brLon);
+        canvasMappingLatLons[6].lat = (blLat + brLat) / 2.0F;
+        canvasMappingLatLons[6].lon = Lib.AvgLons (blLon, brLon);
+        canvasMappingLatLons[7].lat = (tlLat + blLat) / 2.0F;
+        canvasMappingLatLons[7].lon = Lib.AvgLons (tlLon, blLon);
 
         /*
          * Set up mapping.
@@ -1806,7 +1703,7 @@ public class ChartView
                 centerInfoRotStr = wairToNow.optionsView.HdgString (Mathf.toDegrees (chr), centerLat, centerLon, altitude);
             }
             DrawBoundedString (canvas, centerInfoBounds, paint, cx, by - dy * 2, centerInfoScaStr);
-            DrawBoundedString (canvas, centerInfoBounds, paint, cx, by - dy * 1, centerInfoRotStr);
+            DrawBoundedString (canvas, centerInfoBounds, paint, cx, by - dy,     centerInfoRotStr);
         } else {
 
             // user doesn't want any info shown, draw a little button instead
@@ -1870,7 +1767,7 @@ public class ChartView
             int dy = (int)paint.getFontSpacing ();
 
             courseInfoBounds.setEmpty ();
-            DrawBoundedString (canvas, courseInfoBounds, paint, cx, dy * 1, clDest.ident);
+            DrawBoundedString (canvas, courseInfoBounds, paint, cx, dy,     clDest.ident);
             DrawBoundedString (canvas, courseInfoBounds, paint, cx, dy * 2, courseInfoDistStr);
             DrawBoundedString (canvas, courseInfoBounds, paint, cx, dy * 3, courseInfoMCToStr);
             DrawBoundedString (canvas, courseInfoBounds, paint, cx, dy * 4, courseInfoEteStr);
@@ -1931,7 +1828,7 @@ public class ChartView
             int dy = (int)paint.getFontSpacing ();
 
             gpsInfoBounds.setEmpty ();
-            DrawBoundedString (canvas, gpsInfoBounds, paint, cx, dy * 1, gpsInfoLatStr);
+            DrawBoundedString (canvas, gpsInfoBounds, paint, cx, dy, gpsInfoLatStr);
             DrawBoundedString (canvas, gpsInfoBounds, paint, cx, dy * 2, gpsInfoLonStr);
             DrawBoundedString (canvas, gpsInfoBounds, paint, cx, dy * 3, gpsInfoAltStr);
             DrawBoundedString (canvas, gpsInfoBounds, paint, cx, dy * 4, gpsInfoHdgStr);
@@ -1970,7 +1867,7 @@ public class ChartView
             int by = canvasHeight - 10;
 
             DrawBoundedString (canvas, chartSelectBounds, paint, cx, by - dy * 2, "select");
-            DrawBoundedString (canvas, chartSelectBounds, paint, cx, by - dy * 1, "chart");
+            DrawBoundedString (canvas, chartSelectBounds, paint, cx, by - dy,     "chart");
         } else {
 
             /*
@@ -2018,599 +1915,6 @@ public class ChartView
     }
 
     /**
-     * Group of same-sized air charts sown together.
-     */
-    private class AutoAirChart extends Chart implements Comparator<AirChart> {
-        private AirChart[] chartArray;
-        private LinkedList<AirChart> chartList = new LinkedList<> ();
-
-        public AutoAirChart (String cat)
-        {
-            basename = "Auto " + cat;
-        }
-
-        public void ClearCharts ()
-        {
-            chartList.clear ();
-            chartArray = null;
-        }
-
-        public void AddChart (AirChart chart)
-        {
-            chartList.add (chart);
-            chartArray = null;
-        }
-
-        /**
-         * Return color to draw button text color.
-         */
-        @Override  // Chart
-        public int DownldLinkColor ()
-        {
-            return Color.CYAN;
-        }
-
-        /**
-         * Draw chart on canvas possibly scaled and/or rotated.
-         * @param canvas = canvas to draw on
-         */
-        @Override  // Chart
-        public void DrawOnCanvas (Canvas canvas)
-        {
-            if (chartArray == null) {
-                chartArray = chartList.toArray (new AirChart[chartList.size()]);
-                Arrays.sort (chartArray, this);
-            }
-            for (AirChart c : chartArray) {
-                MaintView.PossibleChart pc = c.possibleChart;
-                if (pc.LatLonIsCharted (tlLat, tlLon) ||
-                    pc.LatLonIsCharted (trLat, trLon) ||
-                    pc.LatLonIsCharted (brLat, brLon) ||
-                    pc.LatLonIsCharted (blLat, blLon)) {
-                    c.DrawOnCanvas (canvas, false, true);
-                }
-            }
-        }
-
-        /**
-         * Sort such that northeastern charts are drawn first,
-         * as the north and east edges should be on top when
-         * there is any overlapping.
-         */
-        @Override  // Comparator
-        public int compare (AirChart a, AirChart b)
-        {
-            int aao = a.possibleChart.autoOrder;
-            int bao = b.possibleChart.autoOrder;
-            return aao - bao;
-        }
-    }
-
-    /**
-     * Contains one aeronautical chart.
-     */
-    private class AirChart extends Chart {
-        private AirTile[] tilez;                  // tiles that compose the chart
-        public MaintView.PossibleChart possibleChart;
-
-        public AirChart (String csvLine)
-        {
-            String[] values = Lib.QuotedCSVSplit (csvLine);
-            basename = values[15];
-
-            for (MaintView.Downloadable dl : wairToNow.maintView.allDownloadables) {
-                if (dl instanceof MaintView.PossibleChart) {
-                    MaintView.PossibleChart pc = (MaintView.PossibleChart) dl;
-                    if (basename.startsWith (pc.spacename + " ")) {
-                        possibleChart = pc;
-                        break;
-                    }
-                }
-            }
-        }
-
-        /**
-         * Compute a latitude given a longitude and a Y-pixel.
-         * @param lon = longitude
-         * @param pixy = Y-pixel relative to top of chart
-         * @returns latitude at that point
-         */
-        /*
-        public float LonPixY2Lat (float lon, int pixy)
-        {
-            if (tfw_b != 0) throw new RuntimeException ("tu stoopid to handle tilted chart");
-
-            float l = lon / 180.0F * Mathf.PI;
-            float N = tfw_d * pixy + tfw_f;
-
-            // From LatLon2Pixel():
-            //
-            //   p = r * F / (tan (pi/4 + o/2) ** n)
-            //   t = n * (l - l0)
-            //   E = p * sin (t)
-            //   N = p0 - p * cos (t)
-            //
-            // Now solve for o given l and N (we don't care about E):
-            //
-            //   t = n * (l - l0)
-            //
-            //   N = p0 - p * cos (t)  =>  p = (p0 - N) / cos (t)
-            //
-            //   p = r * F / (tan (pi/4 + o/2) ** n)  => tan (pi/4 + o/2) ** n = r * F / p  =>
-            //       o = arctan ((r * F / p) ** 1/n) * 2 - pi/2 = arctan ((r * F * cos (t) / (p0 - N)) ** 1/n) * 2 - pi/2
-
-            float t = lamb_n * (l - lamb_l0);
-            float o = Mathf.atan (Mathf.pow (radius * lamb_F * Mathf.cos (t) / (lamb_p0 - N), 1.0 / lamb_n)) * 2 - Mathf.PI / 2;
-
-            return o / Mathf.PI * 180.0;
-        }
-        */
-
-        /**
-         * Compute a longitude given a latitude and an X-pixel.
-         * @param lat = latitude
-         * @param pixx = X-pixel relative to left edge of chart
-         * @returns latitude at that point
-         */
-        /*
-        public float LatPixX2Lon (float lat, int pixx)
-        {
-            if (tfw_c != 0) throw new RuntimeException ("tu stoopid to handle tilted chart");
-
-            float o = lat / 180.0F * Mathf.PI;
-            float E = (tfw_a * pixx + tfw_e) / (1.0 + 1.0 / 250.0);
-
-            // From LatLon2Pixel():
-            //
-            //   p = r * F / (tan (pi/4 + o/2) ** n)
-            //   t = n * (l - l0)
-            //   E = p * sin (t)
-            //   N = p0 - p * cos (t)
-            //
-            // Now solve for l given o and E (we don't care about N):
-            //
-            //   p = r * F / (tan (pi/4 + o/2) ** n)
-            //
-            //   E = p * sin (t)  =>  t = arcsin (E / p)
-            //
-            //   t = n * (l - l0)  =>  l = t / n + l0
-
-            float p = radius * lamb_F / Mathf.pow (Mathf.tan (Mathf.PI / 4 + o / 2), lamb_n);
-            float t = Mathf.asin (E / p);
-            float l = t / lamb_n + lamb_l0;
-
-            return l / Mathf.PI * 180.0;
-        }
-        */
-
-        /**
-         * Return color to draw button text color.
-         */
-        @Override  // Chart
-        public int DownldLinkColor ()
-        {
-            return possibleChart.DownldLinkColor ();
-        }
-
-        /**
-         * Draw chart on canvas possibly scaled and/or rotated.
-         * @param canvas = canvas to draw on
-         */
-        @Override  // Chart
-        public void DrawOnCanvas (Canvas canvas)
-        {
-            DrawOnCanvas (canvas, true, false);
-        }
-        public void DrawOnCanvas (Canvas canvas, boolean includeLegends, boolean blankBackground)
-        {
-            /*
-             * Create transformation matrix that scales and rotates the chart
-             * as a whole such that the given points match up.
-             *
-             *    [matrix] * [some_xy_in_chart] => [some_xy_in_canvas]
-             */
-            float[] points = drawOnCanvasPoints;
-            Point point = drawOnCanvasPoint;
-
-            possibleChart.LatLon2Pixel (tlLat, tlLon, point);
-            points[ 0] = point.x;  points[ 8] = 0;
-            points[ 1] = point.y;  points[ 9] = 0;
-
-            possibleChart.LatLon2Pixel (trLat, trLon, point);
-            points[ 2] = point.x;  points[10] = canvasWidth;
-            points[ 3] = point.y;  points[11] = 0;
-
-            possibleChart.LatLon2Pixel (blLat, blLon, point);
-            points[ 4] = point.x;  points[12] = 0;
-            points[ 5] = point.y;  points[13] = canvasHeight;
-
-            possibleChart.LatLon2Pixel (brLat, brLon, point);
-            points[ 6] = point.x;  points[14] = canvasWidth;
-            points[ 7] = point.y;  points[15] = canvasHeight;
-
-            if (!drawOnCanvasChartMat.setPolyToPoly (points, 0, points, 8, 4)) {
-                Log.e ("ChartView", "can't position chart");
-                return;
-            }
-
-            /*
-             * Get size of the canvas that we are drawing on.
-             * Don't use clip bounds because we want all tiles for the canvas marked
-             * as referenced so we don't keep loading and unloading the bitmaps.
-             */
-            canvasBounds.right  = canvasWidth;
-            canvasBounds.bottom = canvasHeight;
-
-            /*
-             * When zoomed out, scaling < 1.0 and we want to undersample the bitmaps by that
-             * much.  Eg, if scaling = 0.5, we want to sample half**2 the bitmap pixels and
-             * scale the bitmap back up to twice its size.  But when zoomed in, ie, scaling
-             * > 1.0, we don't want to oversample the bitmaps, just sample them normally, so
-             * we don't run out of memory doing so.  Also, using a Mathf.ceil() on it seems to
-             * use up a lot less memory than using arbitrary real numbers.
-             */
-            float ts = Mathf.hypot (points[6] - points[0], points[7] - points[1])
-                               / Mathf.hypot (canvasWidth, canvasHeight);
-            int tileScaling = (int) Mathf.ceil (ts);
-
-            /*
-             * Scan through each tile that composes the chart.
-             */
-            Matrix tileMat = drawOnCanvasTileMat;
-            for (AirTile tile : GetAirTiles ()) {
-
-                /*
-                 * Maybe skip tiles that contain only legend info.
-                 */
-                boolean wholeTile = true;
-                if (!includeLegends) {
-                    if (tile.isLegendOnly) continue;
-                    wholeTile = tile.isChartedOnly;
-                }
-
-                /*
-                 * Set up a matrix that maps the tile onto the canvas.
-                 */
-                tileMat.setTranslate (tile.leftPixel, tile.topPixel);
-                                                            // translate tile into position within whole chart
-                tileMat.postConcat (drawOnCanvasChartMat);  // position tile onto canvas
-
-                /*
-                 * Compute the canvas points corresponding to the four corners of the tile.
-                 */
-                points[0] =          0; points[1] =           0;
-                points[2] = tile.width; points[3] =           0;
-                points[4] =          0; points[5] = tile.height;
-                points[6] = tile.width; points[7] = tile.height;
-                tileMat.mapPoints (points, 8, points, 0, 4);
-
-                /*
-                 * Get canvas bounds of the tile, given that the tile may be tilted.
-                 */
-                int testLeft = (int)Math.min (Math.min (points[ 8], points[10]), Math.min (points[12], points[14]));
-                int testRite = (int)Math.max (Math.max (points[ 8], points[10]), Math.max (points[12], points[14]));
-                int testTop  = (int)Math.min (Math.min (points[ 9], points[11]), Math.min (points[13], points[15]));
-                int testBot  = (int)Math.max (Math.max (points[ 9], points[11]), Math.max (points[13], points[15]));
-
-                /*
-                 * Attempt to draw tile iff it intersects the part of canvas we are drawing.
-                 * Otherwise, don't waste time and memory loading the bitmap, and certainly
-                 * don't mark the tile as referenced so we don't keep it in memory.
-                 */
-                if (canvasBounds.intersects (testLeft, testTop, testRite, testBot)) {
-                    if (tileScaling != 1) {
-                        tileMat.preScale ((float)tileScaling, (float)tileScaling);
-                    }
-                    try {
-                        Bitmap bm = tile.GetScaledBitmap (tileScaling);
-                        if (bm != null) {
-                            boolean saved = false;
-                            try {
-                                if (!wholeTile) {
-                                    // part of the tile contains legend info that we don't want displayed
-                                    // set up a clipping path to exclude legend pixels leaving charted pixels intact
-                                    canvas.save ();
-                                    saved = true;
-                                    tile.GetScaledChartedClipPath (tileScaling, tileMat, drawOnCanvasPath);
-                                    canvas.clipPath (drawOnCanvasPath);
-                                }
-                                if (blankBackground) {
-                                    // fill the area behind the bitmap with black paint.
-                                    // necessary when drawing overlapping sectional tiles
-                                    // because some of the chart black ink is really just
-                                    // alpha=0 so it gets washed out if we don't do this.
-                                    fillPath.rewind ();
-                                    fillPath.moveTo (points[ 8], points[ 9]);
-                                    fillPath.lineTo (points[10], points[11]);
-                                    fillPath.lineTo (points[14], points[15]);
-                                    fillPath.lineTo (points[12], points[13]);
-                                    fillPath.lineTo (points[ 8], points[ 9]);
-                                    canvas.drawPath (fillPath, fillBlackPaint);
-                                }
-                                canvas.drawBitmap (bm, tileMat, null);
-                            } finally {
-                                if (saved) canvas.restore ();
-                            }
-                            if (tile.tileDrawCycle == 0) loadedBitmaps.add (tile);
-                            tile.tileDrawCycle = viewDrawCycle;
-                        }
-                    } catch (Throwable t) {
-                        Log.e ("ChartView", "error drawing bitmap", t);
-                    }
-                }
-            }
-        }
-
-        /**
-         * Get list of tiles in this chart.
-         * Does not actually open the image tile files.
-         */
-        private AirTile[] GetAirTiles ()
-        {
-            if (tilez == null) {
-                int width  = possibleChart.width;
-                int height = possibleChart.height;
-                tilez = new AirTile[((height+hstep-1)/hstep)*((width+wstep-1)/wstep)];
-                int i = 0;
-                for (int h = 0; h < height; h += hstep) {
-                    for (int w = 0; w < width; w += wstep) {
-                        tilez[i++] = new AirTile (this, w, h);
-                    }
-                }
-            }
-            return tilez;
-        }
-    }
-
-    /**
-     * Contains an image that is a small part of an air chart.
-     */
-    private class AirTile implements LoadedBitmap {
-        public AirChart chart;         // chart that this tile is part of
-        public boolean isChartedOnly;  // tile contains only pixels that are in charted area
-        public boolean isLegendOnly;   // tile contains only pixels that are in legend area
-        public boolean queued;         // queued to AirTileLoader thread
-        public int leftPixel;          // where the left edge is within the chart
-        public int topPixel;           // where the top edge is within the chart
-        public int width;              // width of this tile (always wstep+overlap except for rightmost tiles)
-        public int height;             // height of this tile (always hstep+overlap except for bottommost tiles)
-        public long tileDrawCycle;     // marks the tile as being in use
-
-        private Bitmap bitmap;         // bitmap that contains the image
-        private float[] corners;       // for mixed charted/legend tiles, corners enclosing charted area
-        private int scaling;           // scaling factor used to fetch bitmap with
-
-        public AirTile (AirChart ch, int w, int h)
-        {
-            chart     = ch;
-            leftPixel = w;
-            topPixel  = h;
-
-            width  = chart.possibleChart.width  - leftPixel;
-            height = chart.possibleChart.height - topPixel;
-            if (width  > wstep + overlap) width  = wstep + overlap;
-            if (height > hstep + overlap) height = hstep + overlap;
-
-            boolean a = chart.possibleChart.PixelIsCharted (leftPixel, topPixel);
-            boolean b = chart.possibleChart.PixelIsCharted (leftPixel + width, topPixel);
-            boolean c = chart.possibleChart.PixelIsCharted (leftPixel + width, topPixel + height);
-            boolean d = chart.possibleChart.PixelIsCharted (leftPixel, topPixel + height);
-            isChartedOnly = a & b & c & d;
-            isLegendOnly  = !a & !d & !c & !d;
-        }
-
-        /**
-         * Load the corresponding bitmap and scale it.
-         * Scale it here to save memory, eg, if we are
-         * drawing a 128x128 pixel area on canvas, only
-         * load a 128x128 pixel bitmap.
-         * @param s = scaling:
-         *          1: full size
-         *          2: half-sized, eg, condense 256x256 image down to 128x128 pixels
-         *          3: third-sized, etc
-         * @return bitmap of the tile (or null if not available right now)
-         */
-        public Bitmap GetScaledBitmap (int s)
-        {
-            Bitmap bm = null;
-            synchronized (tilesToLoad) {
-
-                // don't mess with it if it is queued for loading
-                if (!queued) {
-
-                    // not queued, make sure same scaling as before
-                    // discard previous bitmap if scaling different
-                    if (scaling != s) {
-                        if (bitmap != null) {
-                            bitmap.recycle ();
-                            bitmap = null;
-                        }
-                        scaling = s;
-                    }
-
-                    // if we don't have bitmap in memory,
-                    // queue to thread for loading
-                    bm = bitmap;
-                    if (bm == null) {
-                        tilesToLoad.addLast (this);
-                        queued = true;
-                        if (airTileLoader == null) {
-                            airTileLoader = new AirTileLoader ();
-                            airTileLoader.start ();
-                        } else {
-                            tilesToLoad.notifyAll ();
-                        }
-                    }
-                }
-            }
-            return bm;
-        }
-
-        /**
-         * Called by AirTileThread to read bitmap into memorie.
-         */
-        public Bitmap LoadBitmap ()
-        {
-            BitmapFactory.Options bfo = new BitmapFactory.Options ();
-            bfo.inDensity = scaling;
-            bfo.inInputShareable = true;
-            bfo.inPurgeable = true;
-            bfo.inScaled = true;
-            bfo.inTargetDensity = 1;
-
-            String pngName = WairToNow.dbdir + "/charts/" +
-                    chart.basename.replace (' ', '_') + "/" +
-                    Integer.toString (topPixel / hstep) + "/" +
-                    Integer.toString (leftPixel / wstep) + ".png";
-            try {
-                return BitmapFactory.decodeFile (pngName, bfo);
-            } catch (Throwable t) {
-                Log.e ("WairToNow", "error loading bitmap " + pngName, t);
-                return null;
-            }
-        }
-
-        @Override  // LoadedBitmap
-        public void CloseBitmap ()
-        {
-            if (bitmap != null) {
-                bitmap.recycle ();
-                bitmap = null;
-            }
-            tileDrawCycle = 0;
-        }
-
-        /**
-         * Tile contains legend info that we don't want and charted info that we do want.
-         * So set up clipping path that only includes the charting pixels.
-         * @param s = scale factor used to fetch bitmap
-         * @param mat = maps scaled tile bitmap pixels to canvas pixels
-         * @param clip = where to put clipping path in canvas pixels
-         */
-        public void GetScaledChartedClipPath (int s, Matrix mat, Path clip)
-        {
-            // get unscaled bitmap corners clipped to the charting pixels, excluding legend pixels.
-            float[] bmc = corners;
-            if (bmc == null) {
-                corners = bmc = new float[8];
-                chart.possibleChart.GetChartedClipPath (bmc, leftPixel, topPixel, leftPixel + width, topPixel + height);
-                for (int i = 0; i < 8;) {
-                    bmc[i++] -= leftPixel;
-                    bmc[i++] -= topPixel;
-                }
-            }
-
-            // make them relative to the scaled bitmap
-            float[] atc = airTileCorners;
-            for (int i = 0; i < 8; i += 2) {
-                atc[i+0] = bmc[i+0] / s;
-                atc[i+1] = bmc[i+1] / s;
-            }
-
-            // convert them to canvas pixels
-            mat.mapPoints (atc);
-
-            // make clip path based on the canvas pixels that enclose the charting pixels
-            clip.rewind ();
-            clip.moveTo (atc[0], atc[1]);
-            clip.lineTo (atc[2], atc[3]);
-            clip.lineTo (atc[4], atc[5]);
-            clip.lineTo (atc[6], atc[7]);
-            clip.lineTo (atc[0], atc[1]);
-        }
-    }
-
-    /**
-     * Load air tiles in a background thread to keep GUI responsive.
-     */
-    private class AirTileLoader extends Thread {
-
-        @Override
-        public void run ()
-        {
-            setName ("AirTile loader");
-
-            try {
-                /*
-                 * Once started, we keep going forever.
-                 */
-                while (true) {
-
-                    /*
-                     * Get a tile to load.  If none, wait for something.
-                     * But tell GUI thread to re-draw screen cuz we probably
-                     * just loaded a bunch of tiles.
-                     */
-                    AirTile tile;
-                    synchronized (tilesToLoad) {
-                        while (tilesToLoad.isEmpty ()) {
-                            postInvalidate ();
-                            SQLiteDBs.CloseAll ();
-                            tilesToLoad.wait ();
-                        }
-                        tile = tilesToLoad.removeFirst ();
-                    }
-
-                    /*
-                     * Got something to do, try to load the tile in memory.
-                     */
-                    Bitmap bm = tile.LoadBitmap ();
-
-                    /*
-                     * Mark that we are done trying to load the bitmap.
-                      */
-                    synchronized (tilesToLoad) {
-                        tile.bitmap = bm;
-                        tile.queued = false;
-                    }
-                }
-            } catch (InterruptedException ie) {
-                Log.e ("WairToNow", "error loading tiles", ie);
-            } finally {
-                SQLiteDBs.CloseAll ();
-                airTileLoader = null;
-            }
-        }
-    }
-
-    /**
-     * Single instance contains all the street map tiles for the whole world.
-     */
-    private class StreetChart extends Chart implements LoadedBitmap {
-        public StreetChart ()
-        {
-            basename = "Street";
-        }
-
-        /**
-         * Return color to draw button text color.
-         */
-        @Override  // Chart
-        public int DownldLinkColor ()
-        {
-            return Color.CYAN;
-        }
-
-        /**
-         * Draw tiles to canvas corresponding to lat,lon of current screen.
-         */
-        @Override  // Chart
-        public void DrawOnCanvas (Canvas canvas)
-        {
-            wairToNow.openStreetMap.Draw (canvas, pmap, ChartView.this, GetCanvasHdgRads ());
-        }
-
-        /**
-         * Screen is being closed, close all open bitmaps.
-         */
-        @Override  // LoadedBitmap
-        public void CloseBitmap ()
-        {
-            wairToNow.openStreetMap.CloseBitmaps ();
-        }
-    }
-
-    /**
      * One of these per sectional giving CAP gridding.
      */
     private static class CapGrid {
@@ -2649,12 +1953,16 @@ public class ChartView
          */
         public int number (float lon, float lat)
         {
-            int w = (int) ((east  - west)  * 4.0);    // width in 15' increments
-            int h = (int) ((north - south) * 4.0);    // height in 15' increments
-            int x = (int) ((lon  - west) * 4.0);      // X to right of west in 15' increments
-            int y = (int) ((north - lat) * 4.0) - 1;  // Y below north in 15' increments
-            if ((x < 0) || (x >= w)) return -1;
+            int w = (int) ((east - west) * 4.0F);  // width in 15' increments
+            int x = (int) ((lon  - west) * 4.0F);  // X to right of west in 15' increments
+            if (w < 0) w += 360 * 4;
+            if (x < 0) x += 360 * 4;
+            if (x >= w) return -1;
+
+            int h = (int) ((north - south) * 4.0F);    // height in 15' increments
+            int y = (int) ((north - lat) * 4.0F) - 1;  // Y below north in 15' increments
             if ((y < 0) || (y >= h)) return -1;
+
             return w * y + x + 1;
         }
 
@@ -2685,9 +1993,8 @@ public class ChartView
      */
     private class ChartSelectDialog implements ListAdapter,
             DialogInterface.OnClickListener {
-        private TextView[] chartViews;
-        private TreeMap<String,Chart> downloadedCharts;
-        private TreeMap<String,MaintView.PossibleChart> possibleCharts;
+        private TreeMap<String,DisplayableChart> displayableCharts;
+        private View[] chartViews;
 
         /**
          * Build button list based on what charts cover the current position
@@ -2695,44 +2002,34 @@ public class ChartView
          */
         public void Show ()
         {
+            reselectLastChart = false;
             waitingForChartDownload = null;
 
             /*
-             * Find charts that cover each of the corners.
+             * Find charts that cover each of the corners and edges.
              * Street chart coverts the whole world so it is always downloaded.
              */
-            downloadedCharts = new TreeMap<> ();
-            possibleCharts = new TreeMap<> ();
-            downloadedCharts.put (streetChart.basename, streetChart);
+            displayableCharts = new TreeMap<> ();
+            displayableCharts.put (streetChart.GetSpacenameSansRev (), streetChart);
 
             boolean autoSecHit = false;
             boolean autoWacHit = false;
-            for (MaintView.Downloadable dl : wairToNow.maintView.allDownloadables) {
-                if (!(dl instanceof MaintView.PossibleChart)) continue;
-                MaintView.PossibleChart pc = (MaintView.PossibleChart) dl;
-                for (LatLon ccLatLon : canvasCornersLatLon) {
-                    if (pc.LatLon2Pixel (ccLatLon.lat, ccLatLon.lon, null)) {
-                        String spn = pc.spacename;
-                        String spnsp = spn + " ";
-                        Chart chart = null;
-                        for (Chart c : allDownloadedAirCharts) {
-                            if (c.basename.startsWith (spnsp)) {
-                                chart = c;
-                                break;
-                            }
-                        }
-                        downloadedCharts.put (spn, chart);
-                        possibleCharts.put (spn, pc);
+            for (Iterator<AirChart> it = wairToNow.maintView.GetAirChartIterator (); it.hasNext ();) {
+                AirChart ac = it.next ();
+                for (LatLon cmll : canvasMappingLatLons) {
+                    if (ac.LatLon2Pixel (cmll.lat, cmll.lon, null)) {
+                        String spn = ac.GetSpacenameSansRev ();
+                        displayableCharts.put (spn, ac);
 
-                        if (!autoSecHit && spn.contains ("SEC") && pc.LatLonIsCharted (ccLatLon.lat, ccLatLon.lon)) {
-                            downloadedCharts.put (autoSecAirChart.basename, autoSecAirChart);
+                        if (!autoSecHit && spn.contains ("SEC") && ac.LatLonIsCharted (cmll.lat, cmll.lon)) {
+                            displayableCharts.put (autoSecAirChart.GetSpacenameSansRev (), autoSecAirChart);
                             autoSecHit = true;
                         }
-                        if (!autoWacHit && spn.contains ("WAC") && pc.LatLonIsCharted (ccLatLon.lat, ccLatLon.lon)) {
-                            downloadedCharts.put (autoWacAirChart.basename, autoWacAirChart);
+                        if (!autoWacHit && spn.contains ("WAC") && ac.LatLonIsCharted (cmll.lat, cmll.lon)) {
+                            displayableCharts.put (autoWacAirChart.GetSpacenameSansRev (), autoWacAirChart);
                             autoWacHit = true;
                         }
-                        break;
+                        if (autoSecHit && autoWacHit) break;
                     }
                 }
             }
@@ -2741,19 +2038,17 @@ public class ChartView
              * Make a button for each chart found.
              * List them in alphabetical order.
              */
-            int ncharts = downloadedCharts.size ();
-            chartViews = new TextView[ncharts];
+            int ncharts = displayableCharts.size ();
+            chartViews = new View[ncharts];
             int i = 0;
-            for (String spacename : downloadedCharts.keySet ()) {
-                Chart dc = downloadedCharts.get (spacename);
+            for (String spacename : displayableCharts.keySet ()) {
+                DisplayableChart dc = displayableCharts.get (spacename);
 
-                TextView tv = new TextView (wairToNow);
-                wairToNow.SetTextSize (tv);
-                tv.setBackgroundColor (Color.BLACK);
-                tv.setTag (spacename);
-                tv.setText (spacename);
-                tv.setTextColor ((dc == null) ? Color.WHITE : dc.DownldLinkColor ());
-                chartViews[i++] = tv;
+                View v = dc.GetMenuSelector (ChartView.this);
+                v.setBackgroundColor ((dc == selectedChart) ? Color.DKGRAY : Color.BLACK);
+                v.setTag (spacename);
+
+                chartViews[i++] = v;
             }
 
             /*
@@ -2858,12 +2153,11 @@ public class ChartView
         @Override
         public void onClick (DialogInterface dialog, int which)
         {
-            TextView tv = chartViews[which];
-            final String spacename = (String) tv.getTag ();
-            Chart dc = downloadedCharts.get (spacename);
-            if (dc != null) {
-                selectedChart = dc;
-                invalidate ();
+            View tv = chartViews[which];
+            String spacename = (String) tv.getTag ();
+            final DisplayableChart dc = displayableCharts.get (spacename);
+            if (dc.IsDownloaded ()) {
+                SelectChart (dc);
             } else {
                 AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
                 adb.setTitle ("Chart Select");
@@ -2874,14 +2168,40 @@ public class ChartView
                     {
                         selectedChart = null;
                         invalidate ();
-                        waitingForChartDownload = spacename;
-                        MaintView.PossibleChart pc = possibleCharts.get (spacename);
-                        pc.DownloadSingle ();
+                        waitingForChartDownload = dc;
+                        wairToNow.maintView.StartDownloadingChart (dc.GetSpacenameSansRev ());
                     }
                 });
                 adb.setNegativeButton ("Cancel", null);
                 adb.show ();
             }
         }
+    }
+
+    /**
+     * Download completed, redraw screen with newly downloaded chart.
+     */
+    public void DownloadComplete ()
+    {
+        if (waitingForChartDownload != null) {
+            if (waitingForChartDownload.IsDownloaded ()) {
+                SelectChart (waitingForChartDownload);
+            }
+            waitingForChartDownload = null;
+        }
+    }
+
+    /**
+     * Select the given chart.  Remember it in case we are restarted so we can reselect it.
+     * @param dc = null: show splash screen; else: show given chart if it is in range
+     */
+    private void SelectChart (DisplayableChart dc)
+    {
+        selectedChart = dc;
+        invalidate ();
+        SharedPreferences prefs = wairToNow.getPreferences (Activity.MODE_PRIVATE);
+        SharedPreferences.Editor editr = prefs.edit ();
+        editr.putString ("selectedChart", dc.GetSpacenameSansRev ());
+        editr.commit ();
     }
 }

@@ -31,7 +31,9 @@ import android.widget.TextView;
 import java.io.File;
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Collection;
+import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -43,10 +45,8 @@ import java.util.TreeMap;
  */
 public abstract class Waypoint {
     public final static String TAG = "WairToNow";
-    public final static float ELEV_UNKNOWN = 999999999.0F;
-    public final static int   VAR_UNKNOWN  = 999999999;
-    public final static float elevdbfact = 10.0F;
-    public final static float lldbfact = 64.0F * 64.0F * 1024.0F;
+    public final static float ELEV_UNKNOWN = 999999.0F;
+    public final static int   VAR_UNKNOWN  = 999999;
 
     public final static ArrayList<Class<? extends Waypoint>> wpclasses = GetWaypointClasses ();
 
@@ -64,9 +64,10 @@ public abstract class Waypoint {
     {
         ArrayList<Class<? extends Waypoint>> al = new ArrayList<> (4);
         al.add (Airport.class);
+        al.add (Fix.class);
+        al.add (Intersection.class);
         al.add (Localizer.class);
         al.add (Navaid.class);
-        al.add (Fix.class);
         return al;
     }
 
@@ -76,8 +77,8 @@ public abstract class Waypoint {
     public static LinkedList<Waypoint> GetWaypointsByIdent (String ident)
     {
         LinkedList<Waypoint> wplist = new LinkedList<> ();
-        int aptinfoexpdate = MaintView.GetWaypointExpDate ();
-        String dbname = "cycles56_" + aptinfoexpdate + ".db";
+        int waypointexpdate = MaintView.GetWaypointExpDate ();
+        String dbname = "waypoints_" + waypointexpdate + ".db";
         SQLiteDBs sqldb = SQLiteDBs.open (dbname);
         if (sqldb != null) {
             try {
@@ -109,9 +110,61 @@ public abstract class Waypoint {
     }
 
     /**
+     * Find airport by identifier (icaoid or faaid).
+     */
+    public static Airport GetAirportByIdent (String ident)
+    {
+        int waypointexpdate = MaintView.GetWaypointExpDate ();
+        String dbname = "waypoints_" + waypointexpdate + ".db";
+        SQLiteDBs sqldb = SQLiteDBs.open (dbname);
+        if (sqldb != null) {
+            try {
+                Cursor result = sqldb.query (
+                        "airports", Airport.dbcols,
+                        "apt_icaoid=? OR apt_faaid=?", new String[] { ident, ident },
+                        null, null, null, null);
+                try {
+                    if (result.moveToFirst ()) {
+                        return new Airport (result);
+                    }
+                } finally {
+                    result.close ();
+                }
+            } catch (Exception e) {
+                Log.e (TAG, "error reading " + dbname, e);
+            }
+        }
+        return null;
+    }
+
+    /**
      * Scan database for all waypoints matching the given key.
      * @param key = keywords with all redundant spaces removed and converted to upper case
      */
+    public static String NormalizeKey (String key)
+    {
+        // matches InsertMultipleKeys in server MakeWaypoints.cs
+        StringBuilder sb = new StringBuilder (key.length ());
+        for (int i = 0; i < key.length (); i ++) {
+            char c = key.charAt (i);
+            if ((c >= 'a') && (c <= 'z')) {
+                char u = (char) (c - 'a' + 'A');
+                sb.append (u);
+                continue;
+            }
+            if (((c >= '0') && (c <= '9')) ||
+                ((c >= 'A') && (c <= 'Z')) ||
+                (c == '_')) {
+                sb.append (c);
+                continue;
+            }
+            if ((sb.length () > 0) && (sb.charAt (sb.length () - 1) != ' ')) {
+                sb.append (' ');
+            }
+        }
+        return sb.toString ().trim ();
+    }
+
     public static LinkedList<Waypoint> GetWaypointsMatchingKey (String key)
     {
         String[] keys = key.split (" ");
@@ -120,8 +173,8 @@ public abstract class Waypoint {
         /*
          * Scan database for match on first keyword in given string.
          */
-        int aptinfoexpdate = MaintView.GetWaypointExpDate ();
-        String dbname = "cycles56_" + aptinfoexpdate + ".db";
+        int waypointexpdate = MaintView.GetWaypointExpDate ();
+        String dbname = "waypoints_" + waypointexpdate + ".db";
         SQLiteDBs sqldb = SQLiteDBs.open (dbname);
         if (sqldb != null) {
             try {
@@ -132,6 +185,7 @@ public abstract class Waypoint {
                  */
                 for (Class<? extends Waypoint> wpclass : wpclasses) {
                     String dbkytbl = (String) wpclass.getField ("dbkytbl").get (null);
+                    if (dbkytbl == null) continue;
                     Cursor result = sqldb.query (
                             dbkytbl, columns_kw_rowid,
                             "kw_key=?", new String[] { kw },
@@ -175,7 +229,7 @@ public abstract class Waypoint {
         for (Iterator<Waypoint> wpit = matches.iterator (); wpit.hasNext ();) {
             Waypoint wp = wpit.next ();
             for (String kw : keys) {
-                if (!wp.MatchesKeyword (kw)) {
+                if (!kw.equals ("") && !wp.MatchesKeyword (kw)) {
                     wpit.remove ();
                     break;
                 }
@@ -183,6 +237,16 @@ public abstract class Waypoint {
         }
 
         return matches;
+    }
+
+    // see if two waypoints are equal
+    @Override
+    public boolean equals (Object o)
+    {
+        if (o == null) return false;
+        if (!(o instanceof Waypoint)) return false;
+        Waypoint w = (Waypoint) o;
+        return w.ident.equals (ident) && (w.lat == lat) && (w.lon == lon);
     }
 
     // eg, "AIRPORT", "NAVAID:NDB", "LOCALIZER:ILS/DME", "FIX", etc.
@@ -219,6 +283,18 @@ public abstract class Waypoint {
     public boolean HasMetar ()
     {
         return false;
+    }
+
+    // maybe there is something that needs downloading
+    public boolean NeedsDwnld ()
+    {
+        return false;
+    }
+
+    // start downloading it
+    public void StartDwnld (WairToNow wtn, Runnable done)
+    {
+        done.run ();
     }
 
     /**
@@ -274,13 +350,8 @@ public abstract class Waypoint {
                 leftLon = lLon;
                 riteLon = rLon;
 
-                int bbbLat = (int) (botLat  * Waypoint.lldbfact);
-                int tttLat = (int) (topLat  * Waypoint.lldbfact);
-                int lllLon = (int) (leftLon * Waypoint.lldbfact);
-                int rrrLon = (int) (riteLon * Waypoint.lldbfact);
-
-                int aptinfoexpdate = MaintView.GetWaypointExpDate ();
-                String dbname = "cycles56_" + aptinfoexpdate + ".db";
+                int waypointexpdate = MaintView.GetWaypointExpDate ();
+                String dbname = "waypoints_" + waypointexpdate + ".db";
                 SQLiteDBs sqldb = SQLiteDBs.open (dbname);
                 if (sqldb != null) {
                     try {
@@ -293,8 +364,8 @@ public abstract class Waypoint {
                                     dbtable, dbcols,
                                     "(" + prefix + "lat BETWEEN ? AND ?) AND (" +
                                             prefix + "lon BETWEEN ? AND ?)",
-                                    new String[] { Float.toString (bbbLat), Float.toString (tttLat),
-                                            Float.toString (lllLon), Float.toString (rrrLon) },
+                                    new String[] { Float.toString (bLat), Float.toString (tLat),
+                                            Float.toString (lLon), Float.toString (rLon) },
                                     null, null, null, null);
                             Constructor<? extends Waypoint> ctor = wpclass.getConstructor (Cursor.class);
                             try {
@@ -310,7 +381,7 @@ public abstract class Waypoint {
                         Log.e (TAG, "error reading " + dbname, e);
                     }
                 } else {
-                    Log.w ("WaypointView", "no database file");
+                    Log.w (TAG, "no database file");
                 }
             }
             return found.values ();
@@ -321,7 +392,7 @@ public abstract class Waypoint {
         public final static String  dbtable = "airports";
         public final static String  dbkeyid = "apt_icaoid";
         public final static String  dbkytbl = "aptkeys";
-        public final static String[] dbcols = new String[] { "apt_icaoid", "apt_faaid", "apt_elev", "apt_name", "apt_lat", "apt_lon", "apt_desc" };
+        public final static String[] dbcols = new String[] { "apt_icaoid", "apt_faaid", "apt_elev", "apt_name", "apt_lat", "apt_lon", "apt_desc", "apt_state" };
 
         public  final String name;       // eg, "BEVERLY MUNI"
         public  final String faaident;   // non-ICAO ident
@@ -329,21 +400,23 @@ public abstract class Waypoint {
         private HashMap<String,Runway> runways;
         private String details;
         private String menuKey;
+        private String state;
 
         public Airport (Cursor result)
         {
             ident    = result.getString (0);  // ICAO identifier
             faaident = result.getString (1);  // FAA identifier
-            elev     = result.getInt (2) / elevdbfact;
+            elev     = result.isNull (2) ? ELEV_UNKNOWN : result.getFloat (2);
             name     = result.getString (3);
-            lat      = result.getInt (4) / lldbfact;
-            lon      = result.getInt (5) / lldbfact;
+            lat      = result.getFloat (4);
+            lon      = result.getFloat (5);
+            state    = result.getString (7);  // two letters
         }
 
         public static Airport GetByFaaID (String faaid)
         {
-            int aptinfoexpdate = MaintView.GetWaypointExpDate ();
-            String db56name = "cycles56_" + aptinfoexpdate + ".db";
+            int waypointexpdate = MaintView.GetWaypointExpDate ();
+            String db56name = "waypoints_" + waypointexpdate + ".db";
             SQLiteDBs sql56db = SQLiteDBs.open (db56name);
             if (sql56db == null) return null;
             Cursor resultapt = sql56db.query (
@@ -382,8 +455,8 @@ public abstract class Waypoint {
             HashMap<String,Integer> latestexpdates = new HashMap<> ();
 
             for (String dbname : dbnames) {
-                if (dbname.startsWith ("cycles28_") && dbname.endsWith (".db")) {
-                    int expdate = Integer.parseInt (dbname.substring (9, dbname.length () - 3));
+                if (dbname.startsWith ("plates_") && dbname.endsWith (".db")) {
+                    int expdate = Integer.parseInt (dbname.substring (7, dbname.length () - 3));
                     if (latestexpdate < expdate) {
                         SQLiteDBs sqldb = SQLiteDBs.open (dbname);
                         if ((sqldb != null) && sqldb.tableExists ("plates")) {
@@ -410,6 +483,8 @@ public abstract class Waypoint {
             }
 
             // also, we can synthesize a runway diagram from openstreetmap tiles
+            // give it a way-in-the-future expiration date cuz we build it on the fly
+            // and so don't need to download anything for it
             latestplates.put   ("RWY-RUNWAY DIAGRAM", "-");
             latestexpdates.put ("RWY-RUNWAY DIAGRAM", 99999999);
 
@@ -456,6 +531,23 @@ public abstract class Waypoint {
             return new File (name).exists ();
         }
 
+        // maybe there is something that needs downloading
+        public boolean NeedsDwnld ()
+        {
+            Calendar nowcal = new GregorianCalendar ();
+            int nowdate = nowcal.get (Calendar.YEAR) * 10000 +
+                          nowcal.get (Calendar.MONTH) * 10 +
+                          nowcal.get (Calendar.DAY_OF_MONTH);
+            int enddate = MaintView.GetPlatesExpDate (state);
+            return enddate <= nowdate;
+        }
+
+        // start downloading it
+        public void StartDwnld (WairToNow wtn, Runnable done)
+        {
+            wtn.maintView.StateDwnld (state, done);
+        }
+
         public HashMap<String,Runway> GetRunways ()
         {
             if (runways == null) {
@@ -465,9 +557,9 @@ public abstract class Waypoint {
                  * Read list of runways into airport waypoint list.
                  */
                 runways = new HashMap<> ();
-                int aptinfoexpdate = MaintView.GetWaypointExpDate ();
+                int waypointexpdate = MaintView.GetWaypointExpDate ();
 
-                String dbname = "cycles56_" + aptinfoexpdate + ".db";
+                String dbname = "waypoints_" + waypointexpdate + ".db";
                 SQLiteDBs sqldb = SQLiteDBs.open (dbname);
                 if (sqldb != null) {
                     try {
@@ -499,8 +591,8 @@ public abstract class Waypoint {
         private String GetArptDetails ()
         {
             if (details == null) {
-                int aptinfoexpdate = MaintView.GetWaypointExpDate ();
-                String dbname = "cycles56_" + aptinfoexpdate + ".db";
+                int waypointexpdate = MaintView.GetWaypointExpDate ();
+                String dbname = "waypoints_" + waypointexpdate + ".db";
                 SQLiteDBs sqldb = SQLiteDBs.open (dbname);
                 if (sqldb == null) return "<missing>";
                 Cursor result = sqldb.query (
@@ -621,10 +713,10 @@ public abstract class Waypoint {
             aptid   = result.getString (0);
             number  = result.getString (1);
             elev    = result.isNull (3) ? apt.elev : result.getFloat (3);
-            begLat  = result.getInt (4) / lldbfact;
-            begLon  = result.getInt (5) / lldbfact;
-            endLat  = result.getInt (6) / lldbfact;
-            endLon  = result.getInt (7) / lldbfact;
+            begLat  = result.getFloat (4);
+            begLon  = result.getFloat (5);
+            endLat  = result.getFloat (6);
+            endLon  = result.getFloat (7);
             airport = apt;
 
             trueHdg = Lib.LatLonTC (begLat, begLon, endLat, endLon);
@@ -741,10 +833,10 @@ public abstract class Waypoint {
         {
             this.type  = result.getString (0);
             this.ident = result.getString (1);
-            this.elev  = result.getInt (2) / elevdbfact;
+            this.elev  = result.isNull (2) ? ELEV_UNKNOWN : result.getFloat (2);
             this.descr = result.getString (3);
-            this.lat   = result.getInt (4) / lldbfact;
-            this.lon   = result.getInt (5) / lldbfact;
+            this.lat   = result.getFloat (4);
+            this.lon   = result.getFloat (5);
         }
 
         @Override
@@ -766,7 +858,7 @@ public abstract class Waypoint {
         }
     }
 
-    private static class Navaid extends Waypoint {
+    public static class Navaid extends Waypoint {
         public final static String  dbtable = "navaids";
         public final static String  dbkeyid = "nav_faaid";
         public final static String  dbkytbl = "navkeys";
@@ -779,11 +871,11 @@ public abstract class Waypoint {
         {
             this.type   = result.getString (0);
             this.ident  = result.getString (1);
-            this.elev   = result.getInt (2) / elevdbfact;
+            this.elev   = result.isNull (2) ? ELEV_UNKNOWN : result.getFloat (2);
             this.descr  = result.getString (3);
-            this.lat    = result.getInt (4) / lldbfact;
-            this.lon    = result.getInt (5) / lldbfact;
-            this.magvar = result.getInt (6);
+            this.lat    = result.getFloat (4);
+            this.lon    = result.getFloat (5);
+            this.magvar = result.isNull (6) ? VAR_UNKNOWN : result.getInt (6);
         }
 
         @Override
@@ -816,8 +908,8 @@ public abstract class Waypoint {
         public Fix (Cursor result)
         {
             this.ident = result.getString (0);
-            this.lat   = result.getInt (1) / lldbfact;
-            this.lon   = result.getInt (2) / lldbfact;
+            this.lat   = result.getFloat (1);
+            this.lon   = result.getFloat (2);
             this.descr = result.getString (3);
         }
 
@@ -830,13 +922,116 @@ public abstract class Waypoint {
         @Override
         public String GetDetailText ()
         {
-            return "Intersection " + ident + ": " + descr;
+            return "Fix " + ident + ": " + descr;
         }
 
         @Override
         public String MenuKey ()
         {
             return GetDetailText ();
+        }
+    }
+
+    /**
+     * Numbered airway intersections.
+     * Defined in AWY.txt for intersections of airways where there is no fix.
+     */
+    public static class Intersection extends Waypoint {
+        public final static String  dbtable = "intersections";
+        public final static String  dbkeyid = "int_num";
+        public final static String  dbkytbl = null;
+        public final static String[] dbcols = new String[] { "int_num", "int_lat", "int_lon", "int_type" };
+
+        private String type;
+
+        public Intersection (Cursor result)
+        {
+            this.ident = result.getString (0);
+            this.lat   = result.getFloat  (1);
+            this.lon   = result.getFloat  (2);
+            this.type  = result.getString (3);
+        }
+
+        @Override
+        public String GetType ()
+        {
+            return "INT";
+        }
+
+        @Override
+        public String GetDetailText ()
+        {
+            return "Intersection " + ident + ": " + type;
+        }
+
+        @Override
+        public String MenuKey ()
+        {
+            return GetDetailText ();
+        }
+    }
+
+    /**
+     * Airways - series of waypoints, not just a single waypoint.
+     * ident is something like 'V1' or 'J32'
+     * region is '-' for continental US, 'H' for Hawaii, 'A' for Alaska
+     */
+    public static class Airway {
+        public final static String[] regions = { "-", "A", "H" };
+
+        public String ident;            // includes region
+        public Waypoint[] waypoints;    // points in order
+
+        public static Collection<Airway> GetAirways (String ident)
+        {
+            LinkedList<Airway> airways = new LinkedList<> ();
+            for (String region : regions) {
+                Airway awy = GetAirway (ident, region);
+                if (awy != null) airways.addLast (awy);
+            }
+            return airways.isEmpty () ? null : airways;
+        }
+
+        public static Airway GetAirway (String ident, String region)
+        {
+            Airway awy = new Airway ();
+            awy.ident = ident + " " + region;
+            int waypointexpdate = MaintView.GetWaypointExpDate ();
+            String dbname = "waypoints_" + waypointexpdate + ".db";
+            SQLiteDBs sqldb = SQLiteDBs.open (dbname);
+            if (sqldb == null) return null;
+            Cursor cursor = sqldb.query (
+                    "airways", new String[] { "awy_wpident", "awy_wplat", "awy_wplon" },
+                    "awy_segid BETWEEN ? AND ?",
+                            new String[] { awy.ident + " ", awy.ident + "~" },
+                    null, null, null, null);
+            try {
+                if (!cursor.moveToFirst ()) return null;
+                awy.waypoints = new Waypoint[cursor.getCount()];
+                int i = 0;
+                do {
+                    String wpident  = cursor.getString (0);
+                    float  wplat    = cursor.getFloat (1);
+                    float  wplon    = cursor.getFloat (2);
+                    float bestnm    = 1.0F;
+                    Waypoint bestwp = null;
+                    LinkedList<Waypoint> wps = GetWaypointsByIdent (wpident);
+                    for (Waypoint wp : wps) {
+                        float nm = Lib.LatLonDist (wplat, wplon, wp.lat, wp.lon);
+                        if (bestnm > nm) {
+                            bestnm = nm;
+                            bestwp = wp;
+                        }
+                    }
+                    if (bestwp == null) {
+                        throw new RuntimeException ("airway " + awy.ident + " undefined waypoint " + wpident);
+                    }
+                    awy.waypoints[i++] = bestwp;
+                } while (cursor.moveToNext ());
+                return awy;
+            } finally {
+                cursor.close ();
+            }
         }
     }
 }

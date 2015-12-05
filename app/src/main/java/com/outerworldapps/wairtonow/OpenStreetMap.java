@@ -50,11 +50,9 @@ import android.view.View;
 public class OpenStreetMap {
     private final static String TAG = "WairToNow";
 
-    private static final int BitmapWidth = 256;
-    private static final int MINZOOM =  7;        // major cities and highways
-    private static final int MAXZOOM = 16;        // openstreepmap.org doesn't like serving zoom 17
-    private static final float MinPixIn = 0.24F / Lib.MMPerIn;  // .lt. half MaxPixIn
-    private static final float MaxPixIn = 0.50F / Lib.MMPerIn;  // .gt. twice MinPixIn
+    private static final int BitmapSize = 256;  // all OSM tiles are this size
+    private static final int MAXZOOM = 16;      // openstreepmap.org doesn't like serving zoom 17
+    private static final float MinPixIn = 0.24F / Lib.MMPerIn;  // min inches on screen for a tile pixel
     private static final long TILE_FILE_AGE_MS = 1000L*60*60*24*365;
     private static final long TILE_RETRY_MS = 1000L*10;
 
@@ -151,7 +149,7 @@ public class OpenStreetMap {
             if (TryToDrawTile (canvas, zoom, tileX, tileY, true)) return true;
             int tileXOut = tileX;
             int tileYOut = tileY;
-            for (int zoomOut = zoom; -- zoomOut >= MINZOOM;) {
+            for (int zoomOut = zoom; -- zoomOut >= 0;) {
                 tileXOut /= 2;
                 tileYOut /= 2;
                 if (TryToDrawTile (canvas, zoomOut, tileXOut, tileYOut, false)) return true;
@@ -160,7 +158,7 @@ public class OpenStreetMap {
         }
 
         /**
-         * Try to draw a single tile to the canvas, scaled and translated in place.
+         * Try to draw a single tile to the canvas, rotated, scaled and translated in place.
          * @param canvas = canvas to draw it on
          * @param zoomOut = zoom level to try to draw
          * @param tileXOut = which tile at that zoom level to draw
@@ -210,6 +208,11 @@ public class OpenStreetMap {
                         }
                     }
                     if (tile == null) throw new IOException ("corrupt file");
+                    int w = tile.getWidth ();
+                    int h = tile.getHeight ();
+                    if ((w != BitmapSize) || (h != BitmapSize)) {
+                        throw new IOException ("tile size " + w + " x " + h);
+                    }
                 } catch (Exception e) {
                     Log.w (TAG, "error decoding bitmap streets/" + tilename, e);
                     Lib.Ignored (pathfile.delete ());
@@ -219,20 +222,16 @@ public class OpenStreetMap {
             }
 
             /*
-             * Get rectangle outlining entire bitmap in bitmap pixels.
-             */
-            int w = tile.getWidth ();
-            int h = tile.getHeight ();
-
-            /*
              * We might be using a zoomed-out tile while correct one downloads.
              * So adjust which pixels in the zoomed-out tile have what we want.
              */
             int outed    = zoom - zoomOut;
-            int leftBmp  = ((tileX * w) >> outed) % w;
-            int topBmp   = ((tileY * h) >> outed) % h;
-            int riteBmp  = leftBmp + (w >> outed);
-            int botBmp   = topBmp  + (h >> outed);
+            int ww       = BitmapSize >> outed;
+            int hh       = BitmapSize >> outed;
+            int leftBmp  = (tileX * ww) % BitmapSize;
+            int topBmp   = (tileY * hh) % BitmapSize;
+            int riteBmp  = leftBmp + ww;
+            int botBmp   = topBmp  + hh;
             bitmappts[0] = leftBmp;
             bitmappts[1] = topBmp;
             bitmappts[2] = riteBmp;
@@ -250,11 +249,11 @@ public class OpenStreetMap {
             try {
                 if (outed > 0) {
                     canvasclip.rewind ();
-                    canvasclip.moveTo (topleftcanpix.x, topleftcanpix.y);
-                    canvasclip.lineTo (topritecanpix.x, topritecanpix.y);
-                    canvasclip.lineTo (botritecanpix.x, botritecanpix.y);
-                    canvasclip.lineTo (botleftcanpix.x, botleftcanpix.y);
-                    canvasclip.lineTo (topleftcanpix.x, topleftcanpix.y);
+                    canvasclip.moveTo (northwestcanpix.x, northwestcanpix.y);
+                    canvasclip.lineTo (northeastcanpix.x, northeastcanpix.y);
+                    canvasclip.lineTo (southeastcanpix.x, southeastcanpix.y);
+                    canvasclip.lineTo (southwestcanpix.x, southwestcanpix.y);
+                    canvasclip.lineTo (northwestcanpix.x, northwestcanpix.y);
 
                     canvas.save ();
                     saved = true;
@@ -268,7 +267,6 @@ public class OpenStreetMap {
                     throw new RuntimeException ("setPolyToPoly failed");
                 }
                 canvas.drawBitmap (tile, matrix, null);
-
             } finally {
                 if (saved) canvas.restore ();
             }
@@ -295,10 +293,10 @@ public class OpenStreetMap {
         private DisplayMetrics metrics = new DisplayMetrics ();
         protected float[] canvaspts = new float[8];
         protected int tileX, tileY, zoom;
-        protected Point topleftcanpix = new Point ();
-        protected Point topritecanpix = new Point ();
-        protected Point botleftcanpix = new Point ();
-        protected Point botritecanpix = new Point ();
+        protected Point northwestcanpix = new Point ();
+        protected Point northeastcanpix = new Point ();
+        protected Point southwestcanpix = new Point ();
+        protected Point southeastcanpix = new Point ();
 
         // draw tile zoom/tileX/tileY.png
         public abstract boolean DrawTile ();
@@ -330,21 +328,41 @@ public class OpenStreetMap {
              * We find lowest zoom level that makes each tile pixel
              * within a certain size range on physical screen.
              */
-            float canvasWidthIn = w / metrics.xdpi;
-            float canvasHeightIn = h / metrics.ydpi;
-            float canvasWholeLonDeg = pmap.canvasEastLon - pmap.canvasWestLon;  // longitude degrees spanned by the canvas
-            float canvasWholeLonIn = canvasWidthIn * Math.abs (Mathf.cos (canvasHdgRads)) +  // width of rotated canvas
-                    canvasHeightIn * Math.abs (Mathf.sin (canvasHdgRads));
-            float tileWidthLonDeg = 360.0F / (1 << MINZOOM);  // how many deg longitude on whole zoom=MINZOOM tile width
-            float tilesPerCanvasWidthWhole = canvasWholeLonDeg / tileWidthLonDeg;  // how many zoom=MINZOOM tiles fit across the whole canvas
-            float tileWholeWidthCanvasIn = canvasWholeLonIn / tilesPerCanvasWidthWhole;  // how many canvas MMs the whole zoom=MINZOOM tile is wide
-            float tilePixWidthCanvasIn = tileWholeWidthCanvasIn / BitmapWidth;  // how many canvas MMs each zoom=MINZOOM tile pixel is wide
-            for (zoom = MINZOOM; zoom < MAXZOOM; zoom++) {
-                // if tile pixels display within acceptable size range, stop scanning
-                if ((tilePixWidthCanvasIn >= MinPixIn) && (tilePixWidthCanvasIn <= MaxPixIn)) break;
 
-                // after zooming in another level, those tile pixels will display as half the size as previous level
-                tilePixWidthCanvasIn /= 2.0;
+            // get canvas size in inches
+            float canvasWidthIn  = w / metrics.xdpi;
+            float canvasHeightIn = h / metrics.ydpi;
+
+            // width of rotated canvas in inches
+            float canvasWholeLonIn = canvasWidthIn * Math.abs (Mathf.cos (canvasHdgRads)) +
+                    canvasHeightIn * Math.abs (Mathf.sin (canvasHdgRads));
+
+            // longitude degrees spanned by the canvas
+            float canvasWholeLonDeg = pmap.canvasEastLon - pmap.canvasWestLon;
+
+            // how many deg longitude are on a tile at zoom=MAXZOOM
+            float tileWidthLonDeg = 360.0F / (1 << MAXZOOM);
+
+            // how many zoom=MINZOOM tiles fit across the whole canvas
+            float tilesPerCanvasWidthWhole = canvasWholeLonDeg / tileWidthLonDeg;
+
+            // how many canvas inches the whole zoom=MINZOOM tile is wide
+            float tileWholeWidthCanvasIn = canvasWholeLonIn / tilesPerCanvasWidthWhole;
+
+            // how many canvas inches each zoom=MINZOOM tile pixel is wide
+            float tilePixWidthCanvasIn = tileWholeWidthCanvasIn / BitmapSize;
+
+            // check each zoom level starting with zoomed-in tiles until we have tile pixel big enough
+            // eg, if the user has zoomed way out, the MAXZOOM tile pixels will be very small and so we
+            // end up stepping out a few zoom levels to get something reasonable
+            for (zoom = MAXZOOM; zoom > 0; -- zoom) {
+
+                // if tile pixels at this zoom level will be displayed big enough, stop scanning
+                if (tilePixWidthCanvasIn >= MinPixIn) break;
+
+                // after zooming out another level, the zoomed-out tile
+                // pixels will display twice the size as previous level
+                tilePixWidthCanvasIn *= 2.0F;
             }
 
             /*
@@ -359,44 +377,46 @@ public class OpenStreetMap {
              * Loop through all the possible tiles to cover the canvas.
              */
             for (tileY = minTileY; tileY <= maxTileY; tileY ++) {
-                float toplat = tileY2Lat (tileY);
-                float botlat = tileY2Lat (tileY + 1);
-                for (tileX = minTileX; tileX <= maxTileX; tileX ++) {
-                    float leftlon = tileX2Lon (tileX);
-                    float ritelon = tileX2Lon (tileX + 1);
+                float northlat = tileY2Lat (tileY);
+                float southlat = tileY2Lat (tileY + 1);
+                for (int rawTileX = minTileX; rawTileX <= maxTileX; rawTileX ++) {
+                    float westlon = tileX2Lon (rawTileX);
+                    float eastlon = tileX2Lon (rawTileX + 1);
+                    tileX = rawTileX & ((1 << zoom) - 1);
 
                     /*
                      * Get rectangle outlining where the entire bitmap goes on canvas.
                      * It's quite possible that some of the bitmap is off the canvas.
+                     * It's also quite possible that it is flipped around on the canvas.
                      */
-                    pmap.LatLonToCanvasPix (toplat, leftlon, topleftcanpix);
-                    pmap.LatLonToCanvasPix (toplat, ritelon, topritecanpix);
-                    pmap.LatLonToCanvasPix (botlat, leftlon, botleftcanpix);
-                    pmap.LatLonToCanvasPix (botlat, ritelon, botritecanpix);
-                    canvaspts[0] = topleftcanpix.x;
-                    canvaspts[1] = topleftcanpix.y;
-                    canvaspts[2] = topritecanpix.x;
-                    canvaspts[3] = topritecanpix.y;
-                    canvaspts[4] = botritecanpix.x;
-                    canvaspts[5] = botritecanpix.y;
-                    canvaspts[6] = botleftcanpix.x;
-                    canvaspts[7] = botleftcanpix.y;
+                    pmap.LatLonToCanvasPix (northlat, westlon, northwestcanpix);
+                    pmap.LatLonToCanvasPix (northlat, eastlon, northeastcanpix);
+                    pmap.LatLonToCanvasPix (southlat, westlon, southwestcanpix);
+                    pmap.LatLonToCanvasPix (southlat, eastlon, southeastcanpix);
 
                     /*
                      * If tile completely off the canvas, don't bother with it.
                      */
-                    if ((topleftcanpix.x < 0) && (topritecanpix.x < 0) && (botleftcanpix.x < 0) && (botritecanpix.x < 0))
-                        continue;
-                    if ((topleftcanpix.y < 0) && (topritecanpix.y < 0) && (botleftcanpix.y < 0) && (botritecanpix.y < 0))
-                        continue;
-                    if ((topleftcanpix.x > w) && (topritecanpix.x > w) && (botleftcanpix.x > w) && (botritecanpix.x > w))
-                        continue;
-                    if ((topleftcanpix.y > h) && (topritecanpix.y > h) && (botleftcanpix.y > h) && (botritecanpix.y > h))
-                        continue;
+                    if ((northwestcanpix.x < 0) && (northeastcanpix.x < 0) &&
+                            (southwestcanpix.x < 0) && (southeastcanpix.x < 0)) continue;
+                    if ((northwestcanpix.y < 0) && (northeastcanpix.y < 0) &&
+                            (southwestcanpix.y < 0) && (southeastcanpix.y < 0)) continue;
+                    if ((northwestcanpix.x > w) && (northeastcanpix.x > w) &&
+                            (southwestcanpix.x > w) && (southeastcanpix.x > w)) continue;
+                    if ((northwestcanpix.y > h) && (northeastcanpix.y > h) &&
+                            (southwestcanpix.y > h) && (southeastcanpix.y > h)) continue;
 
                     /*
                      * At least some part of tile is on canvas, draw it.
                      */
+                    canvaspts[0] = northwestcanpix.x;
+                    canvaspts[1] = northwestcanpix.y;
+                    canvaspts[2] = northeastcanpix.x;
+                    canvaspts[3] = northeastcanpix.y;
+                    canvaspts[4] = southeastcanpix.x;
+                    canvaspts[5] = southeastcanpix.y;
+                    canvaspts[6] = southwestcanpix.x;
+                    canvaspts[7] = southwestcanpix.y;
                     gotatile |= DrawTile ();
                 }
             }
@@ -554,7 +574,7 @@ public class OpenStreetMap {
                      * No specific tile needed right away, prefetch some runway diagram tiles.
                      */
                     int platesexpdate = MaintView.GetPlatesExpDate ();
-                    String dbname = "cycles28_" + platesexpdate + ".db";
+                    String dbname = "plates_" + platesexpdate + ".db";
                     try {
                         // get a few airports that haven't been processed yet
                         SQLiteDBs sqldb = SQLiteDBs.open (dbname);

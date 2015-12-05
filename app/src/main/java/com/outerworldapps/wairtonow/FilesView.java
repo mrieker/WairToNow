@@ -20,12 +20,16 @@
 
 package com.outerworldapps.wairtonow;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.util.Arrays;
+import java.util.zip.GZIPInputStream;
 
 import android.app.AlertDialog;
 import android.app.ProgressDialog;
@@ -41,6 +45,7 @@ import android.os.Handler;
 import android.os.Message;
 import android.util.Log;
 import android.view.View;
+import android.webkit.WebView;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.HorizontalScrollView;
@@ -55,6 +60,7 @@ import android.widget.TextView;
 public class FilesView
         extends LinearLayout
         implements Handler.Callback, WairToNow.CanBeMainView {
+    private final static String TAG = "WairToNow";
 
     private DeleteFileThread deleteFileThread;
     private Handler filesViewHandler;
@@ -202,9 +208,9 @@ public class FilesView
             if (namenotmp.endsWith (".tmp")) namenotmp = namenotmp.substring (0, namenotmp.length () - 4);
 
             /*
-             * If one of our .csv or .txt files, show file contents in a text view.
+             * If one of our .csv, .txt or .xml files, show file contents in a text view.
              */
-            if (namenotmp.endsWith (".csv") || namenotmp.endsWith (".txt")) {
+            if (namenotmp.endsWith (".csv") || namenotmp.endsWith (".txt") || namenotmp.endsWith (".xml")) {
                 TextView tv2 = new TextView (wairToNow);
                 tv2.setText (name);
                 wairToNow.SetTextSize (tv2);
@@ -242,7 +248,7 @@ public class FilesView
             /*
              * If one of our .gif or .png files, show file contents in an image view.
              */
-            if (namenotmp.endsWith (".gif") || namenotmp.endsWith (".png")) {
+            if (namenotmp.endsWith (".gif") || namenotmp.endsWith (".png") || namenotmp.contains (".gif.p")) {
                 Bitmap bitmap = BitmapFactory.decodeFile (name);
                 if (bitmap == null) {
                     TextView tv2 = new TextView (wairToNow);
@@ -259,6 +265,38 @@ public class FilesView
                     addView (tv2);
                     ImageView viewer = new ImageView (wairToNow);
                     viewer.setImageBitmap (bitmap);
+                    addView (viewer);
+                }
+                return;
+            }
+
+            /*
+             * We have .html.gz files, so display those in a web view.
+             */
+            if (namenotmp.endsWith (".html.gz")) {
+                try {
+                    BufferedReader br = new BufferedReader (new InputStreamReader
+                            (new GZIPInputStream (new FileInputStream (name))));
+                    StringBuilder sb = new StringBuilder ();
+                    String line;
+                    while ((line = br.readLine ()) != null) {
+                        sb.append (line);
+                        sb.append ('\n');
+                    }
+                    br.close ();
+
+                    WebView wv = new WebView (wairToNow);
+                    wv.getSettings ().setBuiltInZoomControls (true);
+                    wv.getSettings ().setDefaultFontSize (Math.round (wairToNow.textSize / 2.0F));
+                    wv.getSettings ().setDefaultFixedFontSize (Math.round (wairToNow.textSize / 2.0F));
+                    wv.getSettings ().setJavaScriptEnabled (true);
+                    wv.loadData (sb.toString (), "text/html", null);
+
+                    addView (wv);
+                } catch (IOException ioe) {
+                    TextView viewer = new TextView (wairToNow);
+                    viewer.setText ("error reading file: " + ioe.getMessage ());
+                    wairToNow.SetTextSize (viewer);
                     addView (viewer);
                 }
                 return;
@@ -304,7 +342,7 @@ public class FilesView
                 }
                 adb.setMessage (name + " updated");
             } catch (IOException ioe) {
-                Log.e ("FilesView", "error writing file", ioe);
+                Log.e (TAG, "error writing file", ioe);
                 adb.setMessage ("error writing " + name + ": " + ioe.getMessage ());
             }
             adb.setPositiveButton ("OK", null);

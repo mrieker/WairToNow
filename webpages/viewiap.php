@@ -24,6 +24,9 @@
      * Not needed for normal operation.
      */
 
+    $skippwcheck = TRUE;
+    require_once 'iaputil.php';
+
     if (!empty ($_GET['good'])) {
         $goodname  = $_GET['good'];
         $goodcyc28 = intval (substr ($goodname, 5, 8));
@@ -45,8 +48,6 @@
     </HEAD>
     <BODY>
         <?php
-            $cycles28 = trim (file_get_contents ("datums/aptplates_expdate.dat"));
-            $cycles56 = trim (file_get_contents ("datums/aptinfo_expdate.dat"));
             $tmpdir = "viewiap";
 
             if (isset ($_GET['iapid'])) {
@@ -293,6 +294,7 @@
                             $iap_x = urlencode ($iapid);
                             $iap_y = htmlspecialchars ($iapid);
                             echo "<LI><A HREF=\"viewiap.php?$sl&icaoid=$icaoid&faaid=$faaid&iapid=$iap_x\">$iap_y</A>\n";
+                            echoIAPGifLink ($state, $faaid, $iapid);
                             $gotiaps[$iapid] = TRUE;
                         }
                     }
@@ -313,9 +315,28 @@
                         $iap_x = urlencode ($iapid);
                         $iap_y = htmlspecialchars ($iapid);
                         echo "<LI><A HREF=\"viewiap.php?$sl&icaoid=$icaoid&faaid=$faaid&iapid=$iap_x\">$iap_y</A>\n";
+                        echoIAPGifLink ($state, $faaid, $iapid);
                     }
                 }
                 if (!$first) echo "</UL>\n";
+            }
+
+            function echoIAPGifLink ($state, $faaid, $iapid)
+            {
+                global $cycles28;
+
+                $gifcsvfile = fopen ("datums/aptplates_$cycles28/state/$state.csv", "r");
+                if ($gifcsvfile) {
+                    while ($gifcsvline = fgets ($gifcsvfile)) {
+                        $parts = QuotedCSVSplit (trim ($gifcsvline));
+                        if (($parts[0] == $faaid) && ($parts[1] == $iapid)) {
+                            $gifname = $parts[2];
+                            echo "<A HREF=\"datums/aptplates_$cycles28/$gifname.p1\" TARGET=_BLANK>(GIF)</A>\n";
+                            break;
+                        }
+                    }
+                    fclose ($gifcsvfile);
+                }
             }
 
             /**

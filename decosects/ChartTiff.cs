@@ -19,7 +19,7 @@
 //    http://www.gnu.org/licenses/gpl-2.0.html
 
 /**
- * @brief Read all about chart .tif files.
+ * @brief Read all about chart .tif files downloaded from FAA
  */
 
 using System;
@@ -36,21 +36,12 @@ public class ChartTiff {
     public string prefix;
     public string spacename;
 
-    public  double tfw_a, tfw_b, tfw_c, tfw_d, tfw_e, tfw_f;
-    public  double _R, _o1, _o2, _o0, _l0, _n, _F, _p0;
+    public double tfw_a, tfw_b, tfw_c, tfw_d, tfw_e, tfw_f;
+    public double wft_a, wft_b, wft_c, wft_d, wft_e, wft_f;
+    public int niter;
 
-    private const  double PI = Math.PI;
-    private static double DegToRad (double deg) { return deg / 180.0 * PI; }
-    private static double RadToDeg (double rad) { return rad / PI * 180.0; }
-    private static double ln   (double x) { return Math.Log (x); }
-    private static double cos  (double x) { return Math.Cos (x); }
-    private static double sin  (double x) { return Math.Sin (x); }
-    private static double tan  (double x) { return Math.Tan (x); }
-    private static double pow  (double x, double y) { return Math.Pow (x, y); }
-    private static double sq   (double x) { return x * x; }
-    private static double sqrt (double x) { return Math.Sqrt (x); }
-    private static double asin (double x) { return Math.Asin (x); }
-    private static double atan (double x) { return Math.Atan (x); }
+    private double pixelsize;
+    private double e_e, e_F_rada, e_lam0, e_n, e_phi0, e_rho0;
 
     public ChartTiff (string prefix, string spacename)
     {
@@ -68,7 +59,7 @@ public class ChartTiff {
                 throw new Exception ("no charts.csv line found for " + spacename);
             }
             chartLineFields = SplitQuotedCSVLine (chartLine);
-            string bn = chartLineFields[15];
+            string bn = chartLineFields[16];
             if (bn == spacename) break;
         }
         chartsReader.Close ();
@@ -76,16 +67,30 @@ public class ChartTiff {
         double centerLon = Double.Parse (chartLineFields[ 1]);
         double stanPar1  = Double.Parse (chartLineFields[ 2]);
         double stanPar2  = Double.Parse (chartLineFields[ 3]);
-        double radius    = Double.Parse (chartLineFields[ 6]);
-        tfw_a            = Double.Parse (chartLineFields[ 7]);
-        tfw_b            = Double.Parse (chartLineFields[ 8]);
-        tfw_c            = Double.Parse (chartLineFields[ 9]);
-        tfw_d            = Double.Parse (chartLineFields[10]);
-        tfw_e            = Double.Parse (chartLineFields[11]);
-        tfw_f            = Double.Parse (chartLineFields[12]);
+        double rada      = Double.Parse (chartLineFields[ 6]);
+        double radb      = Double.Parse (chartLineFields[ 7]);
+        tfw_a            = Double.Parse (chartLineFields[ 8]);
+        tfw_b            = Double.Parse (chartLineFields[ 9]);
+        tfw_c            = Double.Parse (chartLineFields[10]);
+        tfw_d            = Double.Parse (chartLineFields[11]);
+        tfw_e            = Double.Parse (chartLineFields[12]);
+        tfw_f            = Double.Parse (chartLineFields[13]);
+
+        double[][] mat = new double[][] {
+                new double[] { tfw_a, tfw_b, 0, 1, 0 },
+                new double[] { tfw_c, tfw_d, 0, 0, 1 },
+                new double[] { tfw_e, tfw_f, 1, 0, 0 }
+        };
+        RowReduce (mat);
+        wft_a = mat[0][3];
+        wft_b = mat[0][4];
+        wft_c = mat[1][3];
+        wft_d = mat[1][4];
+        wft_e = mat[2][3];
+        wft_f = mat[2][4];
 
         /*
-         * Read TIFF file into a bitmap.
+         * Read TIF file into a bitmap.
          */
         bmp = new Bitmap (prefix + spacename + ".tif");
         width  = bmp.Width;
@@ -93,100 +98,125 @@ public class ChartTiff {
 
         /*
          * Compute Lambert Conformal Projection parameters.
+         *
+         * Map Projections -- A Working Manual
+         * John P. Snyder
+         * US Geological Survey Professional Paper 1395
+         * http://pubs.usgs.gov/pp/1395/report.pdf
+         * see pages viii, v107, v296, ellipsoidal projection
          */
-        _R  = radius;                 // radius of sphere (metres)
-        _o1 = DegToRad (stanPar1);    // standard parallel (from .htm file)
-        _o2 = DegToRad (stanPar2);    // standard parallel (from .htm file)
-        _o0 = DegToRad (centerLat);   // origin latitude
-        _l0 = DegToRad (centerLon);   // origin longitude
+        pixelsize   = Math.Sqrt (tfw_b * tfw_b + tfw_d * tfw_d);
+        e_lam0      = ToRadians (centerLon);
+        e_phi0      = ToRadians (centerLat);
+        double phi1 = ToRadians (stanPar1);
+        double phi2 = ToRadians (stanPar2);
 
-        _n  = ln (cos (_o1) / cos (_o2)) / ln (tan (PI/4 + _o2/2) / tan (PI/4 + _o1/2));
-        _F  = (cos (_o1) * pow (tan (PI/4 + _o1/2), _n)) / _n;
-        _p0 = _R * _F / pow (tan (PI/4 + _o0/2), _n);
+        e_e = Math.Sqrt (1 - (radb * radb) / (rada * rada));
+
+        // v108: equation 14-15
+        double m1 = eq1415 (phi1);
+        double m2 = eq1415 (phi2);
+
+        // v108: equation 15-9a
+        double t0 = eq159a (e_phi0);
+        double t1 = eq159a (phi1);
+        double t2 = eq159a (phi2);
+
+        // v108: equation 15-8
+        e_n = (Math.Log (m1) - Math.Log (m2)) / (Math.Log (t1) - Math.Log (t2));
+
+        // v108: equation 15-10
+        double F = m1 / (e_n * Math.Pow (t1, e_n));
+        e_F_rada = F * rada;
+
+        // v108: equation 15-7a
+        e_rho0 = e_F_rada * Math.Pow (t0, e_n);
     }
 
     public void LatLon2Pixel (double lat, double lon, out int x, out int y)
     {
-        double denom, easting, northing, numer;
-
-        LatLon2Ings (lat, lon, out easting, out northing);
-
-        /*
-         * Compute how far north,east of upper left corner of image.
-         */
-        northing -= tfw_f;
-        easting  -= tfw_e;
+        double phi = ToRadians (lat);
+        double lam = ToRadians (lon);
 
         /*
-         * Compute corresponding pixel number.
+         * Calculate number of metres east of Longitude_of_Central_Meridian
+         * and metres north of Latitude_of_Projection_Origin using Lambert
+         * Conformal Ellipsoidal Projection formulae.
          */
-        numer = tfw_d * easting - tfw_c * northing;
-        denom = tfw_a * tfw_d - tfw_b * tfw_c;
-        x = (int)(numer / denom + 0.5);
+        // v108: equation 15-9a
+        double t = eq159a (phi);
 
-        numer = tfw_b * easting - tfw_a * northing;
-        denom = tfw_c * tfw_b - tfw_a * tfw_d;
-        y = (int)(numer / denom + 0.5);
-    }
+        // v108: equation 15-7
+        double rho = (double) (e_F_rada * Math.Pow (t, e_n));
 
-    public void LatLon2Ings (double lat, double lon, out double easting, out double northing)
-    {
-        double o  = DegToRad (lat);
-        double l  = DegToRad (lon);
+        // v108: equation 14-4
+        double theta = e_n * (lam - e_lam0);
 
-        while (l - _l0 < -Math.PI) l += 2 * Math.PI;
-        while (l - _l0 >= Math.PI) l -= 2 * Math.PI;
+        // v107: equation 14-1 -> how far east of centerLon
+        double easting = rho * Math.Sin (theta);
 
-        double p  = _R * _F / pow (tan (PI/4 + o/2), _n);
-        double t  = _n * (l - _l0);
-        easting   = p * sin (t);
-        northing  = _p0 - p * cos (t);
+        // v107: equation 14-2 -> how far north of centerLat
+        double northing = e_rho0 - rho * Math.Cos (theta);
+
+        /*
+         * Compute corresponding image pixel number.
+         */
+        x = (int) Math.Round (easting * wft_a + northing * wft_c + wft_e);
+        y = (int) Math.Round (easting * wft_b + northing * wft_d + wft_f);
     }
 
     public void Pixel2LatLon (int x, int y, out double lat, out double lon)
     {
+        // opposite steps of LatLon2Pixel()
+
         double easting  = tfw_a * x + tfw_c * y + tfw_e;
         double northing = tfw_b * x + tfw_d * y + tfw_f;
-        double _p  = sqrt (sq (easting) + sq (_p0 - northing));
-        if (_F < 0) _p = -_p;
-        double _t  = asin (easting / _p);
-        double _o  = 2 * atan (pow (_R * _F / _p, 1.0 / _n)) - PI / 2;
-        double _l  = _t / _n + _l0;
-        lat = RadToDeg (_o);
-        lon = RadToDeg (_l);
-    }
 
-    public void UpdateCSVFile (string outname)
-    {
-        StreamReader chartsReader = new StreamReader (prefix + spacename.Replace (' ', '_') + ".csv");
-        string[] chartLineFields = null;
-        while (true) {
-            string chartLine = chartsReader.ReadLine ();
-            if (chartLine == null) {
-                throw new Exception ("no charts.csv line found for " + spacename);
-            }
-            chartLineFields = SplitQuotedCSVLine (chartLine);
-            string bn = chartLineFields[15];
-            if (bn == spacename) break;
-        }
-        chartsReader.Close ();
+        // easting = rho * sin (theta)
+        // easting / rho = sin (theta)
 
-        chartLineFields[ 7] = tfw_a.ToString ();
-        chartLineFields[ 8] = tfw_b.ToString ();
-        chartLineFields[ 9] = tfw_c.ToString ();
-        chartLineFields[10] = tfw_d.ToString ();
-        chartLineFields[11] = tfw_e.ToString ();
-        chartLineFields[12] = tfw_f.ToString ();
+        // northing = e_rho0 - rho * cos (theta)
+        // rho * cos (theta) = e_rho0 - northing
+        // cos (theta) = (e_rho0 - northing) / rho
 
-        StreamWriter chartsWriter = new StreamWriter (outname);
-        bool first = true;
-        foreach (string clf in chartLineFields) {
-            if (!first) chartsWriter.Write (",");
-            chartsWriter.Write (clf);
-            first = false;
-        }
-        chartsWriter.WriteLine ("");
-        chartsWriter.Close ();
+        double theta = Math.Atan (easting / (e_rho0 - northing));
+
+        // theta = e_n * (lam - e_lam0)
+        // theta / e_n = lam - e_lam0
+        // theta / e_n + e_lam0 = lam
+
+        double lam = theta / e_n + e_lam0;
+
+        // v108: equation 14-4
+        double costheta = Math.Cos (e_n * (lam - e_lam0));
+
+        // must calculate phi (latitude) with successive approximation
+        // usually takes 3 or 4 iterations to resolve latitude within one pixel
+
+        double phi = e_phi0;
+        double metresneedtogonorth;
+        niter = 0;
+        do {
+            niter ++;
+
+            // v108: equation 15-9a
+            double t = eq159a (phi);
+
+            // v108: equation 15-7
+            double rho = e_F_rada * Math.Pow (t, e_n);
+ 
+            // v107: equation 14-2 -> how far north of centerLat
+            double n = e_rho0 - rho * costheta;
+
+            // update based on how far off our guess is
+            // - we are trying to get phi that gives us 'northing'
+            // - but we have phi that gives us 'n'
+            metresneedtogonorth = northing - n;
+            phi += metresneedtogonorth / (MPerNM * NMPerDeg * 180.0 / Math.PI);
+        } while (Math.Abs (metresneedtogonorth) > pixelsize);
+
+        lat = ToDegrees (phi);
+        lon = ToDegrees (lam);
     }
 
     public static string[] SplitQuotedCSVLine (string csvline)
@@ -217,5 +247,90 @@ public class ChartTiff {
         }
         tokens.Add (sb.ToString ());
         return tokens.ToArray ();
+    }
+
+    private static double ToRadians (double d) { return d / 180.0 * Math.PI; }
+    private static double ToDegrees (double r) { return r / Math.PI * 180.0; }
+
+    private const double MPerNM   = 1852.0;
+    private const double NMPerDeg = 60.0;
+
+    private double eq1415 (double phi)
+    {
+        double w = e_e * Math.Sin (phi);
+        return Math.Cos (phi) / Math.Sqrt (1 - w * w);
+    }
+
+    private double eq159a (double phi)
+    {
+        double sinphi = Math.Sin (phi);
+        double u = (1 - sinphi) / (1 + sinphi);
+        double v = (1 + e_e * sinphi) / (1 - e_e * sinphi);
+        return Math.Sqrt (u * Math.Pow (v, e_e));
+    }
+
+    public static void RowReduce (double[][] T)
+    {
+        double pivot;
+        int trows = T.Length;
+        int tcols = T[0].Length;
+
+        for (int row = 0; row < trows; row ++) {
+            double[] T_row_ = T[row];
+
+            /*
+             * Make this row's major diagonal colum one by
+             * swapping it with a row below that has the
+             * largest value in this row's major diagonal
+             * column, then dividing the row by that number.
+             */
+            pivot = T_row_[row];
+            int bestRow = row;
+            for (int swapRow = row; ++ swapRow < trows;) {
+                double swapPivot = T[swapRow][row];
+                if (Math.Abs (pivot) < Math.Abs (swapPivot)) {
+                    pivot   = swapPivot;
+                    bestRow = swapRow;
+                }
+            }
+            if (pivot == 0.0) throw new Exception ("not invertable");
+            if (bestRow != row) {
+                double[] tmp = T_row_;
+                T[row] = T_row_ = T[bestRow];
+                T[bestRow] = tmp;
+            }
+            if (pivot != 1.0) {
+                for (int col = row; col < tcols; col ++) {
+                    T_row_[col] /= pivot;
+                }
+            }
+
+            /*
+             * Subtract this row from all below it such that we zero out
+             * this row's major diagonal column in all rows below.
+             */
+            for (int rr = row; ++ rr < trows;) {
+                double[] T_rr_ = T[rr];
+                pivot = T_rr_[row];
+                if (pivot != 0.0) {
+                    for (int cc = row; cc < tcols; cc ++) {
+                        T_rr_[cc] -= pivot * T_row_[cc];
+                    }
+                }
+            }
+        }
+
+        for (int row = trows; -- row >= 0;) {
+            double[] T_row_ = T[row];
+            for (int rr = row; -- rr >= 0;) {
+                double[] T_rr_ = T[rr];
+                pivot = T_rr_[row];
+                if (pivot != 0.0) {
+                    for (int cc = row; cc < tcols; cc ++) {
+                        T_rr_[cc] -= pivot * T_row_[cc];
+                    }
+                }
+            }
+        }
     }
 }

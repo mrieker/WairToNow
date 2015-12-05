@@ -19,8 +19,7 @@
 //    http://www.gnu.org/licenses/gpl-2.0.html
 
 /**
- * @brief Splits a sectional chart .tif file
- *        into many small .png files
+ * @brief Splits a chart file into many small .png files
  */
 
 // yum install libgdiplus
@@ -29,10 +28,6 @@
 // gmcs -debug -out:ReadTiffFile.exe -reference:System.Drawing.dll ReadTiffFile.cs ChartTiff.cs
 
 // mono --debug ReadTiffFile.exe 'New York 86 North' [-nosplit] [-markers] [-mingrid <color>]
-// adb push New_York_86_North /sdcard/New_York_86_North
-
-// Download zip files from http://aeronav.faa.gov/index.asp?xml=aeronav/applications/VFR/chartlist_sect
-// Unzip and then process the tiff files with this program
 
 using System;
 using System.Drawing;
@@ -41,9 +36,9 @@ using System.IO;
 using System.Text;
 
 public class ReadTiffFile {
-    public const int hstep = 256;
-    public const int wstep = 256;
-    public const int overlap = 10;  // big enough for most zoomed-out scaling
+    public const int hstep = 384;
+    public const int wstep = 384;
+    public const int overlap = 0;
 
     private static ChartTiff chart;
     private static Color mingrid;
@@ -65,17 +60,6 @@ public class ReadTiffFile {
         if (basename == null) throw new Exception ("missing basename");
 
         chart = new ChartTiff ("", basename);
-
-        /*
-         * Convert all black pixels to transparent.
-         * The sectionals aren't always scanned exactly square,
-         * and there is a black margin around the sides.  So to
-         * make the edges match up nicely in the app, mark them
-         * all transparent.  It shouldn't matter if any interior
-         * black pixels are marked transparent, as the default
-         * for the canvas in the app is black.
-         */
-        chart.bmp.MakeTransparent (Color.Black);
 
         /*
          * Draw lines every minute for debugging.
@@ -146,6 +130,15 @@ public class ReadTiffFile {
                     thisbm.Save (savename, System.Drawing.Imaging.ImageFormat.Png);
                 }
             }
+
+            /*
+             * Make thumbnail 256 pixels high with correct width to maintain aspect ratio.
+             */
+            int iconh = 256;
+            int iconw = chart.width * iconh / chart.height;
+            Bitmap iconbm = new Bitmap (chart.bmp, iconw, iconh);
+            string iconname = dirname + "/icon.png";
+            iconbm.Save (iconname, System.Drawing.Imaging.ImageFormat.Png);
         }
 
         if (markers) {

@@ -52,6 +52,8 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
     private EditText ptendTurnRt;
     private EditText toDistEdit;
     private EditText toHdgEdit;
+    private float lastPtendLat;
+    private float lastPtendLon;
     private LatLonView ptendLat;
     private LatLonView ptendLon;
     private LinearLayout linearLayout;
@@ -253,6 +255,11 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
         String format = wairToNow.optionsView.LatLonString (10.0F/3600.0F, 'N', 'S');
         ptendLat.setFormat (format);
         ptendLon.setFormat (format);
+
+        // if PlanView display is open, next simulated lat/lon is to be taken
+        // from the ptendLat,Lon boxes
+        lastPtendLat = -99999.0F;
+        lastPtendLon = -99999.0F;
     }
 
     @Override  // WairToNow.CanBeMainView
@@ -357,8 +364,8 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
             /*
              * Open database.
              */
-            int aptinfoexpdate = MaintView.GetWaypointExpDate ();
-            String dbname = "cycles56_" + aptinfoexpdate + ".db";
+            int waypointexpdate = MaintView.GetWaypointExpDate ();
+            String dbname = "waypoints_" + waypointexpdate + ".db";
             SQLiteDBs sqldb = SQLiteDBs.create (dbname);
 
             /*
@@ -451,12 +458,13 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
 
             /*
              * Get lat/lon and time from previous interval.
+             * If display is open, we just keep taking position from the ptendLat,Lon boxes.
+             * If display is closed, take first point from the ptendLat,Lon boxes, then
+             * use lastPtendLat,Lon from then on.
              */
             long  oldnow = ptendTime;
-            float oldlat = ptendLat.getVal ();
-            float oldlon = ptendLon.getVal ();
-
-            //if (oldlon > 1) throw new RuntimeException ("fetched eastern longitude");
+            float oldlat = (lastPtendLat != -99999.0F) ? lastPtendLat : ptendLat.getVal ();
+            float oldlon = (lastPtendLon != -99999.0F) ? lastPtendLon : ptendLon.getVal ();
 
             /*
              * Get speed and heading input by the user.
@@ -492,16 +500,18 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
             while (newhdg <=  0.0F) newhdg += 360.0F;
             while (newhdg > 360.0F) newhdg -= 360.0F;
 
-            //if (newlon > 1) throw new RuntimeException ("writing eastern longitude");
-
             /*
              * Save the new values in the on-screen boxes.
+             * Update the boxes only when screen is closed so we don't change values on user.
+             * Also, update lastPtendLat,Lon only when closed so they stay -99999.0F when open.
              */
             ptendTime = newnow;
             if (!displayOpen) {
                 ptendLat.setVal (newlat);
                 ptendLon.setVal (newlon);
                 ptendHeading.setText (Float.toString (newhdg));
+                lastPtendLat = newlat;
+                lastPtendLon = newlon;
             }
 
             /*

@@ -23,21 +23,23 @@ package com.outerworldapps.wairtonow;
 import android.graphics.Point;
 import android.graphics.PointF;
 
+/**
+ * Map lat/lon to canvax pixel x,y.
+ */
 public class PixelMapper {
     public float canvasNorthLat, canvasSouthLat;
     public float canvasEastLon, canvasWestLon;
+    public float centerLat, centerLon;
     public int canvasWidth, canvasHeight;
 
-    private float centerLon;
-
-    private float lastTlLat;
-    private float lastTlLon;
-    private float lastTrLat;
-    private float lastTrLon;
-    private float lastBlLat;
-    private float lastBlLon;
-    private float lastBrLat;
-    private float lastBrLon;
+    public float lastTlLat;
+    public float lastTlLon;
+    public float lastTrLat;
+    public float lastTrLon;
+    public float lastBlLat;
+    public float lastBlLon;
+    public float lastBrLat;
+    public float lastBrLon;
 
     private float ll2pix_0_0, ll2pix_0_1, ll2pix_0_2;
     private float ll2pix_1_0, ll2pix_1_1, ll2pix_1_2;
@@ -50,10 +52,28 @@ public class PixelMapper {
     private float[][] mat36  = new float[][] { new float[6], new float[6], new float[6] };
     private float[][] ll2pix = new float[][] { new float[3], new float[3], new float[3] };
 
+    /**
+     * Set up transformation to map the 4 corners of the canvas to the given lat/lons.
+     * @param width  = canvas width
+     * @param height = canvas height
+     * @param tlLat  = top left corner latitude
+     * @param tlLon  = top left corner longitude
+     * @param trLat  = top right corner latitude
+     * @param trLon  = top right corner longitude
+     * @param blLat  = bottom left corner latitude
+     * @param blLon  = bottom left corner longitude
+     * @param brLat  = bottom right corner latitude
+     * @param brLon  = bottom right corner longitude
+     */
     public void setup (int width, int height,
             float tlLat, float tlLon, float trLat, float trLon,
             float blLat, float blLon, float brLat, float brLon)
     {
+        tlLon = Lib.NormalLon (tlLon);
+        trLon = Lib.NormalLon (trLon);
+        blLon = Lib.NormalLon (blLon);
+        brLon = Lib.NormalLon (brLon);
+
         if ((width == canvasWidth) && (height == canvasHeight) &&
             (tlLat == lastTlLat) && (tlLon == lastTlLon) && 
             (trLat == lastTrLat) && (trLon == lastTrLon) && 
@@ -70,6 +90,40 @@ public class PixelMapper {
         lastBlLon    = blLon;
         lastBrLat    = brLat;
         lastBrLon    = brLon;
+
+        /*
+         * Wrap longitudes if necessary to make abs (difference) < 180 degrees.
+         * Note that the map might be rotated downside-up or sideways so right
+         * isn't necessarily east of left.  But we can assume they are all
+         * within 180 degrees of each other.
+         */
+        if ((tlLon < -90.0F || trLon < -90.0F || blLon < -90.0F || brLon < -90.0F) &&
+            (tlLon >= 90.0F || trLon >= 90.0F || blLon >= 90.0F || brLon >= 90.0F)) {
+            if (tlLon < 0.0F) tlLon += 360.0F;
+            if (trLon < 0.0F) trLon += 360.0F;
+            if (blLon < 0.0F) blLon += 360.0F;
+            if (brLon < 0.0F) brLon += 360.0F;
+        }
+
+        /*
+         * Find north/south limits of canvas no matter how it is twisted on the charts.
+         */
+        canvasSouthLat = Math.min (Math.min (tlLat, trLat), Math.min (blLat, brLat));
+        canvasNorthLat = Math.max (Math.max (tlLat, trLat), Math.max (blLat, brLat));
+        if (canvasNorthLat - canvasSouthLat > 90.0F) throw new RuntimeException ("too much latitude");
+
+        /*
+         * Find east/west limits of canvas no matter how it is twisted on the charts.
+         */
+        canvasWestLon = Math.min (Math.min (tlLon, trLon), Math.min (blLon, brLon));
+        canvasEastLon = Math.max (Math.max (tlLon, trLon), Math.max (blLon, brLon));
+        if (canvasEastLon - canvasWestLon > 90.0F) throw new RuntimeException ("too much longitude");
+
+        /*
+         * Calculate latitude and longitude in center of canvas.
+         */
+        centerLat = (canvasNorthLat + canvasSouthLat) / 2.0F;
+        centerLon = (canvasEastLon + canvasWestLon) / 2.0F;
 
         /*
          * Set up matrix to convert latlon -> canvas pixel.
@@ -170,22 +224,6 @@ public class PixelMapper {
         pix2ll_2_0 = mat36[2][3];
         pix2ll_2_1 = mat36[2][4];
         pix2ll_2_2 = mat36[2][5];
-
-        /*
-         * Find north/south limits of canvas no matter how it is twisted on the charts.
-         */
-        canvasSouthLat = Math.min (Math.min (tlLat, trLat), Math.min (blLat, brLat));
-        canvasNorthLat = Math.max (Math.max (tlLat, trLat), Math.max (blLat, brLat));
-
-        /*
-         * Find east/west limits of canvas no matter how it is twisted on the charts.
-         * Wrap east limit to be .ge. west limit if necessary.
-         */
-        canvasWestLon = Lib.Westmost (Lib.Westmost (tlLon, trLon), Lib.Westmost (blLon, brLon));
-        canvasEastLon = Lib.Eastmost (Lib.Eastmost (tlLon, trLon), Lib.Eastmost (blLon, brLon));
-        if (canvasEastLon < canvasWestLon) canvasEastLon += 360.0F;
-
-        centerLon = (canvasEastLon + canvasWestLon) / 2.0F;
     }
 
     /**
@@ -198,7 +236,7 @@ public class PixelMapper {
     {
         float w =  pix2ll_2_0 * canvasPixX + pix2ll_2_1 * canvasPixY + pix2ll_2_2;
         ll.lat  = (pix2ll_0_0 * canvasPixX + pix2ll_0_1 * canvasPixY + pix2ll_0_2) / w;
-        ll.lon  = (pix2ll_1_0 * canvasPixX + pix2ll_1_1 * canvasPixY + pix2ll_1_2) / w;
+        ll.lon  = Lib.NormalLon ((pix2ll_1_0 * canvasPixX + pix2ll_1_1 * canvasPixY + pix2ll_1_2) / w);
     }
 
     /**
@@ -213,9 +251,9 @@ public class PixelMapper {
         while (lon < centerLon - 180.0F) lon += 360.0F;
         while (lon > centerLon + 180.0F) lon -= 360.0F;
 
-        float  w =        ll2pix_2_0 * lat + ll2pix_2_1 * lon + ll2pix_2_2;
-        canpix.x = (int)((ll2pix_0_0 * lat + ll2pix_0_1 * lon + ll2pix_0_2) / w + 0.5F);
-        canpix.y = (int)((ll2pix_1_0 * lat + ll2pix_1_1 * lon + ll2pix_1_2) / w + 0.5F);
+        float  w =              ll2pix_2_0 * lat + ll2pix_2_1 * lon + ll2pix_2_2;
+        canpix.x = Math.round ((ll2pix_0_0 * lat + ll2pix_0_1 * lon + ll2pix_0_2) / w);
+        canpix.y = Math.round ((ll2pix_1_0 * lat + ll2pix_1_1 * lon + ll2pix_1_2) / w);
         return (canpix.x >= 0) && (canpix.x < canvasWidth) && (canpix.y >= 0) && (canpix.y < canvasHeight);
     }
     public boolean LatLonToCanvasPix (float lat, float lon, PointF canpix)

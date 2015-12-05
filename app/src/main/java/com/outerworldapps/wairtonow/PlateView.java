@@ -44,7 +44,6 @@ import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -473,6 +472,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
     private abstract class GRPlateImage extends PlateImage {
         protected float xfmtfwa, xfmtfwb, xfmtfwc, xfmtfwd, xfmtfwe, xfmtfwf;
         protected float xfmwfta, xfmwftb, xfmwftc, xfmwftd, xfmwfte, xfmwftf;
+        protected float mPerBmpPix;
 
         private Point canPoint   = new Point ();
         private RectF canTmpRect = new RectF ();
@@ -505,9 +505,15 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
 
             int bitmapX = LatLon2BitmapX (waypointView.centerLat, waypointView.centerLon);
             int bitmapY = LatLon2BitmapY (waypointView.centerLat, waypointView.centerLon);
-            canPoint.x = (int) BitmapX2CanvasX (bitmapX);
-            canPoint.y = (int) BitmapY2CanvasY (bitmapY);
-            wairToNow.chartView.DrawLocationArrow (canvas, canPoint, 0.0F);
+            float canPointX = BitmapX2CanvasX (bitmapX);
+            float canPointY = BitmapY2CanvasY (bitmapY);
+            canPoint.x = Math.round (canPointX);
+            canPoint.y = Math.round (canPointY);
+            float canXPerBmpX = BitmapX2CanvasX (bitmapX + 1) - canPointX;
+            float canYPerBmpY = BitmapY2CanvasY (bitmapY + 1) - canPointY;
+            float mPerCanX = mPerBmpPix / canXPerBmpX;
+            float mPerCanY = mPerBmpPix / canYPerBmpY;
+            wairToNow.chartView.DrawLocationArrow (canvas, canPoint, 0.0F, mPerCanX, mPerCanY);
             return true;
         }
 
@@ -562,6 +568,11 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             xfmwftd = mat[3][6];
             xfmwfte = mat[4][6];
             xfmwftf = mat[5][6];
+
+            // save real-world metres per bitmap pixel
+            // xfmwft{a,b,c,d} are in pixels/degree
+
+            mPerBmpPix = Lib.NMPerDeg * Lib.MPerNM / Mathf.hypot (xfmwftc, xfmwftd);
 
             // convert the wfta',wftb' to wfta,wftb include factor to convert longitude => easting
             // wftc',wftd',wfte',wftf' are the same as wftc,wftd,wfte,wftf
@@ -635,16 +646,22 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
      */
     private class APDPlateImage extends GRPlateImage {
         private Bitmap bitmap;    // single plate page
+        private Paint rwPaint;
         private String filename;  // name of gif on flash, without ".p<pageno>" suffix
 
         public APDPlateImage (String fn)
         {
             filename = fn;
 
+            rwPaint = new Paint ();
+            rwPaint.setColor (Color.MAGENTA);
+            rwPaint.setStrokeWidth (6);
+            rwPaint.setStyle (Paint.Style.FILL_AND_STROKE);
+
             /*
              * Get georeference points downloaded from server.
              */
-            String dbname = "cycles28_" + expdate + ".db";
+            String dbname = "plates_" + expdate + ".db";
             try {
                 SQLiteDBs sqldb = SQLiteDBs.create (dbname);
                 Cursor result = sqldb.query (
@@ -716,7 +733,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                     float begCanY = BitmapY2CanvasY (begBmY);
                     float midCanX = (BitmapX2CanvasX (endBmX) + begCanX) / 2.0F;
                     float midCanY = (BitmapY2CanvasY (endBmY) + begCanY) / 2.0F;
-                    canvas.drawLine (begCanX, begCanY, midCanX, midCanY, waypointView.rwPaint);
+                    canvas.drawLine (begCanX, begCanY, midCanX, midCanY, rwPaint);
                 }
             }
 
@@ -881,8 +898,8 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                 maxlon += padnm / Lib.NMPerDeg / avglatcos;
             }
 
-            synthWidth  = (int) ((maxlon - minlon) * Waypoint.lldbfact * avglatcos + 0.5);
-            synthHeight = (int) ((maxlat - minlat) * Waypoint.lldbfact + 0.5);
+            synthWidth  = (int) ((maxlon - minlon) * 32768 * avglatcos + 0.5);
+            synthHeight = (int) ((maxlat - minlat) * 32768 + 0.5);
 
             // set up lat/lon => bitmap transformation
             SetLatLon2Bitmap (
@@ -1135,7 +1152,8 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             /*
              * For instrument approach plates, allow manual entry of waypoints for georeferencing.
              */
-            HorizontalScrollView hsv = new HorizontalScrollView (wairToNow);
+            DetentHorizontalScrollView hsv = new DetentHorizontalScrollView (wairToNow);
+            wairToNow.SetDetentSize (hsv);
             hsv.setLayoutParams (new LayoutParams (LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
             iapGeoRefInput = new GeoRefInput ();
             iapGeoRefInput.setVisibility (GONE);
@@ -1157,7 +1175,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         private void GetIAPGeoRefPoints ()
         {
             boolean manual = false;
-            String machinedbname = "cycles28_" + expdate + ".db";
+            String machinedbname = "plates_" + expdate + ".db";
             do {
                 try {
                     SQLiteDBs sqldb = manual ? OpenGeoRefDB () : SQLiteDBs.create (machinedbname);

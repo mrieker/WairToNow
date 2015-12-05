@@ -23,7 +23,6 @@ package com.outerworldapps.wairtonow;
 import android.content.ContentValues;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
-import android.database.sqlite.SQLiteStatement;
 import android.util.Log;
 
 import java.io.File;
@@ -73,6 +72,28 @@ public class SQLiteDBs {
         }
 
         return tm;
+    }
+
+    /**
+     * About to create a database externally, get its path.
+     * @param dbname = name of database being created
+     * @return full path to .db file
+     */
+    public static String creating (String dbname)
+    {
+        return WairToNow.dbdir + "/" + dbname;
+    }
+
+    /**
+     * A database was created externally, catalog it internally.
+     * @param dbname = name of database externally created
+     */
+    public static void created (String dbname)
+    {
+        synchronized (databases) {
+            SQLiteDBs db = new SQLiteDBs ();
+            databases.put (dbname, db);
+        }
     }
 
     /**

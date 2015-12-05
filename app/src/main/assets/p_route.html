@@ -1,0 +1,72 @@
+<HTML>
+    <BODY>
+        <H2>Route page</H2>
+        <P>This page has a form suitable for copying an IFR
+            clearance and stepping through the route.  It can
+            also be used on VFR flights for sequencing through
+            a route.</P>
+        <P><B>NOTE:</B>  You most likely will not be able to enter the
+            clearance as fast as a controller will read it to
+            you, so you will have to write it down first.  But
+            this page will validate the route for you and sequence
+            through the waypoints.</P>
+        The form:
+        <UL>
+            <LI><B>destination</B> - enter the final point of the
+                flight, either a user waypoint or the FAA or ICAO
+                ident of an airport.
+            <LI><B>route</B> - enter waypoints for the route,
+                separated by spaces, case insensitive:
+                <UL>
+                    <LI>navaids and fixes
+                    <LI>airways
+                    <LI>user-defined waypoints
+                    <LI><TT>@PP</TT> - <I>present position</I>
+                        as seen by GPS.  Valid only at
+                        beginning of route.
+                    <LI><TT>@<I>aptid</I></TT> - airport, either faaid
+                        or icaoid
+                    <LI><TT>#<I>anything</I></TT> - ignored.  Useful for
+                        things like <TT>#AF</TT>, <TT>#D</TT>, <TT>#J</TT>,
+                        <TT>#RV</TT> for <I>as filed</I>, <I>direct</I>,
+                        <I>join</I>, <I>radar vectors</I>, etc.
+                        Note that for <TT>#AF</TT>,
+                        you must enter the waypoints for the
+                        rest of the route after the <TT>#AF</TT> if
+                        you want the app to sequence through the
+                        rest of the route.
+                    <LI>Example:  <TT>@pp #bvy8 bosox v1 #j v146 alb</TT>
+                </UL>
+            <LI><B>altitude</B> - record altitude assignments here
+            <LI><B>frequency</B> - record frequency assignments here
+            <LI><B>transponder</B> - record transponder assignment here
+            <LI><B>notes</B> - record anything else you want here
+        </UL>
+        <P>Only <B>destination</B> and <B>route</B> are checked
+            for validity.  You may enter anything or nothing in
+            the other fields as you like.</P>
+        The buttons:
+        <UL>
+            <LI><B>validate</B> - checks entries in the
+                <B>destination</B> and <B>route</B> boxes and
+                computes the total distance
+            <LI><B>track</B> - turns sequencing on/off.  When on,
+                displays heading and distance to next waypoint
+                on route and heading/distance between the
+                remaining waypoints, as well as total remaining
+                distance and time.  The destination on the
+                chart page will be changed to successive waypoints
+                as the flight progresses.  If grayed out, click the
+                <B>validate</B> button.
+            <LI><B>save</B> - saves form values to flash file
+            <LI><B>load</B> - loads form values from flash file
+            <LI><B>clear</B> - clears all the form fields
+        </UL>
+        <P>Note:  It is recommended to save your entry so you
+            won't lose it in case the app gets restarted.  You
+            can use a simple name like <TT>x</TT> if you like.</P>
+        <P>Note:  Unwanted saved files may be deleted via the
+            <B><A HREF="p_files.html">Files</A></B> page.  They are stored
+            in the <TT>routes</TT> folder.</P>
+    </BODY>
+</HTML>

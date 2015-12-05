@@ -42,5 +42,4 @@ public class Mathf {
 
     public static float ceil  (float f) { return (float) Math.ceil  (f); }
     public static float floor (float f) { return (float) Math.floor (f); }
-    public static float round (float f) { return (float) Math.round (f); }
 }

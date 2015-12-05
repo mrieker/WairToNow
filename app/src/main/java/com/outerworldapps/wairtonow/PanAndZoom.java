@@ -31,6 +31,7 @@ import android.view.ScaleGestureDetector;
  * Implement MouseDown(), MouseUp(), Panning() and Scaling().
  */
 public abstract class PanAndZoom implements ScaleGestureDetector.OnScaleGestureListener {
+    private final static String TAG = "WairToNow";
     public  static final int panningblocktime = 200;
 
     private Context ctx;
@@ -81,7 +82,7 @@ public abstract class PanAndZoom implements ScaleGestureDetector.OnScaleGestureL
                 return true;
             }
         } catch (ArrayIndexOutOfBoundsException aioobe) {
-            Log.w ("PanAndZoom", "onTouchEvent: scaleGestureDetector.onTouchEvent()", aioobe);
+            Log.w (TAG, "onTouchEvent: scaleGestureDetector.onTouchEvent()", aioobe);
             scaleGestureDetector = new ScaleGestureDetector (ctx, this);
         }
 

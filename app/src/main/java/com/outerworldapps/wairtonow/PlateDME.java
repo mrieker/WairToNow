@@ -25,7 +25,6 @@ import android.content.ContentValues;
 import android.content.DialogInterface;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
-import android.database.sqlite.SQLiteStatement;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;

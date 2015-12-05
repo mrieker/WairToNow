@@ -65,6 +65,7 @@ public class OptionsView
     public final static int CTO_COURSEUP = 0;
     public final static int CTO_NORTHUP  = 1;
     public final static int CTO_TRACKUP  = 2;
+    public final static int CTO_FINGEROT = 3;
 
     public OptionsView (WairToNow ctx)
     {
@@ -106,10 +107,12 @@ public class OptionsView
         chartTrackOption = new IntOption (
             new String[] {
                 "Course Up",
+                "Finger Rotate",
                 "North Up",
                 "Track Up" },
             new int[] {
                 CTO_COURSEUP,
+                CTO_FINGEROT,
                 CTO_NORTHUP,
                 CTO_TRACKUP });
 
@@ -303,7 +306,7 @@ public class OptionsView
                 csvwriter.close ();
             }
         } catch (IOException ioe) {
-            Log.e ("OptionsView", "error writing " + csvname, ioe);
+            Log.e (TAG, "error writing " + csvname, ioe);
         }
     }
 

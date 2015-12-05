@@ -34,7 +34,6 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.LinkedList;
-import java.util.Locale;
 import java.util.zip.GZIPInputStream;
 
 import android.app.AlertDialog;
@@ -42,8 +41,6 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
-import android.graphics.Color;
-import android.graphics.Paint;
 import android.location.Location;
 import android.net.Uri;
 import android.text.Editable;
@@ -57,7 +54,6 @@ import android.view.inputmethod.EditorInfo;
 import android.webkit.WebView;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -72,6 +68,7 @@ public class WaypointView extends LinearLayout
     private final static float nearbynm = 5.0F;
 
     private DestinationButton destinationButton;
+    private DownloadButton downloadButton;
     public  float centerAlt;
     public  float centerLat;
     public  float centerLon;
@@ -86,7 +83,6 @@ public class WaypointView extends LinearLayout
     public  long centerTime;
     private MetarButton metarButton;
     private OldSearchButtonListener oldSearchLis;
-    public  Paint rwPaint;
     private SearchTextView searchTextView;
     private String tabName;
     public  WairToNow wairToNow;
@@ -100,11 +96,6 @@ public class WaypointView extends LinearLayout
         tabName = tn;
 
         setOrientation (VERTICAL);
-
-        rwPaint = new Paint ();
-        rwPaint.setColor (Color.MAGENTA);
-        rwPaint.setStrokeWidth (6);
-        rwPaint.setStyle (Paint.Style.FILL_AND_STROKE);
 
         /*
          * Start with window title.
@@ -139,7 +130,8 @@ public class WaypointView extends LinearLayout
          */
         oldSearchRow = new LinearLayout (ctx);
         oldSearchRow.setOrientation (HORIZONTAL);
-        HorizontalScrollView hs0 = new HorizontalScrollView (ctx);
+        DetentHorizontalScrollView hs0 = new DetentHorizontalScrollView (ctx);
+        ctx.SetDetentSize (hs0);
         hs0.addView (oldSearchRow);
         addView (hs0);
         LoadOldSearchButtons ();
@@ -166,12 +158,19 @@ public class WaypointView extends LinearLayout
         ll1.addView (metarButton);
 
         /*
-         * This button can be clicked to get the waypoint's information.
+         * This button can be clicked to display the waypoint's information.
          */
         infoButton = new InfoButton (ctx);
         ll1.addView (infoButton);
 
-        HorizontalScrollView hs1 = new HorizontalScrollView (ctx);
+        /*
+         * This button can be clicked to download the airport's information.
+         */
+        downloadButton = new DownloadButton (ctx);
+        ll1.addView (downloadButton);
+
+        DetentHorizontalScrollView hs1 = new DetentHorizontalScrollView (ctx);
+        ctx.SetDetentSize (hs1);
         hs1.addView (ll1);
         addView (hs1);
 
@@ -277,7 +276,7 @@ public class WaypointView extends LinearLayout
                     }
                 }
             } catch (IOException ioe) {
-                Log.e ("WaypointView", "error writing oldsearches.txt", ioe);
+                Log.e (TAG, "error writing oldsearches.txt", ioe);
             }
         }
     }
@@ -323,7 +322,7 @@ public class WaypointView extends LinearLayout
                     osfw.close ();
                 }
             } catch (IOException ioe) {
-                Log.e ("WaypointView", "error writing oldsearches.txt", ioe);
+                Log.e (TAG, "error writing oldsearches.txt", ioe);
             }
         }
     }
@@ -499,6 +498,7 @@ public class WaypointView extends LinearLayout
             locationButton.setEnabled (false);
             metarButton.setEnabled (false);
             infoButton.setEnabled (false);
+            downloadButton.setEnabled (false);
         } else {
             searchTextView.setText (wp.ident);
             waypointLinear.removeAllViews ();
@@ -507,6 +507,7 @@ public class WaypointView extends LinearLayout
             locationButton.setEnabled (true);
             metarButton.setEnabled (wp.HasMetar ());
             infoButton.setEnabled (wp.HasInfo ());
+            downloadButton.setEnabled (wp.NeedsDwnld ());
         }
         wairToNow.SetCurrentTab (this);
     }
@@ -574,15 +575,12 @@ public class WaypointView extends LinearLayout
             locationButton.setEnabled (false);
             metarButton.setEnabled (false);
             infoButton.setEnabled (false);
+            downloadButton.setEnabled (false);
             setEnabled (false);
 
             String key = searchTextView.getText ().toString ();
-            key = key.trim ().toUpperCase (Locale.US);
-            String tmp;
-            while (!(tmp = key.replace ("  ", " ")).equals (key)) key = tmp;
-            key = key.toUpperCase (Locale.US);
+            key = Waypoint.NormalizeKey (key);
             searchTextView.setText (key);
-
             LinkedList<Waypoint> matches = Waypoint.GetWaypointsMatchingKey (key);
 
             if (matches.size () == 0) {
@@ -703,11 +701,11 @@ public class WaypointView extends LinearLayout
                     /*
                      * Display using a WebView.
                      */
-                    int aptinfoexpdate = MaintView.GetWaypointExpDate ();
+                    int waypointexpdate = MaintView.GetWaypointExpDate ();
                     String faaident = ((Waypoint.Airport)selectedWaypoint).faaident;
                     char subdir = faaident.charAt (0);
                     String subnam = faaident.substring (1);
-                    String name = WairToNow.dbdir + "/datums/aptinfo_" + aptinfoexpdate + '/' +
+                    String name = WairToNow.dbdir + "/datums/aptinfo_" + waypointexpdate + '/' +
                             subdir + '/' + subnam + ".html.gz";
                     FileInputStream fis = new FileInputStream (name);
                     BufferedInputStream bis = new BufferedInputStream (fis, 4096);
@@ -765,6 +763,36 @@ public class WaypointView extends LinearLayout
         public void ReClicked ()
         {
             wairToNow.SetCurrentTab (WaypointView.this);
+        }
+    }
+
+    /**
+     * Button used to download information page and plates.
+     */
+    private class DownloadButton extends Button implements OnClickListener, Runnable {
+
+        public DownloadButton (Context ctx)
+        {
+            super (ctx);
+            setText ("Dwnld");
+            wairToNow.SetTextSize (this);
+            setEnabled (false);
+            setOnClickListener (this);
+        }
+
+        // button clicked
+        @Override
+        public void onClick (View v)
+        {
+            setEnabled (false);
+            selectedWaypoint.StartDwnld (wairToNow, this);
+        }
+
+        // download complete
+        @Override
+        public void run ()
+        {
+            WaypointSelected (selectedWaypoint);
         }
     }
 }

@@ -2,33 +2,8 @@
     <BODY>
         <H2>Chart page</H2>
         <P>This is the main moving map page.</P>
-        <P><IMG SRC="near-kpym-going-to-katama-400.png"></P>
+        <P ALIGN=CENTER><IMG SRC="near-kpym-going-to-katama-400.png"></P>
         <UL>
-            <LI>Background is the moving map.  If black, select a chart by clicking the
-                <B>Chart</B> button at the bottom or clicking the <B>select chart</B> cloud
-                in the lower right corner.
-                <UL>
-                    <LI><B>Auto SEC</B> - selects sectional(s) to cover the screen (provided
-                        they have been already downloaded.  Any legend information is trimmed
-                        from the borders and they are stitched together if necessary.
-                    <LI><B>Auto WAC</B> - same as Auto SEC except for world charts.
-                    <LI><B>Street</B> - use OpenStreetMap tiles at appropriate zoom level for
-                        display.  <I>Requires Internet connection if tiles have not already
-                        been displayed on this device.</I>
-                    <LI>Chart name in WHITE - chart has not been downloaded.  Selecting the
-                        chart will initiate download.  <I>Requires Internet connection.</I>
-                    <LI>Chart name in RED - chart has been download but is expired.  Use
-                        <A HREF="p_maint.html">maint</A> page to update.
-                    <LI>Chart name in YELLOW - chart has been downloaded, is valid now, but is
-                        about to expire.  See <A HREF="p_maint.html">maint</A> page for expiration
-                        date and to download updated chart.
-                    <LI>Chart name in GREEN - chart has been downloaded and is valid now and
-                        for the next few days.
-                </UL>
-                <B>NOTE:</B>  If only a selection for <B>Street</B> appears, it is usually because
-                the device has not received a GPS position report, the GPS position is not in an
-                area covered by the app, or that the database has not been
-                <A HREF="p_maint.html">downloaded</A>.
             <LI>Upper left corner cloud shows the latest position received by the GPS.
                 The cloud will shrink to a red triangle button when clicked and can be
                 restored by clicking the red triangle.
@@ -42,13 +17,42 @@
                 can be restored by clicking the blue triangle.
             <LI>If a course is selected (via <A HREF="p_faawp.html">FAAWP1/2</A>,
                 <A HREF="p_userwp.html">UserWP</A> GoTo buttons), the course information
-                will be shown in the upper right corner cloud in green along with a green course
+                will be shown in the upper right corner cloud in magenta along with a magenta course
                 line.  The cloud and line may be hidden by clicking on the cloud, shrinking it to
-                a green triangle, and can be restored by clicking the green triangle.  The course
-                can be cleared by long-clicking on the cloud or green triangle button.
-            <LI>Select a different chart by either clicking the <B>Chart</B> button in
+                a magenta triangle, and can be restored by clicking the magenta triangle.  The course
+                can be cleared by long-clicking on the cloud or magenta triangle button.
+            <LI>Select a chart by either clicking the <B>Chart</B> button in
                 the menu bar at the bottom of the screen or by clicking the black triangle
                 or <B>select chart</B> cloud in the lower right corner of the map.
+                <UL>
+                    <LI><B>Auto SEC</B> - selects sectional(s) to cover the screen (provided
+                        they have been already downloaded.  Any legend information is trimmed
+                        from the borders and they are stitched together if necessary.
+                    <LI><B>Auto WAC</B> - same as Auto SEC except for world charts.
+                    <LI><B>Street</B> - use OpenStreetMap tiles at appropriate zoom level for
+                        display.  <I>Requires Internet connection if tiles have not already
+                            been displayed on this device.</I>
+                    <LI>Chart name in WHITE - chart has not been downloaded.  Selecting the
+                        chart will initiate download.  <I>Requires Internet connection.</I>
+                    <LI>Chart name in RED - chart has been download but is expired.  Use
+                        <A HREF="p_maint.html">maint</A> page to update.
+                    <LI>Chart name in YELLOW - chart has been downloaded, is valid now, but is
+                        about to expire.  See <A HREF="p_maint.html">maint</A> page for expiration
+                        date and to download updated chart.
+                    <LI>Chart name in GREEN - chart has been downloaded and is valid now and
+                        for the next few days.
+                </UL>
+                <P><B>NOTE:</B>  If only a selection for <B>Street</B> appears, it is usually because
+                    the device has not received a GPS position report, the GPS position is not in an
+                    area covered by the app, or that the database has not been
+                    <A HREF="p_maint.html">downloaded</A>.</P>
+                <P><B>NOTE: </B>  The primary aviation charts also have a graphic next to the name
+                    with a white filled rectangle representing the chart, and the current canvas
+                    position represented by a cyan filled rectangle (or dot if the rectangle is too
+                    small), and the current position represented by a red dot (if it is within range
+                    of the chart).  If the chart is downloaded, a thumbnail will be used in place of
+                    the white filled rectangle.</P>
+                <P ALIGN=CENTER><IMG SRC="chart-selection-400.png"></P>
         </UL>
         <P><B>NOTE:</B>  If you manually pan the display, the chart will fix in place and
             will not track movement of the airplane.  The airplane will move but the chart
