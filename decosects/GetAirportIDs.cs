@@ -319,7 +319,7 @@ public class GetAirportIDs {
             // the info string is displayed on the FAAWP page itself
             airports.WriteLine (apt.icaoid + "," + apt.faaid + "," + apt.elevatn + "," +
                     QuotedString (apt.aptname, '"') + "," + apt.aptlat + "," + apt.aptlon + "," +
-                    apt.variatn + "," + QuotedString (apt.info, '"') + "," + apt.state);
+                    apt.variatn + "," + QuotedString (apt.info, '"') + "," + apt.state + "," + apt.nvp["faciluse"]);
 
             // this goes into the aptinfo_<expdate>/f/aaid.html.gz file and is displayed when the Info button is clicked
             StreamWriter infofile = new StreamWriter (args[2] + "/" + apt.faaid + ".html");

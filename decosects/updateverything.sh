@@ -2,6 +2,9 @@
 #
 #  Updates everything
 #
+#    export next28=0 : do current cycle
+#                  1 : do next cycle
+#
 #  Requires:
 #
 #   8 cores, 16GB mem recommended

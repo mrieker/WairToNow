@@ -193,7 +193,7 @@ public class OpenStreetMap {
                 if (lastmod == 0) return false;
 
                 /*
-                 * We have the tile file on disk, open it as a bitmap.
+                 * We have the tile file on flash, open it as a bitmap.
                  */
                 try {
                     try {
@@ -242,7 +242,7 @@ public class OpenStreetMap {
             bitmappts[7] = botBmp;
 
             /*
-             * If zoomed out, make a clip so we only draw what is needed on the canvas.
+             * If zoomed out, make a clip so we only draw what is needed on the canvas so we don't overdraw zoomed-in tiles..
              * If not zoomed out, we can draw the whole bitmap as it just fits the canvas spot.
              */
             boolean saved = false;
@@ -389,10 +389,10 @@ public class OpenStreetMap {
                      * It's quite possible that some of the bitmap is off the canvas.
                      * It's also quite possible that it is flipped around on the canvas.
                      */
-                    pmap.LatLonToCanvasPix (northlat, westlon, northwestcanpix);
-                    pmap.LatLonToCanvasPix (northlat, eastlon, northeastcanpix);
-                    pmap.LatLonToCanvasPix (southlat, westlon, southwestcanpix);
-                    pmap.LatLonToCanvasPix (southlat, eastlon, southeastcanpix);
+                    pmap.LatLon2CanPixAprox (northlat, westlon, northwestcanpix);
+                    pmap.LatLon2CanPixAprox (northlat, eastlon, northeastcanpix);
+                    pmap.LatLon2CanPixAprox (southlat, westlon, southwestcanpix);
+                    pmap.LatLon2CanPixAprox (southlat, eastlon, southeastcanpix);
 
                     /*
                      * If tile completely off the canvas, don't bother with it.

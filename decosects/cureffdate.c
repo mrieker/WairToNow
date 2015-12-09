@@ -18,9 +18,9 @@
 //
 //    http://www.gnu.org/licenses/gpl-2.0.html
 
-
 // cc -o cureffdate cureffdate.c
-// ./cureffdate [-x] [ yyyy-mm-dd | mm-dd-yyyy | 'mmm dd yyyy' ]
+// export next28=1 # to pretend it is 28 days later
+// ./cureffdate [-28] [-x] [ yyyy-mm-dd | mm-dd-yyyy | 'mmm dd yyyy' | yyyymmdd | airac ]
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -31,18 +31,43 @@ static char const *const months[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", 
 
 int main (int argc, char **argv)
 {
-    int exp;
+    char const *fmt;
+    int cyclemonth, cyclen, cycleyear, exp, i, next28, nextyear;
     struct tm efftm, thentm;
-    time_t effbin, effday, nowbin, nowcyc, nowday, thenbin, thenday;
+    time_t cycletime, effbin, effday, nexttime, nowbin, nowcyc, nowday, thenbin, thenday;
 
+    cyclen = 56;
     exp = 0;
-    if ((argc > 1) && (strcasecmp (argv[1], "-x") == 0)) {
-        exp = 1;
-        -- argc;
-        argv ++;
+    fmt = "yyyy-mm-dd";
+    for (i = 0; ++ i < argc;) {
+        if (strcasecmp (argv[i], "-28") == 0) cyclen = 28;
+        if (strcasecmp (argv[i], "-x")  == 0) exp = 1;
+        if (argv[i][0] != '-') fmt = argv[i];
     }
 
+    next28 = (getenv ("next28") != NULL) && (getenv ("next28")[0] & 1);
+
+    nowbin = time (NULL);
+    if (next28) nowbin += 60*60*24*28;
+
     setenv ("TZ", "", 1);
+
+    if (strcasecmp (fmt, "airac") == 0) {
+        cycleyear  = 2014;          // cycle 1401 ...
+        cyclemonth = 1;             // ... started at ...
+        cycletime  = 1389258060;    // 2014-01-09@09:01:00 UTC'
+        while ((nexttime = cycletime + 60*60*24*28) <= nowbin) {
+            cycletime = nexttime;
+            cyclemonth ++;
+            nextyear = localtime (&nexttime)->tm_year + 1900;
+            if (cycleyear < nextyear) {
+                cycleyear  = nextyear;
+                cyclemonth = 1;
+            }
+        }
+        printf ("%.2d%.2d\n", cycleyear % 100, cyclemonth);
+        return 0;
+    }
 
     memset (&thentm, 0, sizeof thentm);
     thentm.tm_hour =  12;
@@ -52,19 +77,19 @@ int main (int argc, char **argv)
     thenbin = mktime (&thentm);
     thenday = thenbin / (24 * 60 * 60);
 
-    nowbin = time (NULL);
     nowday = nowbin / (24 * 60 * 60);
-    nowcyc = (nowday - thenday) / 56;
+    nowcyc = (nowday - thenday) / cyclen;
 
-    effday = (nowcyc + exp) * 56 + thenday;
+    effday = (nowcyc + exp) * cyclen + thenday;
     effbin = effday * (24 * 60 * 60) + 12 * 60 * 60;
     efftm  = *localtime (&effbin);
 
-    if ((argc < 2) || (strcasecmp (argv[1], "yyyy-mm-dd") == 0)) printf ("%.4d-%.2d-%.2d\n", efftm.tm_year + 1900, efftm.tm_mon + 1, efftm.tm_mday);
-    if ((argc > 1) && (strcasecmp (argv[1], "mm-dd-yyyy") == 0)) printf ("%.2d-%.2d-%.4d\n", efftm.tm_mon + 1, efftm.tm_mday, efftm.tm_year + 1900);
-    if ((argc > 1) && (strcasecmp (argv[1], "mmm dd yyyy") == 0)) {
+    if (strcasecmp (fmt, "yyyy-mm-dd") == 0) printf ("%.4d-%.2d-%.2d\n", efftm.tm_year + 1900, efftm.tm_mon + 1, efftm.tm_mday);
+    if (strcasecmp (fmt, "mm-dd-yyyy") == 0) printf ("%.2d-%.2d-%.4d\n", efftm.tm_mon + 1, efftm.tm_mday, efftm.tm_year + 1900);
+    if (strcasecmp (fmt, "mmm dd yyyy") == 0) {
         printf ("%s %.2d %.4d\n", months[efftm.tm_mon], efftm.tm_mday, efftm.tm_year + 1900);
     }
+    if (strcasecmp (fmt, "yyyymmdd") == 0) printf ("%.4d%.2d%.2d\n",   efftm.tm_year + 1900, efftm.tm_mon + 1, efftm.tm_mday);
 
     return 0;
 }

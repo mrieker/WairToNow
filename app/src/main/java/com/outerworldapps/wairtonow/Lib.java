@@ -592,6 +592,37 @@ public class Lib {
     }
 
     /**
+     * Find intersection of line A and line B.
+     */
+    public static float lineIntersectX (float ax0, float ay0, float ax1, float ay1, float bx0, float by0, float bx1, float by1)
+    {
+        // (y - y0) / (x - x0) = (y1 - y0) / (x1 - x0)
+        // (y - y0) = (y1 - y0) / (x1 - x0) * (x - x0)
+        // y = (y1 - y0) / (x1 - x0) * (x - x0) + y0
+
+        // (ay1 - ay0) / (ax1 - ax0) * (x - ax0) + ay0 = (by1 - by0) / (bx1 - bx0) * (x - bx0) + by0
+        // (ay1 - ay0) / (ax1 - ax0) * x - (ay1 - ay0) / (ax1 - ax0) * ax0 + ay0 = (by1 - by0) / (bx1 - bx0) * x - (by1 - by0) / (bx1 - bx0) * bx0 + by0
+        // [(ay1 - ay0) / (ax1 - ax0) - (by1 - by0) / (bx1 - bx0)] * x = (ay1 - ay0) / (ax1 - ax0) * ax0 - (by1 - by0) / (bx1 - bx0) * bx0 + by0 - ay0
+        // [(ay1 - ay0) - (by1 - by0) / (bx1 - bx0) * (ax1 - ax0)] * x = (ay1 - ay0) * ax0 - (by1 - by0) / (bx1 - bx0) * (ax1 - ax0) * bx0 + (by0 - ay0) * (ax1 - ax0)
+        // [(ay1 - ay0) * (bx1 - bx0) - (by1 - by0) * (ax1 - ax0)] * x = (ay1 - ay0) * (bx1 - bx0) * ax0 - (by1 - by0) * (ax1 - ax0) * bx0 + (by0 - ay0) * (ax1 - ax0) * (bx1 - bx0)
+        // x = [(ay1 - ay0) * (bx1 - bx0) * ax0 - (by1 - by0) * (ax1 - ax0) * bx0 + (by0 - ay0) * (ax1 - ax0) * (bx1 - bx0)] / [(ay1 - ay0) * (bx1 - bx0) - (by1 - by0) * (ax1 - ax0)]
+
+        float ax1_ax0 = ax1 - ax0;
+        float ay1_ay0 = ay1 - ay0;
+        float bx1_bx0 = bx1 - bx0;
+        float by1_by0 = by1 - by0;
+        return (ay1_ay0 * bx1_bx0 * ax0 - by1_by0 * ax1_ax0 * bx0 + (by0 - ay0) * ax1_ax0 * bx1_bx0) / (ay1_ay0 * bx1_bx0 - by1_by0 * ax1_ax0);
+    }
+    public static float lineIntersectY (float ax0, float ay0, float ax1, float ay1, float bx0, float by0, float bx1, float by1)
+    {
+        float ax1_ax0 = ax1 - ax0;
+        float ay1_ay0 = ay1 - ay0;
+        float bx1_bx0 = bx1 - bx0;
+        float by1_by0 = by1 - by0;
+        return (ax1_ax0 * by1_by0 * ay0 - bx1_bx0 * ay1_ay0 * by0 + (bx0 - ax0) * ay1_ay0 * by1_by0) / (ax1_ax0 * by1_by0 - bx1_bx0 * ay1_ay0);
+    }
+
+    /**
      * Convert a value to corresponding string.
      * @param val = integer version of value
      * @param dpt = number of decimal places it contains

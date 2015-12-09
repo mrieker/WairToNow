@@ -28,7 +28,7 @@
       <td>
         <cfoutput>
           <a href="http://aeronav.faa.gov/enroute/10-15-2015/enr_l01.zip">
-            ELUS1 Oct 15 2015
+            ELUS1 Oct 15 2015     << effective date
           </a>
           <small>
             (ZIP)
@@ -51,15 +51,19 @@ public class GetIFRChartNames {
         while ((line = Console.ReadLine ()) != null) htm += line;
 
         string effdate_mm = args[0];
-        string url = "<a href=\"http://aeronav.faa.gov/enroute/" + effdate_mm + "/enr_";
+        string urlbase = "http://aeronav.faa.gov/enroute/";
 
-        for (int i = 0; (i = htm.IndexOf (url, i)) > 0;) {
-            i = htm.IndexOf ("http:", i);
+        for (int i = 0; (i = htm.IndexOf ("<a href=\"" + urlbase, i)) > 0;) {
+            i = htm.IndexOf (urlbase, i);
             int j = htm.IndexOf ("\">", i);
-            Console.WriteLine (htm.Substring (i, j - i));
-            for (j += 2; htm[j] <= ' '; j ++) { }
-            for (i = j; htm[i] > ' '; i ++) { }
-            Console.WriteLine (htm.Substring (j, i - j));
+            string url = htm.Substring (i, j - i);
+            int k = url.IndexOf ("/enr_");
+            if (k >= 0) {
+                Console.WriteLine (urlbase + effdate_mm + url.Substring (k));
+                for (j += 2; htm[j] <= ' '; j ++) { }
+                for (i = j; htm[i] > ' '; i ++) { }
+                Console.WriteLine (htm.Substring (j, i - j));
+            }
         }
     }
 }

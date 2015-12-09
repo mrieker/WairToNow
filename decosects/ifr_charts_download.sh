@@ -38,14 +38,14 @@ function writechartlist
 #
 function scanifrchartshtm
 {
+    # make a numeric revision code similar to VFR charts, eg, 20150430
+    revcode=${effdate_mm:6:4}${effdate_mm:0:2}${effdate_mm:3:2}
+
     # url to download zip file
     while read zipurl
     do
         # chart name, eg, ELUS1
         read chartname
-
-        # make a numeric revision code similar to VFR charts, eg, 20150430
-        revcode=${effdate_mm:6:4}${effdate_mm:0:2}${effdate_mm:3:2}
 
         # make our zip name similar to VFR charts, eg ENR_ELUS1_20150430.zip
         zipname=ENR_${chartname}_$revcode.zip
@@ -67,7 +67,7 @@ function scanifrchartshtm
             continue
         fi
 
-        echo $chartname $revcode $zipname
+        echo $chartname $revcode $zipurl
 
         # if we don't have the zip file, download it
         if [ ! -f $zipname ]
@@ -156,6 +156,10 @@ fi
 effdate_mm=`./cureffdate 'mm-dd-yyyy'`
 effdate_mmm=`./cureffdate 'mmm dd yyyy'`
 expdate_mmm=`./cureffdate -x 'mmm dd yyyy'`
+
+echo effdate_mm $effdate_mm
+echo effdate_mmm $effdate_mmm
+echo expdate_mmm $expdate_mmm
 
 mkdir -p charts
 cd charts

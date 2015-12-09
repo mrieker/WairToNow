@@ -53,7 +53,7 @@ public class MakeWaypoints {
              * Load airport info into database.
              */
             DoCommand (dbcon, "CREATE TABLE airports (apt_icaoid TEXT PRIMARY KEY, apt_faaid TEXT NOT NULL, apt_elev INTEGER, apt_name TEXT NOT NULL, " +
-                    "apt_lat REAL NOT NULL, apt_lon REAL NOT NULL, apt_desc TEXT NOT NULL, apt_state TEXT NOT NULL);");
+                    "apt_lat REAL NOT NULL, apt_lon REAL NOT NULL, apt_desc TEXT NOT NULL, apt_state TEXT NOT NULL, apt_faciluse TEXT NOT NULL);");
             DoCommand (dbcon, "CREATE TABLE aptkeys  (kw_key TEXT NOT NULL, kw_rowid INTEGER NOT NULL);");
             DoCommand (dbcon, "CREATE INDEX airports_faaid ON airports (apt_faaid);");
             DoCommand (dbcon, "CREATE INDEX airports_lats  ON airports (apt_lat);");
@@ -71,16 +71,18 @@ public class MakeWaypoints {
                 long rowid;
                 IDbCommand dbcmd1 = dbcon.CreateCommand ();
                 try {
-                    dbcmd1.CommandText = "INSERT INTO airports (apt_icaoid,apt_faaid,apt_elev,apt_name,apt_lat,apt_lon,apt_desc,apt_state) " +
-                            "VALUES (@apt_icaoid,@apt_faaid,@apt_elev,@apt_name,@apt_lat,@apt_lon,@apt_desc,@apt_state); SELECT last_insert_rowid ()";
-                    dbcmd1.Parameters.Add (new SqliteParameter ("@apt_icaoid", cols[0]));
-                    dbcmd1.Parameters.Add (new SqliteParameter ("@apt_faaid" , cols[1]));
-                    dbcmd1.Parameters.Add (new SqliteParameter ("@apt_elev"  , ParseElev (cols[2])));
-                    dbcmd1.Parameters.Add (new SqliteParameter ("@apt_name"  , cols[3]));
-                    dbcmd1.Parameters.Add (new SqliteParameter ("@apt_lat"   , double.Parse (cols[4])));
-                    dbcmd1.Parameters.Add (new SqliteParameter ("@apt_lon"   , double.Parse (cols[5])));
-                    dbcmd1.Parameters.Add (new SqliteParameter ("@apt_desc"  , cols[7]));
-                    dbcmd1.Parameters.Add (new SqliteParameter ("@apt_state" , cols[8]));
+                    dbcmd1.CommandText = "INSERT INTO airports (apt_icaoid,apt_faaid,apt_elev,apt_name,apt_lat,apt_lon,apt_desc,apt_state,apt_faciluse) " +
+                            "VALUES (@apt_icaoid,@apt_faaid,@apt_elev,@apt_name,@apt_lat,@apt_lon,@apt_desc,@apt_state,@apt_faciluse); " +
+                            "SELECT last_insert_rowid ()";
+                    dbcmd1.Parameters.Add (new SqliteParameter ("@apt_icaoid"  , cols[0]));
+                    dbcmd1.Parameters.Add (new SqliteParameter ("@apt_faaid"   , cols[1]));
+                    dbcmd1.Parameters.Add (new SqliteParameter ("@apt_elev"    , ParseElev (cols[2])));
+                    dbcmd1.Parameters.Add (new SqliteParameter ("@apt_name"    , cols[3]));
+                    dbcmd1.Parameters.Add (new SqliteParameter ("@apt_lat"     , double.Parse (cols[4])));
+                    dbcmd1.Parameters.Add (new SqliteParameter ("@apt_lon"     , double.Parse (cols[5])));
+                    dbcmd1.Parameters.Add (new SqliteParameter ("@apt_desc"    , cols[7]));
+                    dbcmd1.Parameters.Add (new SqliteParameter ("@apt_state"   , cols[8]));
+                    dbcmd1.Parameters.Add (new SqliteParameter ("@apt_faciluse", cols[9]));
                     rowid = (long) dbcmd1.ExecuteScalar ();
                 } finally {
                     dbcmd1.Dispose ();

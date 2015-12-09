@@ -24,7 +24,6 @@
  * Write lines to stdout of form:
  *    <flag> <state> <faaid> <aptdiagpdfurl> <type>
  *    <title>
- * The first stdout line is expiration date in yyyymmdd form.
  *    flag = S : same as last cycle
  *           C : changed
  *           D : deleted
@@ -32,6 +31,7 @@
  */
 
 // gmcs -debug -out:GetAptPlates.exe GetAptPlates.cs
+// mono --debug GetAptPlates.exe $airaccycle < ... > ...
 
 using System;
 using System.Collections.Generic;
@@ -41,58 +41,14 @@ using System.Net;
 using System.Text;
 
 public class GetAptPlates {
-    private static string[] monthNames = { "jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec" };
     private static string searchUrl = "http://www.faa.gov/air_traffic/flight_info/aeronav/digital_products/dtpp/search/";
 
     public static void Main (string[] args)
     {
-        bool nextcycle = false;
         int i, j, k;
         string line;
 
-        foreach (string arg in args) {
-            if (arg == "-nextcycle") {
-                nextcycle = true;
-                continue;
-            }
-            Console.Error.WriteLine ("unknown arg " + arg);
-        }
-
-        // <form action="results/" ...
-        //   <option value=" ...
-        //     Mar 05 - Apr 01, 2015 [1503] ... (Previous)
-        //   <option value=" ...
-        //     Apr 02 - Apr 29, 2015 [1504]* ... (Current)
-
-        string searchpage = MakeRequest (searchUrl);
-        i = searchpage.IndexOf ("<form action=\"results/\"");
-    getoption:
-        i = searchpage.IndexOf ("<option value=\"", i);
-        i = searchpage.IndexOf (" - ", i) + 2;
-        string month = GetWord (searchpage, ref i).ToLowerInvariant ();
-        string day   = GetWord (searchpage, ref i);
-        string year  = GetWord (searchpage, ref i);
-        string cycle = GetWord (searchpage, ref i);
-        string stage = GetWord (searchpage, ref i).ToLowerInvariant ();
-        if (stage == "(previous)") goto getoption;
-        if (stage != "(current)") throw new ApplicationException ("bad stage " + stage);
-
-        if (day.EndsWith (",")) day = day.Substring (0, day.Length - 1);
-
-        DateTime expdt = new DateTime (0);
-        for (j = 0; j < 12; j ++) {
-            if (month == monthNames[j]) {
-                expdt = new DateTime (int.Parse (year), j + 1, int.Parse (day), 12, 0, 0);
-            }
-        }
-        while (expdt.DayOfWeek != DayOfWeek.Thursday) expdt = expdt.AddDays (1);
-        if (nextcycle) expdt = expdt.AddDays (28);
-        Console.WriteLine (expdt.Year.ToString ("D4") + expdt.Month.ToString ("D2") + expdt.Day.ToString ("D2"));
-
-        if (cycle.StartsWith ("[")) cycle = cycle.Substring (1);
-        if (cycle.EndsWith   ("]")) cycle = cycle.Substring (0, cycle.Length - 1);
-        if (cycle.EndsWith  ("]*")) cycle = cycle.Substring (0, cycle.Length - 2);
-        if (nextcycle)              cycle = (int.Parse (cycle) + 1).ToString ();
+        string airac = args[0];
 
         string[] tdsplit = new string[] { "<td>" };
 
@@ -102,54 +58,72 @@ public class GetAptPlates {
             j = line.IndexOf (',', ++ i);
             string faaid  = line.Substring (i, j - i);
 
-            int page = 1;
-            do {
-                string url      = searchUrl + "results/?cycle=" + cycle + "&ident=" + faaid + "&page=" + page;
-                string diagpage = MakeRequest (url).Replace ("\r", "").Replace ("\n", "");
-                string[] parts  = diagpage.Split (tdsplit, StringSplitOptions.None);
-                for (k = 0; k < parts.Length; k ++) {
-                    string apidpart = parts[k];  // BVY (KBVY)
-                    i  = apidpart.IndexOf ("</td>");
-                    if (i < 0) continue;
-                    apidpart = apidpart.Substring (0, i).Trim ();
-                    if ((apidpart == faaid + " (" + icaoid + ")") || (apidpart == faaid + " ()")) {
-                        try {
-                            string statpart = parts[k-3];    // MA
-                            //string citypart = parts[k-2];  // BEVERLY
-                            //string namepart = parts[k-1];  // BEVERLY MUNI
+            string datname = "datums/getaptplates_" + airac + "/" + faaid + ".dat";
+            if (!File.Exists (datname)) {
+                Directory.CreateDirectory ("datums/getaptplates_" + airac);
+                StreamWriter datfile = new StreamWriter (datname + ".tmp");
 
-                            //string afdvpart = parts[k+1];  // NE-1
-                            string flagpart = parts[k+2];    // A(dded) C(hanged), D(deleted)
-                            string typepart = parts[k+3];    // APD, IAP, ...
-                            string linkpart = parts[k+4];    // <a href="http://aeronav.faa.gov/d-tpp/1503/05039ad.pdf">AIRPORT DIAGRAM</a>
+                int page = 1;
+                do {
+                    string url      = searchUrl + "results/?cycle=" + airac + "&ident=" + faaid + "&page=" + page;
+                    string diagpage = MakeRequest (url).Replace ("\r", "").Replace ("\n", "");
+                    string[] parts  = diagpage.Split (tdsplit, StringSplitOptions.None);
+                    for (k = 0; k < parts.Length; k ++) {
+                        string apidpart = parts[k];  // BVY (KBVY)
+                        i  = apidpart.IndexOf ("</td>");
+                        if (i < 0) continue;
+                        apidpart = apidpart.Substring (0, i).Trim ();
+                        if ((apidpart == faaid + " (" + icaoid + ")") || (apidpart == faaid + " ()")) {
+                            try {
+                                string statpart = parts[k-3];    // MA
+                                //string citypart = parts[k-2];  // BEVERLY
+                                //string namepart = parts[k-1];  // BEVERLY MUNI
 
-                            i  = statpart.IndexOf ("</td>");
-                            statpart = statpart.Substring (0, i).Trim ();
+                                //string afdvpart = parts[k+1];  // NE-1
+                                string flagpart = parts[k+2];    // A(dded) C(hanged), D(deleted)
+                                string typepart = parts[k+3];    // APD, IAP, ...
+                                string linkpart = parts[k+4];    // <a href="http://aeronav.faa.gov/d-tpp/1503/05039ad.pdf">AIRPORT DIAGRAM</a>
 
-                            i  = flagpart.IndexOf ("</td>");
-                            flagpart = flagpart.Substring (0, i).Trim ();
-                            if (flagpart == "") flagpart = "S";
+                                i  = statpart.IndexOf ("</td>");
+                                statpart = statpart.Substring (0, i).Trim ();
 
-                            i  = typepart.IndexOf ("</td>");
-                            typepart = typepart.Substring (0, i).Trim ();
+                                i  = flagpart.IndexOf ("</td>");
+                                flagpart = flagpart.Substring (0, i).Trim ();
+                                if (flagpart == "") flagpart = "S";
 
-                            i  = linkpart.IndexOf ("\">");
-                            string pdfurl = linkpart.Substring (9, i - 9);
-                            i += 2;
-                            j  = linkpart.IndexOf ("</a>", i);
+                                i  = typepart.IndexOf ("</td>");
+                                typepart = typepart.Substring (0, i).Trim ();
 
-                            string title  = linkpart.Substring (i, j - i);
+                                i  = linkpart.IndexOf ("\">");
+                                string pdfurl = linkpart.Substring (9, i - 9);
+                                i += 2;
+                                j  = linkpart.IndexOf ("</a>", i);
 
-                            Console.WriteLine (flagpart + " " + statpart + " " + faaid + " " + pdfurl + " " + typepart);
-                            Console.WriteLine (title);
-                        } catch (ArgumentOutOfRangeException) {
+                                string title  = linkpart.Substring (i, j - i);
+
+                                datfile.WriteLine (flagpart + " " + statpart + " " + faaid + " " + pdfurl + " " + typepart);
+                                datfile.WriteLine (title);
+                                Console.WriteLine (flagpart + " " + statpart + " " + faaid + " " + pdfurl + " " + typepart);
+                                Console.WriteLine (title);
+                            } catch (ArgumentOutOfRangeException) {
+                            }
                         }
                     }
-                }
 
-                page ++;
-                i = diagpage.IndexOf ("&amp;page=" + page + '"');
-            } while (i >= 0);
+                    page ++;
+                    i = diagpage.IndexOf ("&amp;page=" + page + '"');
+                } while (i >= 0);
+
+                datfile.Close ();
+                File.Move (datname + ".tmp", datname);
+            } else {
+                StreamReader datfile = new StreamReader (datname);
+                string datline;
+                while ((datline = datfile.ReadLine ()) != null) {
+                    Console.WriteLine (datline);
+                }
+                datfile.Close ();
+            }
         }
     }
 

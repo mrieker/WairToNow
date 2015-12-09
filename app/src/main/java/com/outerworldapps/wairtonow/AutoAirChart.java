@@ -22,6 +22,8 @@ package com.outerworldapps.wairtonow;
 
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Point;
+import android.support.annotation.NonNull;
 import android.util.TypedValue;
 import android.view.View;
 import android.widget.TextView;
@@ -116,6 +118,47 @@ public class AutoAirChart implements DisplayableChart, Comparator<AirChart> {
             ac.CloseBitmaps ();
         }
         airCharts.clear ();
+    }
+
+    @Override  // DisplayableChart
+    public boolean LatLon2CanPixExact (float lat, float lon, @NonNull Point canpix)
+    {
+        // find last chart drawn that covers the given lat/lon
+        AirChart lastac = null;
+        for (AirChart ac : airCharts.keySet ()) {
+            if (ac.LatLonIsCharted (lat, lon)) lastac = ac;
+        }
+        // if none, tell caller to use approximate mapping
+        if (lastac == null) return false;
+        // found one, use one drawn on top to convert
+        lastac.LatLon2CanPixExact (lat, lon, canpix);
+        return true;
+    }
+
+    @Override  // DisplayableChart
+    public boolean CanPix2LatLonExact (float canpixx, float canpixy, @NonNull LatLon ll)
+    {
+        // find last chart drawn that covers the given pixel
+        AirChart lastac = null;
+        float lastlat = 0.0F;
+        float lastlon = 0.0F;
+        for (AirChart ac : airCharts.keySet ()) {
+            // get what this chart thinks the lat/lon of the canvas pixel is
+            ac.ChartPixel2LatLonExact (canpixx, canpixy, ll);
+            // see if that chart covers that lat/lon
+            if (ac.LatLonIsCharted (ll.lat, ll.lon)) {
+                // if so, remember the point was converted
+                lastac = ac;
+                lastlat = ll.lat;
+                lastlon = ll.lon;
+            }
+        }
+        // no chart covers the canvax pixel, tell caller to use approximate mapping
+        if (lastac == null) return false;
+        // found one, return the converted lat/lon
+        ll.lat = lastlat;
+        ll.lon = lastlon;
+        return true;
     }
 
     /**

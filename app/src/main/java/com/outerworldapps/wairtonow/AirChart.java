@@ -29,6 +29,7 @@ import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.Point;
 import android.graphics.Rect;
+import android.support.annotation.NonNull;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.util.TypedValue;
@@ -50,12 +51,15 @@ import java.util.LinkedList;
 /**
  * Contains one aeronautical chart, whether or not it is downloaded.
  */
-public class AirChart implements DisplayableChart {
+public abstract class AirChart implements DisplayableChart {
     private final static String TAG = "WairToNow";
     private final static boolean showtilenames = false;
 
     private final static AirTileLoader airTileLoader = new AirTileLoader ();
 
+    private static ThreadLocal<float[]> flt4PerThread = new ThreadLocal<float[]> () {
+        @Override protected float[] initialValue () { return new float[4]; }
+    };
     private static ThreadLocal<LatLon> llPerThread = new ThreadLocal<LatLon> () {
         @Override protected LatLon initialValue ()
         {
@@ -79,8 +83,9 @@ public class AirChart implements DisplayableChart {
     private LinkedList<AirTile>  loadedBitmaps = new LinkedList<> ();
     private long viewDrawCycle = 0;  // incremented each drawing cycle
     private MaintView maintView;
-    private Matrix drawOnCanvasChartMat = new Matrix ();
-    private Matrix drawOnCanvasTileMat  = new Matrix ();
+    private Matrix drawOnCanvasChartMat   = new Matrix ();
+    private Matrix drawOnCanvasTileMat    = new Matrix ();
+    private Matrix undrawOnCanvasChartMat = new Matrix ();
     private Paint stnbgpaint;   // "showtilenames" background paint
     private Paint stntxpaint;   // "showtilenames" foreground paint
     private Point drawOnCanvasPoint = new Point ();
@@ -93,20 +98,33 @@ public class AirChart implements DisplayableChart {
     private float chartedEastLon;  // *NOT NORMALIZED* -- always >= chartedWestLon
     private float chartedWestLon;  // normalized
     private float chartedSouthLat, chartedNorthLat;
-    private float pixelsize;
-    private float e_e, e_F_rada, e_lam0, e_n, e_phi0, e_rho0;
-    private float tfw_a, tfw_b, tfw_c, tfw_d, tfw_e, tfw_f;
-    private float wft_a, wft_b, wft_c, wft_d, wft_e, wft_f;
     public  int autoOrder;
     public  int enddate;
     private int chartedEastPix, chartedWestPix;
     private int chartedSouthPix, chartedNorthPix;
     public  int chartheight, chartwidth;  // pixel width & height of this chart including legend areas
 
-    public AirChart (MaintView maintView, String csvLine)
+    // methods a projection-specific implementation must provide
+    protected abstract String ParseParams (String csvLine);
+    public abstract boolean LatLon2ChartPixelExact (float lat, float lon, @NonNull Point p);
+    protected abstract void ChartPixel2LatLonExact (float x, float y, @NonNull LatLon ll);
+
+    // instantiate based on what projection is required for the chart
+    public static AirChart Factory (MaintView maintView, String csvLine)
+    {
+        AirChart instance;
+        if (csvLine.startsWith (PSP.pfx)) instance = new PSP ();
+        else if (csvLine.startsWith (Box.pfx)) instance = new Box ();
+        else instance = new Lcc ();
+        instance.Construct (maintView, csvLine);
+        return instance;
+    }
+
+    private void Construct (MaintView maintView, String csvLine)
     {
         this.maintView = maintView;
         wairToNow = maintView.wairToNow;
+
         ParseChartLimitsLine (csvLine);
 
         // set up paints used to show tile names at top center of each tile
@@ -194,9 +212,8 @@ public class AirChart implements DisplayableChart {
         bmrect.bottom = pt.y;
         String undername = spacenamenr.replace (' ', '_') + '_' + revision;
         String iconname = WairToNow.dbdir + "/charts/" + undername + "/icon.png";
-        Bitmap iconbm = null;
         if (new File (iconname).exists ()) {
-            iconbm = BitmapFactory.decodeFile (iconname);
+            Bitmap iconbm = BitmapFactory.decodeFile (iconname);
             can.drawBitmap (iconbm, null, bmrect, null);
             iconbm.recycle ();
         } else {
@@ -263,7 +280,7 @@ public class AirChart implements DisplayableChart {
 
     private void LatLon2GMSPixel (float lat, float lon, Point pt)
     {
-        LatLon2Pixel (lat, lon, pt);
+        LatLon2ChartPixelExact (lat, lon, pt);
         ChartPixel2GMSPixel (pt);
     }
     private void ChartPixel2GMSPixel (Point pt)
@@ -294,24 +311,28 @@ public class AirChart implements DisplayableChart {
         float[] points = drawOnCanvasPoints;
         Point point = drawOnCanvasPoint;
 
-        LatLon2Pixel (chartView.tlLat, chartView.tlLon, point);
+        LatLon2ChartPixelExact (chartView.tlLat, chartView.tlLon, point);
         points[ 0] = point.x;  points[ 8] = 0;
         points[ 1] = point.y;  points[9] = 0;
 
-        LatLon2Pixel (chartView.trLat, chartView.trLon, point);
+        LatLon2ChartPixelExact (chartView.trLat, chartView.trLon, point);
         points[ 2] = point.x;  points[10] = chartView.canvasWidth;
         points[ 3] = point.y;  points[11] = 0;
 
-        LatLon2Pixel (chartView.blLat, chartView.blLon, point);
+        LatLon2ChartPixelExact (chartView.blLat, chartView.blLon, point);
         points[ 4] = point.x;  points[12] = 0;
         points[ 5] = point.y;  points[13] = chartView.canvasHeight;
 
-        LatLon2Pixel (chartView.brLat, chartView.brLon, point);
+        LatLon2ChartPixelExact (chartView.brLat, chartView.brLon, point);
         points[ 6] = point.x;  points[14] = chartView.canvasWidth;
         points[ 7] = point.y;  points[15] = chartView.canvasHeight;
 
         if (!drawOnCanvasChartMat.setPolyToPoly (points, 0, points, 8, 4)) {
             Log.e (TAG, "can't position chart");
+            return;
+        }
+        if (!drawOnCanvasChartMat.invert (undrawOnCanvasChartMat)) {
+            Log.e (TAG, "can't unposition chart");
             return;
         }
 
@@ -434,6 +455,40 @@ public class AirChart implements DisplayableChart {
             tile.tileDrawCycle = 0;
             tile.recycle ();
         }
+    }
+
+    /**
+     * Use chart projection to map lat/lon to canvas pixel.
+     */
+    @Override  // DisplayableChart
+    public boolean LatLon2CanPixExact (float lat, float lon, @NonNull Point canpix)
+    {
+        LatLon2ChartPixelExact (lat, lon, canpix);
+
+        float[] flt = flt4PerThread.get ();
+        flt[0] = canpix.x;
+        flt[1] = canpix.y;
+        drawOnCanvasChartMat.mapPoints (flt, 2, flt, 0, 1);
+        canpix.x = Math.round (flt[2]);
+        canpix.y = Math.round (flt[3]);
+        return true;
+    }
+
+    /**
+     * Use chart projection to map canvas pixel to lat/lon.
+     */
+    @Override  // DisplayableChart
+    public boolean CanPix2LatLonExact (float canpixx, float canpixy, @NonNull LatLon ll)
+    {
+        float[] flt = flt4PerThread.get ();
+        flt[0] = canpixx;
+        flt[1] = canpixy;
+        undrawOnCanvasChartMat.mapPoints (flt, 2, flt, 0, 1);
+
+        float chartpixx = flt[2];
+        float chartpixy = flt[3];
+        ChartPixel2LatLonExact (chartpixx, chartpixy, ll);
+        return true;
     }
 
     /**
@@ -877,23 +932,19 @@ public class AirChart implements DisplayableChart {
      */
     public void ParseChartLimitsLine (String csvLine)
     {
+        /*
+         * Handle projection-specific parameters.
+         */
+        csvLine = ParseParams (csvLine);
+
+        /*
+         * Handle common parameters.
+         */
         String[] values = Lib.QuotedCSVSplit (csvLine);
-        float centerLat = Float.parseFloat (values[ 0]);
-        float centerLon = Float.parseFloat (values[ 1]);
-        float stanPar1  = Float.parseFloat (values[ 2]);
-        float stanPar2  = Float.parseFloat (values[ 3]);
-        chartwidth      = Integer.parseInt (values[ 4]);
-        chartheight     = Integer.parseInt (values[ 5]);
-        float rada      = Float.parseFloat (values[ 6]);
-        float radb      = Float.parseFloat (values[ 7]);
-        tfw_a           = Float.parseFloat (values[ 8]);
-        tfw_b           = Float.parseFloat (values[ 9]);
-        tfw_c           = Float.parseFloat (values[10]);
-        tfw_d           = Float.parseFloat (values[11]);
-        tfw_e           = Float.parseFloat (values[12]);
-        tfw_f           = Float.parseFloat (values[13]);
-        enddate         = Integer.parseInt (values[15]);
-        spacenamewr     = values[16];  // eg, "New York SEC 87"
+        chartwidth      = Integer.parseInt (values[0]);
+        chartheight     = Integer.parseInt (values[1]);
+        enddate         = Integer.parseInt (values[2]);
+        spacenamewr     = values[3];                      // eg, "New York SEC 87"
         int i           = spacenamewr.lastIndexOf (' ');  // remove revision number from the end
         revision        = spacenamewr.substring (i + 1);
         spacenamenr     = spacenamewr.substring (0, i);
@@ -904,72 +955,6 @@ public class AirChart implements DisplayableChart {
          * we don't confuse it with an unloaded chart.
          */
         if (enddate == 0) enddate = 99999999;
-
-        /*
-         * Compute Lambert Conformal Projection parameters.
-         *
-         * Map Projections -- A Working Manual
-         * John P. Snyder
-         * US Geological Survey Professional Paper 1395
-         * http://pubs.usgs.gov/pp/1395/report.pdf
-         * see pages viii, v107, v296, ellipsoidal projection
-         */
-        pixelsize  = Mathf.hypot (tfw_b, tfw_d);
-        e_lam0     = Mathf.toRadians (centerLon);
-        e_phi0     = Mathf.toRadians (centerLat);
-        float phi1 = Mathf.toRadians (stanPar1);
-        float phi2 = Mathf.toRadians (stanPar2);
-
-        e_e = Mathf.sqrt (1 - (radb * radb) / (rada * rada));
-
-        // v108: equation 14-15
-        float m1 = eq1415 (phi1);
-        float m2 = eq1415 (phi2);
-
-        // v108: equation 15-9a
-        float t0 = eq159a (e_phi0);
-        float t1 = eq159a (phi1);
-        float t2 = eq159a (phi2);
-
-        // v108: equation 15-8
-        e_n = (float) ((Math.log (m1) - Math.log (m2)) / (Math.log (t1) - Math.log (t2)));
-
-        // v108: equation 15-10
-        float F = (float) (m1 / (e_n * Math.pow (t1, e_n)));
-        e_F_rada = F * rada;
-
-        // v108: equation 15-7a
-        e_rho0 = (float) (e_F_rada * Math.pow (t0, e_n));
-
-        /*
-         * tfw_a..f = convert pixel to easting/northing
-         * Compute wft_a..f = convert easting/northing to pixel:
-         *                [ tfw_a tfw_b 0 ]
-         *    [ x y 1 ] * [ tfw_c tfw_d 0 ] = [ e n 1 ]
-         *                [ tfw_e tfw_f 1 ]
-         *
-         * So if wft = inv (tfw):
-         *
-         *                [ tfw_a tfw_b 0 ]   [ wft_a wft_b 0 ]               [ wft_a wft_b 0 ]
-         *    [ x y 1 ] * [ tfw_c tfw_d 0 ] * [ wft_c wft_d 0 ] = [ e n 1 ] * [ wft_c wft_d 0 ]
-         *                [ tfw_e tfw_f 1 ]   [ wft_e wft_f 1 ]               [ wft_e wft_f 1 ]
-         *
-         *                            [ wft_a wft_b 0 ]
-         *    [ x y 1 ] = [ e n 1 ] * [ wft_c wft_d 0 ]
-         *                            [ wft_e wft_f 1 ]
-         */
-        float[][] mat = new float[][] {
-                new float[] { tfw_a, tfw_b, 0, 1, 0 },
-                new float[] { tfw_c, tfw_d, 0, 0, 1 },
-                new float[] { tfw_e, tfw_f, 1, 0, 0 }
-        };
-        Lib.RowReduce (mat);
-        wft_a = mat[0][3];
-        wft_b = mat[0][4];
-        wft_c = mat[1][3];
-        wft_d = mat[1][4];
-        wft_e = mat[2][3];
-        wft_f = mat[2][4];
 
         /*
          * Determine limits of charted (non-legend) area.
@@ -984,22 +969,22 @@ public class AirChart implements DisplayableChart {
 
         // check out northwest corner
         LatLon ll = new LatLon ();
-        Pixel2LatLon (0, 0, ll);
+        ChartPixel2LatLonExact (0, 0, ll);
         chartedNorthLat = ll.lat;
         chartedWestLon  = ll.lon;
 
         // check out northeast corner
-        Pixel2LatLon (chartwidth, 0, ll);
+        ChartPixel2LatLonExact (chartwidth, 0, ll);
         if (chartedNorthLat < ll.lat) chartedNorthLat = ll.lat;
         chartedEastLon = ll.lon;
 
         // check out southwest corner
-        Pixel2LatLon (0, chartheight, ll);
+        ChartPixel2LatLonExact (0, chartheight, ll);
         chartedSouthLat = ll.lat;
         chartedWestLon = Lib.Westmost (chartedWestLon, ll.lon);
 
         // check out southeast corner
-        Pixel2LatLon (chartwidth, chartheight, ll);
+        ChartPixel2LatLonExact (chartwidth, chartheight, ll);
         if (chartedSouthLat > ll.lat) chartedSouthLat = ll.lat;
         chartedEastLon = Lib.Eastmost (chartedEastLon, ll.lon);
 
@@ -1072,126 +1057,6 @@ public class AirChart implements DisplayableChart {
     }
 
     /**
-     * Given a lat/lon, compute pixel within the chart
-     *
-     * @param lat = latitude within the chart
-     * @param lon = longitude within the chart
-     * @param p   = where to return corresponding pixel
-     * @return p filled in
-     */
-    public boolean LatLon2Pixel (float lat, float lon, Point p)
-    {
-        float phi = Mathf.toRadians (lat);
-        float lam = Mathf.toRadians (lon);
-
-        /*
-         * Calculate number of metres east of Longitude_of_Central_Meridian
-         * and metres north of Latitude_of_Projection_Origin using Lambert
-         * Conformal Ellipsoidal Projection formulae.
-         */
-        // v108: equation 15-9a
-        float t = eq159a (phi);
-
-        // v108: equation 15-7
-        float rho = (float) (e_F_rada * Math.pow (t, e_n));
-
-        // v108: equation 14-4
-        float theta = e_n * (lam - e_lam0);
-
-        // v107: equation 14-1 -> how far east of centerLon
-        float easting = rho * Mathf.sin (theta);
-
-        // v107: equation 14-2 -> how far north of centerLat
-        float northing = e_rho0 - rho * Mathf.cos (theta);
-
-        /*
-         * Compute corresponding image pixel number.
-         */
-        int x = Math.round (easting * wft_a + northing * wft_c + wft_e);
-        int y = Math.round (easting * wft_b + northing * wft_d + wft_f);
-        if (p != null) {
-            p.x = x;
-            p.y = y;
-        }
-
-        return (x >= 0) && (x < chartwidth) && (y >= 0) && (y < chartheight);
-    }
-
-    /**
-     * Given a pixel within the chart, compute corresponding lat/lon
-     *
-     * @param x  = pixel within the entire side of the sectional
-     * @param y  = pixel within the entire side of the sectional
-     * @param ll = where to return corresponding lat/lon
-     */
-    private boolean Pixel2LatLon (float x, float y, LatLon ll)
-    {
-        // opposite steps of LatLon2Pixel()
-
-        float easting  = tfw_a * x + tfw_c * y + tfw_e;
-        float northing = tfw_b * x + tfw_d * y + tfw_f;
-
-        // easting = rho * sin (theta)
-        // easting / rho = sin (theta)
-
-        // northing = e_rho0 - rho * cos (theta)
-        // rho * cos (theta) = e_rho0 - northing
-        // cos (theta) = (e_rho0 - northing) / rho
-
-        float theta = (float) Math.atan (easting / (e_rho0 - northing));
-
-        // theta = e_n * (lam - e_lam0)
-        // theta / e_n = lam - e_lam0
-        // theta / e_n + e_lam0 = lam
-
-        float lam = theta / e_n + e_lam0;
-
-        // v108: equation 14-4
-        float costheta = Mathf.cos (e_n * (lam - e_lam0));
-
-        // must calculate phi (latitude) with successive approximation
-        // usually takes 3 or 4 iterations to resolve latitude within one pixel
-
-        float phi = e_phi0;
-        float metresneedtogonorth;
-        do {
-            // v108: equation 15-9a
-            float t = eq159a (phi);
-
-            // v108: equation 15-7
-            float rho = (float) (e_F_rada * Math.pow (t, e_n));
-
-            // v107: equation 14-2 -> how far north of centerLat
-            float n = e_rho0 - rho * costheta;
-
-            // update based on how far off our guess is
-            // - we are trying to get phi that gives us 'northing'
-            // - but we have phi that gives us 'n'
-            metresneedtogonorth = northing - n;
-            phi += metresneedtogonorth / (Lib.MPerNM * Lib.NMPerDeg * 180.0F / Mathf.PI);
-        } while (Math.abs (metresneedtogonorth) > pixelsize);
-
-        ll.lat = Mathf.toDegrees (phi);
-        ll.lon = Mathf.toDegrees (lam);
-
-        return (x >= 0) && (x < chartwidth) && (y >= 0) && (y < chartheight);
-    }
-
-    private float eq1415 (float phi)
-    {
-        float w = e_e * Mathf.sin (phi);
-        return Mathf.cos (phi) / Mathf.sqrt (1 - w * w);
-    }
-
-    private float eq159a (float phi)
-    {
-        float sinphi = Mathf.sin (phi);
-        float u = (1 - sinphi) / (1 + sinphi);
-        float v = (1 + e_e * sinphi) / (1 - e_e * sinphi);
-        return Mathf.sqrt (u * Math.pow (v, e_e));
-    }
-
-    /**
      * See if the given lat,lon is within the chart area (not legend)
      */
     public boolean LatLonIsCharted (float lat, float lon)
@@ -1208,7 +1073,7 @@ public class AirChart implements DisplayableChart {
          * It is within lat/lon limits, check pixel limits too.
          */
         Point pt = ptPerThread.get ();
-        return LatLon2Pixel (lat, lon, pt) &&
+        return LatLon2ChartPixelExact (lat, lon, pt) &&
                 (pt.y >= chartedNorthPix) && (pt.y <= chartedSouthPix) &&
                 (pt.x >= chartedWestPix) && (pt.x <= chartedEastPix);
     }
@@ -1228,10 +1093,379 @@ public class AirChart implements DisplayableChart {
          * It is within pixel limits, check lat/lon limits too.
          */
         LatLon ll = llPerThread.get ();
-        Pixel2LatLon (pixx, pixy, ll);
+        ChartPixel2LatLonExact (pixx, pixy, ll);
         if ((ll.lat < chartedSouthLat) || (ll.lat > chartedNorthLat)) return false;
 
         if (ll.lon < chartedWestLon) ll.lon += 360.0;
         return ll.lon <= chartedEastLon;
+    }
+
+    /**
+     * Lambert Conical Conformal charts.
+     */
+    private static class Lcc extends AirChart {
+        private float pixelsize;
+        private float e_e, e_F_rada, e_lam0, e_n, e_phi0, e_rho0;
+        private float tfw_a, tfw_b, tfw_c, tfw_d, tfw_e, tfw_f;
+        private float wft_a, wft_b, wft_c, wft_d, wft_e, wft_f;
+
+        @Override  // AirChart
+        protected String ParseParams (String csvLine)
+        {
+            String[] values = csvLine.split (",", 16);
+            float centerLat = Float.parseFloat (values[ 0]);
+            float centerLon = Float.parseFloat (values[ 1]);
+            float stanPar1  = Float.parseFloat (values[ 2]);
+            float stanPar2  = Float.parseFloat (values[ 3]);
+            float rada      = Float.parseFloat (values[ 6]);
+            float radb      = Float.parseFloat (values[ 7]);
+            tfw_a           = Float.parseFloat (values[ 8]);
+            tfw_b           = Float.parseFloat (values[ 9]);
+            tfw_c           = Float.parseFloat (values[10]);
+            tfw_d           = Float.parseFloat (values[11]);
+            tfw_e           = Float.parseFloat (values[12]);
+            tfw_f           = Float.parseFloat (values[13]);
+
+            /*
+             * Compute projection parameters.
+             *
+             * Map Projections -- A Working Manual
+             * John P. Snyder
+             * US Geological Survey Professional Paper 1395
+             * http://pubs.usgs.gov/pp/1395/report.pdf
+             * see pages viii, v107, v296, ellipsoidal projection
+             */
+            pixelsize  = Mathf.hypot (tfw_b, tfw_d);
+            e_lam0     = Mathf.toRadians (centerLon);
+            e_phi0     = Mathf.toRadians (centerLat);
+            float phi1 = Mathf.toRadians (stanPar1);
+            float phi2 = Mathf.toRadians (stanPar2);
+
+            e_e = Mathf.sqrt (1 - (radb * radb) / (rada * rada));
+
+            // v108: equation 14-15
+            float m1 = eq1415 (phi1);
+            float m2 = eq1415 (phi2);
+
+            // v108: equation 15-9a
+            float t0 = eq159a (e_phi0);
+            float t1 = eq159a (phi1);
+            float t2 = eq159a (phi2);
+
+            // v108: equation 15-8
+            e_n = (float) ((Math.log (m1) - Math.log (m2)) / (Math.log (t1) - Math.log (t2)));
+
+            // v108: equation 15-10
+            float F = (float) (m1 / (e_n * Math.pow (t1, e_n)));
+            e_F_rada = F * rada;
+
+            // v108: equation 15-7a
+            e_rho0 = (float) (e_F_rada * Math.pow (t0, e_n));
+
+            /*
+             * tfw_a..f = convert pixel to easting/northing
+             * Compute wft_a..f = convert easting/northing to pixel:
+             *                [ tfw_a tfw_b 0 ]
+             *    [ x y 1 ] * [ tfw_c tfw_d 0 ] = [ e n 1 ]
+             *                [ tfw_e tfw_f 1 ]
+             *
+             * So if wft = inv (tfw):
+             *
+             *                [ tfw_a tfw_b 0 ]   [ wft_a wft_b 0 ]               [ wft_a wft_b 0 ]
+             *    [ x y 1 ] * [ tfw_c tfw_d 0 ] * [ wft_c wft_d 0 ] = [ e n 1 ] * [ wft_c wft_d 0 ]
+             *                [ tfw_e tfw_f 1 ]   [ wft_e wft_f 1 ]               [ wft_e wft_f 1 ]
+             *
+             *                            [ wft_a wft_b 0 ]
+             *    [ x y 1 ] = [ e n 1 ] * [ wft_c wft_d 0 ]
+             *                            [ wft_e wft_f 1 ]
+             */
+            float[][] mat = new float[][] {
+                    new float[] { tfw_a, tfw_b, 0, 1, 0 },
+                    new float[] { tfw_c, tfw_d, 0, 0, 1 },
+                    new float[] { tfw_e, tfw_f, 1, 0, 0 }
+            };
+            Lib.RowReduce (mat);
+            wft_a = mat[0][3];
+            wft_b = mat[0][4];
+            wft_c = mat[1][3];
+            wft_d = mat[1][4];
+            wft_e = mat[2][3];
+            wft_f = mat[2][4];
+
+            /*
+             * Return common parameter portion of csvLine.
+             * Note that values[14] is not used.
+             */
+            return values[4] + ',' + values[5] + ',' + values[15];
+        }
+
+        /**
+         * Given a lat/lon, compute pixel within the chart
+         *
+         * @param lat = latitude within the chart
+         * @param lon = longitude within the chart
+         * @param p   = where to return corresponding pixel
+         * @return p filled in
+         */
+        @Override  // AirChart
+        public boolean LatLon2ChartPixelExact (float lat, float lon, @NonNull Point p)
+        {
+            float phi = Mathf.toRadians (lat);
+            float lam = Mathf.toRadians (lon);
+
+            /*
+             * Calculate number of metres east of Longitude_of_Central_Meridian
+             * and metres north of Latitude_of_Projection_Origin using Lambert
+             * Conformal Ellipsoidal Projection formulae.
+             */
+            // v108: equation 15-9a
+            float t = eq159a (phi);
+
+            // v108: equation 15-7
+            float rho = (float) (e_F_rada * Math.pow (t, e_n));
+
+            // v108: equation 14-4
+            float theta = e_n * (lam - e_lam0);
+
+            // v107: equation 14-1 -> how far east of centerLon
+            float easting = rho * Mathf.sin (theta);
+
+            // v107: equation 14-2 -> how far north of centerLat
+            float northing = e_rho0 - rho * Mathf.cos (theta);
+
+            /*
+             * Compute corresponding image pixel number.
+             */
+            int x = Math.round (easting * wft_a + northing * wft_c + wft_e);
+            int y = Math.round (easting * wft_b + northing * wft_d + wft_f);
+            p.x = x;
+            p.y = y;
+
+            return (x >= 0) && (x < chartwidth) && (y >= 0) && (y < chartheight);
+        }
+
+        /**
+         * Given a pixel within the chart, compute corresponding lat/lon
+         *
+         * @param x  = pixel within the entire side of the sectional
+         * @param y  = pixel within the entire side of the sectional
+         * @param ll = where to return corresponding lat/lon
+         */
+        @Override  // AirChart
+        protected void ChartPixel2LatLonExact (float x, float y, @NonNull LatLon ll)
+        {
+            // opposite steps of LatLon2ChartPixelExact()
+
+            float easting  = tfw_a * x + tfw_c * y + tfw_e;
+            float northing = tfw_b * x + tfw_d * y + tfw_f;
+
+            // easting = rho * sin (theta)
+            // easting / rho = sin (theta)
+
+            // northing = e_rho0 - rho * cos (theta)
+            // rho * cos (theta) = e_rho0 - northing
+            // cos (theta) = (e_rho0 - northing) / rho
+
+            float theta = (float) Math.atan (easting / (e_rho0 - northing));
+
+            // theta = e_n * (lam - e_lam0)
+            // theta / e_n = lam - e_lam0
+            // theta / e_n + e_lam0 = lam
+
+            float lam = theta / e_n + e_lam0;
+
+            // v108: equation 14-4
+            float costheta = Mathf.cos (e_n * (lam - e_lam0));
+
+            // must calculate phi (latitude) with successive approximation
+            // usually takes 3 or 4 iterations to resolve latitude within one pixel
+
+            float phi = e_phi0;
+            float metresneedtogonorth;
+            do {
+                // v108: equation 15-9a
+                float t = eq159a (phi);
+
+                // v108: equation 15-7
+                float rho = (float) (e_F_rada * Math.pow (t, e_n));
+
+                // v107: equation 14-2 -> how far north of centerLat
+                float n = e_rho0 - rho * costheta;
+
+                // update based on how far off our guess is
+                // - we are trying to get phi that gives us 'northing'
+                // - but we have phi that gives us 'n'
+                metresneedtogonorth = northing - n;
+                phi += metresneedtogonorth / (Lib.MPerNM * Lib.NMPerDeg * 180.0F / Mathf.PI);
+            } while (Math.abs (metresneedtogonorth) > pixelsize);
+
+            ll.lat = Mathf.toDegrees (phi);
+            ll.lon = Lib.NormalLon (Mathf.toDegrees (lam));
+        }
+
+        private float eq1415 (float phi)
+        {
+            float w = e_e * Mathf.sin (phi);
+            return Mathf.cos (phi) / Mathf.sqrt (1 - w * w);
+        }
+
+        private float eq159a (float phi)
+        {
+            float sinphi = Mathf.sin (phi);
+            float u = (1 - sinphi) / (1 + sinphi);
+            float v = (1 + e_e * sinphi) / (1 - e_e * sinphi);
+            return Mathf.sqrt (u * Math.pow (v, e_e));
+        }
+    }
+
+    /**
+     * Polar Stereographic Projection charts.
+     *
+     * CSV line fields:
+     *   0 : north latitude
+     *   1 : west longitude
+     *   2 : south latitude
+     *   3 : east longitude
+     *   4 : x pixel for point at north,west
+     *   5 : y pixel for point at north,west
+     *   6 : x pixel for point at north,east
+     *   7 : y pixel for point at north,east
+     *   8 : x pixel for point at south,west
+     *   9 : y pixel for point at south,west
+     *  10 : x pixel for point at south,east
+     *  11 : y pixel for point at south,east
+     *  12 : chart width
+     *  13 : chart height
+     *  14 : expiration date yyyymmdd
+     *  15 : chart space name including revision number
+     *
+     * Example for ONC A-1 chart:
+     *   psp:88,-36,80,24,4337,87,5737,199,1118,4690,8090,5279,9254,6693,99999999,ONC A-1 19690603
+     *
+     * The basic projection transformation is:
+     *   beta = 90 - latitude
+     *   pixels_from_north_pole = earth_diameter_in_pixels * tan (beta / 2)
+     */
+    private static class PSP extends AirChart {
+        public final static String pfx = "psp:";
+
+        private float earthDiameterPixels;
+        private float tiltedCCWRadians;
+        private int northPoleX, northPoleY;
+
+        @Override  // AirChart
+        protected String ParseParams (String csvLine)
+        {
+            String[] values = csvLine.substring (pfx.length ()).split (",", 13);
+            // at latn = Float.parseFloat (values[ 0]);
+            float lonw = Float.parseFloat (values[ 1]);
+            float lats = Float.parseFloat (values[ 2]);
+            // at lone = Float.parseFloat (values[ 3]);
+            int    nwx = Integer.parseInt (values[ 4]);
+            int    nwy = Integer.parseInt (values[ 5]);
+            int    nex = Integer.parseInt (values[ 6]);
+            int    ney = Integer.parseInt (values[ 7]);
+            int    swx = Integer.parseInt (values[ 8]);
+            int    swy = Integer.parseInt (values[ 9]);
+            int    sex = Integer.parseInt (values[10]);
+            int    sey = Integer.parseInt (values[11]);
+
+            // find north pole pixel by intersecting west edge and east edge lines
+            northPoleX = Math.round (Lib.lineIntersectX (nwx, nwy, swx, swy, nex, ney, sex, sey));
+            northPoleY = Math.round (Lib.lineIntersectY (nwx, nwy, swx, swy, nex, ney, sex, sey));
+
+            // find earth diameter in pixels by doing transform using south ring pixels from north pole
+            float southRingRadius = Mathf.hypot (swx - northPoleX, swy - northPoleY);
+            float beta = Mathf.toRadians (90.0F - lats);
+            earthDiameterPixels = southRingRadius / Mathf.tan (beta / 2.0F);
+
+            // find counter-clockwise tilt from west edge pixel angle minus west edge longitude
+            tiltedCCWRadians = Mathf.atan2 (swx - northPoleX, swy - northPoleY) - Mathf.toRadians (lonw);
+
+            return values[12];
+        }
+
+        @Override  // AirChart
+        public boolean LatLon2ChartPixelExact (float lat, float lon, @NonNull Point p)
+        {
+            float beta = Mathf.toRadians (90.0F - lat);
+            float pixelsFromNorthPole  = Mathf.tan (beta / 2.0F) * earthDiameterPixels;
+            float angleCCWFromVertical = Mathf.toRadians (lon) + tiltedCCWRadians;
+            int x = Math.round (pixelsFromNorthPole * Mathf.sin (angleCCWFromVertical) + northPoleX);
+            int y = Math.round (pixelsFromNorthPole * Mathf.cos (angleCCWFromVertical) + northPoleY);
+            p.x = x;
+            p.y = y;
+            return (x >= 0) && (x < chartwidth) && (y >= 0) && (y < chartheight);
+        }
+
+        @Override  // AirChart
+        protected void ChartPixel2LatLonExact (float x, float y, @NonNull LatLon ll)
+        {
+            float pixelsFromNorthPole = Mathf.hypot (x - northPoleX, y - northPoleY);
+            float beta = Mathf.atan (pixelsFromNorthPole / earthDiameterPixels) * 2.0F;
+            ll.lat = 90.0F - Mathf.toDegrees (beta);
+
+            float angleCCWFromVertical = Mathf.atan2 (x - northPoleX, y - northPoleY);
+            ll.lon = Lib.NormalLon (Mathf.toDegrees (angleCCWFromVertical - tiltedCCWRadians));
+        }
+    }
+
+    /**
+     * Box Projection charts.
+     *
+     * Each degree of latitude and longitude, no matter where on the chart,
+     * is the same number of pixels high and wide, thus forming a rectangular box.
+     * Mercator except lines of latitude are equally spaced.
+     *
+     * Gives the most accurate mapping but slightly less visual quality
+     * cuz the chart pixels have baked-in aliasing.
+     *
+     * CSV line fields:
+     *   0 : north latitude (pixel row y=0)
+     *   1 : west longitude (pixel col x=0)
+     *   2 : south latitude (pixel row y=height)
+     *   3 : east longitude (pixel col x=width)
+     *   4 : chart width
+     *   5 : chart height
+     *   6 : expiration date yyyymmdd
+     *   7 : chart space name including revision number
+     */
+    private static class Box extends AirChart {
+        public final static String pfx = "box:";
+
+        private float latn, lonw, lats, lone;
+
+        @Override  // AirChart
+        protected String ParseParams (String csvLine)
+        {
+            String[] values = csvLine.substring (pfx.length ()).split (",", 5);
+            latn = Float.parseFloat (values[0]);
+            lonw = Float.parseFloat (values[1]);
+            lats = Float.parseFloat (values[2]);
+            lone = Float.parseFloat (values[3]);
+
+            lonw = Lib.NormalLon (lonw);
+            lone = Lib.NormalLon (lone);
+            if (lone < lonw) lone += 360.0F;
+
+            return values[4];
+        }
+
+        @Override  // AirChart
+        public boolean LatLon2ChartPixelExact (float lat, float lon, @NonNull Point p)
+        {
+            int x = Math.round ((lon - lonw) / (lone - lonw) * chartwidth);
+            int y = Math.round ((latn - lat) / (latn - lats) * chartheight);
+            p.x = x;
+            p.y = y;
+            return (x >= 0) && (x < chartwidth) && (y >= 0) && (y < chartheight);
+        }
+
+        @Override  // AirChart
+        protected void ChartPixel2LatLonExact (float x, float y, @NonNull LatLon ll)
+        {
+            ll.lat = y * (lats - latn) / chartheight + latn;
+            ll.lon = x * (lone - lonw) / chartwidth  + lonw;
+        }
     }
 }

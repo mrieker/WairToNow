@@ -122,7 +122,7 @@
                 $pngname = "$faaid-$plateid.png";
                 @unlink ("$pngdir/$pngname");
                 $clpath  = "../decosects/DecodePlate.jar:../decosects/pdfbox-1.8.10.jar:../decosects/commons-logging-1.2.jar";
-                $dpcmnd  = "java DecodePlate $faaid '$plate' -markedpng $pngdir/$pngname -verbose";
+                $dpcmnd  = "java DecodePlate -cycles28 $cycles28 -cycles56 $cycles56 $faaid '$plate' -markedpng $pngdir/$pngname -verbose";
                 $dpfile  = popen ("CLASSPATH=$clpath $dpcmnd 2>&1", "r");
                 if (!$dpfile) die ("<P>error spawning DecodePlate</P>");
                 $dplog   = "$dpcmnd\n";

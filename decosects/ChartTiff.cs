@@ -31,6 +31,7 @@ using System.Text;
 
 public class ChartTiff {
     public Bitmap bmp;
+    public int enddate;
     public int height;
     public int width;
     public string prefix;
@@ -75,6 +76,7 @@ public class ChartTiff {
         tfw_d            = Double.Parse (chartLineFields[11]);
         tfw_e            = Double.Parse (chartLineFields[12]);
         tfw_f            = Double.Parse (chartLineFields[13]);
+        enddate          = int.Parse    (chartLineFields[15]);
 
         double[][] mat = new double[][] {
                 new double[] { tfw_a, tfw_b, 0, 1, 0 },

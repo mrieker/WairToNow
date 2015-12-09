@@ -16,6 +16,7 @@
 #    datums/localizers_$expdate.csv
 #    datums/navaids_$expdate.csv
 #    datums/runways_$expdate.csv
+#    datums/waypoints_$expdate.db.gz
 #
 #  Takes about 2 mins to run.
 #
@@ -99,14 +100,8 @@ fi
 #
 #  See if we already have this 56-day cycle done
 #
-expdate=`./cureffdate -x yyyy-mm-dd`
-expdate=${expdate//-/}
-haveexp=''
-if [ -f datums/aptinfo_expdate.dat ]
-then
-    haveexp=`cat datums/aptinfo_expdate.dat`
-fi
-if [ "$expdate" == "$haveexp" ]
+expdate=`./cureffdate -x yyyymmdd`
+if [ -f datums/waypoints_$expdate.db.gz ]
 then
     exit
 fi
@@ -179,8 +174,9 @@ sort runways.tmp  >  datums/runways_$expdate.csv
 
 rm -rf aptinfo.tmp airports.tmp runways.tmp
 
+#
+#  Generate SQLite database for downloading
+#
 mono --debug MakeWaypoints.exe $expdate
 gzip datums/waypoints_$expdate.db
-
-echo $expdate > datums/aptinfo_expdate.dat
 

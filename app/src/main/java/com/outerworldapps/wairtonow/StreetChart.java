@@ -22,6 +22,8 @@ package com.outerworldapps.wairtonow;
 
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Point;
+import android.support.annotation.NonNull;
 import android.util.TypedValue;
 import android.view.View;
 import android.widget.TextView;
@@ -57,6 +59,18 @@ public class StreetChart implements DisplayableChart {
         tv.setTextColor (Color.CYAN);
         tv.setTextSize (TypedValue.COMPLEX_UNIT_PX, chartView.wairToNow.textSize * 1.5F);
         return tv;
+    }
+
+    @Override  // DisplayableChart
+    public boolean LatLon2CanPixExact (float lat, float lon, @NonNull Point canpix)
+    {
+        return false;
+    }
+
+    @Override  // DisplayableChart
+    public boolean CanPix2LatLonExact (float canpixx, float canpixy, @NonNull LatLon ll)
+    {
+        return false;
     }
 
     /**

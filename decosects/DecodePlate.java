@@ -26,6 +26,8 @@
  *  javac -Xlint:deprecation DecodePlate.java Lib.java
  *
  *  exec java DecodePlate [ BVY 'IAP-RNAV (GPS) RWY 27' ]
+ *      [ -cycles28 expdate_yyyymmdd ]
+ *      [ -cycles56 expdate_yyyymmdd ]
  *      [ -csvout bvygps27.csv ]
  *      [ -markedpng bvygps27.png ]
  *      [ -rejects bvygps27.rej ]
@@ -194,6 +196,14 @@ public class DecodePlate {
                         csvoutname = args[i++];
                         continue;
                     }
+                    if (arg.equals ("-cycles28") && (i < args.length)) {
+                        cycles28expdate = args[i++];
+                        continue;
+                    }
+                    if (arg.equals ("-cycles56") && (i < args.length)) {
+                        cycles56expdate = args[i++];
+                        continue;
+                    }
                     if (arg.equals ("-markedpng") && (i < args.length)) {
                         markedpngname = args[i++];
                         continue;
@@ -220,16 +230,6 @@ public class DecodePlate {
                 System.err.println ("unknown parameter " + arg);
                 System.exit (1);
             }
-
-            // Read expiration dates so we know what cycle we are dealing with
-
-            BufferedReader br1 = new BufferedReader (new FileReader (basedir + "/datums/aptplates_expdate.dat"), 256);
-            cycles28expdate = br1.readLine ();
-            br1.close ();
-
-            BufferedReader br3 = new BufferedReader (new FileReader (basedir + "/datums/aptinfo_expdate.dat"), 256);
-            cycles56expdate = br3.readLine ();
-            br3.close ();
 
             // Read in airports to get their lat/lons.
             // KBVY,BVY,107.3,"BEVERLY MUNI",42.5841410277778,-70.9161444166667,16,...

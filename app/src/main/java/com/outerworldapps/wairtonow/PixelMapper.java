@@ -21,7 +21,6 @@
 package com.outerworldapps.wairtonow;
 
 import android.graphics.Point;
-import android.graphics.PointF;
 
 /**
  * Map lat/lon to canvax pixel x,y.
@@ -228,11 +227,12 @@ public class PixelMapper {
 
     /**
      * Convert a canvas pixel x,y to corresponding lat/lon
+     * using linear interpolation from the four corners.
      * @param canvasPixX = canvas pixel X
      * @param canvasPixY = canvas pixel Y
      * @param ll = where to put resultant lat/lon
      */
-    public void CanvasPixToLatLon (float canvasPixX, float canvasPixY, LatLon ll)
+    public void CanPix2LatLonAprox (float canvasPixX, float canvasPixY, LatLon ll)
     {
         float w =  pix2ll_2_0 * canvasPixX + pix2ll_2_1 * canvasPixY + pix2ll_2_2;
         ll.lat  = (pix2ll_0_0 * canvasPixX + pix2ll_0_1 * canvasPixY + pix2ll_0_2) / w;
@@ -241,12 +241,13 @@ public class PixelMapper {
 
     /**
      * Convert a lat/lon to corresponding canvas pixel x,y
+     * using linear interpolation from the four corners.
      * @param lat = latitude to look for
      * @param lon = longitude to look for
      * @param canpix = where to return resultant canvas x,y
      * @return true iff lat/lon is on display
      */
-    public boolean LatLonToCanvasPix (float lat, float lon, Point canpix)
+    public boolean LatLon2CanPixAprox (float lat, float lon, Point canpix)
     {
         while (lon < centerLon - 180.0F) lon += 360.0F;
         while (lon > centerLon + 180.0F) lon -= 360.0F;
@@ -254,16 +255,6 @@ public class PixelMapper {
         float  w =              ll2pix_2_0 * lat + ll2pix_2_1 * lon + ll2pix_2_2;
         canpix.x = Math.round ((ll2pix_0_0 * lat + ll2pix_0_1 * lon + ll2pix_0_2) / w);
         canpix.y = Math.round ((ll2pix_1_0 * lat + ll2pix_1_1 * lon + ll2pix_1_2) / w);
-        return (canpix.x >= 0) && (canpix.x < canvasWidth) && (canpix.y >= 0) && (canpix.y < canvasHeight);
-    }
-    public boolean LatLonToCanvasPix (float lat, float lon, PointF canpix)
-    {
-        while (lon < centerLon - 180.0F) lon += 360.0F;
-        while (lon > centerLon + 180.0F) lon -= 360.0F;
-
-        float  w =  ll2pix_2_0 * lat + ll2pix_2_1 * lon + ll2pix_2_2;
-        canpix.x = (ll2pix_0_0 * lat + ll2pix_0_1 * lon + ll2pix_0_2) / w;
-        canpix.y = (ll2pix_1_0 * lat + ll2pix_1_1 * lon + ll2pix_1_2) / w;
         return (canpix.x >= 0) && (canpix.x < canvasWidth) && (canpix.y >= 0) && (canpix.y < canvasHeight);
     }
 }

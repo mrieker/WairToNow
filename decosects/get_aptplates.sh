@@ -5,7 +5,7 @@
 #  Output is datums/aptplates_$expdate/gif_150/...
 #                   aptplates_$expdate/state/$state.csv
 #
-#  $1 = "" or "-nextcycle"
+#  They are on 28 day cycle
 #
 #  Takes 3 hours to run
 #
@@ -198,9 +198,6 @@ function downloadone
 #
 function downloadall
 {
-    read expdate
-    echo $expdate > datums/aptplates_expdate.dat
-
     dir=datums/aptplates_$expdate
     mkdir -p $dir
 
@@ -218,7 +215,7 @@ function downloadall
 function getaptplates
 {
     set +e
-    mono --debug GetAptPlates.exe $nextcycle < airportids.tmp.$1 | downloadall $1
+    mono --debug GetAptPlates.exe $airac < airportids.tmp.$1 | downloadall $1
     rm airportids.tmp.$1
 }
 
@@ -228,7 +225,6 @@ function getaptplates
 #
 function postprocessonestate
 {
-    expdate=`cat datums/aptplates_expdate.dat`
     dir=datums/aptplates_$expdate
     stdir=$dir/state
     mkdir -p $stdir
@@ -246,16 +242,25 @@ function postprocessonestate
 cd `dirname $0`
 set -e
 
+if [ cureffdate -ot cureffdate.c ]
+then
+    cc -o cureffdate cureffdate.c
+fi
+
 if [ GetAptPlates.exe -ot GetAptPlates.cs ]
 then
     gmcs -debug -out:GetAptPlates.exe GetAptPlates.cs
 fi
 
-nextcycle="$1"
-
 rm -rf airportids.tmp.* aptplates.tmp
 mkdir aptplates.tmp
-aixd=`cat datums/aptinfo_expdate.dat`
+airac=`./cureffdate airac`
+aixd=`./cureffdate -x yyyymmdd`
+expdate=`./cureffdate -28 -x yyyymmdd`
+if [ "$expdate" == "" ]
+then
+    exit
+fi
 
 splitairports 9 < datums/airports_$aixd.csv
 getaptplates 1 &

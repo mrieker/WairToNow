@@ -25,8 +25,17 @@ function downloadgroup
 
 function downloadfiles
 {
+    # link = "http://aeronav.faa.gov/content/aeronav/sectional_files/New_York_86.zip"
     while read link
     do
+        if [ "$next28" == "1" ]
+        then
+            linknozip=${link%.zip}
+            linknozipnorev=${linknozip%_*}_
+            oldrev=${linknozip:${#linknozipnorev}}
+            newrev=$((oldrev+1))
+            link=$linknozipnorev$newrev.zip
+        fi
         zipname=`basename $link`
         if [ ! -f $zipname ]
         then

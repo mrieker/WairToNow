@@ -46,8 +46,18 @@ END;
     $datdir  = "../webdata/iaputil";
     $pngdir  = "iaputil";
 
-    $cycles28 = intval (file_get_contents ("datums/aptplates_expdate.dat"));
-    $cycles56 = intval (file_get_contents ("datums/aptinfo_expdate.dat"));
+    $cycles28 = 0;
+    $cycles56 = 0;
+    foreach (scandir ("datums") as $fn) {
+        if (strpos ($fn, "aptplates_") === 0) {
+            $i = intval (substr ($fn, 10, 8));
+            if ($cycles28 < $i) $cycles28 = $i;
+        }
+        if (strpos ($fn, "airports_") === 0) {
+            $i = intval (substr ($fn, 9, 8));
+            if ($cycles56 < $i) $cycles56 = $i;
+        }
+    }
 
     $aptname = "datums/airports_$cycles56.csv";
     $gifdir  = "datums/aptplates_$cycles28";
@@ -563,6 +573,26 @@ END;
         date_default_timezone_set ($oldtz);
 
         return ($cycleyear - 2000) * 100 + $cyclemonth;
+    }
+
+    function getAiracCycles28 ()
+    {
+        global $cycles28;
+
+        // get unix timestamp at end of 28-day cycle
+        $year28 = intval ($cycles28 / 10000);
+        $mon28  = intval ($cycles28 / 100) % 100;
+        $day28  = $cycles28 % 100;
+        $oldtz  = @date_default_timezone_get ();
+        date_default_timezone_set ('UTC');
+        $time28 = mktime (12, 0, 0, $mon28, $day28, $year28);
+        date_default_timezone_set ($oldtz);
+
+        // back it up a few days to be in middle of cycle
+        $time28 -= 14*24*60*60;
+
+        // return AIRAC cycle number for the $cycles28 value
+        return getAiracCycle ($time28);
     }
 
     /*

@@ -23,8 +23,13 @@
      * Used to manually display an airport info page in web browser.
      * Not needed for normal operation.
      */
-
-    $expdate   = trim (file_get_contents ("datums/aptinfo_expdate.dat"));
+    $expdate = 0;
+    foreach (scandir ("datums") as $fn) {
+        if (strpos ($fn, "aptinfo_") === 0) {
+            $i = intval (substr ($fn, 8, 8));
+            if ($expdate < $i) $expdate = $i;
+        }
+    }
     $faaid     = strtoupper ($_GET['faaid']);
     $firstchar = $faaid[0];
     $restchars = substr ($faaid, 1);

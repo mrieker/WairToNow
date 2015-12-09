@@ -21,12 +21,24 @@
 
     /**
      * @brief Aggregate all the charts/*.csv files into one file for downloading.
+     *        Output only the latest version of each chart.
      */
     $dir_entries = scandir ('charts');
+    $charts = array ();
     foreach ($dir_entries as $dir_entry) {
         $len = strlen ($dir_entry);
         if (($len > 4) && (substr ($dir_entry, $len - 4) == '.csv')) {
-            readfile ("charts/$dir_entry");
+            $i = strrpos ($dir_entry, '_');
+            if ($i !== FALSE) {
+                $basename = substr ($dir_entry, 0, $i ++);
+                $version  = intval (substr ($dir_entry, $i, $len - 4 - $i));
+                if (!isset ($charts[$basename]) || ($charts[$basename] < $version)) {
+                    $charts[$basename] = $version;
+                }
+            }
         }
+    }
+    foreach ($charts as $basename => $version) {
+        readfile ('charts/' . $basename . '_' . $version . '.csv');
     }
 ?>

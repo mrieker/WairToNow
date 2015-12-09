@@ -21,6 +21,8 @@
 package com.outerworldapps.wairtonow;
 
 import android.graphics.Canvas;
+import android.graphics.Point;
+import android.support.annotation.NonNull;
 import android.view.View;
 
 /**
@@ -32,4 +34,6 @@ public interface DisplayableChart {
     void DrawOnCanvas (ChartView chartView, Canvas canvas);
     View GetMenuSelector (ChartView chartView);
     void CloseBitmaps ();
+    boolean LatLon2CanPixExact (float lat, float lon, @NonNull Point canpix);
+    boolean CanPix2LatLonExact (float canpixx, float canpixy, @NonNull LatLon ll);
 }

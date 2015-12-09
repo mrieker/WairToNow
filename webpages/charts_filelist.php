@@ -97,7 +97,7 @@
         $airportscsvfile = fopen ($airportscsvname, 'r');
         while ($csvline = fgets ($airportscsvfile)) {
             $csvparts = explode (',', trim ($csvline));
-            $lastpart = $csvparts[count($csvparts)-1];
+            $lastpart = $csvparts[count($csvparts)-2];
             if ($lastpart == $stateid) {
                 $faaid  = $csvparts[1];
                 $faaid0 = $faaid[0];

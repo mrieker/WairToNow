@@ -91,6 +91,7 @@ public class MaintView
     private Category enrCategory;
     private Category helCategory;
     private Category miscCategory;
+    private Category otherCategory;
     private Category plateCategory;
     private Category secCategory;
     private Category tacCategory;
@@ -122,12 +123,12 @@ public class MaintView
     private static final int MaintViewHandlerWhat_DLERROR      = 8;
     private static final int MaintViewHandlerWhat_UPDRWDGMDLST = 9;
 
-    private final static String[] columns_apt_faaid      = new String[] { "apt_faaid" };
-    private final static String[] columns_count_rp_faaid = new String[] { "COUNT(rp_faaid)" };
-    private final static String[] columns_pl_state       = new String[] { "pl_state" };
-    private final static String[] columns_name           = new String[] { "name" };
-    private final static String[] columns_gr_bmpixx      = new String[] { "gr_bmpixx" };
-    private final static String[] columns_pl_faaid       = new String[] { "pl_faaid" };
+    private final static String[] columns_apt_faaid_faciluse = new String[] { "apt_faaid", "apt_faciluse" };
+    private final static String[] columns_count_rp_faaid     = new String[] { "COUNT(rp_faaid)" };
+    private final static String[] columns_pl_state           = new String[] { "pl_state" };
+    private final static String[] columns_name               = new String[] { "name" };
+    private final static String[] columns_gr_bmpixx          = new String[] { "gr_bmpixx" };
+    private final static String[] columns_pl_faaid           = new String[] { "pl_faaid" };
 
     public MaintView (WairToNow ctx)
             throws IOException
@@ -162,6 +163,7 @@ public class MaintView
         secCategory   = new Category ("SEC");
         tacCategory   = new Category ("TAC");
         wacCategory   = new Category ("WAC");
+        otherCategory = new Category ("Other");
 
         LinearLayout ll1 = new LinearLayout (ctx);
         ll1.setOrientation (LinearLayout.HORIZONTAL);
@@ -172,6 +174,7 @@ public class MaintView
         ll1.addView (secCategory.selButton);
         ll1.addView (tacCategory.selButton);
         ll1.addView (wacCategory.selButton);
+        ll1.addView (otherCategory.selButton);
 
         DetentHorizontalScrollView hs1 = new DetentHorizontalScrollView (ctx);
         wairToNow.SetDetentSize (hs1);
@@ -239,7 +242,7 @@ public class MaintView
         BufferedReader csvReader = new BufferedReader (csvFileReader, 4096);
         String csvLine;
         while ((csvLine = csvReader.readLine ()) != null) {
-            AirChart airChart = new AirChart (this, csvLine);
+            AirChart airChart = AirChart.Factory (this, csvLine);
             ChartCheckBox chartCheckBox = new ChartCheckBox (airChart);
             airChart.enddate = 0;  // cuz we don't yet know if it is downloaded
             if (!possibleCharts.containsKey (airChart.spacenamenr)) {
@@ -252,8 +255,10 @@ public class MaintView
                     enrCategory.addView (chartCheckBox);
                 } else if (airChart.spacenamenr.contains ("HEL")) {
                     helCategory.addView (chartCheckBox);
-                } else {
+                } else if (airChart.spacenamenr.contains ("SEC")) {
                     secCategory.addView (chartCheckBox);
+                } else {
+                    otherCategory.addView (chartCheckBox);
                 }
             }
         }
@@ -518,8 +523,17 @@ public class MaintView
             selButton.setOnClickListener (this);
             selButton.setText (name);
             wairToNow.SetTextSize (selButton);
+            selButton.setVisibility (GONE);
         }
 
+        @Override  // LinearLayout
+        public void addView (View v)
+        {
+            super.addView (v);
+            selButton.setVisibility (VISIBLE);
+        }
+
+        @Override  // OnClickListener
         public void onClick (View v)
         {
             miscCategory.selButton.setTextColor  (Color.BLACK);
@@ -529,6 +543,7 @@ public class MaintView
             secCategory.selButton.setTextColor   (Color.BLACK);
             tacCategory.selButton.setTextColor   (Color.BLACK);
             wacCategory.selButton.setTextColor   (Color.BLACK);
+            otherCategory.selButton.setTextColor (Color.BLACK);
 
             selButton.setTextColor (Color.RED);
 
@@ -2053,21 +2068,23 @@ public class MaintView
                 SQLiteDBs wpdb = SQLiteDBs.open ("waypoints_" + waypointexpdate + ".db");
                 if (wpdb != null) {
                     Cursor result = wpdb.query (
-                            true, "airports", columns_apt_faaid,
+                            true, "airports", columns_apt_faaid_faciluse,
                             "apt_state=?", new String[] { statecode },
                             null, null, null, null);
                     try {
                         if (result.moveToFirst ()) {
                             do {
-                                ContentValues values = new ContentValues (3);
-                                values.put ("rp_faaid", result.getString (0));
-                                values.put ("rp_state", statecode);
-                                values.put ("rp_lastry", 0);
-                                sqldb.insertWithOnConflict ("rwypreloads", null, values, SQLiteDatabase.CONFLICT_IGNORE);
+                                if (result.getString (1).equals ("PU")) {
+                                    ContentValues values = new ContentValues (3);
+                                    values.put ("rp_faaid", result.getString (0));
+                                    values.put ("rp_state", statecode);
+                                    values.put ("rp_lastry", 0);
+                                    sqldb.insertWithOnConflict ("rwypreloads", null, values, SQLiteDatabase.CONFLICT_IGNORE);
 
-                                if (++ numAdded == 256) {
-                                    sqldb.yieldIfContendedSafely ();
-                                    numAdded = 0;
+                                    if (++ numAdded == 256) {
+                                        sqldb.yieldIfContendedSafely ();
+                                        numAdded = 0;
+                                    }
                                 }
                             } while (result.moveToNext ());
                         }

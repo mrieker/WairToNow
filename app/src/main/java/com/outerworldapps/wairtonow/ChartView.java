@@ -784,7 +784,7 @@ public class ChartView
         float oldCtrY = fc * newCtrY - fs * newCtrX + ty;
 
         // compute the lat/lon for that point using the old canvas transform
-        pmap.CanvasPixToLatLon (oldCtrX, oldCtrY, newCtrLL);
+        pmap.CanPix2LatLonAprox (oldCtrX, oldCtrY, newCtrLL);
 
         // that lat/lon will be at center of new canvas
         centerLat = newCtrLL.lat;
@@ -863,7 +863,7 @@ public class ChartView
                 if (System.currentTimeMillis () >= waypointOpenAt) {
                     waypointOpenAt = Long.MAX_VALUE;
                     LatLon ll = new LatLon ();
-                    pmap.CanvasPixToLatLon (mouseDownPosX, mouseDownPosY, ll);
+                    CanPix2LatLonExact (mouseDownPosX, mouseDownPosY, ll);
                     wairToNow.waypointView1.OpenWaypointAtLatLon (ll.lat, ll.lon);
                 }
             }
@@ -959,7 +959,7 @@ public class ChartView
             float sw = dy * 0.3F;
             // loop through each point and try to convert to canvas pixel
             for (Location loc : shownTrail) {
-                if (pmap.LatLonToCanvasPix ((float) loc.getLatitude (), (float) loc.getLongitude (), pt)) {
+                if (LatLon2CanPixExact ((float) loc.getLatitude (), (float) loc.getLongitude (), pt)) {
                     trailPath.rewind ();
                     // if standing still, draw a circle with our thinnest line
                     float mps = loc.getSpeed ();
@@ -992,7 +992,7 @@ public class ChartView
         if (wairToNow.optionsView.faaWPOption.checkBox.isChecked ()) {
             for (Waypoint faaWP : waypointsWithin.Get (
                     canvasSouthLat, canvasNorthLat, canvasWestLon, canvasEastLon)) {
-                if (pmap.LatLonToCanvasPix (faaWP.lat, faaWP.lon, pt)) {
+                if (LatLon2CanPixExact (faaWP.lat, faaWP.lon, pt)) {
                     allDrawWaypoints.add (new DrawWaypoint (faaWP.ident, pt, faaWPPaints));
                 }
             }
@@ -1004,7 +1004,7 @@ public class ChartView
         if (wairToNow.optionsView.userWPOption.checkBox.isChecked ()) {
             Collection<UserWPView.UserWP> userWPs = wairToNow.userWPView.GetUserWPs ();
             for (UserWPView.UserWP userWP : userWPs) {
-                if (pmap.LatLonToCanvasPix (userWP.lat, userWP.lon, pt)) {
+                if (LatLon2CanPixExact (userWP.lat, userWP.lon, pt)) {
                     allDrawWaypoints.add (new DrawWaypoint (userWP.ident, pt, userWPPaints));
                 }
             }
@@ -1016,7 +1016,7 @@ public class ChartView
          * But do not draw it if at same location as airplane.
          */
         if (showCenterInfo && holdPosition) {
-            pmap.LatLonToCanvasPix (centerLat, centerLon, pt);
+            LatLon2CanPixExact (centerLat, centerLon, pt);
             float len = wairToNow.textSize * 1.5F;
             canvas.drawLine (pt.x - len, pt.y, pt.x + len, pt.y, centerLnPaint);
             canvas.drawLine (pt.x, pt.y - len, pt.x, pt.y + len, centerLnPaint);
@@ -1032,7 +1032,7 @@ public class ChartView
         /*
          * Draw an airplane icon where the GPS (current) lat/lon point is.
          */
-        if (pmap.LatLonToCanvasPix (arrowLat, arrowLon, pt)) {
+        if (LatLon2CanPixExact (arrowLat, arrowLon, pt)) {
             DrawLocationArrow (canvas, pt, GetCanvasHdgRads (), pixelWidthM, pixelHeightM);
         }
 
@@ -1321,7 +1321,7 @@ public class ChartView
 
             for (float lon = cwl; lon <= cel; lon += pixelWidthDeg * 2) {
                 float lat = Lib.GCLon2Lat (srcLat, srcLon, dstLat, dstLon, lon);
-                pmap.LatLonToCanvasPix (lat, lon, pt);
+                LatLon2CanPixExact (lat, lon, pt);
                 if (solid || (Math.round (Lib.LatLonDist (srcLat, srcLon, lat, lon) * scaling) % 2 == 0)) {
                     canvas.drawPoint (pt.x, pt.y, courseLnPaint);
                 }
@@ -1340,7 +1340,7 @@ public class ChartView
 
             for (float lat = csl; lat <= cnl; lat += pixelHeightDeg * 2) {
                 float lon = Lib.GCLat2Lon (srcLat, srcLon, dstLat, dstLon, lat);
-                pmap.LatLonToCanvasPix (lat, lon, pt);
+                LatLon2CanPixExact (lat, lon, pt);
                 if (solid || (Math.round (Lib.LatLonDist (srcLat, srcLon, lat, lon) * scaling) % 2 == 0)) {
                     canvas.drawPoint (pt.x, pt.y, courseLnPaint);
                 }
@@ -1475,9 +1475,9 @@ public class ChartView
 
         for (float lat = southlat; lat <= northlat; lat += 0.25F) {
             for (float lon = westlon; lon <= eastlon; lon += 0.25F) {
-                pmap.LatLonToCanvasPix (lat, lon, canpix1);
-                pmap.LatLonToCanvasPix (lat, lon + 0.25F, canpix2);
-                pmap.LatLonToCanvasPix (lat + 0.25F, lon, canpix3);
+                LatLon2CanPixExact (lat, lon, canpix1);
+                LatLon2CanPixExact (lat, lon + 0.25F, canpix2);
+                LatLon2CanPixExact (lat + 0.25F, lon, canpix3);
                 int x1 = canpix1.x;
                 int y1 = canpix1.y;
                 canvas.drawLine (x1, y1, canpix2.x, canpix2.y, capGridLnPaint);
@@ -1627,6 +1627,29 @@ public class ChartView
         canvasNorthLat = pmap.canvasNorthLat;
         canvasWestLon  = pmap.canvasWestLon;
         canvasEastLon  = pmap.canvasEastLon;
+    }
+
+    /**
+     * Use currently selected chart projection to compute exact canvas pixel for a given lat/lon.
+     * If no chart selected, use linear interpolation from the four corners of the screen.
+     */
+    public boolean LatLon2CanPixExact (float lat, float lon, Point canpix)
+    {
+        if ((selectedChart == null) || !selectedChart.LatLon2CanPixExact (lat, lon, canpix)) {
+            pmap.LatLon2CanPixAprox (lat, lon, canpix);
+        }
+        return (canpix.x >= 0) && (canpix.x < canvasWidth) && (canpix.y >= 0) && (canpix.y < canvasHeight);
+    }
+
+    /**
+     * Use currently selected chart projection to compute exact lat/lon for a given canvas pixel.
+     * If no chart selected, use linear interpolation from the four corners of the screen.
+     */
+    public void CanPix2LatLonExact (float canvasPixX, float canvasPixY, LatLon ll)
+    {
+        if ((selectedChart == null) || !selectedChart.CanPix2LatLonExact (canvasPixX, canvasPixY, ll)) {
+            pmap.CanPix2LatLonAprox (canvasPixX, canvasPixY, ll);
+        }
     }
 
     /**
@@ -2014,10 +2037,11 @@ public class ChartView
 
             boolean autoSecHit = false;
             boolean autoWacHit = false;
+            Point pt = new Point ();
             for (Iterator<AirChart> it = wairToNow.maintView.GetAirChartIterator (); it.hasNext ();) {
                 AirChart ac = it.next ();
                 for (LatLon cmll : canvasMappingLatLons) {
-                    if (ac.LatLon2Pixel (cmll.lat, cmll.lon, null)) {
+                    if (ac.LatLon2ChartPixelExact (cmll.lat, cmll.lon, pt)) {
                         String spn = ac.GetSpacenameSansRev ();
                         displayableCharts.put (spn, ac);
 

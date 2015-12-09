@@ -26,6 +26,10 @@
     session_start ();
     require_once 'iaputil.php';
 
+    // true to check avare mapping of the plates as well as our own
+    // false to just check our previous mapping of plate
+    $checkavare = FALSE; // TRUE;
+
     if (!empty ($_GET['delgood'])) {
         $icaoid_plate = $_GET['delgood'];
         $gooddb = OpenGoodDB ();
@@ -42,10 +46,10 @@
         <SCRIPT LANGUAGE=JAVASCRIPT>
             function popUp (icaoid)
             {
-                var cycle = <?php echo getAiracCycle (); ?>;
+                var cycle = <?php echo getAiracCycles28 (); ?>;
                 var url = 'http://www.faa.gov/air_traffic/flight_info/aeronav/digital_products/dtpp/search/' +
                         'results/?cycle=' + cycle + '&ident=' + icaoid + '&page=1';
-                window.open (url, 'faainfo_' + icaoid, 'resizable=yes,scrollbars=yes');
+                window.open (url, 'faainfo', 'resizable=yes,scrollbars=yes');
             }
 
             function okToDel (icaoid_plate)
@@ -264,54 +268,56 @@ END;
                 // see if there is an avare entry for this plate
                 // if it maps DecodePlate's fixes onto same pixels found by DecodePlate, assume they are correct
 
-                $wairtonow_faaid_plateid = fixAvareId (str_replace (",\"", "/", $faaidplate));
-                $avaregood = 0;
-                $avaredifs = "";
-                $avaremap  = getAvareMapping ($faaid, $plate);
-                if ($avaremap) {
+                if ($checkavare) {
+                    $wairtonow_faaid_plateid = fixAvareId (str_replace (",\"", "/", $faaidplate));
+                    $avaregood = 0;
+                    $avaredifs = "";
+                    $avaremap  = getAvareMapping ($faaid, $plate);
+                    if ($avaremap) {
 
-                    // get avare transformation parameters
-                    $av_dx  = floatval ($avaremap['dx']);
-                    $av_dy  = floatval ($avaremap['dy']);
-                    $av_lat = floatval ($avaremap['lat']);
-                    $av_lon = floatval ($avaremap['lon']);
+                        // get avare transformation parameters
+                        $av_dx  = floatval ($avaremap['dx']);
+                        $av_dy  = floatval ($avaremap['dy']);
+                        $av_lat = floatval ($avaremap['lat']);
+                        $av_lon = floatval ($avaremap['lon']);
 
-                    // transform each of our fixes and see if it matches up
-                    foreach ($fixes as $fixid => $fix) {
+                        // transform each of our fixes and see if it matches up
+                        foreach ($fixes as $fixid => $fix) {
 
-                        // get pixel wairtonow thinks the fix is at
-                        $my_pixx = $fix[0];
-                        $my_pixy = $fix[1];
+                            // get pixel wairtonow thinks the fix is at
+                            $my_pixx = $fix[0];
+                            $my_pixy = $fix[1];
 
-                        // get fix's lat/lon from FAA database
-                        $fix_lat = $fix[2];
-                        $fix_lon = $fix[3];
+                            // get fix's lat/lon from FAA database
+                            $fix_lat = $fix[2];
+                            $fix_lon = $fix[3];
 
-                        // calculate pixel avare thinks the fix is at
-                        $avare_pixx = ($fix_lon - $av_lon) * $av_dx * $myDpi / $avDpi;
-                        $avare_pixy = ($fix_lat - $av_lat) * $av_dy * $myDpi / $avDpi;
+                            // calculate pixel avare thinks the fix is at
+                            $avare_pixx = ($fix_lon - $av_lon) * $av_dx * $myDpi / $avDpi;
+                            $avare_pixy = ($fix_lat - $av_lat) * $av_dy * $myDpi / $avDpi;
 
-                        // hopefully they match up close enough
-                        $diff_pixx  = $avare_pixx - $my_pixx;
-                        $diff_pixy  = $avare_pixy - $my_pixy;
-                        $diff_pix   = intval (sqrt ($diff_pixx * $diff_pixx + $diff_pixy * $diff_pixy) + 0.5);
-                        $avaredifs .= ($avaredifs == "") ? "(" : "; ";
-                        $avaredifs .= "$fixid $diff_pix";
-                        if ($diff_pix < $avLeewy) $avaregood ++;
+                            // hopefully they match up close enough
+                            $diff_pixx  = $avare_pixx - $my_pixx;
+                            $diff_pixy  = $avare_pixy - $my_pixy;
+                            $diff_pix   = intval (sqrt ($diff_pixx * $diff_pixx + $diff_pixy * $diff_pixy) + 0.5);
+                            $avaredifs .= ($avaredifs == "") ? "(" : "; ";
+                            $avaredifs .= "$fixid $diff_pix";
+                            if ($diff_pix < $avLeewy) $avaregood ++;
+                        }
+                        if ($avaredifs != "") $avaredifs .= ")";
                     }
-                    if ($avaredifs != "") $avaredifs .= ")";
-                }
-                if ($avaregood >= 2) {
-                    topStuffLine ("<B>$statecode $ipx</B> verified in avare $avaredifs");
-                    if ($olddifs != "") {
-                        topStuffLine ("<P>previous verification diffs $olddifs</P>");
-                    } else {
-                        topStuffLine ("<P>not previously verified</P>");
+                    if ($avaregood >= 2) {
+                        topStuffLine ("<B>$statecode $ipx</B> verified in avare $avaredifs");
+                        if ($olddifs != "") {
+                            topStuffLine ("<P>previous verification diffs $olddifs</P>");
+                        } else {
+                            topStuffLine ("<P>not previously verified</P>");
+                        }
+                        MarkImageGood ($icaoid, $plate, $newxfmwft);
+                        file_put_contents ("$datdir/lastplate", $nextpos);
+                        set_time_limit (30);
+                        goto openplate;
                     }
-                    MarkImageGood ($icaoid, $plate, $newxfmwft);
-                    file_put_contents ("$datdir/lastplate", $nextpos);
-                    set_time_limit (30);
-                    goto openplate;
                 }
 
                 // tell user we are working on it
@@ -323,10 +329,12 @@ END;
                 } else {
                     echo "<P>not previously verified</P>";
                 }
-                if ($avaredifs != "") {
-                    echo "<P>avare diffs $avaredifs</P>";
-                } else {
-                    echo "<P>not found in avare</P>";
+                if ($checkavare) {
+                    if ($avaredifs != "") {
+                        echo "<P>avare diffs $avaredifs</P>";
+                    } else {
+                        echo "<P>not found in avare</P>";
+                    }
                 }
                 echo "<P>$percent %</P>";
                 @flush (); @ob_flush (); @flush ();
@@ -339,7 +347,7 @@ END;
                 $pngname = "$faaid-$plateid.png";
                 @unlink ("$pngdir/$pngname");
                 $clpath  = "../decosects/DecodePlate.jar:../decosects/pdfbox-1.8.10.jar:../decosects/commons-logging-1.2.jar";
-                $dpcmnd  = "java DecodePlate $faaid '$plate' -markedpng $pngdir/$pngname -verbose";
+                $dpcmnd  = "java DecodePlate -cycles28 $cycles28 -cycles56 $cycles56 $faaid '$plate' -markedpng $pngdir/$pngname -verbose";
                 $dpfile  = popen ("CLASSPATH=$clpath $dpcmnd 2>&1", "r");
                 if (!$dpfile) die ("<P>error spawning DecodePlate</P>");
                 $dplog   = "$dpcmnd\n";

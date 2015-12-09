@@ -1,4 +1,10 @@
 #!/bin/bash
+#
+#  Generate georeference info for airport diagram (APD)
+#  and instrument approach procedure (IAP) plates
+#
+#  Takes about 2hrs to run
+#
 
 #
 # Process airport diagrams (APD) from a state to get their georef info.
@@ -82,6 +88,7 @@ function processstate
         rm -f $iapoutdir/$stateid.rej.tmp
         java DecodePlate -verbose \
             -csvout $iapoutdir/$stateid.csv.tmp \
+            -cycles28 $cycles28 -cycles56 $cycles56 \
             -rejects $iapoutdir/$stateid.rej.tmp \
                 < decodeallplates.$stateid.tmp \
                 > $iapoutdir/$stateid.log
@@ -141,11 +148,16 @@ then
     gmcs -debug -out:ReadArptDgmPng.exe -reference:System.Drawing.dll ReadArptDgmPng.cs
 fi
 
+if [ cureffdate -ot cureffdate.c ]
+then
+    cc -o cureffdate cureffdate.c
+fi
+
 #
 # Create output directories
 #
-cycles28=`cat datums/aptplates_expdate.dat`
-cycles56=`cat datums/aptinfo_expdate.dat`
+cycles28=`./cureffdate -28 -x yyyymmdd`
+cycles56=`./cureffdate     -x yyyymmdd`
 apdoutdir=datums/apdgeorefs_$cycles28
 iapoutdir=datums/iapgeorefs_$cycles28
 mkdir -p $apdoutdir $iapoutdir

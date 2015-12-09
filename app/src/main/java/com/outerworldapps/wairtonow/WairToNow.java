@@ -182,8 +182,8 @@ public class WairToNow extends Activity {
         try {
             maintView = new MaintView (this);
             chartView = new ChartView (this);
-        } catch (IOException ioe) {
-            StartupError ("error reading chart database", ioe);
+        } catch (Exception e) {
+            StartupError ("error reading chart database", e);
             return;
         }
 
@@ -311,11 +311,35 @@ public class WairToNow extends Activity {
     {
         AlertDialog.Builder adb = new AlertDialog.Builder (this);
         adb.setTitle ("Startup error");
-        adb.setMessage (msg);
+        adb.setMessage (msg + "\nTry clearing data or removing and re-installing app.");
         adb.setPositiveButton ("OK", new DialogInterface.OnClickListener () {
             @Override
-            public void onClick (DialogInterface dialogInterface, int i) {
-                System.exit (- 1);
+            public void onClick (DialogInterface dialogInterface, int i)
+            {
+                System.exit (-1);
+            }
+        });
+        adb.setNegativeButton ("Clear Data", new DialogInterface.OnClickListener () {
+            @Override
+            public void onClick (DialogInterface dialogInterface, int i)
+            {
+                EmptyDirectory (new File (dbdir));
+                System.exit (-1);
+            }
+
+            private void EmptyDirectory (File dir)
+            {
+                for (File file : dir.listFiles ()) {
+                    String path = file.getPath ();
+                    if (path.endsWith ("/crumbs")) continue;
+                    if (path.endsWith ("/dmecheckboxes.db")) continue;
+                    if (path.endsWith ("/georefs.db")) continue;
+                    if (path.endsWith ("/options.csv")) continue;
+                    if (path.endsWith ("/routes")) continue;
+                    if (path.endsWith ("/userwaypts.csv")) continue;
+                    if (file.isDirectory ()) EmptyDirectory (file);
+                    Lib.Ignored (file.delete ());
+                }
             }
         });
         adb.show ();
@@ -543,14 +567,16 @@ public class WairToNow extends Activity {
         super.onResume ();
 
         hasAgreed = false;
-        SharedPreferences prefs = getPreferences (Activity.MODE_PRIVATE);
-        long now = System.currentTimeMillis ();
-        long agreed = prefs.getLong ("hasAgreed", 0);
-        if (now - agreed < 30*24*60*60*1000L) {
-            HasAgreed ();
-        } else {
-            agreeButton.setVisibility (View.VISIBLE);
-            agreeButton.DisplayNewTab ();
+        if (agreeButton != null) {
+            SharedPreferences prefs = getPreferences (Activity.MODE_PRIVATE);
+            long now = System.currentTimeMillis ();
+            long agreed = prefs.getLong ("hasAgreed", 0);
+            if (now - agreed < 30 * 24 * 60 * 60 * 1000L) {
+                HasAgreed ();
+            } else {
+                agreeButton.setVisibility (View.VISIBLE);
+                agreeButton.DisplayNewTab ();
+            }
         }
     }
 
