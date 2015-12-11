@@ -22,12 +22,14 @@ package com.outerworldapps.wairtonow;
 
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Iterator;
 
 import android.content.pm.ActivityInfo;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
+import android.graphics.Typeface;
 import android.location.Location;
 import android.support.annotation.NonNull;
 import android.view.MotionEvent;
@@ -44,8 +46,11 @@ public class GlassView
     private static final float GSFTABVTH   = 25.0F;   // glideslope feet above threshold
     private static final float HSISCALEAPP = 0.5F;    // HSI scale full deflection = 0.5nm
     private static final float HSISCALEENR = 2.0F;    // HSI scale full deflection = 2.0nm
+    private static final int   STDRATETURN = 3;       // degrees per second
 
     private static final CompareRWNumbers compareRWNumbers = new CompareRWNumbers ();
+    private static final float[] dtwbWidths = new float[1];
+    private static final Rect dtwbBounds = new Rect ();
 
     private float chartUpHdg;
     private float magvariation;
@@ -107,6 +112,7 @@ public class GlassView
         dgPaintHSV.setStrokeWidth (3);
         dgPaintHSV.setTextAlign (Paint.Align.CENTER);
         dgPaintHSV.setTextSize (wairToNow.textSize);
+        dgPaintHSV.setTypeface (Typeface.MONOSPACE);
         dgPaintMaj.setColor (Color.GREEN);
         dgPaintMaj.setStyle (Paint.Style.STROKE);
         dgPaintMaj.setStrokeWidth (5);
@@ -121,6 +127,7 @@ public class GlassView
         dgPaintNum.setStrokeWidth (2);
         dgPaintNum.setTextAlign (Paint.Align.CENTER);
         dgPaintNum.setTextSize (wairToNow.textSize);
+        dgPaintNum.setTypeface (Typeface.MONOSPACE);
         dgPaintTri.setColor (Color.YELLOW);
         dgPaintTri.setStyle (Paint.Style.STROKE);
         dgPaintTri.setStrokeWidth (1);
@@ -129,6 +136,7 @@ public class GlassView
         dgPaintVal.setStrokeWidth (2);
         dgPaintVal.setTextAlign (Paint.Align.CENTER);
         dgPaintVal.setTextSize (wairToNow.textSize);
+        dgPaintVal.setTypeface (Typeface.MONOSPACE);
 
         // numeric strip paints
         nsPaintNum.setColor (Color.WHITE);
@@ -136,11 +144,13 @@ public class GlassView
         nsPaintNum.setStrokeWidth (2);
         nsPaintNum.setTextAlign (Paint.Align.CENTER);
         nsPaintNum.setTextSize (wairToNow.textSize);
+        nsPaintNum.setTypeface (Typeface.MONOSPACE);
         nsPaintVal.setColor (Color.RED);
         nsPaintVal.setStyle (Paint.Style.FILL);
         nsPaintVal.setStrokeWidth (2);
         nsPaintVal.setTextAlign (Paint.Align.CENTER);
         nsPaintVal.setTextSize (wairToNow.textSize);
+        nsPaintVal.setTypeface (Typeface.MONOSPACE);
 
         // approach runway selector paints
         rwayPaint.setColor (Color.RED);
@@ -148,11 +158,13 @@ public class GlassView
         rwayPaint.setStrokeWidth (2);
         rwayPaint.setTextAlign (Paint.Align.CENTER);
         rwayPaint.setTextSize (wairToNow.textSize);
+        rwayPaint.setTypeface (Typeface.MONOSPACE);
         rwSelPaint.setColor (Color.GREEN);
         rwSelPaint.setStyle (Paint.Style.FILL);
         rwSelPaint.setStrokeWidth (2);
         rwSelPaint.setTextAlign (Paint.Align.CENTER);
         rwSelPaint.setTextSize (wairToNow.textSize);
+        rwSelPaint.setTypeface (Typeface.MONOSPACE);
     }
 
     @Override  // WairToNow.CanBeMainView
@@ -549,7 +561,7 @@ public class GlassView
         if (canvas.clipRect (centX - radius, centY - radius, centX + radius, centY + radius)) {
             int canCentX = getWidth  () / 2;
             int canCentY = getHeight () / 2;
-            canvas.translate (centX - canCentX, centY - canCentY);
+            canvas.translate (centX - canCentX, centY - canCentY + radius / 2);
             wairToNow.chartView.ReCenter ();
             wairToNow.chartView.SetCanvasHdgRad (Mathf.toRadians (course));
             wairToNow.chartView.OnDraw (canvas);  // avoid asinine 'suspicious method call' error by using OnDraw()
@@ -563,22 +575,82 @@ public class GlassView
      */
     private void DrawDestinationInfo (Canvas canvas, int centX, int centY, Position currPos)
     {
-        if (wairToNow.chartView.clDest != null) {
-            float distnm   = Lib.LatLonDist (currPos.latitude, currPos.longitude,
-                    wairToNow.chartView.clDest.lat, wairToNow.chartView.clDest.lon);
-            int dist10ths  = (int)(distnm * 10 + 0.5);
-            String diststr = (dist10ths >= 10000) ? Integer.toString (dist10ths / 10) :
-                    Integer.toString (dist10ths / 10) + "." + Integer.toString (dist10ths % 10);
-            String hdgstr = wairToNow.chartView.clDest.ident + "  " + diststr;
-            if (currPos.speed > 1.0) {
-                int    timesec = (int)(distnm / currPos.speed / Lib.KtPerMPS * 3600.0 + 0.5);
-                String timestr = ((timesec >= 3600) ?
-                        Integer.toString (timesec / 3600) + ":" + Integer.toString (timesec / 60 % 60 + 100).substring (1) :
-                        Integer.toString (timesec / 60)) + ":" +
-                        Integer.toString (timesec % 60 + 100).substring (1);
-                hdgstr += "  " + timestr;
+        Waypoint destwp = wairToNow.chartView.clDest;
+        if (destwp != null) {
+
+            // distance to destination waypoint
+            StringBuilder sb = new StringBuilder ();
+            sb.append (wairToNow.chartView.clDest.ident);
+            sb.append (' ');
+            float distnm  = Lib.LatLonDist (currPos.latitude, currPos.longitude, destwp.lat, destwp.lon);
+            int dist10ths = Math.round (distnm * 10.0F);
+            sb.append (dist10ths / 10);
+            if (dist10ths < 10000) {
+                sb.append ('.');
+                sb.append (dist10ths % 10);
             }
-            DrawTextWithBG (canvas, hdgstr, centX, centY, dgPaintHSV, dgPaintBack);
+
+            // make sure we are going some minimal speed so we can calculate time
+            if (currPos.speed > 1.0F) {
+
+                // time to destination. either HH:MM or MM:SS
+                sb.append (' ');
+                int timesec = (int)(distnm / currPos.speed / Lib.KtPerMPS * 3600.0 + 0.5);
+                if (timesec >= 3600) {
+                    sb.append (timesec / 3600);
+                    sb.append (':');
+                    sb.append (Integer.toString (timesec / 60 % 60 + 100).substring (1));
+                } else {
+                    sb.append (timesec / 60);
+                    sb.append (':');
+                    sb.append (Integer.toString (timesec % 60 + 100).substring (1));
+                }
+
+                // see if route view active and there is another waypoint after current destination
+                Iterator<Waypoint> it = wairToNow.routeView.GetActiveWaypointsAfter (destwp);
+                if ((it != null) && it.hasNext ()) {
+
+                    // compute change in heading required from current to oncourse to next destination
+                    Waypoint nextwp = it.next ();
+                    float currhdg = currPos.heading;
+                    float nexthdg = Lib.LatLonTC (destwp.lat, destwp.lon, nextwp.lat, nextwp.lon);
+                    float hdgdiff = nexthdg - currhdg;
+                    if (hdgdiff < -180.0F) hdgdiff += 360.0F;
+                    if (hdgdiff >= 180.0F) hdgdiff -= 360.0F;
+
+                    // see how many seconds from now at standard rate the turn must begin
+                    float turnsec  = Math.abs (hdgdiff) / STDRATETURN;
+                    int tostartsec = Math.round (timesec - turnsec / 2.0F);
+                    if (tostartsec <= 10) {
+
+                        // 10 or less, display arrow and new heading on alternating seconds
+                        // but solid on if past point where turn should start
+                        boolean on = (tostartsec < 0) || ((tostartsec & 1) == 0);
+                        int maghdgbin = Math.round (nexthdg + magvariation + 359.0F) % 360 + 1;
+                        String maghdgstr = Integer.toString (maghdgbin + 1000).substring (1);
+                        if (hdgdiff > 0) {
+                            if (on) {
+                                sb.append (" \u25B6");
+                            } else {
+                                sb.append (" \u25B7");
+                            }
+                            sb.append (maghdgstr);
+                            sb.append ('\u00B0');
+                        }
+                        if (hdgdiff < 0) {
+                            if (on) {
+                                sb.insert (0, "\u00B0\u25C0 ");
+                            } else {
+                                sb.insert (0, "\u00B0\u25C1 ");
+                            }
+                            sb.insert (0, maghdgstr);
+                        }
+                    }
+                }
+            }
+
+            // draw the string with background
+            DrawTextWithBG (canvas, sb.toString (), centX, centY, dgPaintHSV, dgPaintBack);
         }
     }
 
@@ -801,10 +873,10 @@ public class GlassView
      */
     private static void DrawTextWithBG (Canvas canvas, String text, int x, int y, Paint fgPaint, Paint bgPaint)
     {
-        Rect bounds = new Rect ();
-        fgPaint.getTextBounds (text, 0, text.length (), bounds);
-        int htw = bounds.right - bounds.left;
-        int hth = bounds.bottom - bounds.top;
+        fgPaint.getTextBounds ("M", 0, 1, dtwbBounds);  // height without inter-line spacing
+        fgPaint.getTextWidths ("M", dtwbWidths);        // width including inter-char spacing
+        int htw = Math.round (dtwbWidths[0] * text.length ());
+        int hth = dtwbBounds.height ();
         canvas.drawRect (x - htw / 2 - 3, y - hth - 3, x + htw / 2 + 3, y + 3, bgPaint);
         canvas.drawText (text, x, y, fgPaint);
     }

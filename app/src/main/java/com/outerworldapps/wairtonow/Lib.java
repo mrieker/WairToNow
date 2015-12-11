@@ -454,8 +454,19 @@ public class Lib {
         float intersectLat = Mathf.toDegrees (Mathf.atan2 (intersectZ, Mathf.sqrt (intersectX * intersectX + intersectY * intersectY)));
         float intersectLon = Mathf.toDegrees (Mathf.atan2 (intersectY, intersectX));
 
-        // return true course from intersection point to end point
-        return LatLonTC (intersectLat, intersectLon, endlatdeg, endlondeg);
+        // find distance from intersection point to start and end points
+        float distInt2End = LatLonDist_rad (intersectLat, intersectLon, endlatdeg, endlondeg);
+        float distInt2Beg = LatLonDist_rad (intersectLat, intersectLon, beglatdeg, beglondeg);
+
+        // if closer to start point, return true course from intersection point to end point
+        if (distInt2End > distInt2Beg) {
+            return LatLonTC (intersectLat, intersectLon, endlatdeg, endlondeg);
+        }
+
+        // but/and if closer to endpoint, return reciprocal of tc from intersection to start point
+        float tc = LatLonTC (intersectLat, intersectLon, beglatdeg, beglondeg) + 180.0F;
+        if (tc >= 180.0F) tc -= 360.0F;
+        return tc;
     }
 
     /**
