@@ -106,8 +106,11 @@ public class ChartView
     public  float brLat, brLon;               // lat/lon at bottom right of canvas
 
     private ArrayList<DrawWaypoint> allDrawWaypoints = new ArrayList<> ();
-    private AutoAirChart autoSecAirChart = new AutoAirChart ("SEC");
-    private AutoAirChart autoWacAirChart = new AutoAirChart ("WAC");
+    private AutoAirChart[] autoAirCharts = new AutoAirChart[] {
+            new AutoAirChart ("ENR"),
+            new AutoAirChart ("SEC"),
+            new AutoAirChart ("WAC")
+    };
     private boolean centerInfoMphOption, centerInfoTrueOption;
     private boolean courseInfoMphOpt, courseInfoTrueOpt;
     private boolean gpsInfoMphOpt;
@@ -398,8 +401,7 @@ public class ChartView
             if (spacenamesansrev != null) {
                 TreeMap<String,DisplayableChart> charts = new TreeMap<> ();
                 charts.put (streetChart.GetSpacenameSansRev (), streetChart);
-                charts.put (autoSecAirChart.GetSpacenameSansRev (), autoSecAirChart);
-                charts.put (autoWacAirChart.GetSpacenameSansRev (), autoWacAirChart);
+                for (AutoAirChart aac : autoAirCharts) charts.put (aac.GetSpacenameSansRev (), aac);
                 for (Iterator<AirChart> it = wairToNow.maintView.GetAirChartIterator (); it.hasNext ();) {
                     AirChart ac = it.next ();
                     charts.put (ac.GetSpacenameSansRev (), ac);
@@ -500,7 +502,7 @@ public class ChartView
     }
 
     /**
-     * Set "UP" direction for next call to OnDraw().
+     * Set "UP" direction for next call to DrawChart().
      * @param canvasHdg = new "UP" direction for canvas (radians)
      */
     public void SetCanvasHdgRad (float canvasHdg)
@@ -543,8 +545,7 @@ public class ChartView
         for (Iterator<AirChart> it = wairToNow.maintView.GetAirChartIterator (); it.hasNext ();) {
             it.next ().CloseBitmaps ();
         }
-        autoSecAirChart.CloseBitmaps ();
-        autoWacAirChart.CloseBitmaps ();
+        for (AutoAirChart aac : autoAirCharts) aac.CloseBitmaps ();
         streetChart.CloseBitmaps ();
     }
 
@@ -775,7 +776,7 @@ public class ChartView
         centerLon       = lonStart;
         userRotationRad = rotStart;
         scaling         = scaStart;
-        MapLatLonsToCanvasPixels ();
+        MapLatLonsToCanvasPixels (canvasWidth, canvasHeight);
 
         // figure out where new center point is in the old canvas
         float newCtrX = canvasWidth  / 2;
@@ -916,14 +917,55 @@ public class ChartView
     @Override
     public void onDraw (Canvas canvas)
     {
-        OnDraw (canvas);
+        DrawChart (canvas, getWidth (), getHeight ());
+
+        /*
+         * Draw center position text.
+         */
+        DrawCenterInfo (canvas, centerBGPaint);
+        DrawCenterInfo (canvas, centerTxPaint);
+
+        /*
+         * Draw course destination text.
+         */
+        if (clDest != null) {
+            DrawCourseInfo (canvas, courseBGPaint);
+            DrawCourseInfo (canvas, courseTxPaint);
+        }
+
+        /*
+         * Draw GPS (current position) info text.
+         */
+        DrawGPSInfo (canvas, currentBGPaint);
+        DrawGPSInfo (canvas, currentTxPaint);
+
+        /*
+         * Draw chart selection button.
+         */
+        DrawChartSelect (canvas, chartSelBGPaint);
+        DrawChartSelect (canvas, chartSelTxPaint);
+
+        /*
+         * Draw circles around spot where screen is being touched.
+         */
+        if (firstPointer != null) {
+            float r = Mathf.sqrt (metrics.xdpi * metrics.ydpi) * 0.25F;
+            canvas.drawCircle (firstPointer.lx, firstPointer.ly, r, currentLnPaint);
+        }
+        if (secondPointer != null) {
+            float r = Mathf.sqrt (metrics.xdpi * metrics.ydpi) * 0.25F;
+            canvas.drawCircle (secondPointer.lx, secondPointer.ly, r, currentLnPaint);
+        }
+
+        wairToNow.drawGPSAvailable (canvas, this);
     }
-    public void OnDraw (Canvas canvas)
+
+    public void DrawChart (Canvas canvas, int cw, int ch)
     {
         /*
          * Set up latlon <-> canvas pixel mapping.
          */
-        MapLatLonsToCanvasPixels ();
+        MapLatLonsToCanvasPixels (cw, ch);
 
         /*
          * Draw map image as background.
@@ -1035,46 +1077,6 @@ public class ChartView
         if (LatLon2CanPixExact (arrowLat, arrowLon, pt)) {
             DrawLocationArrow (canvas, pt, GetCanvasHdgRads (), pixelWidthM, pixelHeightM);
         }
-
-        /*
-         * Draw center position text.
-         */
-        DrawCenterInfo (canvas, centerBGPaint);
-        DrawCenterInfo (canvas, centerTxPaint);
-
-        /*
-         * Draw course destination text.
-         */
-        if (clDest != null) {
-            DrawCourseInfo (canvas, courseBGPaint);
-            DrawCourseInfo (canvas, courseTxPaint);
-        }
-
-        /*
-         * Draw GPS (current position) info text.
-         */
-        DrawGPSInfo (canvas, currentBGPaint);
-        DrawGPSInfo (canvas, currentTxPaint);
-
-        /*
-         * Draw chart selection button.
-         */
-        DrawChartSelect (canvas, chartSelBGPaint);
-        DrawChartSelect (canvas, chartSelTxPaint);
-
-        /*
-         * Draw circles around spot where screen is being touched.
-         */
-        if (firstPointer != null) {
-            float r = Mathf.sqrt (metrics.xdpi * metrics.ydpi) * 0.25F;
-            canvas.drawCircle (firstPointer.lx, firstPointer.ly, r, currentLnPaint);
-        }
-        if (secondPointer != null) {
-            float r = Mathf.sqrt (metrics.xdpi * metrics.ydpi) * 0.25F;
-            canvas.drawCircle (secondPointer.lx, secondPointer.ly, r, currentLnPaint);
-        }
-
-        wairToNow.drawGPSAvailable (canvas, this);
     }
 
     /**
@@ -1511,14 +1513,14 @@ public class ChartView
     /**
      * Set up latlon <-> canvas pixel mapping.
      */
-    private void MapLatLonsToCanvasPixels ()
+    private void MapLatLonsToCanvasPixels (int cw, int ch)
     {
         /*
          * Get canvas dimensions (eg (600,1024)).
          * This is actually the visible part of the canvas that shows in the parent's window.
          */
-        canvasWidth  = getWidth ();
-        canvasHeight = getHeight ();
+        canvasWidth  = cw;
+        canvasHeight = ch;
 
         /*
          * Read display metrics each time in case of orientation change.
@@ -2035,8 +2037,7 @@ public class ChartView
             displayableCharts = new TreeMap<> ();
             displayableCharts.put (streetChart.GetSpacenameSansRev (), streetChart);
 
-            boolean autoSecHit = false;
-            boolean autoWacHit = false;
+            boolean[] autoAirChartHits = new boolean[autoAirCharts.length];
             Point pt = new Point ();
             for (Iterator<AirChart> it = wairToNow.maintView.GetAirChartIterator (); it.hasNext ();) {
                 AirChart ac = it.next ();
@@ -2045,15 +2046,13 @@ public class ChartView
                         String spn = ac.GetSpacenameSansRev ();
                         displayableCharts.put (spn, ac);
 
-                        if (!autoSecHit && spn.contains ("SEC") && ac.LatLonIsCharted (cmll.lat, cmll.lon)) {
-                            displayableCharts.put (autoSecAirChart.GetSpacenameSansRev (), autoSecAirChart);
-                            autoSecHit = true;
+                        for (int i = 0; i < autoAirCharts.length; i ++) {
+                            AutoAirChart aac = autoAirCharts[i];
+                            if (!autoAirChartHits[i] && aac.Matches (spn) && ac.LatLonIsCharted (cmll.lat, cmll.lon)) {
+                                displayableCharts.put (aac.GetSpacenameSansRev (), aac);
+                                autoAirChartHits[i] = true;
+                            }
                         }
-                        if (!autoWacHit && spn.contains ("WAC") && ac.LatLonIsCharted (cmll.lat, cmll.lon)) {
-                            displayableCharts.put (autoWacAirChart.GetSpacenameSansRev (), autoWacAirChart);
-                            autoWacHit = true;
-                        }
-                        if (autoSecHit && autoWacHit) break;
                     }
                 }
             }
@@ -2190,8 +2189,6 @@ public class ChartView
                     @Override
                     public void onClick (DialogInterface dialog, int which)
                     {
-                        selectedChart = null;
-                        invalidate ();
                         waitingForChartDownload = dc;
                         wairToNow.maintView.StartDownloadingChart (dc.GetSpacenameSansRev ());
                     }
@@ -2221,7 +2218,11 @@ public class ChartView
      */
     private void SelectChart (DisplayableChart dc)
     {
+        if (selectedChart != null) {
+            selectedChart.CloseBitmaps ();
+        }
         selectedChart = dc;
+        selectedChart.UserSelected ();
         invalidate ();
         SharedPreferences prefs = wairToNow.getPreferences (Activity.MODE_PRIVATE);
         SharedPreferences.Editor editr = prefs.edit ();

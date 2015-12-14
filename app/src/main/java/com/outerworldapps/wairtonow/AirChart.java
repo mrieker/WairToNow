@@ -40,9 +40,11 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.Iterator;
@@ -100,9 +102,11 @@ public abstract class AirChart implements DisplayableChart {
     private float chartedSouthLat, chartedNorthLat;
     public  int autoOrder;
     public  int enddate;
-    private int chartedEastPix, chartedWestPix;
-    private int chartedSouthPix, chartedNorthPix;
+    private int chartedBotPix, chartedLeftPix;
+    private int chartedRitePix, chartedTopPix;
     public  int chartheight, chartwidth;  // pixel width & height of this chart including legend areas
+
+    private Point[] outline;
 
     // methods a projection-specific implementation must provide
     protected abstract String ParseParams (String csvLine);
@@ -145,7 +149,7 @@ public abstract class AirChart implements DisplayableChart {
         }
     }
 
-    @Override  // Chart
+    @Override  // DisplayableChart
     public String GetSpacenameSansRev ()
     {
         return spacenamenr;
@@ -165,6 +169,13 @@ public abstract class AirChart implements DisplayableChart {
     {
         return GetMenuSelector (chartView.pmap, chartView.arrowLat, chartView.arrowLon, chartView.metrics);
     }
+
+    /**
+     * User just clicked this chart in the chart selection menu.
+     */
+    @Override  // DisplayableChart
+    public void UserSelected ()
+    { }
 
     /**
      * Get entry for chart selection menu.
@@ -293,7 +304,7 @@ public abstract class AirChart implements DisplayableChart {
      * Draw chart on canvas possibly scaled and/or rotated.
      * @param canvas = canvas to draw on
      */
-    @Override  // Chart
+    @Override  // DisplayableChart
     public void DrawOnCanvas (ChartView chartView, Canvas canvas)
     {
         DrawOnCanvas (chartView, canvas, true);
@@ -962,10 +973,10 @@ public abstract class AirChart implements DisplayableChart {
          * A point must be within both sets of limits to be considered to be in charted area.
          */
         // pixel defaults are just the whole chart size
-        chartedEastPix  = chartwidth;
-        chartedWestPix  = 0;
-        chartedNorthPix = 0;
-        chartedSouthPix = chartheight;
+        chartedLeftPix = 0;
+        chartedRitePix = chartwidth;
+        chartedTopPix  = 0;
+        chartedBotPix  = chartheight;
 
         // check out northwest corner
         LatLon ll = new LatLon ();
@@ -1002,16 +1013,20 @@ public abstract class AirChart implements DisplayableChart {
                     int val = Integer.parseInt (limPart.substring (1, limPart.length () - 1));
                     switch (dir) {
                         case 'E':
-                            chartedEastPix = val;
+                        case 'R':
+                            chartedRitePix = val;
                             break;
                         case 'N':
-                            chartedNorthPix = val;
+                        case 'T':
+                            chartedTopPix = val;
                             break;
                         case 'S':
-                            chartedSouthPix = val;
+                        case 'B':
+                            chartedBotPix = val;
                             break;
                         case 'W':
-                            chartedWestPix = val;
+                        case 'L':
+                            chartedLeftPix = val;
                             break;
                     }
                 } else {
@@ -1041,6 +1056,54 @@ public abstract class AirChart implements DisplayableChart {
         chartedWestLon = Lib.NormalLon (chartedWestLon);
         chartedEastLon = Lib.NormalLon (chartedEastLon);
         if (chartedEastLon < chartedWestLon) chartedEastLon += 360.0F;
+
+        /*
+         * Some charts have a record in outlines.txt giving where the charted pixels are.
+         * If so, use that as the chart outline.
+         * If just two points given, it is the common case of a rectangular area,
+         * so use those as the simple left/rite/top/bot limits.
+         */
+        try {
+            BufferedReader outFile = new BufferedReader (new FileReader (WairToNow.dbdir + "/outlines.txt"), 4096);
+            try {
+                String outLine;
+                while ((outLine = outFile.readLine ()) != null) {
+                    String[] parts = outLine.split (":");
+                    String namenr = parts[0].trim ();
+                    if (namenr.equals (spacenamenr)) {
+                        parts = parts[1].split ("/");
+                        if (parts.length < 2) throw new Exception ("too few pairs");
+                        outline = new Point[parts.length+1];
+                        int j = 0;
+                        for (String part : parts) {
+                            String[] xystrs = part.split (",");
+                            if (xystrs.length != 2) throw new Exception ("bad x,y " + part);
+                            Point p = new Point ();
+                            p.x = Integer.parseInt (xystrs[0].trim ());
+                            p.y = Integer.parseInt (xystrs[1].trim ());
+                            outline[j++] = p;
+                        }
+                        if (j == 2) {
+                            chartedLeftPix = Math.min (outline[0].x, outline[1].x);
+                            chartedRitePix = Math.max (outline[0].x, outline[1].x);
+                            chartedTopPix  = Math.min (outline[0].y, outline[1].y);
+                            chartedBotPix  = Math.max (outline[0].y, outline[1].y);
+                            outline = null;
+                        } else {
+                            outline[j] = outline[0];
+                        }
+                        break;
+                    }
+                }
+            } finally {
+                outFile.close ();
+            }
+        } catch (FileNotFoundException fnfe) {
+            Lib.Ignored ();
+        } catch (Exception e) {
+            Log.e (TAG, "error reading outlines.txt for " + spacenamenr, e);
+            outline = null;
+        }
     }
 
     /**
@@ -1074,8 +1137,7 @@ public abstract class AirChart implements DisplayableChart {
          */
         Point pt = ptPerThread.get ();
         return LatLon2ChartPixelExact (lat, lon, pt) &&
-                (pt.y >= chartedNorthPix) && (pt.y <= chartedSouthPix) &&
-                (pt.x >= chartedWestPix) && (pt.x <= chartedEastPix);
+                TestPixelIsCharted (pt.x, pt.y);
     }
 
     /**
@@ -1086,8 +1148,7 @@ public abstract class AirChart implements DisplayableChart {
         /*
          * If pixel is out of pixel limits, point is not in chart area
          */
-        if ((pixy < chartedNorthPix) || (pixy > chartedSouthPix)) return false;
-        if ((pixx < chartedWestPix) || (pixx > chartedEastPix)) return false;
+        if (!TestPixelIsCharted (pixx, pixy)) return false;
 
         /*
          * It is within pixel limits, check lat/lon limits too.
@@ -1098,6 +1159,21 @@ public abstract class AirChart implements DisplayableChart {
 
         if (ll.lon < chartedWestLon) ll.lon += 360.0;
         return ll.lon <= chartedEastLon;
+    }
+
+    /**
+     * Test given pixel against chart pixel limits.
+     * Fortunately most charts have simple rectangle limits.
+     */
+    private boolean TestPixelIsCharted (int pixx, int pixy)
+    {
+        if (outline == null) {
+            return (pixy >= chartedTopPix) && (pixy <= chartedBotPix) &&
+                   (pixx >= chartedLeftPix) && (pixx <= chartedRitePix);
+        }
+
+        // arbitrary non-crossing polygon
+        return PnPoly.wn (pixx, pixy, outline, outline.length - 1) > 0;
     }
 
     /**
@@ -1212,6 +1288,9 @@ public abstract class AirChart implements DisplayableChart {
         {
             float phi = Mathf.toRadians (lat);
             float lam = Mathf.toRadians (lon);
+
+            while (lam < e_lam0 - Mathf.PI) lam += Mathf.PI * 2.0F;
+            while (lam > e_lam0 + Mathf.PI) lam -= Mathf.PI * 2.0F;
 
             /*
              * Calculate number of metres east of Longitude_of_Central_Meridian
@@ -1454,6 +1533,9 @@ public abstract class AirChart implements DisplayableChart {
         @Override  // AirChart
         public boolean LatLon2ChartPixelExact (float lat, float lon, @NonNull Point p)
         {
+            while (lon < lonw - 180.0F) lon += 360.0F;
+            while (lon > lonw + 180.0F) lon -= 360.0F;
+
             int x = Math.round ((lon - lonw) / (lone - lonw) * chartwidth);
             int y = Math.round ((latn - lat) / (latn - lats) * chartheight);
             p.x = x;

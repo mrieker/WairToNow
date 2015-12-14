@@ -33,6 +33,7 @@ public interface DisplayableChart {
     boolean IsDownloaded ();
     void DrawOnCanvas (ChartView chartView, Canvas canvas);
     View GetMenuSelector (ChartView chartView);
+    void UserSelected ();
     void CloseBitmaps ();
     boolean LatLon2CanPixExact (float lat, float lon, @NonNull Point canpix);
     boolean CanPix2LatLonExact (float canpixx, float canpixy, @NonNull LatLon ll);

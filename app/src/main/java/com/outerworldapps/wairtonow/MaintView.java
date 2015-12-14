@@ -86,6 +86,7 @@ public class MaintView
         CompoundButton.OnCheckedChangeListener {
     public  final static String TAG = "WairToNow";
     public  final static String dldir = "http://toutatis.nii.net/WairToNow";
+    public  final static int NWARNDAYS = 5;
 
     private boolean updateDLProgSent;
     private Category enrCategory;
@@ -580,7 +581,7 @@ public class MaintView
         int textColor = Color.RED;
         if (end.after (now)) {
             textColor = Color.YELLOW;
-            now.add (Calendar.DAY_OF_YEAR, 10);
+            now.add (Calendar.DAY_OF_YEAR, NWARNDAYS);
             if (end.after (now)) {
                 textColor = Color.GREEN;
             }
@@ -843,7 +844,7 @@ public class MaintView
     public void StartDownloadingChart (String spacenamenr)
     {
         for (Downloadable d : allDownloadables) {
-            if (d.GetSpaceNameNoRev ().startsWith (spacenamenr)) {
+            if (d.GetSpaceNameNoRev ().equals (spacenamenr)) {
 
                 // pretend like the user clicked the checkbox to download this chart
                 d.CheckBox ();
@@ -1265,6 +1266,7 @@ public class MaintView
             try {
                 DownloadChartedLimsCSV ();
                 DownloadChartLimitsCSV ();
+                DownloadOutlinesTXT ();
 
                 for (Downloadable dcb : allDownloadables) {
                     if (downloadCancelled) break;
@@ -1506,6 +1508,14 @@ public class MaintView
         Log.i (TAG, "downloading chartlimits.csv");
         String csvname = WairToNow.dbdir + "/chartlimits.csv";
         DownloadFile ("chartlimits.php", csvname + ".tmp");
+        Lib.RenameFile (csvname + ".tmp", csvname);
+    }
+
+    private void DownloadOutlinesTXT () throws IOException
+    {
+        Log.i (TAG, "downloading outlines.txt");
+        String csvname = WairToNow.dbdir + "/outlines.txt";
+        DownloadFile ("outlines.txt", csvname + ".tmp");
         Lib.RenameFile (csvname + ".tmp", csvname);
     }
 

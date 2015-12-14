@@ -83,24 +83,36 @@ public class Chart {
             if (c > ' ') sb.Append (c);
         }
         htmfile = sb.ToString ();
-        try {
-            begdate = GetHtmInteger (htmfile, "Beginning_Date");
-        } catch (Exception) {
-            Console.WriteLine ("no beginning date");
-        }
-        try {
-            if (htmfile.Contains ("Ending_Date:")) {
-                enddate = GetHtmInteger (htmfile, "Ending_Date");
-            } else {
-                enddate = GetHtmInteger (htmfile, "Ending_Time");
+
+        if (spacename.StartsWith ("ENR ")) {
+            int j = spacename.LastIndexOf (' ');
+            begdate = int.Parse (spacename.Substring (++ j));
+            DateTime dt = new DateTime (
+                begdate / 10000, (begdate / 100) % 100, begdate % 100,
+                12, 0, 0);
+            dt = dt.AddDays (56);
+            enddate = dt.Year * 10000 + dt.Month * 100 + dt.Day;
+        } else {
+            try {
+                begdate = GetHtmInteger (htmfile, "Beginning_Date");
+            } catch (Exception) {
+                Console.WriteLine ("no beginning date");
             }
-        } catch (Exception) {
-            if (spacename.StartsWith ("Grand Canyon")) {
-                enddate = 20991231;
-            } else {
-                Console.WriteLine ("no ending date");
+            try {
+                if (htmfile.Contains ("Ending_Date:")) {
+                    enddate = GetHtmInteger (htmfile, "Ending_Date");
+                } else {
+                    enddate = GetHtmInteger (htmfile, "Ending_Time");
+                }
+            } catch (Exception) {
+                if (spacename.StartsWith ("Grand Canyon")) {
+                    enddate = 20991231;
+                } else {
+                    Console.WriteLine ("no ending date");
+                }
             }
         }
+
         centerLon = GetHtmDouble  (htmfile, "Longitude_of_Central_Meridian");
         centerLat = GetHtmDouble  (htmfile, "Latitude_of_Projection_Origin");
         stanPar1  = GetHtmDouble  (htmfile, "Standard_Parallel", 1);

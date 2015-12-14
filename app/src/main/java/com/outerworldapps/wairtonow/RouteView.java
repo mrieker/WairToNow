@@ -71,26 +71,29 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
     private EditText editTextT;
     private EditText editTextN;
     private float lastGPSAlt;
-    private float lastGPSHdg;
     private float lastGPSLat;
     private float lastGPSLon;
     private float lastGPSpeed;
     private float startingLat;
     private float startingLon;
     private int goodColor;
-    private LinkedList<Waypoint> analyzedRoute;
+    private int pointAhead = 999999999;
+    private LinkedList<Waypoint> analyzedRouteList;
     private RouteStep firstStep;
     private RouteStep lastStep;
     private SpannableStringBuilder msgBuilder;
     private String editTextRHint;
+    private String loadedFromName;
     private TextView textViewC;
     private WairToNow wairToNow;
-    private Waypoint pointAhead;
+    private Waypoint[] analyzedRouteArray;
 
     public RouteView (WairToNow ctx)
     {
         super (ctx);
         wairToNow = ctx;
+
+        loadedFromName = "";
 
         // so the findVewById()s don't return null
         ctx.setContentView (R.layout.routeview);
@@ -182,8 +185,10 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
                 editTextN.setText ("");
                 textViewC.setText ("");
                 editTextR.setHint (editTextRHint);
-                analyzedRoute = null;
-                pointAhead = null;
+                analyzedRouteArray = null;
+                analyzedRouteList  = null;
+                loadedFromName     = "";
+                pointAhead         = 999999999;
                 ShutTrackingOff ();
             }
         });
@@ -205,7 +210,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
         buttonTrack.setOnClickListener (new OnClickListener () {
             @Override
             public void onClick (View view) {
-                trackingOn = (analyzedRoute != null) & !trackingOn;
+                trackingOn = (analyzedRouteList != null) & !trackingOn;
                 buttonTrack.setText (trackingOn ? "track off" : "track on ");
                 if (trackingOn) CalcPointAhead ();
             }
@@ -343,10 +348,11 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
      */
     private void ComputeRoute ()
     {
-        startingLat = lastGPSLat;
-        startingLon = lastGPSLon;
-        analyzedRoute = null;
-        pointAhead = null;
+        startingLat        = lastGPSLat;
+        startingLon        = lastGPSLon;
+        analyzedRouteArray = null;
+        analyzedRouteList  = null;
+        pointAhead         = 999999999;
         ShutTrackingOff ();
 
         goodColor = Color.GREEN;
@@ -640,7 +646,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
         /*
          * Capture the final routing and display it.
          */
-        analyzedRoute = new LinkedList<> ();
+        LinkedList<Waypoint> arlist = new LinkedList<> ();
         Waypoint prevwp = null;
         for (RouteStep rs = firstStep; rs != null; rs = rs.nextStep) {
             if (rs instanceof RouteStepAirwy) {
@@ -649,7 +655,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
                 for (Waypoint thiswp : rsawy.GetSelectedWaypoints ()) {
                     if (!thiswp.equals (prevwp)) {
                         appendGoodMessage ("  " + thiswp.MenuKey () + "\n");
-                        analyzedRoute.addLast (thiswp);
+                        arlist.addLast (thiswp);
                     }
                     prevwp = thiswp;
                 }
@@ -660,7 +666,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
                 Waypoint thiswp = rswpt.waypoints.get (rswpt.selectedsolution);
                 if (!thiswp.equals (prevwp)) {
                     appendGoodMessage (thiswp.MenuKey () + "\n");
-                    analyzedRoute.addLast (thiswp);
+                    arlist.addLast (thiswp);
                 }
                 prevwp = thiswp;
             }
@@ -668,17 +674,19 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
 
         /*
          * Edit out redundant points.
+         * Leave any points alone that are explicitly stated in clearance however,
+         * maybe user wants an ETA at that point for position reporting.
          */
-        int nanal = analyzedRoute.size ();
+        int nanal = arlist.size ();
         Waypoint[] ararray = new Waypoint[nanal];
-        analyzedRoute.toArray (ararray);
-        analyzedRoute.clear ();
+        arlist.toArray (ararray);
+        arlist.clear ();
         prevwp = null;
         for (int i = 0; i < nanal; i ++) {
             Waypoint thiswp = ararray[i];
             Waypoint nextwp = (i < nanal - 1) ? ararray[i+1] : null;
-            if ((prevwp == null) || (nextwp == null) || (thiswp instanceof Waypoint.Navaid) || !inARow (prevwp, thiswp, nextwp)) {
-                analyzedRoute.addLast (thiswp);
+            if ((prevwp == null) || (nextwp == null) || !inARow (prevwp, thiswp, nextwp) || statedInClearance (thiswp)) {
+                arlist.addLast (thiswp);
                 prevwp = thiswp;
             }
         }
@@ -686,9 +694,10 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
         /*
          * Enable tracking checkbox if remaining route has any waypoints.
          */
-        if (analyzedRoute.isEmpty ()) {
-            analyzedRoute = null;
-        } else {
+        if (!arlist.isEmpty ()) {
+            analyzedRouteList  = arlist;
+            analyzedRouteArray = new Waypoint[arlist.size()];
+            arlist.toArray (analyzedRouteArray);
             buttonTrack.setEnabled (true);
         }
 
@@ -768,6 +777,17 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
         return tcdiff < 1.0F;
     }
 
+    /**
+     * See if the given waypoint was stated explicitly as a step in the route clearance.
+     */
+    private boolean statedInClearance (Waypoint wp)
+    {
+        for (RouteStep rs = firstStep; rs != null; rs = rs.nextStep) {
+            if (rs.ident.equals (wp.ident)) return true;
+        }
+        return false;
+    }
+
     @Override  // WairToNow.CanBeMainView
     public String GetTabName ()
     {
@@ -804,7 +824,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
     public void ShutTrackingOff ()
     {
         trackingOn = false;
-        buttonTrack.setEnabled (analyzedRoute != null);
+        buttonTrack.setEnabled (analyzedRouteList != null);
         buttonTrack.setText ("track on");
         textViewC.setText ("");
     }
@@ -821,16 +841,18 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
 
         /*
          * Display dialog to ask for filename to save to.
+         * Default to whatever the current data was loaded from.
          */
         AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
         adb.setTitle ("Save route");
         final EditText nameEntry = new EditText (wairToNow);
+        nameEntry.setText (loadedFromName);
         adb.setView (nameEntry);
         adb.setPositiveButton ("Save", new DialogInterface.OnClickListener () {
             @Override
             public void onClick (DialogInterface dialogInterface, int i)
             {
-                String name = nameEntry.getText ().toString ().trim ();
+                final String name = nameEntry.getText ().toString ().trim ();
                 if (!name.equals ("")) {
 
                     /*
@@ -845,7 +867,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
                             @Override
                             public void onClick (DialogInterface dialogInterface, int i)
                             {
-                                SaveButtonWriteFile (file);
+                                SaveButtonWriteFile (file, name);
                             }
                         });
                         adb2.setNegativeButton ("Cancel", null);
@@ -855,7 +877,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
                         /*
                          * Ok to write to file.
                          */
-                        SaveButtonWriteFile (file);
+                        SaveButtonWriteFile (file, name);
                     }
                 }
             }
@@ -867,7 +889,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
     /**
      * Filename accepted, write form values to file.
      */
-    private void SaveButtonWriteFile (File file)
+    private void SaveButtonWriteFile (File file, String name)
     {
         String path = file.getPath ();
         try {
@@ -885,6 +907,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
                 fw.close ();
             }
             Lib.RenameFile (path + ".tmp", path);
+            loadedFromName = name;
         } catch (Exception e) {
             Log.e (TAG, "error writing " + path, e);
 
@@ -916,7 +939,9 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
             public void onClick (View view) {
                 loadButtonMenu.dismiss ();
                 loadButtonMenu = null;
-                LoadButtonReadFile ((File) view.getTag ());
+                File file = (File) view.getTag ();
+                String name = ((TextView) view).getText ().toString ();
+                LoadButtonReadFile (file, name);
             }
         };
 
@@ -965,7 +990,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
     /**
      * A particular file was selected for loading.
      */
-    public void LoadButtonReadFile (File file)
+    public void LoadButtonReadFile (File file, String name)
     {
         /*
          * If we are tracking some old route, stop.
@@ -1041,6 +1066,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
             } finally {
                 br.close ();
             }
+            loadedFromName = name;
         } catch (Exception e) {
             Log.e (TAG, "error reading " + file.getAbsolutePath (), e);
 
@@ -1061,7 +1087,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
     public Iterator<Waypoint> GetActiveWaypointsAfter (Waypoint start)
     {
         if (trackingOn) {
-            for (Iterator<Waypoint> it = analyzedRoute.iterator (); it.hasNext ();) {
+            for (Iterator<Waypoint> it = analyzedRouteList.iterator (); it.hasNext ();) {
                 Waypoint wp = it.next ();
                 if (wp.equals (start)) return it;
             }
@@ -1076,7 +1102,6 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
     public void SetGPSLocation (Location loc)
     {
         lastGPSAlt  = (float) loc.getAltitude ();
-        lastGPSHdg  = loc.getBearing ();
         lastGPSLat  = (float) loc.getLatitude ();
         lastGPSLon  = (float) loc.getLongitude ();
         lastGPSpeed = loc.getSpeed ();
@@ -1084,51 +1109,81 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
         if (trackingOn) CalcPointAhead ();
     }
 
+    /**
+     * Calculate which point along the analyzed route is next.
+     * Set the destination to that point with the route being the segment before the point.
+     * Update the tracking table display as well to show heading/distance to the point.
+     */
     private void CalcPointAhead ()
     {
-        pointAhead = null;
+        // scan route to find closest point
+        float destdist = 999999.0F;
+        int   desti    = -1;
+        int   npoints  = analyzedRouteArray.length;
+        for (int i = npoints; -- i >= 0;) {
+            Waypoint wp = analyzedRouteArray[i];
+            float dist = Lib.LatLonDist (lastGPSLat, lastGPSLon, wp.lat, wp.lon);
+            if (destdist > dist) {
+                destdist = dist;
+                desti    = i;
+            }
+        }
+
+        // if closest point is the last point, then we are headed to the closest point.
+        if (desti < npoints - 1) {
+
+            // if closest point is the first point, then we are headed to the next point.
+            if (desti == 0) desti = 1;
+            else {
+
+                // somewhere in middle, get distances from segment behind the point and ahead of it
+                float distbehind = distFromRouteSeg (desti, desti - 1);
+                float distahead  = distFromRouteSeg (desti, desti + 1);
+
+                // if beyond segment behind point or if closer to segment ahead of point,
+                // then we are headed to the next point.
+                if ((distbehind < 0.0F) || (Math.abs (distahead) < distbehind)) desti ++;
+            }
+        }
+
+        // draw course line from previous waypoint on route to the destination waypoint ahead
+        pointAhead = desti;
         float lastlat = startingLat;
         float lastlon = startingLon;
-
-        // scan route to find closest point ahead of us
-        float bestdist = 999999.0F;
-        float bestllat = 0.0F;
-        float bestllon = 0.0F;
-        for (Waypoint wp : analyzedRoute) {
-            float tcFromCurrentToPoint = Lib.LatLonTC (lastGPSLat, lastGPSLon, wp.lat, wp.lon);
-
-            // lastGPSHdg = where nose is pointing, 1..360
-            // tcFromCurrentToPoint = where point is, -180..+179
-            // anglediff = difference, 0..359
-            int anglediff = Math.round (lastGPSHdg - tcFromCurrentToPoint + 360.0F) % 360;
-
-            // diff of 359 is same as diff of 001
-            // diff of 181 is same as diff of 179
-            if (anglediff > 180) anglediff = 360 - anglediff;
-
-            // see if point is out front window somewhere from wingtip to wingtip
-            if (anglediff < 90) {
-
-                // ok, see if closest such point found so far
-                float dist = Lib.LatLonDist (lastGPSLat, lastGPSLon, wp.lat, wp.lon);
-                if (bestdist > dist) {
-                    bestdist = dist;
-                    bestllat = lastlat;
-                    bestllon = lastlon;
-                    pointAhead = wp;
-                }
-            }
-
-            // save point's lat/lon in case next point is selected as the best
+        if (desti > 0) {
+            Waypoint wp = analyzedRouteArray[desti-1];
             lastlat = wp.lat;
             lastlon = wp.lon;
         }
-
-        // draw course line from previous waypoint on route to the closest waypoint ahead
-        wairToNow.chartView.SetCourseLine (bestllat, bestllon, pointAhead);
+        wairToNow.chartView.SetCourseLine (lastlat, lastlon, analyzedRouteArray[pointAhead]);
 
         // if route page open, update the display
         if (displayOpen) UpdateTrackingDisplay ();
+    }
+
+    /**
+     * See how close we are from the given route segment.
+     * @param i = closer of the two segment endpoints
+     * @param j = farther of the two segment endpoints
+     * @return nm distance from route segment (neg if before I, pos if along segment from I to J)
+     */
+    private float distFromRouteSeg (int i, int j)
+    {
+        Waypoint wpi = analyzedRouteArray[i];
+        Waypoint wpj = analyzedRouteArray[j];
+
+        // see if before segment from I to J.
+        // if so, we are distance I from route segment.
+        // use dot product, treating lat/lon as rectangular coords, that's good enough.
+        if (((wpj.lat - wpi.lat) * (lastGPSLat - wpi.lat) +
+                (wpj.lon - wpi.lon) * (lastGPSLon - wpi.lon)) < 0) {
+            return - Lib.LatLonDist (wpi.lat, wpi.lon, lastGPSLat, lastGPSLon);
+        }
+
+        // since we are closer to I than J, we can't be off end of segment from I to J
+
+        // somewhere in middle of segment, distance is off-course distance
+        return Math.abs (Lib.GCOffCourseDist (wpi.lat, wpi.lon, wpj.lat, wpj.lon, lastGPSLat, lastGPSLon));
     }
 
     /**
@@ -1137,54 +1192,81 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
      */
     private void UpdateTrackingDisplay ()
     {
+        StringBuilder sb = new StringBuilder ();
+
+        /*
+         * Show current Zulu time for position reporting purposes.
+         */
+        long nowms = System.currentTimeMillis ();
+        sb.append ("@pp ");
+        int nowmin = (int) ((nowms / 60000) % 1440);
+        sb.append (' ');
+        sb.append (Integer.toString (nowmin / 60 + 100).substring (1));
+        sb.append (Integer.toString (nowmin % 60 + 100).substring (1));
+        sb.append ("Z\n");
+
         /*
          * Display all points ahead of us and the heading and distance between them.
+         * Also display ETA in Zulu for position reporting purposes.
          */
-        textViewC.setText ("");
-        textViewC.setTextColor (ChartView.courseColor);
-        boolean started = false;
         float lastlat = lastGPSLat;
         float lastlon = lastGPSLon;
         float totnm   = 0.0F;
-        String lastid = "@pp";
         boolean mphOption = wairToNow.optionsView.ktsMphOption.getAlt ();
-        for (Waypoint wp : analyzedRoute) {
-            if (wp == pointAhead) started = true;
-            if (started) {
-                float tc = Lib.LatLonTC   (lastlat, lastlon, wp.lat, wp.lon);
-                float nm = Lib.LatLonDist (lastlat, lastlon, wp.lat, wp.lon);
-                totnm += nm;
-                String hdgstr  = wairToNow.optionsView.HdgString (tc, lastlat, lastlon, lastGPSAlt);
-                hdgstr = hdgstr.replace (" ", "").replace ("Mag", "M").replace ("True", "T");
-                String diststr = Lib.DistString (nm, mphOption).replace (" ", "");
-                textViewC.append (lastid + "\u279F" + hdgstr + " " + diststr + "\u279F" + wp.ident + "\n");
-                lastlat = wp.lat;
-                lastlon = wp.lon;
-                lastid  = wp.ident;
+        for (int i = pointAhead; i < analyzedRouteArray.length; i ++) {
+            sb.append ('\u25B6');
+            Waypoint wp = analyzedRouteArray[i];
+            float tc = Lib.LatLonTC (lastlat, lastlon, wp.lat, wp.lon);
+            float nm = Lib.LatLonDist (lastlat, lastlon, wp.lat, wp.lon);
+            totnm += nm;
+            String hdgstr  = wairToNow.optionsView.HdgString (tc, lastlat, lastlon, lastGPSAlt);
+            sb.append (hdgstr.replace (" ", "").replace ("Mag", "M").replace ("True", "T"));
+            sb.append (' ');
+            sb.append (Lib.DistString (nm, mphOption).replace (" ", ""));
+            sb.append ('\u25B6');
+            sb.append (wp.ident);
+            if (lastGPSpeed > 1.0F) {
+                long etams = nowms + Math.round (totnm / lastGPSpeed / Lib.KtPerMPS * 3600000.0F);
+                int etamin = (int) ((etams / 60000) % 1440);
+                sb.append (' ');
+                sb.append (Integer.toString (etamin / 60 + 100).substring (1));
+                sb.append (Integer.toString (etamin % 60 + 100).substring (1));
+                sb.append ('Z');
             }
+            sb.append ('\n');
+            lastlat = wp.lat;
+            lastlon = wp.lon;
         }
 
         /*
          * Display total distance and estimated time enroute to final point.
          */
         if (totnm > 0.0F) {
-            String diststr = Lib.DistString (totnm, mphOption);
-            String etestr = "";
+            sb.append ("total: ");
+            sb.append (Lib.DistString (totnm, mphOption));
             if (lastGPSpeed > 1.0F) {
+                sb.append (" ete: ");
                 int seconds = Math.round (totnm / lastGPSpeed / Lib.KtPerMPS * 3600.0F);
                 int minutes = seconds / 60;
                 int hours   = minutes / 60;
                 seconds %= 60;
                 minutes %= 60;
-                etestr = " ete: ";
                 if (hours > 0) {
-                    etestr += hours + ":" + Integer.toString (minutes + 100).substring (1);
+                    sb.append (hours);
+                    sb.append (':');
+                    sb.append (Integer.toString (minutes + 100).substring (1));
                 } else {
-                    etestr += minutes;
+                    sb.append (minutes);
                 }
-                etestr += ":" + Integer.toString (seconds + 100).substring (1);
+                sb.append (':');
+                sb.append (Integer.toString (seconds + 100).substring (1));
             }
-            textViewC.append ("total: " + diststr + etestr);
         }
+
+        /*
+         * Display resultant string.
+         */
+        textViewC.setText (sb);
+        textViewC.setTextColor (ChartView.courseColor);
     }
 }

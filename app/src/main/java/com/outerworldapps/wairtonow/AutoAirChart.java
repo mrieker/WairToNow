@@ -20,6 +20,8 @@
 
 package com.outerworldapps.wairtonow;
 
+import android.app.AlertDialog;
+import android.content.DialogInterface;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Point;
@@ -29,13 +31,16 @@ import android.view.View;
 import android.widget.TextView;
 
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.TreeMap;
+import java.util.TreeSet;
 
 /**
  * Group of same-scaled air (eg, SEC or WAC) charts (that are downloaded) sown together.
  */
 public class AutoAirChart implements DisplayableChart, Comparator<AirChart> {
+    private HashSet<String> dontAskAboutDownloading = new HashSet<> ();
     private long viewDrawCycle;
     private String basename;
     private String category;
@@ -47,7 +52,17 @@ public class AutoAirChart implements DisplayableChart, Comparator<AirChart> {
         basename = "Auto " + cat;
     }
 
-    @Override  // Chart
+    /**
+     * See if the named chart belongs in this AutoAirChart cagegory.
+     * @param spacename = space name, with or without revision number
+     */
+    public boolean Matches (String spacename)
+    {
+        if (category.equals ("ENR")) return spacename.startsWith ("ENR E");
+        return spacename.contains (category);
+    }
+
+    @Override  // DisplayableChart
     public String GetSpacenameSansRev ()
     {
         return basename;
@@ -62,7 +77,7 @@ public class AutoAirChart implements DisplayableChart, Comparator<AirChart> {
     /**
      * Get entry for chart selection menu.
      */
-    @Override  // Chart
+    @Override  // DisplayableChart
     public View GetMenuSelector (ChartView chartView)
     {
         TextView tv = new TextView (chartView.wairToNow);
@@ -73,17 +88,27 @@ public class AutoAirChart implements DisplayableChart, Comparator<AirChart> {
     }
 
     /**
+     * User just clicked this chart in the chart selection menu.
+     */
+    @Override  // DisplayableChart
+    public void UserSelected ()
+    {
+        // set up to re-prompt for any charts that aren't downloaded
+        dontAskAboutDownloading.clear ();
+    }
+
+    /**
      * Draw chart on canvas possibly scaled and/or rotated.
      * @param canvas = canvas to draw on
      */
-    @Override  // Chart
+    @Override  // DisplayableChart
     public void DrawOnCanvas (ChartView chartView, Canvas canvas)
     {
         // get list of the 2 or 3 charts we will be drawing this time
         long dcn = ++ viewDrawCycle;
         for (Iterator<AirChart> it = chartView.wairToNow.maintView.GetAirChartIterator (); it.hasNext ();) {
             AirChart ac = it.next ();
-            if (ac.IsDownloaded () && ac.GetSpacenameSansRev ().contains (category)) {
+            if (Matches (ac.GetSpacenameSansRev ())) {
                 for (LatLon cmll : chartView.canvasMappingLatLons) {
                     if (ac.LatLonIsCharted (cmll.lat, cmll.lon)) {
                         airCharts.put (ac, dcn);
@@ -96,15 +121,80 @@ public class AutoAirChart implements DisplayableChart, Comparator<AirChart> {
         // go through them in autoOrder order
         // any that are picked this time get drawn
         // any that weren't picked get closed
+        TreeSet<String> askAboutDownloading = null;
         for (Iterator<AirChart> it = airCharts.keySet ().iterator (); it.hasNext ();) {
             AirChart ac = it.next ();
+
+            // if chart no longer needed, close its bitmaps to save memory
             long drawcycle = airCharts.get (ac);
             if (drawcycle < dcn) {
                 ac.CloseBitmaps ();
                 it.remove ();
-            } else {
-                ac.DrawOnCanvas (chartView, canvas, false);
+                continue;
             }
+
+            // if downloaded, draw it
+            if (ac.IsDownloaded ()) {
+                ac.DrawOnCanvas (chartView, canvas, false);
+                continue;
+            }
+
+            // if we haven't asked about downloading it since user selected 'Auto <category>',
+            // prompt for downloading.
+            if (!dontAskAboutDownloading.contains (ac.spacenamenr)) {
+                // haven't asked to download it before, queue to ask about it
+                if (askAboutDownloading == null) askAboutDownloading = new TreeSet<> ();
+                askAboutDownloading.add (ac.spacenamenr);
+                // don't ask about it again
+                dontAskAboutDownloading.add (ac.spacenamenr);
+            }
+        }
+
+        // see if some charts cover the screen that aren't downloaded
+        MaybePromptChartDownload (askAboutDownloading, chartView.wairToNow);
+    }
+
+    /**
+     * Ask user if they want to download a chart that is needed for the screen.
+     * @param aad = list of charts that need downloading
+     * @param wtn = activity context
+     */
+    private void MaybePromptChartDownload (final TreeSet<String> aad, final WairToNow wtn)
+    {
+        if ((aad != null) && !aad.isEmpty ()) {
+
+            // build dialog box
+            AlertDialog.Builder adb = new AlertDialog.Builder (wtn);
+            adb.setTitle ("Auto " + category);
+
+            // make prompt string listing all the charts (like 2, 3 maybe 4)
+            StringBuilder prompt = new StringBuilder ();
+            prompt.append ("Download ");
+            boolean first = true;
+            for (String snnr : aad) {
+                if (!first) prompt.append ("\nand ");
+                prompt.append (snnr);
+                first = false;
+            }
+            prompt.append ('?');
+            adb.setMessage (prompt);
+
+            // start downloading each chart if OK clicked
+            adb.setPositiveButton ("OK", new DialogInterface.OnClickListener () {
+                @Override
+                public void onClick (DialogInterface dialogInterface, int i)
+                {
+                    for (String snnr : aad) {
+                        wtn.maintView.StartDownloadingChart (snnr);
+                    }
+                }
+            });
+
+            // just ignore if Cancel clicked
+            adb.setNegativeButton ("Cancel", null);
+
+            // display the dialog
+            adb.show ();
         }
     }
 
@@ -165,6 +255,8 @@ public class AutoAirChart implements DisplayableChart, Comparator<AirChart> {
      * Sort such that northeastern charts are drawn first,
      * as the north and east edges should be on top when
      * there is any overlapping.
+     *
+     * Lower numbers get drawn behind higher numbers.
      */
     @Override  // Comparator
     public int compare (AirChart a, AirChart b)

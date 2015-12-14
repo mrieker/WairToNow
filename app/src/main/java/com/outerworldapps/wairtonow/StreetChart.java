@@ -61,6 +61,13 @@ public class StreetChart implements DisplayableChart {
         return tv;
     }
 
+    /**
+     * User just clicked this chart in the chart selection menu.
+     */
+    @Override  // DisplayableChart
+    public void UserSelected ()
+    { }
+
     @Override  // DisplayableChart
     public boolean LatLon2CanPixExact (float lat, float lon, @NonNull Point canpix)
     {

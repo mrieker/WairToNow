@@ -478,7 +478,7 @@ public class Lib {
      * @param endlondeg = course ending longitude
      * @param curlatdeg = current position latitude
      * @param curlondeg = current position longitude
-     * @return off-course distance (nm)
+     * @return off-course distance (nm) (pos: need to turn right; neg: need to turn left)
      */
     public static float GCOffCourseDist (float beglatdeg, float beglondeg, float endlatdeg, float endlondeg, float curlatdeg, float curlondeg)
     {

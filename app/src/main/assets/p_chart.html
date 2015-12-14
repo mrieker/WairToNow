@@ -25,13 +25,18 @@
                 the menu bar at the bottom of the screen or by clicking the black triangle
                 or <B>select chart</B> cloud in the lower right corner of the map.
                 <UL>
+                    <LI><B>Auto ENR</B> - selects IFR enroute charts to cover the screen (provided
+                        they have already been downloaded).  Any legend information is trimmed
+                        from the borders and they are stitched together if necessary.  Note that
+                        the scaling of enroute charts varies and so there may be discontinuity
+                        of text and line sizes where the charts join.
                     <LI><B>Auto SEC</B> - selects sectional(s) to cover the screen (provided
-                        they have been already downloaded.  Any legend information is trimmed
+                        they have already been downloaded).  Any legend information is trimmed
                         from the borders and they are stitched together if necessary.
                     <LI><B>Auto WAC</B> - same as Auto SEC except for world charts.
                     <LI><B>Street</B> - use OpenStreetMap tiles at appropriate zoom level for
                         display.  <I>Requires Internet connection if tiles have not already
-                            been displayed on this device.</I>
+                        been displayed on this device.</I>
                     <LI>Chart name in WHITE - chart has not been downloaded.  Selecting the
                         chart will initiate download.  <I>Requires Internet connection.</I>
                     <LI>Chart name in RED - chart has been download but is expired.  Use
@@ -46,12 +51,18 @@
                     the device has not received a GPS position report, the GPS position is not in an
                     area covered by the app, or that the database has not been
                     <A HREF="p_maint.html">downloaded</A>.</P>
-                <P><B>NOTE: </B>  The primary aviation charts also have a graphic next to the name
+                <P><B>NOTE:</B>  The primary aviation charts also have a graphic next to the name
                     with a white filled rectangle representing the chart, and the current canvas
                     position represented by a cyan filled rectangle (or dot if the rectangle is too
                     small), and the current position represented by a red dot (if it is within range
                     of the chart).  If the chart is downloaded, a thumbnail will be used in place of
                     the white filled rectangle.</P>
+                <P><B>NOTE:</B>  The <B>Auto</B> buttons will prompt to download charts that they
+                    need to fill the screen if they are not already downloaded.  The download works
+                    only if there is current Internet connectivity.  If you cancel the prompt but
+                    later wish to download the charts, either use the
+                    <A HREF="p_maint.html">maint</A> page, or reselect the <B>Auto</B> button from
+                    the chart menu or select the specific chart you want from the chart menu.</P>
                 <P ALIGN=CENTER><IMG SRC="chart-selection-400.png"></P>
         </UL>
         <P><B>NOTE:</B>  If you manually pan the display, the chart will fix in place and
@@ -60,6 +71,11 @@
             click <B>Re-center</B>.  The chart will move to maintain the airplane in the
             center of the display, the blue cross will be taken away and the information
             in the lower left corner cloud will be reduced to a minimum.</P>
+        <P><B>NOTE:</B>  The app dynamically constructs tiles for zoomed-out levels the first time
+            the tiles are needed (to conserve flash space).  Once constructed, they are retrieved
+            from flash in the future for faster display.  The delay can particularly be noticed on
+            extreme zoom-out levels such as <TT>x 0.2</TT>.  However the charts aren't particularly
+            readable at those zoom-outs so they are of little practical use anyway.</P>
         <P>The details of what appears in the lower left corner cloud may vary based
             on the current situation.  At most, lines such as these will appear:</P>
         <PRE><FONT COLOR=BLUE>

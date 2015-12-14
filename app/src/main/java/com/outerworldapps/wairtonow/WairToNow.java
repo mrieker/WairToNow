@@ -83,8 +83,7 @@ public class WairToNow extends Activity {
     public  MaintView maintView;
     public  OpenStreetMap openStreetMap;
     public  OptionsView optionsView;
-    private Paint gpsAvailableBGPaint;
-    private Paint gpsAvailableTxPaint;
+    private Paint gpsAvailablePaint;
     private PlanView planView;
     public  RouteView routeView;
     private TabButton agreeButton;
@@ -141,19 +140,13 @@ public class WairToNow extends Activity {
         displayHeight = metrics.heightPixels;
 
         /*
-         * Paint used to display GPS NOT AVAILABLE string.
+         * Paint used to display GPS NOT AVAILABLE box.
          */
-        gpsAvailableBGPaint = new Paint ();
-        gpsAvailableBGPaint.setColor (Color.WHITE);
-        gpsAvailableBGPaint.setStrokeWidth (20);
-        gpsAvailableBGPaint.setStyle (Paint.Style.FILL_AND_STROKE);
-        gpsAvailableBGPaint.setTextAlign (Paint.Align.CENTER);
-        gpsAvailableBGPaint.setTextSize (textSize * 2);
-        gpsAvailableTxPaint = new Paint ();
-        gpsAvailableTxPaint.setColor (Color.RED);
-        gpsAvailableTxPaint.setStrokeWidth (2);
-        gpsAvailableTxPaint.setTextAlign (Paint.Align.CENTER);
-        gpsAvailableTxPaint.setTextSize (textSize * 2);
+        gpsAvailablePaint = new Paint ();
+        gpsAvailablePaint.setColor (Color.WHITE);
+        gpsAvailablePaint.setStrokeWidth (20);
+        gpsAvailablePaint.setStyle (Paint.Style.FILL_AND_STROKE);
+        gpsAvailablePaint.setTextAlign (Paint.Align.CENTER);
 
         /*
          * License agreement.
@@ -452,7 +445,7 @@ public class WairToNow extends Activity {
      */
     public void SetDetentSize (DetentHorizontalScrollView dhsv)
     {
-        dhsv.setDetentSize (Math.min (displayWidth, displayHeight) / 4.0F);
+        dhsv.setDetentSize (Math.min (displayWidth, displayHeight) / 5.0F);
     }
 
     /**
@@ -476,62 +469,6 @@ public class WairToNow extends Activity {
      */
     public void SetCurrentLocation (Location loc)
     {
-        /* Course on approach to KBVY/RW09
-            long now = System.currentTimeMillis ();
-            if (starttime == 0) {
-                starttime = now;
-                chartView.SetCourseLine (lat0, lon0, 42.5841410277778, -70.9161444166667, "KBVY");
-            }
-            float dt  = (now - starttime) / 60000.0F;
-            if (dt >= 1.0F) starttime = now;
-            float lat = lat0 + (lat1 - lat0) * dt;
-            float lon = lon0 + (lon1 - lon0) * dt;
-            loc.setAltitude  (100);
-            loc.setBearing   (Lib.LatLonTC (lat0, lon0, lat1, lon1));
-            loc.setLatitude  (lat);
-            loc.setLongitude (lon);
-            Message m = wtnHandler.obtainMessage (333, new Object[] { gpsListener, loc });
-            wtnHandler.sendMessageDelayed (m, 333);
-        */
-
-        //  loc.setLatitude  (  42.0 + 28.0/60);  //KBED
-        //  loc.setLongitude ( -71.0 - 17.5/60);  //KBED
-
-        //  loc.setLatitude  (  42.0 + 35.0/60);  //KBVY
-        //  loc.setLongitude ( -70.0 - 55.0/60);  //KBVY
-        //  loc.setBearing   (35.0f);
-
-        //  loc.setLatitude  (  42.0 + 09.6/60);  //KELM
-        //  loc.setLongitude ( -76.0 - 53.5/60);  //KELM
-
-        //  loc.setLatitude  (  41.0 + 55.0/60);  //near KELM shows four charts
-        //  loc.setLongitude ( -76.0 - 57.0/60);  //near KELM
-        //  loc.setBearing   (35.0f);
-
-        //  loc.setLatitude  (  61.174083);       //PANC Anchorage
-        //  loc.setLongitude (-149.998194);
-
-        //  loc.setLatitude  (41.863060);         //near KELM shows twisted Det North east edge
-        //  loc.setLongitude (-76.981982);
-
-        //  loc.setLatitude  (  31.0 + 35.0/60);  //KFHU rotated apt diagram
-        //  loc.setLongitude (-110.0 - 21.0/60);  //KFHU
-
-        //  loc.setLatitude  (  35.237);  //near KSBP
-        //  loc.setLongitude (-120.900);
-
-        //  loc.setLatitude  ( -14.332);  //KPPG southern hemisphere
-        //  loc.setLongitude (-170.712);
-
-        //  loc.setLatitude  (  41.0 + 50.0/60);  //1M8 (Myrics)
-        //  loc.setLongitude ( -71.0 -  1.0/60);
-
-        //  loc.setLatitude  ( 13.483874);        //PGUM east longitude
-        //  loc.setLongitude (144.797170);
-
-        //  loc.setLatitude  ( 52.0 + 42.0/60);   //PASY east longitude
-        //  loc.setLongitude (174.0 +  7.0/60);
-
         currentGPSLat = (float) loc.getLatitude ();
         currentGPSLon = (float) loc.getLongitude ();
         if (loc.getSpeed () < 1.0F) {
@@ -700,26 +637,32 @@ public class WairToNow extends Activity {
      * @param canvas = what to draw it on
      * @param view   = view being drawn on
      */
-    public void drawGPSAvailable (Canvas canvas, View view)
+    public void drawGPSAvailable (Canvas canvas, final View view)
     {
-        String msg = null;
+        int color = Color.TRANSPARENT;
         if (planView.pretendEnabled) {
-            msg = "PLAN PRETEND MODE";
+            color = Color.YELLOW;
         } else if (!gpsAvailable) {
-            msg = "GPS NOT UPDATING";
+            color = Color.RED;
         }
-        if (msg != null) {
-            int w = view.getWidth ();
-            int h = view.getHeight ();
-            float msgw = gpsAvailableTxPaint.measureText (msg);
-            if (msgw > w * 7 / 8) {
-                float ts = gpsAvailableTxPaint.getTextSize ();
-                ts *= (w * 7 / 8) / msgw;
-                gpsAvailableBGPaint.setTextSize (ts);
-                gpsAvailableTxPaint.setTextSize (ts);
+        if (color != Color.TRANSPARENT) {
+            long now = SystemClock.uptimeMillis ();
+            if (((now / 1024) & 1) == 0) {
+                gpsAvailablePaint.setColor (color);
+                int w = view.getWidth ();
+                int h = view.getHeight ();
+                canvas.drawLine (0, 0, w, 0, gpsAvailablePaint);
+                canvas.drawLine (w, 0, w, h, gpsAvailablePaint);
+                canvas.drawLine (w, h, 0, h, gpsAvailablePaint);
+                canvas.drawLine (0, h, 0, 0, gpsAvailablePaint);
             }
-            canvas.drawText (msg, w / 2, h * 3 / 4, gpsAvailableBGPaint);
-            canvas.drawText (msg, w / 2, h * 3 / 4, gpsAvailableTxPaint);
+            wtnHandler.runDelayed (1024 - now % 1024, new Runnable () {
+                @Override
+                public void run ()
+                {
+                    view.invalidate ();
+                }
+            });
         }
     }
 

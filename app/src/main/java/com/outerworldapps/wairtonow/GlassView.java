@@ -29,7 +29,6 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
-import android.graphics.Typeface;
 import android.location.Location;
 import android.support.annotation.NonNull;
 import android.view.MotionEvent;
@@ -49,22 +48,10 @@ public class GlassView
     private static final int   STDRATETURN = 3;       // degrees per second
 
     private static final CompareRWNumbers compareRWNumbers = new CompareRWNumbers ();
-    private static final float[] dtwbWidths = new float[1];
-    private static final Rect dtwbBounds = new Rect ();
 
-    private float chartUpHdg;
     private float magvariation;
-    private float[][] inv_bank_rot = new float[][] { new float[3], new float[3], new float[3] };
-    private float[][] inv_pich_rot = new float[][] { new float[3], new float[3], new float[3] };
-    private float[][] composite    = new float[][] { new float[3], new float[3], new float[3] };
-    private float[][] canvas_pt    = new float[][] { new float[1], new float[1], new float[1] };
-    private float[][] sphere_pt    = new float[][] { new float[1], new float[1], new float[1] };
     private int posIndex = 0;
     private int gsalt, tdze;
-    private Paint ahPaintAir     = new Paint ();
-    private Paint ahPaintGnd     = new Paint ();
-    private Paint ahPaintMrk     = new Paint ();
-    private Paint ahPaintSky     = new Paint ();
     private Paint dgPaintBack    = new Paint ();
     private Paint dgPaintHSI     = new Paint ();
     private Paint dgPaintHSV     = new Paint ();
@@ -79,6 +66,7 @@ public class GlassView
     private Paint rwayPaint      = new Paint ();
     private Paint rwSelPaint     = new Paint ();
     private Position[] positions = new Position[] { new Position (), new Position () };
+    private Rect dtwbBounds      = new Rect ();
     private RWNumber appRunway;
     private RWNumber[] rwNumbers;
     private WairToNow wairToNow;
@@ -89,17 +77,6 @@ public class GlassView
         super (na);
 
         wairToNow = na;
-
-        // artificial horizon paints
-        ahPaintAir.setColor (Color.RED);
-        ahPaintAir.setStyle (Paint.Style.STROKE);
-        ahPaintAir.setStrokeWidth (7);
-        ahPaintGnd.setColor (Color.argb (255, 100, 75,  25));
-        ahPaintGnd.setStyle (Paint.Style.FILL);
-        ahPaintMrk.setColor (Color.YELLOW);
-        ahPaintMrk.setStyle (Paint.Style.FILL);
-        ahPaintSky.setColor (Color.argb (255, 160, 160, 255));
-        ahPaintSky.setStyle (Paint.Style.FILL);
 
         // directional gyro paints
         dgPaintBack.setColor (Color.BLACK);
@@ -112,7 +89,6 @@ public class GlassView
         dgPaintHSV.setStrokeWidth (3);
         dgPaintHSV.setTextAlign (Paint.Align.CENTER);
         dgPaintHSV.setTextSize (wairToNow.textSize);
-        dgPaintHSV.setTypeface (Typeface.MONOSPACE);
         dgPaintMaj.setColor (Color.GREEN);
         dgPaintMaj.setStyle (Paint.Style.STROKE);
         dgPaintMaj.setStrokeWidth (5);
@@ -127,7 +103,6 @@ public class GlassView
         dgPaintNum.setStrokeWidth (2);
         dgPaintNum.setTextAlign (Paint.Align.CENTER);
         dgPaintNum.setTextSize (wairToNow.textSize);
-        dgPaintNum.setTypeface (Typeface.MONOSPACE);
         dgPaintTri.setColor (Color.YELLOW);
         dgPaintTri.setStyle (Paint.Style.STROKE);
         dgPaintTri.setStrokeWidth (1);
@@ -136,7 +111,6 @@ public class GlassView
         dgPaintVal.setStrokeWidth (2);
         dgPaintVal.setTextAlign (Paint.Align.CENTER);
         dgPaintVal.setTextSize (wairToNow.textSize);
-        dgPaintVal.setTypeface (Typeface.MONOSPACE);
 
         // numeric strip paints
         nsPaintNum.setColor (Color.WHITE);
@@ -144,13 +118,11 @@ public class GlassView
         nsPaintNum.setStrokeWidth (2);
         nsPaintNum.setTextAlign (Paint.Align.CENTER);
         nsPaintNum.setTextSize (wairToNow.textSize);
-        nsPaintNum.setTypeface (Typeface.MONOSPACE);
         nsPaintVal.setColor (Color.RED);
         nsPaintVal.setStyle (Paint.Style.FILL);
         nsPaintVal.setStrokeWidth (2);
         nsPaintVal.setTextAlign (Paint.Align.CENTER);
         nsPaintVal.setTextSize (wairToNow.textSize);
-        nsPaintVal.setTypeface (Typeface.MONOSPACE);
 
         // approach runway selector paints
         rwayPaint.setColor (Color.RED);
@@ -158,13 +130,11 @@ public class GlassView
         rwayPaint.setStrokeWidth (2);
         rwayPaint.setTextAlign (Paint.Align.CENTER);
         rwayPaint.setTextSize (wairToNow.textSize);
-        rwayPaint.setTypeface (Typeface.MONOSPACE);
         rwSelPaint.setColor (Color.GREEN);
         rwSelPaint.setStyle (Paint.Style.FILL);
         rwSelPaint.setStrokeWidth (2);
         rwSelPaint.setTextAlign (Paint.Align.CENTER);
         rwSelPaint.setTextSize (wairToNow.textSize);
-        rwSelPaint.setTypeface (Typeface.MONOSPACE);
     }
 
     @Override  // WairToNow.CanBeMainView
@@ -259,7 +229,6 @@ public class GlassView
     protected void onDraw (Canvas canvas)
     {
         Position currPos = positions[posIndex];
-        //Position prevPos = positions[(posIndex+positions.length-1)%positions.length];
         magvariation = Lib.MagVariation (currPos.latitude, currPos.longitude, currPos.altitude);
 
         int canvasWidth  = getWidth ();   // eg (600,1024)
@@ -278,39 +247,6 @@ public class GlassView
         float altitude = currPos.altitude;
 
         /*
-         * Rate of turn can be computed from two most recent GPS reports.
-         * Units are radians per second.
-         */
-        //float prevHdg = prevPos.heading;
-        //if (prevHdg - truehdg >  180) prevHdg -= 360;
-        //if (prevHdg - truehdg < -180) prevHdg += 360;
-        //float rateOfTurn = (truehdg - prevHdg) / (currPos.time - prevPos.time) * 1000.0F / 180.0F * Mathf.PI;
-
-        /*
-         * Calculate turn radius (metres).
-         */
-        //float turnRadius = currPos.speed / rateOfTurn;
-
-        /*
-         * Calculate centripetal acceleration (metres per second squared).
-         */
-        //float centripAccel = currPos.speed * rateOfTurn;
-
-        /*
-         * Bank angle is arctan (centripAccel / gravity).
-         */
-        //float bankAngle = Math.atan2 (centripAccel, GRAVACCEL);
-
-        /*
-         * Pitch-up angle is arctan (climb distance / travel distance).
-         */
-        //float travelDistance = Math.sqrt (Sq (currPos.latitude - prevPos.latitude) +
-        //      Sq ((currPos.longitude - prevPos.longitude) / Math.cos (currPos.latitude / 180.0 * Math.PI)));
-        //travelDistance *= NMPerDeg * MPerNM;
-        //float climbDistance = altitude - prevPos.altitude;
-        //float pitchAngle = Math.atan2 (climbDistance, travelDistance);
-
-        /*
          * Calculate magnetic heading.
          */
         float maghdg = truehdg + magvariation;
@@ -318,33 +254,29 @@ public class GlassView
         /*
          * Fit the instruments to the page.
          */
-        int ahRadius  = canvasHeight *  5 / 32;
+        int ahRadius  = canvasHeight *  7 / 32;
         int dgRadius  = canvasHeight *  5 / 32;
         int aspHeight = canvasHeight * 24 / 32;
         int altHeight = canvasHeight * 24 / 32;
 
         int ahCentY   = canvasHeight *  8 / 32;
-        int aspCentY  = canvasHeight * 14 / 32;
-        int altCentY  = canvasHeight * 14 / 32;
-        int dstCentY  = canvasHeight * 29 / 64;
-        int dgCentY   = canvasHeight * 22 / 32;
-        int appRwayY  = canvasHeight * 29 / 32;
+        int aspCentY  = canvasHeight * 16 / 32;
+        int altCentY  = canvasHeight * 16 / 32;
+        int dstCentY  = canvasHeight * 33 / 64;
+        int dgCentY   = canvasHeight * 24 / 32;
+        int appRwayY  = canvasHeight * 31 / 32;
 
-        int aspCentX  = canvasWidth  *  4 / 32;
-        int aspWidth  = canvasWidth  * 11 / 64;
+        int aspCentX  = canvasWidth  *  3 / 32;
+        int aspWidth  = canvasWidth  *  9 / 64;
         int dstCentX  = canvasWidth  * 16 / 32;
-        int altWidth  = canvasWidth  * 11 / 64;
+        int altWidth  = canvasWidth  *  9 / 64;
         int ahCentX   = canvasWidth  * 16 / 32;
         int dgCentX   = canvasWidth  * 16 / 32;
-        int altCentX  = canvasWidth  * 28 / 32;
+        int altCentX  = canvasWidth  * 29 / 32;
 
-        DrawDestinationInfo (canvas, dstCentX, dstCentY, currPos);
-
-        chartUpHdg = truehdg;
         DrawDirectionalGyro (canvas, dgCentX, dgCentY, dgRadius, maghdg);
 
-        //DrawArtificialHorizon (canvas, ahCentX, ahCentY, ahRadius, pitchAngle, bankAngle);
-        DrawChart (canvas, ahCentX, ahCentY, ahRadius, chartUpHdg);
+        DrawChart (canvas, ahCentX, ahCentY, ahRadius, truehdg);
 
         float spdflt = currPos.speed * Lib.KtPerMPS;
         if (wairToNow.optionsView.ktsMphOption.getAlt ()) spdflt *= Lib.SMPerNM;
@@ -353,6 +285,8 @@ public class GlassView
 
         int feet = Math.round (altitude * Lib.FtPerM);
         DrawNumericStrip (canvas, altCentX, altCentY, altHeight, altWidth, feet, -100, 8, -999998, gsalt, tdze);
+
+        DrawDestinationInfo (canvas, dstCentX, dstCentY, currPos);
 
         /*
          * Display destination approach selector boxes.
@@ -394,160 +328,6 @@ public class GlassView
     }
 
     /**
-     * Draw the artificial horizon instrument.
-     * @param canvas    = what to draw it on
-     * @param centX,Y   = center of the circle on the canvas
-     * @param radius    = radius of the circle to draw
-     * @param pichAngle = how much pitched up (radians)
-     * @param bankAngle = how much banked right (radians)
-     */
-    private void DrawArtificialHorizon (Canvas canvas, int centX, int centY, int radius, float pichAngle, float bankAngle)
-    {
-        /*
-         * Pretend we have a right-handed 3D coordinate system with:
-         *   X axis pointing left
-         *   Y axis pointing down
-         *   Z axis pointing into screen
-         * We have a sphere that is sky colored on top and ground colored on the bottom.
-         * First we pitch up by rotating it clockwise around the X axis.
-         * Then we bank right by rotating it clockwise around the Z axis.
-         * Finally simply display the pixels with canvas DZ > 0 because pilot is facing the +Z axis.
-         *
-         *    [ bank rot ] * [ pitch rot ] * [ sphere x,y,z ] = [ canvas dx,dy,dz ]
-         *
-         * But we want to start with canvas pixels and get the corresponding sphere pixel.
-         * So we will reverse the equation:
-         *
-         *    [ sphere x,y,z ] = inv [ pitch rot ] * inv [ bank rot ] * [ canvas dx,dy,dz ]
-         */
-        float bankCos = Mathf.cos (bankAngle);
-        float bankSin = Mathf.sin (bankAngle);
-        inv_bank_rot[0][0] =  bankCos;
-        inv_bank_rot[0][1] = -bankSin;
-        inv_bank_rot[1][0] =  bankSin;
-        inv_bank_rot[1][1] =  bankCos;
-        inv_bank_rot[2][2] =        1;
-
-        float pichCos = Mathf.cos (pichAngle);
-        float pichSin = Mathf.sin (pichAngle);
-        inv_pich_rot[0][0] =        1;
-        inv_pich_rot[1][1] =  pichCos;
-        inv_pich_rot[1][2] = -pichSin;
-        inv_pich_rot[2][1] =  pichSin;
-        inv_pich_rot[2][2] =  pichCos;
-
-        Lib.MatMul (composite, inv_pich_rot, inv_bank_rot);
-
-        /*
-         * Scan through all canvas points in the circle that make up the instrument face.
-         * Then 'ray trace' them back to where they are on the gyro's sphere.
-         * See what color is at that spot on the sphere and paint that color on the canvas' pixel.
-         */
-        for (int dy = -radius; dy <= radius; dy ++) {
-            int w = (int)Math.sqrt (Sq (radius) - Sq (dy));
-            float sy = (float)dy / (float)radius;
-            canvas_pt[1][0] = sy;
-            for (int dx = -w; dx <= w; dx ++) {
-                float sx = (float)dx / (float)radius;
-                canvas_pt[0][0] = sx;
-                canvas_pt[2][0] = Mathf.sqrt (1.0F - sx * sx - sy * sy);
-                Lib.MatMul (sphere_pt, composite, canvas_pt);
-                Paint p = AHSphereColor (sphere_pt[0][0], sphere_pt[1][0]);
-                canvas.drawPoint (centX + dx, centY + dy, p);
-            }
-        }
-
-        /*
-         * Draw the airplane symbol right in the center.
-         */
-        canvas.drawLine (centX - radius * 5 / 16, centY, centX + radius * 5 / 16, centY, ahPaintAir);
-        canvas.drawLine (centX, centY - radius * 7 / 32, centX, centY, ahPaintAir);
-
-        /*
-         * Draw the bank angle markings along the top.
-         */
-        bankAngle *= 180.0F / Mathf.PI;
-        canvas.save ();
-        canvas.translate (centX, centY);
-        for (int i = -60; i <= 60; i += 10) {
-            if ((i == 40) || (i == 50) || (i == -40) || (i == -50)) continue;
-            canvas.save ();
-            canvas.rotate (360 - bankAngle + i);
-            if (i % 30 == 0) {
-                canvas.drawLine (0, -radius, 0, -radius * 13 / 16, dgPaintMid);
-            } else {
-                canvas.drawLine (0, -radius, 0, -radius * 14 / 16, dgPaintMin);
-            }
-            canvas.restore ();
-        }
-        canvas.restore ();
-
-        /*
-         * Draw text box containing pitch angle.
-         */
-        pichAngle *= 180.0 / Math.PI;
-        while (pichAngle <= -180.0) pichAngle += 360.0;
-        while (pichAngle >   180.0) pichAngle -= 360.0;
-        String paDir = "UP";
-        int paYPix = centY - radius;
-        if (pichAngle < 0) {
-            paDir = "DN";
-            paYPix = centY + radius * 18 / 16;
-            pichAngle = -pichAngle;
-        }
-        int paInt = (int)(pichAngle + 0.5);
-        if (paInt != 0) {
-            String paStr = Integer.toString (paInt) + (char)0xB0 + paDir;
-            DrawTextWithBG (canvas, paStr, centX - radius * 3 / 4, paYPix, dgPaintVal, dgPaintBack);
-        }
-
-        /*
-         * Draw a little yellow triangle at the top to reference the bank angle markings.
-         */
-        for (int d = 0; d < radius * 3 / 16; d ++) {
-            canvas.drawLine (centX - d, centY - radius - d, centX + d, centY - radius - d, dgPaintTri);
-        }
-        while (bankAngle <= -180.0) bankAngle += 360.0;
-        while (bankAngle >   180.0) bankAngle -= 360.0;
-        char baDir = 'R';
-        if (bankAngle < 0) {
-            baDir = 'L';
-            bankAngle = -bankAngle;
-        }
-        int baInt = (int)(bankAngle + 0.5);
-        if (baInt != 0) {
-            String baStr = Integer.toString (baInt) + (char)0xB0 + baDir;
-            DrawTextWithBG (canvas, baStr, centX, centY - radius * 20 / 16, dgPaintVal, dgPaintBack);
-        }
-    }
-
-    /**
-     * Determine what color is at a given artificial horizon sphere's x,y,z.
-     * @param x,y = coordinate on sphere's surface (unit sized)
-     */
-    private Paint AHSphereColor (float x, float y)
-    {
-        /*
-         * See if we should draw one of the yellow markings spaced at 5deg intervals.
-         */
-        float xabs = Math.abs (x);
-        float yabs = Math.abs (y);
-        for (int deg = 0; deg <= 20; deg += 5) {
-            float sin = Mathf.sin (deg / 180.0F * Mathf.PI);
-            if (yabs > sin-1.0/64 && yabs < sin+1.0/64) {
-                if (deg == 0) return ahPaintMrk;
-                if (xabs * 50 <= 10 - deg % 10) return ahPaintMrk;
-                break;
-            }
-        }
-
-        /*
-         * Not a yellow mark, sky is -y (up) and ground is +y (down).
-         */
-        return (y < 0) ? ahPaintSky : ahPaintGnd;
-    }
-
-    /**
      * Draw chart at the given center.
      * @param canvas = canvas to draw it on
      * @param centX  = center of where to put chart on canvas
@@ -559,12 +339,14 @@ public class GlassView
     {
         canvas.save ();
         if (canvas.clipRect (centX - radius, centY - radius, centX + radius, centY + radius)) {
-            int canCentX = getWidth  () / 2;
-            int canCentY = getHeight () / 2;
-            canvas.translate (centX - canCentX, centY - canCentY + radius / 2);
+            int canWidth  = getWidth ();
+            int canHeight = getHeight ();
+            int canCentX  = canWidth  / 2;
+            int canCentY  = canHeight / 2;
+            canvas.translate (centX - canCentX, centY + radius / 2 - canCentY);
             wairToNow.chartView.ReCenter ();
             wairToNow.chartView.SetCanvasHdgRad (Mathf.toRadians (course));
-            wairToNow.chartView.OnDraw (canvas);  // avoid asinine 'suspicious method call' error by using OnDraw()
+            wairToNow.chartView.DrawChart (canvas, canWidth, canHeight);
             wairToNow.chartView.UnSetCanvasHdgRad ();
         }
         canvas.restore ();
@@ -728,7 +510,6 @@ public class GlassView
                 float nmDeflectRite = Lib.GCOffCourseDist (rw.begLat, rw.begLon, rw.endLat, rw.endLon, curLat, curLon);
 
                 // draw the HSI needles in approach mode for this runway
-                chartUpHdg = tcDegRWBegToEnd;
                 DrawHSINeedles (canvas,                  // canvas to draw HSI needles on
                         radius,                          // radius of dg circle on canvas
                         heading,                         // current heading (actually current track)
@@ -761,7 +542,6 @@ public class GlassView
                 // this is heading to take to get great circle from wherever we currently are
                 float bearing = Lib.LatLonTC (curLat, curLon, dstLat, dstLon);
 
-                chartUpHdg = onCourseHdg;
                 DrawHSINeedles (canvas,                      // canvas to draw HSI needles on
                                 radius,                      // radius of dg circle on canvas
                                 heading,                     // current heading (actually current track)
@@ -871,11 +651,10 @@ public class GlassView
      * @param fgPaint = paints the foreground text
      * @param bgPaint = paints the background rectangle
      */
-    private static void DrawTextWithBG (Canvas canvas, String text, int x, int y, Paint fgPaint, Paint bgPaint)
+    private void DrawTextWithBG (Canvas canvas, String text, int x, int y, Paint fgPaint, Paint bgPaint)
     {
-        fgPaint.getTextBounds ("M", 0, 1, dtwbBounds);  // height without inter-line spacing
-        fgPaint.getTextWidths ("M", dtwbWidths);        // width including inter-char spacing
-        int htw = Math.round (dtwbWidths[0] * text.length ());
+        fgPaint.getTextBounds (text, 0, text.length (), dtwbBounds);
+        int htw = dtwbBounds.width  ();
         int hth = dtwbBounds.height ();
         canvas.drawRect (x - htw / 2 - 3, y - hth - 3, x + htw / 2 + 3, y + 3, bgPaint);
         canvas.drawText (text, x, y, fgPaint);
@@ -1003,8 +782,6 @@ public class GlassView
             return num0.compareTo (num1);
         }
     }
-
-    private static float Sq (float x) { return x*x; }
 
     private static String DegString (float deg)
     {

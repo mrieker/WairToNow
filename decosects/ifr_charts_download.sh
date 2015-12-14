@@ -12,20 +12,21 @@
 set -e
 
 #
-# Add a record to chartlist_all.htm so GenChartsCSV.cs will find the effective & expiration dates
+# Get all area charts from the one zip file
 #
-#  $1 = zipname, eg, ENR_ELUS34_20150430.zip
-#  $2 = revcode, eg, 20150430
-#  effdate_mmm, eg, Apr 30 2015
-#  expdate_mmm, eg, Jun 25 2015
-#
-function writechartlist
+function getareacharts
 {
-    if ! grep -q "/$1\">" chartlist_all.htm
-    then
-        nextrev=$(($2+1))
-        echo "/$1\">$2 - $effdate_mmm<  >$nextrev - $expdate_mmm<" >> chartlist_all.htm
-    fi
+    while read tmpname
+    do
+        tmpnamenotif=${tmpname%.tif}                    # eg, ENR_A02_DEN
+        if [ "$tmpname" != "$tmpnamenotif" ]
+        then
+            spacename="${tmpnamenotif//_/ } $revcode"   # eg, ENR A02 DEN 20151210
+            if [ ! -f "$spacename.tfw" ] ; then find zip.tmp -iname $tmpnamenotif.tfwx -exec mv {} "$spacename.tfw" \; ; fi
+            if [ ! -f "$spacename.tif" ] ; then find zip.tmp -iname $tmpnamenotif.tif  -exec mv {} "$spacename.tif" \; ; fi
+            if [ ! -f "$spacename.htm" ] ; then find zip.tmp -iname $tmpnamenotif.htm  -exec mv {} "$spacename.htm" \; ; fi
+        fi
+    done
 }
 
 #
@@ -39,6 +40,7 @@ function writechartlist
 function scanifrchartshtm
 {
     # make a numeric revision code similar to VFR charts, eg, 20150430
+    # GenChartsCSV.exe assumes this is the start date of the 56-day cycle
     revcode=${effdate_mm:6:4}${effdate_mm:0:2}${effdate_mm:3:2}
 
     # url to download zip file
@@ -46,6 +48,15 @@ function scanifrchartshtm
     do
         # chart name, eg, ELUS1
         read chartname
+
+        # we get just 'Area' for both Area 1 and Area 2 zip files
+        # ...so append the area number to it so we get both zip files
+        if [ "$chartname" == "Area" ]
+        then
+            arean=${zipurl##*enr_a}
+            arean=${arean%.zip}         # eg, 01 or 02
+            chartname=$chartname$arean  # eg, Area01 or Area02
+        fi
 
         # make our zip name similar to VFR charts, eg ENR_ELUS1_20150430.zip
         zipname=ENR_${chartname}_$revcode.zip
@@ -55,14 +66,12 @@ function scanifrchartshtm
         ##echo "  revcode=$revcode"
         ##echo "  zipname=$zipname"
 
-        # don't bother with area charts
-        if [ ${chartname:0:4} == "Area" ]
+        # don't bother with high-altitude charts
+        if [ ${chartname:0:2} == "EH" ]
         then
             continue
         fi
-
-        # don't bother with high-altitude charts
-        if [ ${chartname:0:2} == "EH" ]
+        if [ $chartname == "AEPHI1" ]
         then
             continue
         fi
@@ -73,7 +82,7 @@ function scanifrchartshtm
         if [ ! -f $zipname ]
         then
             rm -rf zip.tmp
-            if wget -q $zipurl -O zip.tmp
+            if wget $zipurl -O zip.tmp
             then
                 mv -f zip.tmp $zipname
             else
@@ -85,8 +94,6 @@ function scanifrchartshtm
         # but rename the parts similar to VFR charts
         if [ -f $zipname ]
         then
-            zipurlbase=`basename $zipurl`               # eg, enr_l01.zip
-            zipurlbase=${zipurlbase%%.zip}
             rm -rf zip.tmp
             mkdir zip.tmp
             unzip -q -d zip.tmp -o $zipname
@@ -100,8 +107,6 @@ function scanifrchartshtm
                 if [ ! -f "$spaceSname.tfw" ] ; then find zip.tmp -iname ENR_L06S.tfwx    -exec mv {} "$spaceSname.tfw" \; ; fi
                 if [ ! -f "$spaceSname.tif" ] ; then find zip.tmp -iname ENR_L06S.tif     -exec mv {} "$spaceSname.tif" \; ; fi
                 if [ ! -f "$spaceSname.htm" ] ; then find zip.tmp -iname ENR_L06S_tif.htm -exec mv {} "$spaceSname.htm" \; ; fi
-                writechartlist ${spaceNname// /_}.zip $revcode
-                writechartlist ${spaceSname// /_}.zip $revcode
             elif [ "$chartname" == "ELAK2" ]
             then
                 spaceCname="ENR ELAK2C $revcode"        # eg, ENR ELAK2C 20150430
@@ -116,9 +121,6 @@ function scanifrchartshtm
                 if [ ! -f "$spaceWname.tfw" ] ; then find zip.tmp -iname ENR_AKL02W.tfwx    -exec mv {} "$spaceWname.tfw" \; ; fi
                 if [ ! -f "$spaceWname.tif" ] ; then find zip.tmp -iname ENR_AKL02W.tif     -exec mv {} "$spaceWname.tif" \; ; fi
                 if [ ! -f "$spaceWname.htm" ] ; then find zip.tmp -iname ENR_AKL02W_tif.htm -exec mv {} "$spaceWname.htm" \; ; fi
-                writechartlist ${spaceCname// /_}.zip $revcode
-                writechartlist ${spaceEname// /_}.zip $revcode
-                writechartlist ${spaceWname// /_}.zip $revcode
             elif [ "$chartname" == "EPHI1" ]
             then
                 space_name="ENR EPHI1 $revcode"
@@ -129,14 +131,16 @@ function scanifrchartshtm
                 if [ ! -f "$spaceGname.tfw" ] ; then find zip.tmp -iname ENR_P01_GUA.tfwx    -exec mv {} "$spaceGname.tfw" \; ; fi
                 if [ ! -f "$spaceGname.tif" ] ; then find zip.tmp -iname ENR_P01_GUA.tif     -exec mv {} "$spaceGname.tif" \; ; fi
                 if [ ! -f "$spaceGname.htm" ] ; then find zip.tmp -iname ENR_P01_GUA_tif.htm -exec mv {} "$spaceGname.htm" \; ; fi
-                writechartlist ${space_name// /_}.zip $revcode
-                writechartlist ${spaceGname// /_}.zip $revcode
+            elif [ "${chartname:0:4}" == "Area" ]
+            then
+                ls zip.tmp | getareacharts
             else
+                zipurlbase=`basename $zipurl`           # eg, enr_l01.zip
+                zipurlbase=${zipurlbase%%.zip}
                 spacename="ENR $chartname $revcode"     # eg, ENR ELUS1 20150430
                 if [ ! -f "$spacename.tfw" ] ; then find zip.tmp -iname $zipurlbase.tfwx      -exec mv {} "$spacename.tfw" \; ; fi
                 if [ ! -f "$spacename.tif" ] ; then find zip.tmp -iname $zipurlbase.tif       -exec mv {} "$spacename.tif" \; ; fi
                 if [ ! -f "$spacename.htm" ] ; then find zip.tmp -iname ${zipurlbase}_tif.htm -exec mv {} "$spacename.htm" \; ; fi
-                writechartlist $zipname $revcode
             fi
             rm -rf zip.tmp
         fi
