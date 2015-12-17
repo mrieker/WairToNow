@@ -20,6 +20,7 @@
 
 package com.outerworldapps.wairtonow;
 
+import android.graphics.PointF;
 import android.hardware.GeomagneticField;
 
 import java.io.File;
@@ -631,6 +632,87 @@ public class Lib {
         float bx1_bx0 = bx1 - bx0;
         float by1_by0 = by1 - by0;
         return (ax1_ax0 * by1_by0 * ay0 - bx1_bx0 * ay1_ay0 * by0 + (bx0 - ax0) * ay1_ay0 * by1_by0) / (ax1_ax0 * by1_by0 - bx1_bx0 * ay1_ay0);
+    }
+
+    /**
+     * Find center of circle of radius r what is tangent to
+     * line segments p1p0 and p2p0.
+     */
+    public static void circleTangentToTwoLineSegs (float x1, float y1, float x0, float y0, float x2, float y2, float r, PointF pt)
+    {
+        final float[] v = new float[12];
+        final int VY = 0;
+        final int VX = 4;
+        final int VD = 8;
+
+        // make two endpoints relative to common point to simplify calculations
+        // this makes each segment have an endpoint at the origin
+        x1 -= x0;
+        y1 -= y0;
+        x2 -= x0;
+        y2 -= y0;
+
+        // convert p1p0 segment to form a1*x + b1*y = 0
+        //  y * x1 = x * y1
+        //  y * x1 - x * y1 = 0
+        //  y * x1 - x * y1 = 0
+        float a1 = - y1;
+        float b1 = x1;
+
+        // make sqrt (a1*a1 + b1*b1) = 1
+        float d1 = Mathf.hypot (a1, b1);
+        a1      /= d1;
+        b1      /= d1;
+
+        // likewise with p2p0
+        float a2 = - y2;
+        float b2 = x2;
+        float d2 = Mathf.hypot (a2, b2);
+        a2      /= d2;
+        b2      /= d2;
+
+        // distance of point x,y from line a,b: |ax + by|
+        // two equations, two unknowns x,y:
+        //  +- r = a1*x + b1*y   +- r = a2*x + b2*y
+        //  +- r1 - b1*y = a1*x
+        //  (+- r1 - b1*y) / a1 = x = (+- r2 - b2*y) / a2
+        //  (+- r1 - b1*y) * a2 = (+- r2 - b2*y) * a1
+        //  +- r1 * a2 - b1*y * a2 = +- r2 * a1 - b2*y * a1
+        //  b2*y * a1 - b1*y * a2 = -+ r1 * a2 +- r2 * a1
+        //  y * (b2 * a1 - b1 * a2) = -+ r1 * a2 +- r2 * a1
+        //  y = (-+ r1 * a2 +- r2 * a1) / (b2 * a1 - b1 * a2)
+        float ky = b2 * a1 - b1 * a2;
+        v[VY+0] = (  r * a2 + r * a1) / ky;
+        v[VY+1] = (  r * a2 - r * a1) / ky;
+        v[VY+2] = (- r * a2 + r * a1) / ky;
+        v[VY+3] = (- r * a2 - r * a1) / ky;
+
+        float kx = a2 * b1 - a1 * b2;
+        v[VX+0] = (  r * b2 + r * b1) / kx;
+        v[VX+1] = (  r * b2 - r * b1) / kx;
+        v[VX+2] = (- r * b2 + r * b1) / kx;
+        v[VX+3] = (- r * b2 - r * b1) / kx;
+
+        // pick two points closest to p2
+        int j = 0;
+        for (int i = 0; i < 4; i ++) {
+            v[VD+i] = Sq (v[VX+i] - x2) + Sq (v[VY+i] - y2);
+            if (v[VD+j] > v[VD+i]) j = i;
+        }
+        int k = j ^ 1;
+        for (int i = ~ j & 2;;) {
+            if (v[VD+k] > v[VD+i]) k = i;
+            if ((++ i & 1) == 0) break;
+        }
+
+        // pick which of those two is closest to p1
+        float dj = Sq (v[VX+j] - x1) + Sq (v[VY+j] - y1);
+        float dk = Sq (v[VX+k] - x1) + Sq (v[VY+k] - y1);
+        if (dj > dk) j = k;
+
+        // return selected point relocated back into position
+        pt.x = v[VX+j] + x0;
+        pt.y = v[VY+j] + y0;
     }
 
     /**

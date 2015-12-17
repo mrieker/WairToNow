@@ -49,7 +49,6 @@ import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Locale;
 
@@ -60,9 +59,12 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
     private final static String TAG = "WairToNow";
     private final static String datadir = WairToNow.dbdir + "/routes";
 
+    public boolean trackingOn;
+    public int pointAhead = 999999999;
+    public Waypoint[] analyzedRouteArray;
+
     private AlertDialog loadButtonMenu;
     private boolean displayOpen;
-    private boolean trackingOn;
     private Button buttonTrack;
     private EditText editTextD;
     private EditText editTextR;
@@ -77,8 +79,6 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
     private float startingLat;
     private float startingLon;
     private int goodColor;
-    private int pointAhead = 999999999;
-    private LinkedList<Waypoint> analyzedRouteList;
     private RouteStep firstStep;
     private RouteStep lastStep;
     private SpannableStringBuilder msgBuilder;
@@ -86,7 +86,6 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
     private String loadedFromName;
     private TextView textViewC;
     private WairToNow wairToNow;
-    private Waypoint[] analyzedRouteArray;
 
     public RouteView (WairToNow ctx)
     {
@@ -186,7 +185,6 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
                 textViewC.setText ("");
                 editTextR.setHint (editTextRHint);
                 analyzedRouteArray = null;
-                analyzedRouteList  = null;
                 loadedFromName     = "";
                 pointAhead         = 999999999;
                 ShutTrackingOff ();
@@ -210,7 +208,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
         buttonTrack.setOnClickListener (new OnClickListener () {
             @Override
             public void onClick (View view) {
-                trackingOn = (analyzedRouteList != null) & !trackingOn;
+                trackingOn = (analyzedRouteArray != null) & !trackingOn;
                 buttonTrack.setText (trackingOn ? "track off" : "track on ");
                 if (trackingOn) CalcPointAhead ();
             }
@@ -351,7 +349,6 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
         startingLat        = lastGPSLat;
         startingLon        = lastGPSLon;
         analyzedRouteArray = null;
-        analyzedRouteList  = null;
         pointAhead         = 999999999;
         ShutTrackingOff ();
 
@@ -695,9 +692,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
          * Enable tracking checkbox if remaining route has any waypoints.
          */
         if (!arlist.isEmpty ()) {
-            analyzedRouteList  = arlist;
-            analyzedRouteArray = new Waypoint[arlist.size()];
-            arlist.toArray (analyzedRouteArray);
+            analyzedRouteArray = arlist.toArray (new Waypoint[arlist.size()]);
             buttonTrack.setEnabled (true);
         }
 
@@ -824,7 +819,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
     public void ShutTrackingOff ()
     {
         trackingOn = false;
-        buttonTrack.setEnabled (analyzedRouteList != null);
+        buttonTrack.setEnabled (analyzedRouteArray != null);
         buttonTrack.setText ("track on");
         textViewC.setText ("");
     }
@@ -1077,22 +1072,6 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
             adb.setMessage (msg);
             adb.setPositiveButton ("OK", null);
         }
-    }
-
-    /**
-     * Get list of waypoints following the given waypoint along the analyzed route.
-     * @param start = start after this point
-     * @return null: start point not found; else: iterator for rest of waypoints
-     */
-    public Iterator<Waypoint> GetActiveWaypointsAfter (Waypoint start)
-    {
-        if (trackingOn) {
-            for (Iterator<Waypoint> it = analyzedRouteList.iterator (); it.hasNext ();) {
-                Waypoint wp = it.next ();
-                if (wp.equals (start)) return it;
-            }
-        }
-        return null;
     }
 
     /**

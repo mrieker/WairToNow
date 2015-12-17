@@ -43,7 +43,9 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.Point;
+import android.graphics.PointF;
 import android.graphics.Rect;
+import android.graphics.RectF;
 import android.location.Location;
 import android.support.annotation.NonNull;
 import android.util.DisplayMetrics;
@@ -93,8 +95,6 @@ public class ChartView
     private boolean showGPSInfo    = true;
     public  DisplayMetrics metrics = new DisplayMetrics ();
     private float altitude;                   // metres MSL
-    private float canvasEastLon, canvasWestLon;
-    private float canvasNorthLat, canvasSouthLat;
     private float userRotationRad;            // user applied rotation (only in finger-rotation mode)
     private float heading;                    // degrees
     private float pixelHeightM;               // how many chart metres high pixels are
@@ -116,6 +116,7 @@ public class ChartView
     private boolean gpsInfoMphOpt;
     private boolean gpsInfoTrueOpt;
     private ChartSelectDialog chartSelectDialog;
+    private DecimalFormat scalingFormat = new DecimalFormat ("#.##");
     private DisplayableChart waitingForChartDownload;
     private DisplayableChart selectedChart;
     private float airplaneScale;
@@ -190,14 +191,19 @@ public class ChartView
     private Point canpix1           = new Point ();
     private Point canpix2           = new Point ();
     private Point canpix3           = new Point ();
+    private Point drawCourseFilletCom = new Point ();
+    private Point drawCourseFilletFr  = new Point ();
+    private Point drawCourseFilletTo  = new Point ();
     private Pointer firstPointer;
     private Pointer secondPointer;
     private Pointer transPointer    = new Pointer ();
+    private PointF drawCourseFilletCp = new PointF ();
     private Rect centerInfoBounds   = new Rect ();
     private Rect chartSelectBounds  = new Rect ();
     private Rect courseInfoBounds   = new Rect ();
     private Rect drawBoundedStringBounds = new Rect ();
     private Rect gpsInfoBounds      = new Rect ();
+    private RectF drawCourseFilletOval = new RectF ();
     private StreetChart streetChart;
     private String centerInfoDistStr, centerInfoMCToStr;
     private String centerInfoLatStr, centerInfoLonStr;
@@ -215,7 +221,7 @@ public class ChartView
     public  float arrowLat, arrowLon;      // degrees
     public  float centerLat, centerLon;    // lat/lon at center+displaceX,Y of canvas
     public  float orgLat, orgLon;          // course origination lat/lon
-    public  float scaling = 1.0F;          // 0.5 = can see 2x as much as with 1.0, ie, 4 chart pixels -> 1 canvas pixel
+    public  float scaling = 1.0F;          // < 1 : zoomed out; > 1 : zoomed in
     public  Waypoint clDest = null;        // course line destination name
 
     public ChartView (WairToNow na)
@@ -296,7 +302,8 @@ public class ChartView
         courseBGPaint.setTextAlign (Paint.Align.CENTER);
         courseLnPaint.setColor (courseColor);
         courseLnPaint.setStyle (Paint.Style.FILL);
-        courseLnPaint.setStrokeWidth (10);
+        courseLnPaint.setStrokeWidth (15);
+        courseLnPaint.setStyle (Paint.Style.STROKE);
         courseLnPaint.setTextAlign (Paint.Align.CENTER);
         courseTxPaint.setColor (courseColor);
         courseTxPaint.setStyle (Paint.Style.FILL);
@@ -1033,7 +1040,7 @@ public class ChartView
         allDrawWaypoints.clear ();
         if (wairToNow.optionsView.faaWPOption.checkBox.isChecked ()) {
             for (Waypoint faaWP : waypointsWithin.Get (
-                    canvasSouthLat, canvasNorthLat, canvasWestLon, canvasEastLon)) {
+                    pmap.canvasSouthLat, pmap.canvasNorthLat, pmap.canvasWestLon, pmap.canvasEastLon)) {
                 if (LatLon2CanPixExact (faaWP.lat, faaWP.lon, pt)) {
                     allDrawWaypoints.add (new DrawWaypoint (faaWP.ident, pt, faaWPPaints));
                 }
@@ -1271,31 +1278,126 @@ public class ChartView
         // draw solid line to current destination waypoint
         DrawCourseLine (canvas, orgLat, orgLon, clDest.lat, clDest.lon, true);
 
-        // if route being tracked on route page, draw rest of route with dotted line
-        Waypoint lastwp = clDest;
-        Iterator<Waypoint> it = wairToNow.routeView.GetActiveWaypointsAfter (clDest);
-        if (it != null) while (it.hasNext ()) {
-            Waypoint wp = it.next ();
-            DrawCourseLine (canvas, lastwp.lat, lastwp.lon, wp.lat, wp.lon, false);
-            lastwp = wp;
+        // see if route being tracked on route page
+        RouteView routeView = wairToNow.routeView;
+        if (routeView.trackingOn) {
+
+            // draw rest of route with dotted line
+            Waypoint[] ara = routeView.analyzedRouteArray;
+            int len = ara.length;
+            int pai = routeView.pointAhead;
+            Waypoint lastwp = clDest;
+            for (int i = pai; ++ i < len;) {
+                Waypoint wp = ara[i];
+                DrawCourseLine (canvas, lastwp.lat, lastwp.lon, wp.lat, wp.lon, false);
+                lastwp = wp;
+            }
+
+            // if airplane moving (so we have a turn radius), draw a turn radius fillet
+            // either on waypoint ahead or behind, whichever is closer
+            if (speed > 1.0F) {
+                float aheadDist  = Lib.LatLonDist (arrowLat, arrowLon, clDest.lat, clDest.lon);
+                float behindDist = Lib.LatLonDist (arrowLat, arrowLon, orgLat, orgLon);
+                if (aheadDist < behindDist) {
+                    if (++ pai < len) {
+                        Waypoint wp = ara[pai];
+                        DrawCourseFillet (canvas,
+                                orgLat, orgLon,
+                                clDest.lat, clDest.lon,
+                                wp.lat, wp.lon);
+                    }
+                } else {
+                    if (-- pai > 0) {
+                        Waypoint wp = ara[--pai];
+                        DrawCourseFillet (canvas,
+                                wp.lat, wp.lon,
+                                orgLat, orgLon,
+                                clDest.lat, clDest.lon);
+                    }
+                }
+            }
         }
     }
 
+    /**
+     * Draw turning radius starting on path from prev past curr ending on path to next.
+     */
+    private void DrawCourseFillet (Canvas canvas,
+            float prevlat, float prevlon,
+            float currlat, float currlon,
+            float nextlat, float nextlon)
+    {
+        // two points on line being turned from
+        Point fr  = drawCourseFilletFr;
+        Point com = drawCourseFilletCom;
+        LatLon2CanPixExact (prevlat, prevlon, fr);
+        LatLon2CanPixExact (currlat, currlon, com);
+
+        // two points on line being turned to (com is one of them)
+        Point to  = drawCourseFilletTo;
+        LatLon2CanPixExact (nextlat, nextlon, to);
+
+        // get heading on current segment (ie, heading we are supposed to be on now)
+        float currsegtcdeg = Mathf.toDegrees (Mathf.atan2 (com.x - fr.x, fr.y - com.y));
+
+        // get heading on next segment (ie, heading we want to turn to)
+        float nextsegtcdeg = Mathf.toDegrees (Mathf.atan2 (to.x - com.x, com.y - to.y));
+
+        // see how far we have to turn
+        float hdgdiffdeg = nextsegtcdeg - currsegtcdeg;
+        if (hdgdiffdeg < -180.0F) hdgdiffdeg += 360.0F;
+        if (hdgdiffdeg >= 180.0F) hdgdiffdeg -= 360.0F;
+        float hdgdiffdegabs = Math.abs (hdgdiffdeg);
+
+        // don't bother with arc if less than 1 sec of turning to do
+        // also don't bother if hairpin turn as we have already blown past it
+        if ((hdgdiffdegabs > GlassView.STDRATETURN) && (hdgdiffdegabs < 180 - GlassView.STDRATETURN)) {
+
+            // radius[met] = speed[met/sec] / turnrate[rad/sec]
+            float radiusmet = speed / Mathf.toRadians (GlassView.STDRATETURN);
+            float radiuspix = radiusmet / Mathf.sqrt (pixelWidthM * pixelHeightM);
+
+            // find center of turn
+            PointF cp = drawCourseFilletCp;
+            Lib.circleTangentToTwoLineSegs (fr.x, fr.y, com.x, com.y, to.x, to.y, radiuspix, cp);
+
+            // draw arc along turn path
+            RectF oval  = drawCourseFilletOval;
+            oval.left   = cp.x - radiuspix;
+            oval.top    = cp.y - radiuspix;
+            oval.right  = cp.x + radiuspix;
+            oval.bottom = cp.y + radiuspix;
+            float startAngle = currsegtcdeg + 180.0F;
+            if (hdgdiffdeg < 0.0F) {
+                startAngle = nextsegtcdeg;
+                hdgdiffdeg = - hdgdiffdeg;
+            }
+            canvas.drawArc (oval, startAngle, hdgdiffdeg, false, courseLnPaint);
+        }
+    }
+
+    /**
+     * Draw great circle course line from one point to the other.
+     */
     private void DrawCourseLine (Canvas canvas, float srcLat, float srcLon, float dstLat, float dstLon, boolean solid)
     {
         Point pt = onDrawPt;
 
         /*
-         * Find east/west limits of course.  Wrap east to be .ge. west if necessary.
-         */
-        float courseWestLon = Lib.Westmost (srcLon, dstLon);
-        float courseEastLon = Lib.Eastmost (srcLon, dstLon);
-        if (courseEastLon < courseWestLon) courseEastLon += 360.0F;
-
-        /*
          * See if primarily east/west or north/south route.
          */
-        if (Math.abs (dstLat - srcLat) < courseEastLon - courseWestLon) {
+        float tcquad = Lib.LatLonTC_rad (srcLat, srcLon, dstLat, dstLon);
+        tcquad = Math.abs (tcquad);
+        if (tcquad > Mathf.PI / 2.0F) tcquad = Mathf.PI - tcquad;
+        if (tcquad > Mathf.PI / 4.0F) {
+            // primarily east/west
+
+            /*
+             * Find east/west limits of course.  Wrap east to be .ge. west if necessary.
+             */
+            float courseWestLon = Lib.Westmost (srcLon, dstLon);
+            float courseEastLon = Lib.Eastmost (srcLon, dstLon);
+            if (courseEastLon < courseWestLon) courseEastLon += 360.0F;
 
             /*
              * If canvas is completely west of course, try wrapping canvas eastbound.
@@ -1306,8 +1408,8 @@ public class ChartView
              *    canvasEastLon=-171+360=189, canvasWestLon=-169+360=191
              *    ...so the canvas numbers end up between the course numbers
              */
-            float cwl = canvasWestLon;
-            float cel = canvasEastLon;
+            float cwl = pmap.canvasWestLon;
+            float cel = pmap.canvasEastLon;
             if (cel < courseWestLon) {
                 cwl += 360.0F;
                 cel += 360.0F;
@@ -1319,33 +1421,46 @@ public class ChartView
             if (cwl < courseWestLon) cwl = courseWestLon;
             if (cel > courseEastLon) cel = courseEastLon;
 
-            float pixelWidthDeg = pixelWidthM / Lib.MPerNM / Lib.NMPerDeg / Mathf.cos (Mathf.toRadians (canvasSouthLat + canvasNorthLat) / 2.0);
+            float lonstep = Mathf.sin (tcquad) / scaling / Lib.NMPerDeg / Mathf.cos (Mathf.toRadians (pmap.centerLat) / 2.0);
 
-            for (float lon = cwl; lon <= cel; lon += pixelWidthDeg * 2) {
+            int lastx = 0;
+            int lasty = 0;
+            int nstep = 0;
+            for (float lon = cwl;; lon += lonstep) {
+                if (lon > cel) lon = cel;
                 float lat = Lib.GCLon2Lat (srcLat, srcLon, dstLat, dstLon, lon);
                 LatLon2CanPixExact (lat, lon, pt);
-                if (solid || (Math.round (Lib.LatLonDist (srcLat, srcLon, lat, lon) * scaling) % 2 == 0)) {
-                    canvas.drawPoint (pt.x, pt.y, courseLnPaint);
+                if ((nstep > 0) && (solid || ((nstep & 1) == 0))) {
+                    canvas.drawLine (lastx, lasty, pt.x, pt.y, courseLnPaint);
                 }
+                lastx = pt.x;
+                lasty = pt.y;
+                nstep ++;
+                if (lon >= cel) break;
             }
         } else {
             // primarily north/south
-            float courseSouthLon = Math.min (srcLat, dstLat);
-            float courseNorthLon = Math.max (srcLat, dstLat);
+            float csl = Math.min (srcLat, dstLat);
+            float cnl = Math.max (srcLat, dstLat);
+            if (csl < pmap.canvasSouthLat) csl = pmap.canvasSouthLat;
+            if (cnl > pmap.canvasNorthLat) cnl = pmap.canvasNorthLat;
 
-            float csl = canvasSouthLat;
-            float cnl = canvasNorthLat;
-            if (csl < courseSouthLon) csl = courseSouthLon;
-            if (cnl > courseNorthLon) cnl = courseNorthLon;
+            float latstep = Mathf.cos (tcquad) / scaling / Lib.NMPerDeg;
 
-            float pixelHeightDeg = pixelHeightM / Lib.MPerNM / Lib.NMPerDeg;
-
-            for (float lat = csl; lat <= cnl; lat += pixelHeightDeg * 2) {
+            int lastx = 0;
+            int lasty = 0;
+            int nstep = 0;
+            for (float lat = csl;; lat += latstep) {
+                if (lat > cnl) lat = cnl;
                 float lon = Lib.GCLat2Lon (srcLat, srcLon, dstLat, dstLon, lat);
                 LatLon2CanPixExact (lat, lon, pt);
-                if (solid || (Math.round (Lib.LatLonDist (srcLat, srcLon, lat, lon) * scaling) % 2 == 0)) {
-                    canvas.drawPoint (pt.x, pt.y, courseLnPaint);
+                if ((nstep > 0) && (solid || ((nstep & 1) == 0))) {
+                    canvas.drawLine (lastx, lasty, pt.x, pt.y, courseLnPaint);
                 }
+                lastx = pt.x;
+                lasty = pt.y;
+                nstep ++;
+                if (lat >= cnl) break;
             }
         }
     }
@@ -1468,10 +1583,10 @@ public class ChartView
      */
     private void DrawCapGrid (Canvas canvas)
     {
-        float westlon  = Mathf.floor (canvasWestLon  * 4.0F) / 4.0F;
-        float eastlon  = Mathf.ceil  (canvasEastLon  * 4.0F) / 4.0F;
-        float southlat = Mathf.floor (canvasSouthLat * 4.0F) / 4.0F;
-        float northlat = Mathf.ceil  (canvasNorthLat * 4.0F) / 4.0F;
+        float westlon  = Mathf.floor (pmap.canvasWestLon  * 4.0F) / 4.0F;
+        float eastlon  = Mathf.ceil  (pmap.canvasEastLon  * 4.0F) / 4.0F;
+        float southlat = Mathf.floor (pmap.canvasSouthLat * 4.0F) / 4.0F;
+        float northlat = Mathf.ceil  (pmap.canvasNorthLat * 4.0F) / 4.0F;
 
         if (eastlon < westlon) eastlon += 360.0F;
 
@@ -1624,11 +1739,6 @@ public class ChartView
         pmap.setup (canvasWidth, canvasHeight,
                 tlLat, tlLon, trLat, trLon,
                 blLat, blLon, brLat, brLon);
-
-        canvasSouthLat = pmap.canvasSouthLat;
-        canvasNorthLat = pmap.canvasNorthLat;
-        canvasWestLon  = pmap.canvasWestLon;
-        canvasEastLon  = pmap.canvasEastLon;
     }
 
     /**
@@ -1724,7 +1834,7 @@ public class ChartView
                 centerInfoScaling       = scaling;
                 centerInfoCanvasHdgRads = chr;
                 centerInfoAltitude      = altitude;
-                centerInfoScaStr = "x " + new DecimalFormat ("#.##").format (scaling);
+                centerInfoScaStr = "x " + scalingFormat.format (scaling);
                 centerInfoRotStr = wairToNow.optionsView.HdgString (Mathf.toDegrees (chr), centerLat, centerLon, altitude);
             }
             DrawBoundedString (canvas, centerInfoBounds, paint, cx, by - dy * 2, centerInfoScaStr);

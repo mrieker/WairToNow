@@ -22,7 +22,6 @@ package com.outerworldapps.wairtonow;
 
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.Iterator;
 
 import android.content.pm.ActivityInfo;
 import android.graphics.Canvas;
@@ -45,7 +44,7 @@ public class GlassView
     private static final float GSFTABVTH   = 25.0F;   // glideslope feet above threshold
     private static final float HSISCALEAPP = 0.5F;    // HSI scale full deflection = 0.5nm
     private static final float HSISCALEENR = 2.0F;    // HSI scale full deflection = 2.0nm
-    private static final int   STDRATETURN = 3;       // degrees per second
+    public  static final int   STDRATETURN = 3;       // degrees per second
 
     private static final CompareRWNumbers compareRWNumbers = new CompareRWNumbers ();
 
@@ -389,43 +388,69 @@ public class GlassView
                 }
 
                 // see if route view active and there is another waypoint after current destination
-                Iterator<Waypoint> it = wairToNow.routeView.GetActiveWaypointsAfter (destwp);
-                if ((it != null) && it.hasNext ()) {
+                RouteView routeView = wairToNow.routeView;
+                Waypoint[] ara = routeView.analyzedRouteArray;
+                int pai = routeView.pointAhead;
+                if (routeView.trackingOn && (++ pai < ara.length)) {
 
                     // compute change in heading required from current to oncourse to next destination
-                    Waypoint nextwp = it.next ();
+                    Waypoint nextwp = ara[pai];
                     float currhdg = currPos.heading;
                     float nexthdg = Lib.LatLonTC (destwp.lat, destwp.lon, nextwp.lat, nextwp.lon);
                     float hdgdiff = nexthdg - currhdg;
                     if (hdgdiff < -180.0F) hdgdiff += 360.0F;
                     if (hdgdiff >= 180.0F) hdgdiff -= 360.0F;
 
-                    // see how many seconds from now at standard rate the turn must begin
-                    float turnsec  = Math.abs (hdgdiff) / STDRATETURN;
-                    int tostartsec = Math.round (timesec - turnsec / 2.0F);
-                    if (tostartsec <= 10) {
+                    float hdgdiffabs = Math.abs (hdgdiff);
+                    if ((hdgdiffabs > 1.0F) && (hdgdiffabs < 179.0F)) {
 
-                        // 10 or less, display arrow and new heading on alternating seconds
-                        // but solid on if past point where turn should start
-                        boolean on = (tostartsec < 0) || ((tostartsec & 1) == 0);
-                        int maghdgbin = Math.round (nexthdg + magvariation + 359.0F) % 360 + 1;
-                        String maghdgstr = Integer.toString (maghdgbin + 1000).substring (1);
-                        if (hdgdiff > 0) {
-                            if (on) {
-                                sb.append (" \u25B6");
+                        // how many seconds from start or end of turn to point
+
+                        //   arclength[met] = speed[met/sec] / turnrate[rad/sec] * hdgdiff[rad]
+                        //   arclength[met] = radius[met] * hdgdiffrad[rad]
+                        //   => radius[met] = speed[met/sec] / turnrate[rad/sec]
+                        //
+                        //   2 * radius**2 - 2 * radius * radius * cos hdgdiff = linelen**2
+                        //   2 * radius**2 * (1 - cos hdgdiff) = linelen**2
+                        //
+                        //   2 * disttopoint**2 * (1 - cos (pi - hdgdiff)) = linelen**2
+                        //
+                        //   2 * radius**2 * (1 - cos hdgdiff) = 2 * disttopoint**2 * (1 - cos (pi - hdgdiff))
+                        //   radius**2 * (1 - cos hdgdiff) = disttopoint**2 * (1 + cos hdgdiff)
+                        //   radius**2 * (1 - cos hdgdiff) / (1 + cos hdgdiff) = disttopoint**2
+                        //   radius**2 * (tan (hdgdiff / 2))**2 = disttopoint**2
+                        //   radius * tan (hdgdiff / 2) = disttopoint
+                        //
+                        //   disttopoint[met] = radius[met] * tan (hdgdiff / 2)
+                        //   timetopoint[sec] = radius[met] / speed[met/sec] * tan (hdgdiff / 2)
+                        //   timetopoint[sec] = tan (hdgdiff / 2) / turnrate[rad/sec]
+                        float topointsec = Mathf.tan (Math.toRadians (hdgdiffabs) / 2.0F) /
+                                Mathf.toRadians (STDRATETURN);
+
+                        // see how many seconds from now the turn must begin
+                        int tostartsec = Math.round (timesec - topointsec);
+                        if (tostartsec <= 10) {
+
+                            // 10 or less, display arrow and new heading
+                            // hollow if before turn should start, solid if at or past
+                            int maghdgbin = Math.round (nexthdg + magvariation + 359.0F) % 360 + 1;
+                            String maghdgstr = Integer.toString (maghdgbin + 1000).substring (1);
+                            if (hdgdiff > 0) {
+                                if (tostartsec <= 0) {
+                                    sb.append (" \u25B6");
+                                } else {
+                                    sb.append (" \u25B7");
+                                }
+                                sb.append (maghdgstr);
+                                sb.append ('\u00B0');
                             } else {
-                                sb.append (" \u25B7");
+                                if (tostartsec <= 0) {
+                                    sb.insert (0, "\u00B0\u25C0 ");
+                                } else {
+                                    sb.insert (0, "\u00B0\u25C1 ");
+                                }
+                                sb.insert (0, maghdgstr);
                             }
-                            sb.append (maghdgstr);
-                            sb.append ('\u00B0');
-                        }
-                        if (hdgdiff < 0) {
-                            if (on) {
-                                sb.insert (0, "\u00B0\u25C0 ");
-                            } else {
-                                sb.insert (0, "\u00B0\u25C1 ");
-                            }
-                            sb.insert (0, maghdgstr);
                         }
                     }
                 }
