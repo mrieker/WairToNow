@@ -214,41 +214,50 @@ public class AutoAirChart implements DisplayableChart, Comparator<AirChart> {
     public boolean LatLon2CanPixExact (float lat, float lon, @NonNull Point canpix)
     {
         // find last chart drawn that covers the given lat/lon
-        AirChart lastac = null;
+        boolean found = false;
+        int lastx = 0;
+        int lasty = 0;
         for (AirChart ac : airCharts.keySet ()) {
-            if (ac.LatLonIsCharted (lat, lon)) lastac = ac;
+            if (ac.IsDownloaded () &&
+                    ac.LatLonIsCharted (lat, lon) &&
+                    ac.LatLon2CanPixExact (lat, lon, canpix)) {
+                found = true;
+                lastx = canpix.x;
+                lasty = canpix.y;
+            }
         }
-        // if none, tell caller to use approximate mapping
-        if (lastac == null) return false;
-        // found one, use one drawn on top to convert
-        lastac.LatLon2CanPixExact (lat, lon, canpix);
-        return true;
+        if (found) {
+            canpix.x = lastx;
+            canpix.y = lasty;
+        }
+        return found;
     }
 
     @Override  // DisplayableChart
     public boolean CanPix2LatLonExact (float canpixx, float canpixy, @NonNull LatLon ll)
     {
         // find last chart drawn that covers the given pixel
-        AirChart lastac = null;
+        boolean found = false;
         float lastlat = 0.0F;
         float lastlon = 0.0F;
         for (AirChart ac : airCharts.keySet ()) {
             // get what this chart thinks the lat/lon of the canvas pixel is
-            ac.ChartPixel2LatLonExact (canpixx, canpixy, ll);
-            // see if that chart covers that lat/lon
-            if (ac.LatLonIsCharted (ll.lat, ll.lon)) {
+            // and see if that chart covers that lat/lon
+            if (ac.IsDownloaded () &&
+                    ac.CanPix2LatLonExact (canpixx, canpixy, ll) &&
+                    ac.LatLonIsCharted (ll.lat, ll.lon)) {
                 // if so, remember the point was converted
-                lastac = ac;
+                found   = true;
                 lastlat = ll.lat;
                 lastlon = ll.lon;
             }
         }
-        // no chart covers the canvax pixel, tell caller to use approximate mapping
-        if (lastac == null) return false;
-        // found one, return the converted lat/lon
-        ll.lat = lastlat;
-        ll.lon = lastlon;
-        return true;
+        if (found) {
+            // found one, return the converted lat/lon
+            ll.lat = lastlat;
+            ll.lon = lastlon;
+        }
+        return found;
     }
 
     /**

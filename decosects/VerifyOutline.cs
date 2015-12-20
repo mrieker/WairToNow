@@ -71,7 +71,7 @@ public class VerifyOutline {
                     p.y = int.Parse (xystrs[1].Trim ());
                     outline[j++] = p;
                 }
-                if (j == 2) {
+                /*if (j == 2) {
                     Point[] five = new Point[5];
                     five[0] = outline[0];
                     five[1] = new Point (outline[1].x, outline[0].y);
@@ -79,7 +79,7 @@ public class VerifyOutline {
                     five[3] = new Point (outline[0].x, outline[1].y);
                     outline = five;
                     j = 4;
-                }
+                }*/
                 outline[j] = outline[0];
                 break;
             }
@@ -87,12 +87,28 @@ public class VerifyOutline {
         outFile.Close ();
         if (outline == null) throw new Exception ("no outlines.txt line for " + spacenamenr);
 
+        /*
         for (int i = 0; ++ i < outline.Length;) {
             Point p = outline[i-1];
             Point q = outline[i];
             for (int dy = -2; dy <= 2; dy ++) {
                 for (int dx = -2; dx <= 2; dx ++) {
                     DrawLine (p.x + dx, p.y + dy, q.x + dx, q.y + dy);
+                }
+            }
+        }
+        */
+
+        for (int y = 0; y < chart.height; y ++) {
+            for (int x = 0; x < chart.width; x ++) {
+                if (outline.Length == 3) {
+                    if ((x < outline[0].x) || (y < outline[0].y) || (x > outline[1].x) || (y > outline[1].y)) {
+                        chart.bmp.SetPixel (x, y, Color.Yellow);
+                    }
+                } else {
+                    if (PnPoly.wn (x, y, outline, outline.Length - 1) == 0) {
+                        chart.bmp.SetPixel (x, y, Color.Yellow);
+                    }
                 }
             }
         }
@@ -151,5 +167,56 @@ public class VerifyOutline {
         if (y < 0) return;
         if (y >= chart.height) return;
         chart.bmp.SetPixel (x, y, Color.Red);
+    }
+}
+
+public class PnPoly {
+
+    // Copyright 2000 softSurfer, 2012 Dan Sunday
+    // This code may be freely used, distributed and modified for any purpose
+    // providing that this copyright notice is included with it.
+    // SoftSurfer makes no warranty for this code, and cannot be held
+    // liable for any real or imagined damage resulting from its use.
+    // Users of this code must verify correctness for their application.
+
+    // http://geomalgorithms.com/a03-_inclusion.html
+
+    // isLeft(): tests if a point is Left|On|Right of an infinite line.
+    //    Input:  three points P0, P1, and P2
+    //    Return: >0 for P2 left of the line through P0 and P1
+    //            =0 for P2  on the line
+    //            <0 for P2  right of the line
+    //    See: Algorithm 1 "Area of Triangles and Polygons"
+    private static int isLeft( Point P0, Point P1, int X2, int Y2 )
+    {
+        return ( (P1.x - P0.x) * (Y2 - P0.y)
+                - (X2 -  P0.x) * (P1.y - P0.y) );
+    }
+
+    // wn_PnPoly(): winding number test for a point in a polygon
+    //      Input:   P = a point,
+    //               V[] = vertex points of a polygon V[n+1] with V[n]=V[0]
+    //      Return:  wn = the winding number (=0 only when P is outside)
+    public static int wn( int X, int Y, Point[] V, int n )
+    {
+        int    wn = 0;    // the  winding number counter
+
+        // loop through all edges of the polygon
+        Point R = V[0];
+        for (int i=0; ++i<=n;) {   // edge from V[i-1] to  V[i]
+            Point S = V[i];
+            if (R.y <= Y) {          // start y <= P.y
+                if (S.y  > Y)      // an upward crossing
+                     if (isLeft( R, S, X, Y) > 0)  // P left of  edge
+                         ++wn;            // have  a valid up intersect
+            }
+            else {                        // start y > P.y (no test needed)
+                if (S.y  <= Y)     // a downward crossing
+                     if (isLeft( R, S, X, Y) < 0)  // P right of  edge
+                         --wn;            // have  a valid down intersect
+            }
+            R = S;
+        }
+        return wn;
     }
 }

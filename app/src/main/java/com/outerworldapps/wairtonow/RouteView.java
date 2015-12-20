@@ -47,10 +47,14 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Date;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Locale;
+import java.util.TreeMap;
 
 /**
  * Enter a route (such as a clearance) and analyze it.
@@ -60,7 +64,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
     private final static String datadir = WairToNow.dbdir + "/routes";
 
     public boolean trackingOn;
-    public int pointAhead = 999999999;
+    public int pointAhead;
     public Waypoint[] analyzedRouteArray;
 
     private AlertDialog loadButtonMenu;
@@ -175,19 +179,20 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
 
         buttonClear.setOnClickListener (new OnClickListener () {
             @Override
-            public void onClick (View view) {
-                editTextD.setText ("");
-                editTextR.setText ("");
-                editTextA.setText ("");
-                editTextF.setText ("");
-                editTextT.setText ("");
-                editTextN.setText ("");
-                textViewC.setText ("");
-                editTextR.setHint (editTextRHint);
-                analyzedRouteArray = null;
-                loadedFromName     = "";
-                pointAhead         = 999999999;
-                ShutTrackingOff ();
+            public void onClick (View view)
+            {
+                AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
+                adb.setTitle ("Clear confirmation");
+                adb.setMessage ("Confirm clear");
+                adb.setPositiveButton ("OK", new DialogInterface.OnClickListener () {
+                    @Override
+                    public void onClick (DialogInterface dialogInterface, int i)
+                    {
+                        clearFields ();
+                    }
+                });
+                adb.setNegativeButton ("Cancel", null);
+                adb.show ();
             }
         });
 
@@ -219,6 +224,27 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
         View routeView = ctx.findViewById (R.id.routeView);
         ((ViewGroup) (routeView.getParent ())).removeAllViews ();
         addView (routeView);
+
+        clearFields ();
+    }
+
+    /**
+     * Clear all form fields.
+     */
+    private void clearFields ()
+    {
+        editTextD.setText ("");
+        editTextR.setText ("");
+        editTextA.setText ("");
+        editTextF.setText ("");
+        editTextT.setText ("");
+        editTextN.setText ("");
+        textViewC.setText ("");
+        editTextR.setHint (editTextRHint);
+        analyzedRouteArray = null;
+        loadedFromName     = "";
+        pointAhead         = 999999999;
+        ShutTrackingOff ();
     }
 
     /**
@@ -468,20 +494,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
             if ((prevrs instanceof RouteStepWaypt) && (thisrs instanceof RouteStepAirwy)) {
                 RouteStepWaypt prevrswpt = (RouteStepWaypt) prevrs;
                 RouteStepAirwy thisrsawy = (RouteStepAirwy) thisrs;
-                LinkedList<Waypoint> commonWaypoints = new LinkedList<> ();
-                for (Waypoint prevwp : prevrswpt.waypoints) {
-                    for (Waypoint.Airway airway : thisrsawy.airways) {
-                        for (Waypoint thiswp : airway.waypoints) {
-                            if (prevwp.equals (thiswp)) {
-                                commonWaypoints.addLast (thiswp);
-                            }
-                        }
-                    }
-                }
-                if (commonWaypoints.isEmpty ()) {
-                    appendErrorMessage ("waypoint " + prevrswpt.ident + " not found on airway " + thisrsawy.ident + "\n");
-                }
-                prevrswpt.waypoints = commonWaypoints;
+                prevrswpt.waypoints = findWaypointOnAirway (prevrswpt, thisrsawy);
             }
 
             /*
@@ -493,20 +506,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
             if ((prevrs instanceof RouteStepAirwy) && (thisrs instanceof RouteStepWaypt)) {
                 RouteStepAirwy prevrsawy = (RouteStepAirwy) prevrs;
                 RouteStepWaypt thisrswpt = (RouteStepWaypt) thisrs;
-                LinkedList<Waypoint> commonWaypoints = new LinkedList<> ();
-                for (Waypoint thiswp : thisrswpt.waypoints) {
-                    for (Waypoint.Airway airway : prevrsawy.airways) {
-                        for (Waypoint prevwp : airway.waypoints) {
-                            if (thiswp.equals (prevwp)) {
-                                commonWaypoints.addLast (prevwp);
-                            }
-                        }
-                    }
-                }
-                if (commonWaypoints.isEmpty ()) {
-                    appendErrorMessage ("waypoint " + thisrswpt.ident + " not found on airway " + prevrsawy.ident + "\n");
-                }
-                thisrswpt.waypoints = commonWaypoints;
+                thisrswpt.waypoints = findWaypointOnAirway (thisrswpt, prevrsawy);
             }
 
             /*
@@ -673,6 +673,8 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
          * Edit out redundant points.
          * Leave any points alone that are explicitly stated in clearance however,
          * maybe user wants an ETA at that point for position reporting.
+         * Also leave navaids in place as they define an airway so the pilot will
+         * want to know when they pass.
          */
         int nanal = arlist.size ();
         Waypoint[] ararray = new Waypoint[nanal];
@@ -682,7 +684,8 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
         for (int i = 0; i < nanal; i ++) {
             Waypoint thiswp = ararray[i];
             Waypoint nextwp = (i < nanal - 1) ? ararray[i+1] : null;
-            if ((prevwp == null) || (nextwp == null) || !inARow (prevwp, thiswp, nextwp) || statedInClearance (thiswp)) {
+            if ((prevwp == null) || (nextwp == null) || !inARow (prevwp, thiswp, nextwp) ||
+                    statedInClearance (thiswp) || (thiswp instanceof Waypoint.Navaid)) {
                 arlist.addLast (thiswp);
                 prevwp = thiswp;
             }
@@ -699,6 +702,66 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
         appendGoodMessage ("done\n");
 
         showMessages ();
+    }
+
+    /**
+     * Find the given waypoint on the given airway.
+     */
+    private LinkedList<Waypoint> findWaypointOnAirway (RouteStepWaypt rswpt, RouteStepAirwy rsawy)
+    {
+        // collect waypoint on airway that matches the given waypoint
+        // theoretically there can be more than one of same name
+        LinkedList<Waypoint> commonWaypoints = new LinkedList<> ();
+
+        // collect waypoints on airway near the given waypoint in case given waypoint not on airway
+        // sort by ascenting distance from given waypoint
+        TreeMap<Float,Waypoint> nearbyWpsOnAirwy = new TreeMap<> ();
+
+        // loop through all the given waypoints (there may be more than one of same name)
+        for (Waypoint rswptwp : rswpt.waypoints) {
+
+            // loop through all the given airways (there may be more than one of same name)
+            for (Waypoint.Airway airway : rsawy.airways) {
+
+                // loop through all waypoints on that airway
+                for (Waypoint rsawywp : airway.waypoints) {
+
+                    // save matching waypoint if name and lat/lon matches
+                    if (rswptwp.equals (rsawywp)) {
+                        commonWaypoints.addLast (rsawywp);
+                    } else if (!(rsawywp instanceof Waypoint.Intersection)) {
+
+                        // otherwise, save it sorted by ascending distance from given waypoint
+                        // don't save any of the numbered airway intersection waypoints
+                        // just things like VORs or fixes
+                        float dist = Lib.LatLonDist (rswptwp.lat, rswptwp.lon, rsawywp.lat, rsawywp.lon);
+                        nearbyWpsOnAirwy.put (dist, rsawywp);
+                    }
+                }
+            }
+        }
+
+        // see if any exact match was found
+        if (commonWaypoints.isEmpty ()) {
+
+            // if not, output error message
+            appendErrorMessage ("waypoint " + rswpt.ident + " not found on airway " + rsawy.ident + "\n");
+
+            // display two nearby waypoints that are on the airway
+            Iterator<Waypoint> it = nearbyWpsOnAirwy.values ().iterator ();
+            if (it.hasNext ()) {
+                Waypoint wp = it.next ();
+                appendErrorMessage ("...maybe insert " + wp.ident);
+                if (it.hasNext ()) {
+                    wp = it.next ();
+                    appendErrorMessage (" or " + wp.ident);
+                }
+                appendErrorMessage ("\n");
+            }
+        }
+
+        // return what was found.  if nothing, return empty set.
+        return commonWaypoints;
     }
 
     private void appendErrorMessage (String string)
@@ -925,6 +988,8 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
      */
     private void LoadButtonClicked ()
     {
+        final String ntsep = " (";
+
         /*
          * Create listener for the file buttons.
          * When button clicked, dismiss menu and open file.
@@ -936,7 +1001,24 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
                 loadButtonMenu = null;
                 File file = (File) view.getTag ();
                 String name = ((TextView) view).getText ().toString ();
+                int i = name.lastIndexOf (ntsep);
+                name = name.substring (0, i);
                 LoadButtonReadFile (file, name);
+            }
+        };
+
+        OnLongClickListener longClicked = new OnLongClickListener () {
+            @Override
+            public boolean onLongClick (View view)
+            {
+                loadButtonMenu.dismiss ();
+                loadButtonMenu = null;
+                File file = (File) view.getTag ();
+                String name = ((TextView) view).getText ().toString ();
+                int i = name.lastIndexOf (ntsep);
+                name = name.substring (0, i);
+                LoadButtonLongClick (file, name);
+                return true;
             }
         };
 
@@ -947,17 +1029,26 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
         buttonList.setOrientation (LinearLayout.VERTICAL);
         File[] filearray = new File (datadir).listFiles ();
         if (filearray != null) {
+            TreeMap<String,Button> sortedButtons = new TreeMap<> ();
+            SimpleDateFormat sdf = new SimpleDateFormat ("yyyy-MM-dd HH:mm", Locale.US);
             for (File file : filearray) {
                 String name = file.getName ();
                 if (name.endsWith (".xml")) {
                     name = name.substring (0, name.length () - 4);
+                    String decodedName = URLDecoder.decode (name);
+                    long mtim = file.lastModified ();
+                    String modifiedTime = sdf.format (new Date (mtim));
                     Button filebutton = new Button (wairToNow);
-                    filebutton.setText (URLDecoder.decode (name));
+                    filebutton.setText (decodedName + ntsep + modifiedTime + ")");
                     wairToNow.SetTextSize (filebutton);
                     filebutton.setTag (file);
                     filebutton.setOnClickListener (clicked);
-                    buttonList.addView (filebutton);
+                    filebutton.setOnLongClickListener (longClicked);
+                    sortedButtons.put (decodedName, filebutton);
                 }
+            }
+            for (Button filebutton : sortedButtons.values ()) {
+                buttonList.addView (filebutton);
             }
         }
 
@@ -975,11 +1066,80 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
         adb.setView (buttonScroller);
         adb.setPositiveButton ("Cancel", new DialogInterface.OnClickListener () {
             @Override
-            public void onClick (DialogInterface dialogInterface, int i) {
+            public void onClick (DialogInterface dialogInterface, int i)
+            {
                 loadButtonMenu = null;
             }
         });
         loadButtonMenu = adb.show ();
+    }
+
+    /**
+     * A particular file was selected for renaming or deleting.
+     */
+    private void LoadButtonLongClick (final File file, final String name)
+    {
+        AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
+        adb.setTitle ("Rename or Delete?");
+        adb.setMessage (name);
+        adb.setPositiveButton ("Rename", new DialogInterface.OnClickListener () {
+            @Override
+            public void onClick (DialogInterface dialogInterface, int i)
+            {
+                AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
+                adb.setTitle ("Rename route");
+                final EditText newedit = new EditText (wairToNow);
+                newedit.setText (name);
+                wairToNow.SetTextSize (newedit);
+                adb.setView (newedit);
+                adb.setPositiveButton ("OK", new DialogInterface.OnClickListener () {
+                    @Override
+                    public void onClick (DialogInterface dialogInterface, int i)
+                    {
+                        String newname = newedit.getText ().toString ();
+                        final File newfile = new File (datadir, URLEncoder.encode (newname) + ".xml");
+                        if (newfile.exists ()) {
+                            AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
+                            adb.setTitle ("Rename route");
+                            adb.setMessage (newname + " already exists, overwrite?");
+                            adb.setPositiveButton ("Overwrite", new DialogInterface.OnClickListener () {
+                                @Override
+                                public void onClick (DialogInterface dialogInterface, int i)
+                                {
+                                    Lib.Ignored (file.renameTo (newfile));
+                                }
+                            });
+                            adb.setNegativeButton ("Cancel", null);
+                            adb.show ();
+                        } else {
+                            Lib.Ignored (file.renameTo (newfile));
+                        }
+                    }
+                });
+                adb.setNegativeButton ("Cancel", null);
+                adb.show ();
+            }
+        });
+        adb.setNeutralButton ("Delete", new DialogInterface.OnClickListener () {
+            @Override
+            public void onClick (DialogInterface dialogInterface, int i)
+            {
+                AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
+                adb.setTitle ("Delete route");
+                adb.setMessage (name);
+                adb.setPositiveButton ("OK", new DialogInterface.OnClickListener () {
+                    @Override
+                    public void onClick (DialogInterface dialogInterface, int i)
+                    {
+                        Lib.Ignored (file.delete ());
+                    }
+                });
+                adb.setNegativeButton ("Cancel", null);
+                adb.show ();
+            }
+        });
+        adb.setNegativeButton ("Cancel", null);
+        adb.show ();
     }
 
     /**

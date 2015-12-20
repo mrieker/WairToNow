@@ -404,7 +404,19 @@ public class GlassView
                     float hdgdiffabs = Math.abs (hdgdiff);
                     if ((hdgdiffabs > 1.0F) && (hdgdiffabs < 179.0F)) {
 
-                        // how many seconds from start or end of turn to point
+                        // find lat/lon where current heading would intersect the next course
+                        LatLon intersect = new LatLon ();
+                        Lib.GCIntersect (destwp.lat, destwp.lon, nextwp.lat, nextwp.lon,
+                                currPos.latitude, currPos.longitude, currPos.heading, intersect);
+
+                        // how many seconds from current position to intersection point
+                        // if we kept going straight
+                        float secfromcurrenttopoint = Lib.LatLonDist (currPos.latitude,
+                                currPos.longitude, intersect.lat, intersect.lon) * Lib.MPerNM /
+                                currPos.speed;
+
+                        // how many seconds from start or end of turn to intersection point
+                        // if we kept going straight
 
                         //   arclength[met] = speed[met/sec] / turnrate[rad/sec] * hdgdiff[rad]
                         //   arclength[met] = radius[met] * hdgdiffrad[rad]
@@ -424,11 +436,11 @@ public class GlassView
                         //   disttopoint[met] = radius[met] * tan (hdgdiff / 2)
                         //   timetopoint[sec] = radius[met] / speed[met/sec] * tan (hdgdiff / 2)
                         //   timetopoint[sec] = tan (hdgdiff / 2) / turnrate[rad/sec]
-                        float topointsec = Mathf.tan (Math.toRadians (hdgdiffabs) / 2.0F) /
+                        float secfromturntopoint = Mathf.tan (Math.toRadians (hdgdiffabs) / 2.0F) /
                                 Mathf.toRadians (STDRATETURN);
 
                         // see how many seconds from now the turn must begin
-                        int tostartsec = Math.round (timesec - topointsec);
+                        int tostartsec = Math.round (secfromcurrenttopoint - secfromturntopoint);
                         if (tostartsec <= 10) {
 
                             // 10 or less, display arrow and new heading

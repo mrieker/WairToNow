@@ -143,6 +143,7 @@ public class ChartView
     private float smoothSpeed;                 // metres per second
     private float smoothTurnRate;              // degrees per second
     private float[] trackpoints        = new float[tracktotal/trackspace*2];
+    private LatLon drawCourseLineISect = new LatLon ();
     private LatLon newCtrLL = new LatLon ();
     public  LatLon[] canvasMappingLatLons = new LatLon[] {
             new LatLon (), new LatLon (), new LatLon (), new LatLon (),
@@ -1275,45 +1276,87 @@ public class ChartView
      */
     private void DrawCourseLine (Canvas canvas)
     {
-        // draw solid line to current destination waypoint
+        // draw solid line from planned starting point to current destination waypoint
         DrawCourseLine (canvas, orgLat, orgLon, clDest.lat, clDest.lon, true);
 
-        // see if route being tracked on route page
+        // we might still be in the middle of turning from a previous route segment onto the current
+        // if so, draw a fillet for the remainder of the turn
+        LatLon isect = drawCourseLineISect;
+        if (speed > 1.0F) {
+
+            // see how far away we are from the current course line and don't bother drawing fillet if close
+            float offcourse = Lib.GCOffCourseDist (orgLat, orgLon, clDest.lat, clDest.lon, arrowLat, arrowLon);
+            if (Math.abs (offcourse) > 0.1F / scaling) {
+
+                // find point that the current heading intersects the course line at
+                // and make sure that the intersection point is ahead of us on the course line
+                if (Lib.GCIntersect (orgLat, orgLon, clDest.lat, clDest.lon, arrowLat, arrowLon, heading, isect)) {
+
+                    // and make sure that intersection is not beyond end of the current segment
+                    float distFromCurrToISect  = Lib.LatLonDist (arrowLat, arrowLon, isect.lat, isect.lon);
+                    float distFromCurrToSegEnd = Lib.LatLonDist (arrowLat, arrowLon, clDest.lat, clDest.lon);
+                    if (distFromCurrToISect < distFromCurrToSegEnd) {
+
+                        // draw fillet to finish the turn that gets us on to the current course line
+                        DrawCourseFillet (canvas, arrowLat, arrowLon, isect.lat, isect.lon, clDest.lat, clDest.lon);
+                    }
+                }
+            }
+        }
+
+        // see if a route is being tracked on route page
         RouteView routeView = wairToNow.routeView;
         if (routeView.trackingOn) {
 
-            // draw rest of route with dotted line
+            // get route waypoint array.  theoretically clDest = ara[pai] and org{Lat,Lon} = ara[pai-1].
             Waypoint[] ara = routeView.analyzedRouteArray;
             int len = ara.length;
             int pai = routeView.pointAhead;
-            Waypoint lastwp = clDest;
-            for (int i = pai; ++ i < len;) {
-                Waypoint wp = ara[i];
-                DrawCourseLine (canvas, lastwp.lat, lastwp.lon, wp.lat, wp.lon, false);
-                lastwp = wp;
-            }
 
-            // if airplane moving (so we have a turn radius), draw a turn radius fillet
-            // either on waypoint ahead or behind, whichever is closer
-            if (speed > 1.0F) {
-                float aheadDist  = Lib.LatLonDist (arrowLat, arrowLon, clDest.lat, clDest.lon);
-                float behindDist = Lib.LatLonDist (arrowLat, arrowLon, orgLat, orgLon);
-                if (aheadDist < behindDist) {
-                    if (++ pai < len) {
-                        Waypoint wp = ara[pai];
-                        DrawCourseFillet (canvas,
-                                orgLat, orgLon,
-                                clDest.lat, clDest.lon,
-                                wp.lat, wp.lon);
+            // see if there is another segment beyond our current segment that we will turn to
+            if (++ pai < len) {
+                Waypoint nextwp = ara[pai];
+                boolean drawn = false;
+                if (speed > 1.0F) {
+
+                    // make sure we are some minimal distance from next segment so we get a valid intersect point
+                    float offcourse = Lib.GCOffCourseDist (nextwp.lat, nextwp.lon, clDest.lat, clDest.lon, arrowLat, arrowLon);
+                    if (Math.abs (offcourse) > 0.1F / scaling) {
+
+                        // calculate where we would intersect the next segment if we kept on current
+                        // heading from where we are now and make sure that point is in front of us
+                        if (Lib.GCIntersect (nextwp.lat, nextwp.lon, clDest.lat, clDest.lon, arrowLat, arrowLon, heading, isect)) {
+
+                            // make sure intersection point isn't way out at infinity
+                            float distFromCurrToDest = Lib.LatLonDist (arrowLat, arrowLon, clDest.lat, clDest.lon);
+                            float distFromISectToDest = Lib.LatLonDist (isect.lat, isect.lon, clDest.lat, clDest.lon);
+                            if (distFromISectToDest < distFromCurrToDest * 1.2F) {
+
+                                // draw dotted line from current position to intersection point
+                                DrawCourseLine (canvas, arrowLat, arrowLon, isect.lat, isect.lon, false);
+
+                                // draw dotted line from intersection point to that next point
+                                DrawCourseLine (canvas, isect.lat, isect.lon, nextwp.lat, nextwp.lon, false);
+
+                                // draw fillet showing the turn from current course to next course
+                                DrawCourseFillet (canvas, arrowLat, arrowLon, isect.lat, isect.lon, nextwp.lat, nextwp.lon);
+
+                                drawn = true;
+                            }
+                        }
                     }
-                } else {
-                    if (-- pai > 0) {
-                        Waypoint wp = ara[--pai];
-                        DrawCourseFillet (canvas,
-                                wp.lat, wp.lon,
-                                orgLat, orgLon,
-                                clDest.lat, clDest.lon);
-                    }
+                }
+
+                // no fillet, just draw dotted line from current destination to next destination
+                if (!drawn) {
+                    DrawCourseLine (canvas, clDest.lat, clDest.lon, nextwp.lat, nextwp.lon, false);
+                }
+
+                // draw remaining course segments beyond that as dotted lines with no fillets
+                while (++ pai < len) {
+                    Waypoint wp = ara[pai];
+                    DrawCourseLine (canvas, nextwp.lat, nextwp.lon, wp.lat, wp.lon, false);
+                    nextwp = wp;
                 }
             }
         }

@@ -75,6 +75,10 @@ function scanifrchartshtm
         then
             continue
         fi
+        if [ $chartname == "EPHI1" ]
+        then
+            continue
+        fi
 
         echo $chartname $revcode $zipurl
 

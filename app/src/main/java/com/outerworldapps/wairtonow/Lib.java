@@ -493,6 +493,88 @@ public class Lib {
     }
 
     /**
+     * Given two points that define one course and a point and heading that define another course,
+     * return point where the second course intersects with the first.
+     * @return true iff intersection point is ahead of p2 on the given heading
+     */
+    public static boolean GCIntersect (float lat1a, float lon1a, float lat1b, float lon1b,
+                                       float lat2, float lon2, float hdg2, LatLon out)
+    {
+        // convert arguments to radians
+        float lat1arad = Mathf.toRadians (lat1a);
+        float lon1arad = Mathf.toRadians (lon1a);
+        float lat1brad = Mathf.toRadians (lat1b);
+        float lon1brad = Mathf.toRadians (lon1b);
+        float lat2arad = Mathf.toRadians (lat2);
+        float lon2arad = Mathf.toRadians (lon2);
+        float hdg2rad  = Mathf.toRadians (hdg2);
+
+        // make a 2nd point on the second course
+        // http://stackoverflow.com/questions/2954337/great-circle-rhumb-line-intersection
+        float lat2brad = Mathf.asin (Math.cos (lat2arad) * Math.cos (hdg2rad));
+        float lon2brad = Mathf.atan2 (Math.sin (hdg2rad) * Math.cos (lat2arad),
+                -Math.sin (lat2arad) * Math.sin (lat2brad)) + lon2arad;
+
+        // find points on normalized sphere
+        // +X axis goes through lat=0,lon=0
+        // +Y axis goes through lat=0,lon=90
+        // +Z axis goes through north pole
+        float x1a = Mathf.cos (lon1arad) * Mathf.cos (lat1arad);
+        float y1a = Mathf.sin (lon1arad) * Mathf.cos (lat1arad);
+        float z1a = Mathf.sin (lat1arad);
+        float x1b = Mathf.cos (lon1brad) * Mathf.cos (lat1brad);
+        float y1b = Mathf.sin (lon1brad) * Mathf.cos (lat1brad);
+        float z1b = Mathf.sin (lat1brad);
+        float x2a = Mathf.cos (lon2arad) * Mathf.cos (lat2arad);
+        float y2a = Mathf.sin (lon2arad) * Mathf.cos (lat2arad);
+        float z2a = Mathf.sin (lat2arad);
+        float x2b = Mathf.cos (lon2brad) * Mathf.cos (lat2brad);
+        float y2b = Mathf.sin (lon2brad) * Mathf.cos (lat2brad);
+        float z2b = Mathf.sin (lat2brad);
+
+        // compute normals to planes containing the courses
+        //   normal = point_a cross point_b
+        float x1n = y1a * z1b - z1a * y1b;
+        float y1n = z1a * x1b - x1a * z1b;
+        float z1n = x1a * y1b - y1a * x1b;
+        float x2n = y2a * z2b - z2a * y2b;
+        float y2n = z2a * x2b - x2a * z2b;
+        float z2n = x2a * y2b - y2a * x2b;
+
+        // line of intersection is cross product of those two
+        float xint = y1n * z2n - z1n * y2n;
+        float yint = z1n * x2n - x1n * z2n;
+        float zint = x1n * y2n - y1n * x2n;
+
+        // get lat/lon at one end of the line
+        float lata = Mathf.toDegrees (Mathf.atan2 (zint, Mathf.hypot (xint, yint)));
+        float lona = Mathf.toDegrees (Mathf.atan2 (yint, xint));
+
+        // get lat/lon at other end of line
+        float latb = -lata;
+        float lonb = NormalLon (lona + 180.0F);
+
+        // return whichever is closest to original given p2
+        float dista = LatLonDist (lat2, lon2, lata, lona);
+        float distb = LatLonDist (lat2, lon2, latb, lonb);
+
+        if (dista < distb) {
+            out.lat = lata;
+            out.lon = lona;
+        } else {
+            out.lat = latb;
+            out.lon = lonb;
+        }
+
+        // return wheter point is ahead (true) or behind (false)
+        float tc = LatLonTC (lat2, lon2, out.lat, out.lon);
+        float tcdiff = Math.abs (tc - hdg2);
+        while (tcdiff >= 360.0F) tcdiff -= 360.0F;
+        if (tcdiff > 180.0F) tcdiff = 360.0F - tcdiff;
+        return tcdiff < 90.0F;
+    }
+
+    /**
      * Compute magnetic variation at a given point.
      * @param lat = latitude of variation (degrees)
      * @param lon = longitude of variation (degrees)
@@ -655,7 +737,6 @@ public class Lib {
         // convert p1p0 segment to form a1*x + b1*y = 0
         //  y * x1 = x * y1
         //  y * x1 - x * y1 = 0
-        //  y * x1 - x * y1 = 0
         float a1 = - y1;
         float b1 = x1;
 
@@ -681,17 +762,19 @@ public class Lib {
         //  b2*y * a1 - b1*y * a2 = -+ r1 * a2 +- r2 * a1
         //  y * (b2 * a1 - b1 * a2) = -+ r1 * a2 +- r2 * a1
         //  y = (-+ r1 * a2 +- r2 * a1) / (b2 * a1 - b1 * a2)
-        float ky = b2 * a1 - b1 * a2;
-        v[VY+0] = (  r * a2 + r * a1) / ky;
-        v[VY+1] = (  r * a2 - r * a1) / ky;
-        v[VY+2] = (- r * a2 + r * a1) / ky;
-        v[VY+3] = (- r * a2 - r * a1) / ky;
+        //  y = (-+ a2 +- a1) * r / (b2 * a1 - b1 * a2)
+        float q = r / (b2 * a1 - b1 * a2);
+        v[VY+0] = (  a2 + a1) * q;
+        v[VY+1] = (  a2 - a1) * q;
+        v[VY+2] = (- a2 + a1) * q;
+        v[VY+3] = (- a2 - a1) * q;
 
-        float kx = a2 * b1 - a1 * b2;
-        v[VX+0] = (  r * b2 + r * b1) / kx;
-        v[VX+1] = (  r * b2 - r * b1) / kx;
-        v[VX+2] = (- r * b2 + r * b1) / kx;
-        v[VX+3] = (- r * b2 - r * b1) / kx;
+        // similar for matching x's
+        // the q is same as for y except negative
+        v[VX+0] = (- b2 - b1) * q;
+        v[VX+1] = (- b2 + b1) * q;
+        v[VX+2] = (  b2 - b1) * q;
+        v[VX+3] = (  b2 + b1) * q;
 
         // pick two points closest to p2
         int j = 0;
