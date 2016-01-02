@@ -31,8 +31,8 @@
             $i = strrpos ($dir_entry, '_');
             if ($i !== FALSE) {
                 $basename = substr ($dir_entry, 0, $i ++);
-                $version  = intval (substr ($dir_entry, $i, $len - 4 - $i));
-                if (!isset ($charts[$basename]) || ($charts[$basename] < $version)) {
+                $version  = substr ($dir_entry, $i, $len - 4 - $i);
+                if (!isset ($charts[$basename]) || (intval ($charts[$basename]) < intval ($version))) {
                     $charts[$basename] = $version;
                 }
             }

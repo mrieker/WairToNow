@@ -145,9 +145,6 @@ public class ChartView
     private float[] trackpoints        = new float[tracktotal/trackspace*2];
     private LatLon drawCourseLineISect = new LatLon ();
     private LatLon newCtrLL = new LatLon ();
-    public  LatLon[] canvasMappingLatLons = new LatLon[] {
-            new LatLon (), new LatLon (), new LatLon (), new LatLon (),
-            new LatLon (), new LatLon (), new LatLon (), new LatLon () };
     private LinkedList<CapGrid> capgrids = new LinkedList<> ();
     public  int canvasWidth, canvasHeight;     // last seen canvas width,height
     private int centerInfoCanvasHeight;
@@ -1315,48 +1312,36 @@ public class ChartView
 
             // see if there is another segment beyond our current segment that we will turn to
             if (++ pai < len) {
+                Waypoint lastwp = clDest;
                 Waypoint nextwp = ara[pai];
-                boolean drawn = false;
                 if (speed > 1.0F) {
 
                     // make sure we are some minimal distance from next segment so we get a valid intersect point
-                    float offcourse = Lib.GCOffCourseDist (nextwp.lat, nextwp.lon, clDest.lat, clDest.lon, arrowLat, arrowLon);
+                    float offcourse = Lib.GCOffCourseDist (nextwp.lat, nextwp.lon, lastwp.lat, lastwp.lon, arrowLat, arrowLon);
                     if (Math.abs (offcourse) > 0.1F / scaling) {
 
                         // calculate where we would intersect the next segment if we kept on current
                         // heading from where we are now and make sure that point is in front of us
-                        if (Lib.GCIntersect (nextwp.lat, nextwp.lon, clDest.lat, clDest.lon, arrowLat, arrowLon, heading, isect)) {
+                        if (Lib.GCIntersect (nextwp.lat, nextwp.lon, lastwp.lat, lastwp.lon, arrowLat, arrowLon, heading, isect)) {
 
                             // make sure intersection point isn't way out at infinity
-                            float distFromCurrToDest = Lib.LatLonDist (arrowLat, arrowLon, clDest.lat, clDest.lon);
-                            float distFromISectToDest = Lib.LatLonDist (isect.lat, isect.lon, clDest.lat, clDest.lon);
+                            float distFromCurrToDest = Lib.LatLonDist (arrowLat, arrowLon, lastwp.lat, lastwp.lon);
+                            float distFromISectToDest = Lib.LatLonDist (isect.lat, isect.lon, lastwp.lat, lastwp.lon);
                             if (distFromISectToDest < distFromCurrToDest * 1.2F) {
-
-                                // draw dotted line from current position to intersection point
-                                DrawCourseLine (canvas, arrowLat, arrowLon, isect.lat, isect.lon, false);
-
-                                // draw dotted line from intersection point to that next point
-                                DrawCourseLine (canvas, isect.lat, isect.lon, nextwp.lat, nextwp.lon, false);
 
                                 // draw fillet showing the turn from current course to next course
                                 DrawCourseFillet (canvas, arrowLat, arrowLon, isect.lat, isect.lon, nextwp.lat, nextwp.lon);
-
-                                drawn = true;
                             }
                         }
                     }
                 }
 
-                // no fillet, just draw dotted line from current destination to next destination
-                if (!drawn) {
-                    DrawCourseLine (canvas, clDest.lat, clDest.lon, nextwp.lat, nextwp.lon, false);
-                }
-
                 // draw remaining course segments beyond that as dotted lines with no fillets
-                while (++ pai < len) {
-                    Waypoint wp = ara[pai];
-                    DrawCourseLine (canvas, nextwp.lat, nextwp.lon, wp.lat, wp.lon, false);
-                    nextwp = wp;
+                while (true) {
+                    DrawCourseLine (canvas, lastwp.lat, lastwp.lon, nextwp.lat, nextwp.lon, false);
+                    if (++ pai >= len) break;
+                    lastwp = nextwp;
+                    nextwp = ara[pai];
                 }
             }
         }
@@ -1754,27 +1739,6 @@ public class ChartView
         trLon = Lib.NormalLon (trLon);
         blLon = Lib.NormalLon (blLon);
         brLon = Lib.NormalLon (brLon);
-
-        /*
-         * Put canvas lat/lons in an array for detecting which maps are displayable.
-         * Includes four corners and midpoints along each edge.
-         */
-        canvasMappingLatLons[0].lat = tlLat;
-        canvasMappingLatLons[0].lon = tlLon;
-        canvasMappingLatLons[1].lat = trLat;
-        canvasMappingLatLons[1].lon = trLon;
-        canvasMappingLatLons[2].lat = blLat;
-        canvasMappingLatLons[2].lon = blLon;
-        canvasMappingLatLons[3].lat = brLat;
-        canvasMappingLatLons[3].lon = brLon;
-        canvasMappingLatLons[4].lat = (tlLat + trLat) / 2.0F;
-        canvasMappingLatLons[4].lon = Lib.AvgLons (tlLon, trLon);
-        canvasMappingLatLons[5].lat = (trLat + brLat) / 2.0F;
-        canvasMappingLatLons[5].lon = Lib.AvgLons (trLon, brLon);
-        canvasMappingLatLons[6].lat = (blLat + brLat) / 2.0F;
-        canvasMappingLatLons[6].lon = Lib.AvgLons (blLon, brLon);
-        canvasMappingLatLons[7].lat = (tlLat + blLat) / 2.0F;
-        canvasMappingLatLons[7].lon = Lib.AvgLons (tlLon, blLon);
 
         /*
          * Set up mapping.
@@ -2194,17 +2158,15 @@ public class ChartView
             Point pt = new Point ();
             for (Iterator<AirChart> it = wairToNow.maintView.GetAirChartIterator (); it.hasNext ();) {
                 AirChart ac = it.next ();
-                for (LatLon cmll : canvasMappingLatLons) {
-                    if (ac.LatLon2ChartPixelExact (cmll.lat, cmll.lon, pt)) {
-                        String spn = ac.GetSpacenameSansRev ();
-                        displayableCharts.put (spn, ac);
+                if (ac.ContributesToCanvas (pmap)) {
+                    String spn = ac.GetSpacenameSansRev ();
+                    displayableCharts.put (spn, ac);
 
-                        for (int i = 0; i < autoAirCharts.length; i ++) {
-                            AutoAirChart aac = autoAirCharts[i];
-                            if (!autoAirChartHits[i] && aac.Matches (spn) && ac.LatLonIsCharted (cmll.lat, cmll.lon)) {
-                                displayableCharts.put (aac.GetSpacenameSansRev (), aac);
-                                autoAirChartHits[i] = true;
-                            }
+                    for (int i = 0; i < autoAirCharts.length; i ++) {
+                        AutoAirChart aac = autoAirCharts[i];
+                        if (!autoAirChartHits[i] && aac.Matches (spn)) {
+                            displayableCharts.put (aac.GetSpacenameSansRev (), aac);
+                            autoAirChartHits[i] = true;
                         }
                     }
                 }

@@ -162,12 +162,35 @@ public abstract class AirChart implements DisplayableChart {
     }
 
     /**
-     * Get entry for chart selection menu.
+     * See if this chart could contribute something to the canvas.
+     * @param pmap = lat/lon mapping to the canvas
      */
-    @Override  // DisplayableChart
-    public View GetMenuSelector (ChartView chartView)
+    public boolean ContributesToCanvas (PixelMapper pmap)
     {
-        return GetMenuSelector (chartView.pmap, chartView.arrowLat, chartView.arrowLon, chartView.metrics);
+        // if our northmost pixels are south of the southmost part of canvas, we have nothing to contribute
+        if (chartedNorthLat <= pmap.canvasSouthLat) return false;
+
+        // if our southmost pixels are north of the northmost part of canvas, we have nothing to contribute
+        if (chartedSouthLat >= pmap.canvasNorthLat) return false;
+
+        // get canvas longitudes
+        // pmap has east lon minimally .ge. west lon
+        float canvasWest = pmap.canvasWestLon;
+        float canvasEast = pmap.canvasEastLon;
+
+        // wrap canvas east to be minimally .ge. chart west
+        while (canvasEast < chartedWestLon) {
+            canvasWest += 360.0F;
+            canvasEast += 360.0F;
+        }
+        while (canvasEast - chartedWestLon >= 360.0F) {
+            canvasWest -= 360.0F;
+            canvasEast -= 360.0F;
+        }
+
+        // canvas east .ge. chart west
+        // contributes if canvas west .lt. chart east
+        return canvasWest < chartedEastLon;
     }
 
     /**
@@ -179,11 +202,15 @@ public abstract class AirChart implements DisplayableChart {
 
     /**
      * Get entry for chart selection menu.
-     *
-     * @param pmap = map lat/lon to canvas pixels so we can draw canvas location
      */
-    private View GetMenuSelector (PixelMapper pmap, float arrowLat, float arrowLon, DisplayMetrics metrics)
+    @Override  // DisplayableChart
+    public View GetMenuSelector (ChartView chartView)
     {
+        PixelMapper pmap = chartView.pmap;
+        float arrowLat = chartView.arrowLat;
+        float arrowLon = chartView.arrowLon;
+        DisplayMetrics metrics = chartView.metrics;
+
         float arrowradpix = Mathf.sqrt (metrics.xdpi * metrics.ydpi) / 32.0F;
         float canvasradpix = arrowradpix * 1.5F;
 
@@ -249,7 +276,7 @@ public abstract class AirChart implements DisplayableChart {
         rectpath.lineTo (pt.x, pt.y);
         LatLon2GMSPixel (pmap.lastBlLat, pmap.lastBlLon, pt);
         rectpath.lineTo (pt.x, pt.y);
-        LatLon2GMSPixel (pmap.centerLat, pmap.centerLon, pt);
+        LatLon2GMSPixel (pmap.lastTlLat, pmap.lastTlLon, pt);
         rectpath.lineTo (pt.x, pt.y);
         can.drawPath (rectpath, paint);
 

@@ -125,6 +125,7 @@
                 pclose ($difffile);
                 if ($lasticaoid != "") echo "</UL></A>\n";
             }
+            echo "<P>The end.</P>\n";
         ?>
     </BODY>
 </HTML>

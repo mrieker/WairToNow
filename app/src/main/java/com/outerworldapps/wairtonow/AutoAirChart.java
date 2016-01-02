@@ -104,17 +104,15 @@ public class AutoAirChart implements DisplayableChart, Comparator<AirChart> {
     @Override  // DisplayableChart
     public void DrawOnCanvas (ChartView chartView, Canvas canvas)
     {
+        // fill white background for enroute charts cuz they sometimes leave gaps
+        if (category.equals ("ENR")) canvas.drawColor (Color.WHITE);
+
         // get list of the 2 or 3 charts we will be drawing this time
         long dcn = ++ viewDrawCycle;
         for (Iterator<AirChart> it = chartView.wairToNow.maintView.GetAirChartIterator (); it.hasNext ();) {
             AirChart ac = it.next ();
-            if (Matches (ac.GetSpacenameSansRev ())) {
-                for (LatLon cmll : chartView.canvasMappingLatLons) {
-                    if (ac.LatLonIsCharted (cmll.lat, cmll.lon)) {
-                        airCharts.put (ac, dcn);
-                        break;
-                    }
-                }
+            if (Matches (ac.GetSpacenameSansRev ()) && ac.ContributesToCanvas (chartView.pmap)) {
+                airCharts.put (ac, dcn);
             }
         }
 

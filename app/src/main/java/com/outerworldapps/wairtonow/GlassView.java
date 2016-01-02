@@ -273,8 +273,6 @@ public class GlassView
         int dgCentX   = canvasWidth  * 16 / 32;
         int altCentX  = canvasWidth  * 29 / 32;
 
-        DrawDirectionalGyro (canvas, dgCentX, dgCentY, dgRadius, maghdg);
-
         DrawChart (canvas, ahCentX, ahCentY, ahRadius, truehdg);
 
         float spdflt = currPos.speed * Lib.KtPerMPS;
@@ -285,7 +283,9 @@ public class GlassView
         int feet = Math.round (altitude * Lib.FtPerM);
         DrawNumericStrip (canvas, altCentX, altCentY, altHeight, altWidth, feet, -100, 8, -999998, gsalt, tdze);
 
-        DrawDestinationInfo (canvas, dstCentX, dstCentY, currPos);
+        Waypoint stepahead = DrawDestinationInfo (canvas, dstCentX, dstCentY, currPos);
+
+        DrawDirectionalGyro (canvas, dgCentX, dgCentY, dgRadius, maghdg, stepahead);
 
         /*
          * Display destination approach selector boxes.
@@ -353,9 +353,13 @@ public class GlassView
 
     /**
      * Draw string giving destination data: waypoint  distance  timeremaining
+     * @return null: still on course for the destination
+     *         else: in turn on way to next segment of the route
      */
-    private void DrawDestinationInfo (Canvas canvas, int centX, int centY, Position currPos)
+    private Waypoint DrawDestinationInfo (Canvas canvas, int centX, int centY, Position currPos)
     {
+        Waypoint stepahead = null;
+
         Waypoint destwp = wairToNow.chartView.clDest;
         if (destwp != null) {
 
@@ -447,22 +451,18 @@ public class GlassView
                             // hollow if before turn should start, solid if at or past
                             int maghdgbin = Math.round (nexthdg + magvariation + 359.0F) % 360 + 1;
                             String maghdgstr = Integer.toString (maghdgbin + 1000).substring (1);
+                            boolean on = (tostartsec < 0) || ((tostartsec & 1) == 0);
                             if (hdgdiff > 0) {
-                                if (tostartsec <= 0) {
-                                    sb.append (" \u25B6");
-                                } else {
-                                    sb.append (" \u25B7");
-                                }
+                                sb.append (on ? " \u25B6" : " \u25B7");
                                 sb.append (maghdgstr);
                                 sb.append ('\u00B0');
                             } else {
-                                if (tostartsec <= 0) {
-                                    sb.insert (0, "\u00B0\u25C0 ");
-                                } else {
-                                    sb.insert (0, "\u00B0\u25C1 ");
-                                }
+                                sb.insert (0, on ? "\u00B0\u25C0 " : "\u00B0\u25C1 ");
                                 sb.insert (0, maghdgstr);
                             }
+
+                            // if should be in the turn, flip hsi needle to the next heading on the route
+                            if (tostartsec <= 0) stepahead = nextwp;
                         }
                     }
                 }
@@ -471,6 +471,8 @@ public class GlassView
             // draw the string with background
             DrawTextWithBG (canvas, sb.toString (), centX, centY, dgPaintHSV, dgPaintBack);
         }
+
+        return stepahead;
     }
 
     /**
@@ -480,7 +482,7 @@ public class GlassView
      * @param radius  = radius of the circle to draw
      * @param heading = numerical heading to draw gyro with (degrees)
      */
-    private void DrawDirectionalGyro (Canvas canvas, int centX, int centY, int radius, float heading)
+    private void DrawDirectionalGyro (Canvas canvas, int centX, int centY, int radius, float heading, Waypoint stepahead)
     {
         gsalt = -999999;
         tdze  = -999999;
@@ -515,14 +517,6 @@ public class GlassView
          */
         Waypoint clDest = wairToNow.chartView.clDest;
         if (clDest != null) {
-
-            /*
-             * Current course origination and destination points.
-             */
-            float orgLat = wairToNow.chartView.orgLat;
-            float orgLon = wairToNow.chartView.orgLon;
-            float dstLat = clDest.lat;
-            float dstLon = clDest.lon;
 
             /*
              * Our current position.
@@ -570,6 +564,20 @@ public class GlassView
              * If not approaching a runway at destination airport, use enroute mode.
              */
             if (gsalt == -999999) {
+
+                // current course origination and destination points.
+                float orgLat = wairToNow.chartView.orgLat;
+                float orgLon = wairToNow.chartView.orgLon;
+                float dstLat = clDest.lat;
+                float dstLon = clDest.lon;
+
+                if (stepahead != null) {
+                    orgLat = dstLat;
+                    orgLon = dstLon;
+                    dstLat = stepahead.lat;
+                    dstLon = stepahead.lon;
+                }
+
                 // find out how far off course we are
                 float offCourseDist = Lib.GCOffCourseDist (orgLat, orgLon, dstLat, dstLon, curLat, curLon);
 
@@ -599,7 +607,6 @@ public class GlassView
         DrawTextWithBG (canvas, hdgstr, 0, -radius * 20 / 16, dgPaintVal, dgPaintBack);
 
         canvas.restore ();
-
     }
 
     /**
@@ -661,7 +668,7 @@ public class GlassView
             } else {
                 canvas.rotate (-90);
             }
-            canvas.drawText ("< " + deflectRiteStr + " >", 0, (int)xdisp, dgPaintHSV);
+            canvas.drawText ("\u25C1" + deflectRiteStr + "\u25B7", 0, (int)xdisp, dgPaintHSV);
         }
 
         canvas.restore ();
