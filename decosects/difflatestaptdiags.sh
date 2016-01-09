@@ -36,7 +36,7 @@ cd `dirname $0`
 
 if [ DiffArptDgmCsvs.exe -ot DiffArptDgmCsvs.cs ]
 then
-    gmcs -out:DiffArptDgmCsvs.exe DiffArptDgmCsvs.cs
+    mcs -debug -out:DiffArptDgmCsvs.exe DiffArptDgmCsvs.cs
 fi
 
 ls -d datums/apdgeorefs_* | findrevisions

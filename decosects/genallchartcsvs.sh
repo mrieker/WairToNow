@@ -34,7 +34,7 @@ cd `dirname $0`
 
 if [ GenChartsCSV.exe -ot GenChartsCSV.cs ]
 then
-    gmcs -debug -out:GenChartsCSV.exe GenChartsCSV.cs
+    mcs -debug -out:GenChartsCSV.exe GenChartsCSV.cs
 fi
 
 cd charts

@@ -145,7 +145,7 @@ fi
 
 if [ ReadArptDgmPng.exe -ot ReadArptDgmPng.cs ]
 then
-    gmcs -debug -out:ReadArptDgmPng.exe -reference:System.Drawing.dll ReadArptDgmPng.cs
+    mcs -debug -out:ReadArptDgmPng.exe -reference:System.Drawing.dll ReadArptDgmPng.cs
 fi
 
 if [ cureffdate -ot cureffdate.c ]

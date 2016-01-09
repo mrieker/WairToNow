@@ -158,7 +158,7 @@ fi
 
 if [ GetIFRChartNames.exe -ot GetIFRChartNames.cs ]
 then
-    gmcs -debug -out:GetIFRChartNames.exe GetIFRChartNames.cs
+    mcs -debug -out:GetIFRChartNames.exe GetIFRChartNames.cs
 fi
 
 effdate_mm=`./cureffdate 'mm-dd-yyyy'`

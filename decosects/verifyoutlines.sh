@@ -15,7 +15,7 @@ then
 else
     if [ VerifyOutline.exe -ot VerifyOutline.cs ] 
     then
-        gmcs -debug -out:VerifyOutline.exe -reference:System.Drawing.dll VerifyOutline.cs ChartTiff.cs
+        mcs -debug -out:VerifyOutline.exe -reference:System.Drawing.dll VerifyOutline.cs ChartTiff.cs
     fi
     xargs -L 1 -P 9 $0 < ../webpages/outlines.txt
 fi

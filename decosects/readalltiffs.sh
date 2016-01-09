@@ -49,7 +49,7 @@ cd `dirname $0`
 
 if [ ReadTiffFile.exe -ot ReadTiffFile.cs ]
 then
-    gmcs -debug -out:ReadTiffFile.exe -reference:System.Drawing.dll ReadTiffFile.cs ChartTiff.cs
+    mcs -debug -out:ReadTiffFile.exe -reference:System.Drawing.dll ReadTiffFile.cs ChartTiff.cs
 fi
 
 cd charts

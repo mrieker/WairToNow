@@ -11,8 +11,8 @@
 #
 #   mono with libgdiplus.so
 #       $ mono --version
-#       Mono JIT compiler version 2.10.9 (tarball-DN/85979a6 Wed May 13 08:33:35 EDT 2015)
-#       Copyright (C) 2002-2011 Novell, Inc, Xamarin, Inc and Contributors. www.mono-project.com
+#       Mono JIT compiler version 4.2.1 (4.2.1.102-mmr/132a070 Sat Jan  9 09:30:22 EST 2016)
+#       Copyright (C) 2002-2014 Novell, Inc, Xamarin Inc and Contributors. www.mono-project.com
 #
 #   java
 #       $ java -version

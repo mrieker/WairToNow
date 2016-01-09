@@ -69,32 +69,37 @@ fi
 
 if [ GetAirportIDs.exe -ot GetAirportIDs.cs ]
 then
-    gmcs -debug -out:GetAirportIDs.exe GetAirportIDs.cs
+    mcs -debug -out:GetAirportIDs.exe GetAirportIDs.cs
 fi
 
 if [ GetFixes.exe -ot GetFixes.cs ]
 then
-    gmcs -debug -out:GetFixes.exe GetFixes.cs
+    mcs -debug -out:GetFixes.exe GetFixes.cs
 fi
 
 if [ WriteAirportsCsv.exe -ot WriteAirportsCsv.cs ]
 then
-    gmcs -debug -out:WriteAirportsCsv.exe WriteAirportsCsv.cs
+    mcs -debug -out:WriteAirportsCsv.exe WriteAirportsCsv.cs
+fi
+
+if [ WriteAirwaysCsv.exe -ot WriteAirwaysCsv.cs ]
+then
+    mcs -debug -out:WriteAirwaysCsv.exe WriteAirwaysCsv.cs
 fi
 
 if [ WriteLocalizersCsv.exe -ot WriteLocalizersCsv.cs ]
 then
-    gmcs -debug -out:WriteLocalizersCsv.exe WriteLocalizersCsv.cs
+    mcs -debug -out:WriteLocalizersCsv.exe WriteLocalizersCsv.cs
 fi
 
 if [ WriteNavaidsCsv.exe -ot WriteNavaidsCsv.cs ]
 then
-    gmcs -debug -out:WriteNavaidsCsv.exe WriteNavaidsCsv.cs
+    mcs -debug -out:WriteNavaidsCsv.exe WriteNavaidsCsv.cs
 fi
 
 if [ MakeWaypoints.exe -ot MakeWaypoints.cs ]
 then
-    gmcs -debug -out:MakeWaypoints.exe MakeWaypoints.cs -reference:System.Data.dll -reference:Mono.Data.Sqlite.dll
+    mcs -debug -out:MakeWaypoints.exe MakeWaypoints.cs -reference:System.Data.dll -reference:Mono.Data.Sqlite.dll
 fi
 
 #

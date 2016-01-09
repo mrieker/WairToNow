@@ -249,7 +249,7 @@ fi
 
 if [ GetAptPlates.exe -ot GetAptPlates.cs ]
 then
-    gmcs -debug -out:GetAptPlates.exe GetAptPlates.cs
+    mcs -debug -out:GetAptPlates.exe GetAptPlates.cs
 fi
 
 rm -rf airportids.tmp.* aptplates.tmp

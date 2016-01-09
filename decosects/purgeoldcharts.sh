@@ -65,7 +65,7 @@ function purgedatum
 
 if [ PurgeOldCharts.exe -ot PurgeOldCharts.cs ]
 then
-    gmcs -out:PurgeOldCharts.exe PurgeOldCharts.cs
+    mcs -debug -out:PurgeOldCharts.exe PurgeOldCharts.cs
 fi
 
 mkdir -p purged-charts
