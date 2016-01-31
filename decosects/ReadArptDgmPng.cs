@@ -34,7 +34,7 @@
  *        -sDEVICE=pngalpha -dTextAlphaBits=4 -dGraphicsAlphaBits=4 -r300x300 -dFirstPage=1 -dLastPage=1 \
  *        -sOutputFile=<pngname> <pdfname>
  *
- *    mono --debug ReadArptDgmPng.exe -verbose aptdiags_300_20150108/KBPT.png \
+ *    mono --debug ReadArptDgmPng.exe -verbose datums/aptplates_20160303/pngtemp/006/21ad.png.p1 \
  *        -csvoutfile KBPT.csv -csvoutid KBPT
  */
 
@@ -452,6 +452,7 @@ public class ReadArptDgmPng {
         badStrings["KWRB:83^36'"]     = "83^36'W";
 
         // simply misread strings
+        badStrings["KBDR:1^09.5'N"]   = "41^09.5'N";
         badStrings["KBPT:96^01.0'W"]  = "94^01.0'W";
         badStrings["KNSI:33^1S"]      = "33^15'N";
         badStrings["KNSI:33'^14'N"]   = "33^14'N";

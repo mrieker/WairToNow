@@ -174,6 +174,7 @@ public class DecodePlate {
         ipf.add ("PHX:IAP-ILS OR LOC RWY 07R:ALLIS");   // ALLIS fenced off crooked
         ipf.add ("MGW:IAP-VOR-A:TEDDS");                // TEDDS missed approach not boxed off
         ipf.add ("MIA:IAP-RNAV (GPS) Z RWY 30:BRBRA");  // BRBRA missed approach box badly drawn
+        ipf.add ("MYU:IAP-RNAV (GPS) RWY 23:BURRI");    // BURRI gets mixed up with MSA depiction
         ipf.add ("OUN:IAP-LOC RWY 03:SOONR");           // SOONR OM/INT eye-shaped marker we don't do
         ipf.add ("OXC:IAP-RNAV (GPS) RWY 18:BISCO");    // this plate is really messed up
         ipf.add ("OXC:IAP-RNAV (GPS) RWY 18:GICEN");
