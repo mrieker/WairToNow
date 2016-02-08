@@ -186,145 +186,8 @@ END;
      */
     function getFixLatLon ($faaid, $fixid)
     {
-        global $cycles56, $datdir;
-
         static $sqldb = FALSE;
-
-        if (!$sqldb) {
-            if (!file_exists ("$datdir/latlon_$cycles56.db")) {
-                echo "<P>generating lat/lon sqlite file</P>\n";
-                @flush (); @ob_flush (); @flush ();
-
-                @unlink ("$datdir/latlon_$cycles56.db.tmp");
-                $sqldb = new SQLite3 ("$datdir/latlon_$cycles56.db.tmp");
-                checkSQLiteError ($sqldb, __LINE__);
-
-                $sqldb->exec ("CREATE TABLE LatLons (fixid TEXT, lat REAL NOT NULL, lon REAL NOT NULL)");
-                checkSQLiteError ($sqldb, __LINE__);
-                $sqldb->exec ("CREATE INDEX LatLon_fixid ON LatLons (fixid)");
-                checkSQLiteError ($sqldb, __LINE__);
-
-                $sqldb->exec ("CREATE TABLE Airports (faaid TEXT, icaoid NOT NULL, lat REAL NOT NULL, lon REAL NOT NULL)");
-                checkSQLiteError ($sqldb, __LINE__);
-                $sqldb->exec ("CREATE INDEX Airport_faaid ON Airports (faaid)");
-                checkSQLiteError ($sqldb, __LINE__);
-                $sqldb->exec ("CREATE INDEX Airport_icaoid ON Airports (icaoid)");
-                checkSQLiteError ($sqldb, __LINE__);
-
-                $n = 0;
-                $sqldb->exec ("BEGIN");
-
-                echo "<P> - airports</P>\n";
-                @flush (); @ob_flush (); @flush ();
-                $aptfile = fopen ("datums/airports_$cycles56.csv", "r");
-                while ($aptline = fgets ($aptfile)) {
-                    $cols   = QuotedCSVSplit ($aptline);
-                    $icaoid = $cols[0];  // eg, KBVY
-                    $afaaid = $cols[1];
-                    $lat    = $cols[4];
-                    $lon    = $cols[5];
-                    $sqldb->exec ("INSERT INTO LatLons (fixid,lat,lon) VALUES ('$icaoid',$lat,$lon)");
-                    checkSQLiteError ($sqldb, __LINE__);
-                    $sqldb->exec ("INSERT INTO Airports (faaid,icaoid,lat,lon) VALUES ('$afaaid','$icaoid',$lat,$lon)");
-                    checkSQLiteError ($sqldb, __LINE__);
-                    if (++ $n == 1024) {
-                        $sqldb->exec ("COMMIT");
-                        $n = 0;
-                        $sqldb->exec ("BEGIN");
-                        set_time_limit (30);
-                    }
-                }
-                fclose ($aptfile);
-
-                echo "<P> - fixes</P>\n";
-                @flush (); @ob_flush (); @flush ();
-                $fixfile = fopen ("datums/fixes_$cycles56.csv", "r");
-                while ($fixline = fgets ($fixfile)) {
-                    $cols  = QuotedCSVSplit ($fixline);
-                    $fixid = $cols[0];  // eg, BOSOX
-                    $lat   = $cols[1];
-                    $lon   = $cols[2];
-                    $sqldb->exec ("INSERT INTO LatLons (fixid,lat,lon) VALUES ('$fixid',$lat,$lon)");
-                    checkSQLiteError ($sqldb, __LINE__);
-                    if (++ $n == 1024) {
-                        $sqldb->exec ("COMMIT");
-                        $n = 0;
-                        $sqldb->exec ("BEGIN");
-                        set_time_limit (30);
-                    }
-                }
-                fclose ($fixfile);
-
-                echo "<P> - localizers</P>\n";
-                @flush (); @ob_flush (); @flush ();
-                $locfile = fopen ("datums/localizers_$cycles56.csv", "r");
-                while ($locline = fgets ($locfile)) {
-                    $cols  = QuotedCSVSplit ($locline);
-                    $fixid = $cols[1];  // eg, I-BVY
-                    $lat   = $cols[4];
-                    $lon   = $cols[5];
-                    if (($lat == '') || ($lon == '')) continue;
-                    $sqldb->exec ("INSERT INTO LatLons (fixid,lat,lon) VALUES ('$fixid',$lat,$lon)");
-                    checkSQLiteError ($sqldb, __LINE__);
-                    if (++ $n == 1024) {
-                        $sqldb->exec ("COMMIT");
-                        $n = 0;
-                        $sqldb->exec ("BEGIN");
-                        set_time_limit (30);
-                    }
-                }
-                fclose ($locfile);
-
-                echo "<P> - navaids</P>\n";
-                @flush (); @ob_flush (); @flush ();
-                $navfile = fopen ("datums/navaids_$cycles56.csv", "r");
-                while ($navline = fgets ($navfile)) {
-                    $cols  = QuotedCSVSplit ($navline);
-                    $fixid = $cols[1];  // eg, LWM
-                    $lat   = $cols[4];
-                    $lon   = $cols[5];
-                    $sqldb->exec ("INSERT INTO LatLons (fixid,lat,lon) VALUES ('$fixid',$lat,$lon)");
-                    checkSQLiteError ($sqldb, __LINE__);
-                    if (++ $n == 1024) {
-                        $sqldb->exec ("COMMIT");
-                        $n = 0;
-                        $sqldb->exec ("BEGIN");
-                        set_time_limit (30);
-                    }
-                }
-                fclose ($navfile);
-
-                echo "<P> - runways</P>\n";
-                @flush (); @ob_flush (); @flush ();
-                $rwyfile = fopen ("datums/runways_$cycles56.csv", "r");
-                while ($rwyline = fgets ($rwyfile)) {
-                    $cols     = QuotedCSVSplit ($rwyline);
-                    $rwyfaaid = $cols[0];  // eg, BVY
-                    $rwynumid = $cols[1];  // eg, 09
-                    $lat      = $cols[4];
-                    $lon      = $cols[5];
-                    $sqldb->exec ("INSERT INTO LatLons (fixid,lat,lon) VALUES ('$rwyfaaid.RW$rwynumid',$lat,$lon)");
-                    checkSQLiteError ($sqldb, __LINE__);
-                    if (++ $n == 1024) {
-                        $sqldb->exec ("COMMIT");
-                        $n = 0;
-                        $sqldb->exec ("BEGIN");
-                        set_time_limit (30);
-                    }
-                }
-                fclose ($rwyfile);
-
-                echo "<P> - finished</P>\n";
-                @flush (); @ob_flush (); @flush ();
-                $sqldb->exec ("COMMIT");
-                $sqldb->close ();
-
-                rename ("$datdir/latlon_$cycles56.db.tmp", "$datdir/latlon_$cycles56.db");
-            }
-
-            $sqldb = new SQLite3 ("$datdir/latlon_$cycles56.db", SQLITE3_OPEN_READONLY);
-            checkSQLiteError ($sqldb, __LINE__);
-        }
+        if (!$sqldb) $sqldb = openLatLonDatabase ();
 
         // strip off any DME info
         $i = strpos ($fixid, '[');
@@ -381,6 +244,164 @@ END;
         }
 
         return $bestrow;
+    }
+
+    /**
+     * Get airport ICAO id given an FAA id
+     */
+    function getIcaoId ($faaid)
+    {
+        static $sqldb = FALSE;
+        if (!$sqldb) $sqldb = openLatLonDatabase ();
+
+        $result = $sqldb->querySingle ("SELECT icaoid FROM Airports WHERE faaid='$faaid'", TRUE);
+        checkSQLiteError ($sqldb, __LINE__);
+
+        if (!$result) return FALSE;
+        return $result['icaoid'];
+    }
+
+    /**
+     * Open database of lat/lon -> ident tables.
+     */
+    function openLatLonDatabase ()
+    {
+        global $cycles56, $datdir;
+
+        if (!file_exists ("$datdir/latlon_$cycles56.db")) {
+            echo "<P>generating lat/lon sqlite file</P>\n";
+            @flush (); @ob_flush (); @flush ();
+
+            @unlink ("$datdir/latlon_$cycles56.db.tmp");
+            $sqldb = new SQLite3 ("$datdir/latlon_$cycles56.db.tmp");
+            checkSQLiteError ($sqldb, __LINE__);
+
+            $sqldb->exec ("CREATE TABLE LatLons (fixid TEXT, lat REAL NOT NULL, lon REAL NOT NULL)");
+            checkSQLiteError ($sqldb, __LINE__);
+            $sqldb->exec ("CREATE INDEX LatLon_fixid ON LatLons (fixid)");
+            checkSQLiteError ($sqldb, __LINE__);
+
+            $sqldb->exec ("CREATE TABLE Airports (faaid TEXT, icaoid NOT NULL, lat REAL NOT NULL, lon REAL NOT NULL)");
+            checkSQLiteError ($sqldb, __LINE__);
+            $sqldb->exec ("CREATE INDEX Airport_faaid ON Airports (faaid)");
+            checkSQLiteError ($sqldb, __LINE__);
+            $sqldb->exec ("CREATE INDEX Airport_icaoid ON Airports (icaoid)");
+            checkSQLiteError ($sqldb, __LINE__);
+
+            $n = 0;
+            $sqldb->exec ("BEGIN");
+
+            echo "<P> - airports</P>\n";
+            @flush (); @ob_flush (); @flush ();
+            $aptfile = fopen ("datums/airports_$cycles56.csv", "r");
+            while ($aptline = fgets ($aptfile)) {
+                $cols   = QuotedCSVSplit ($aptline);
+                $icaoid = $cols[0];  // eg, KBVY
+                $afaaid = $cols[1];
+                $lat    = $cols[4];
+                $lon    = $cols[5];
+                $sqldb->exec ("INSERT INTO LatLons (fixid,lat,lon) VALUES ('$icaoid',$lat,$lon)");
+                checkSQLiteError ($sqldb, __LINE__);
+                $sqldb->exec ("INSERT INTO Airports (faaid,icaoid,lat,lon) VALUES ('$afaaid','$icaoid',$lat,$lon)");
+                checkSQLiteError ($sqldb, __LINE__);
+                if (++ $n == 1024) {
+                    $sqldb->exec ("COMMIT");
+                    $n = 0;
+                    $sqldb->exec ("BEGIN");
+                    set_time_limit (30);
+                }
+            }
+            fclose ($aptfile);
+
+            echo "<P> - fixes</P>\n";
+            @flush (); @ob_flush (); @flush ();
+            $fixfile = fopen ("datums/fixes_$cycles56.csv", "r");
+            while ($fixline = fgets ($fixfile)) {
+                $cols  = QuotedCSVSplit ($fixline);
+                $fixid = $cols[0];  // eg, BOSOX
+                $lat   = $cols[1];
+                $lon   = $cols[2];
+                $sqldb->exec ("INSERT INTO LatLons (fixid,lat,lon) VALUES ('$fixid',$lat,$lon)");
+                checkSQLiteError ($sqldb, __LINE__);
+                if (++ $n == 1024) {
+                    $sqldb->exec ("COMMIT");
+                    $n = 0;
+                    $sqldb->exec ("BEGIN");
+                    set_time_limit (30);
+                }
+            }
+            fclose ($fixfile);
+
+            echo "<P> - localizers</P>\n";
+            @flush (); @ob_flush (); @flush ();
+            $locfile = fopen ("datums/localizers_$cycles56.csv", "r");
+            while ($locline = fgets ($locfile)) {
+                $cols  = QuotedCSVSplit ($locline);
+                $fixid = $cols[1];  // eg, I-BVY
+                $lat   = $cols[4];
+                $lon   = $cols[5];
+                if (($lat == '') || ($lon == '')) continue;
+                $sqldb->exec ("INSERT INTO LatLons (fixid,lat,lon) VALUES ('$fixid',$lat,$lon)");
+                checkSQLiteError ($sqldb, __LINE__);
+                if (++ $n == 1024) {
+                    $sqldb->exec ("COMMIT");
+                    $n = 0;
+                    $sqldb->exec ("BEGIN");
+                    set_time_limit (30);
+                }
+            }
+            fclose ($locfile);
+
+            echo "<P> - navaids</P>\n";
+            @flush (); @ob_flush (); @flush ();
+            $navfile = fopen ("datums/navaids_$cycles56.csv", "r");
+            while ($navline = fgets ($navfile)) {
+                $cols  = QuotedCSVSplit ($navline);
+                $fixid = $cols[1];  // eg, LWM
+                $lat   = $cols[4];
+                $lon   = $cols[5];
+                $sqldb->exec ("INSERT INTO LatLons (fixid,lat,lon) VALUES ('$fixid',$lat,$lon)");
+                checkSQLiteError ($sqldb, __LINE__);
+                if (++ $n == 1024) {
+                    $sqldb->exec ("COMMIT");
+                    $n = 0;
+                    $sqldb->exec ("BEGIN");
+                    set_time_limit (30);
+                }
+            }
+            fclose ($navfile);
+
+            echo "<P> - runways</P>\n";
+            @flush (); @ob_flush (); @flush ();
+            $rwyfile = fopen ("datums/runways_$cycles56.csv", "r");
+            while ($rwyline = fgets ($rwyfile)) {
+                $cols     = QuotedCSVSplit ($rwyline);
+                $rwyfaaid = $cols[0];  // eg, BVY
+                $rwynumid = $cols[1];  // eg, 09
+                $lat      = $cols[4];
+                $lon      = $cols[5];
+                $sqldb->exec ("INSERT INTO LatLons (fixid,lat,lon) VALUES ('$rwyfaaid.RW$rwynumid',$lat,$lon)");
+                checkSQLiteError ($sqldb, __LINE__);
+                if (++ $n == 1024) {
+                    $sqldb->exec ("COMMIT");
+                    $n = 0;
+                    $sqldb->exec ("BEGIN");
+                    set_time_limit (30);
+                }
+            }
+            fclose ($rwyfile);
+
+            echo "<P> - finished</P>\n";
+            @flush (); @ob_flush (); @flush ();
+            $sqldb->exec ("COMMIT");
+            $sqldb->close ();
+
+            rename ("$datdir/latlon_$cycles56.db.tmp", "$datdir/latlon_$cycles56.db");
+        }
+
+        $sqldb = new SQLite3 ("$datdir/latlon_$cycles56.db", SQLITE3_OPEN_READONLY);
+        checkSQLiteError ($sqldb, __LINE__);
+        return $sqldb;
     }
 
     /**

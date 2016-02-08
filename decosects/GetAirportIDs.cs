@@ -317,9 +317,11 @@ public class GetAirportIDs {
 
             // this goes into the airports_<expdate>.csv file
             // the info string is displayed on the FAAWP page itself
+            string csvstate = apt.state;
+            if ((csvstate == "") || (csvstate == "GU")) csvstate = "XX";
             airports.WriteLine (apt.icaoid + "," + apt.faaid + "," + apt.elevatn + "," +
                     QuotedString (apt.aptname, '"') + "," + apt.aptlat + "," + apt.aptlon + "," +
-                    apt.variatn + "," + QuotedString (apt.info, '"') + "," + apt.state + "," + apt.nvp["faciluse"]);
+                    apt.variatn + "," + QuotedString (apt.info, '"') + "," + csvstate + "," + apt.nvp["faciluse"]);
 
             // this goes into the aptinfo_<expdate>/f/aaid.html.gz file and is displayed when the Info button is clicked
             StreamWriter infofile = new StreamWriter (args[2] + "/" + apt.faaid + ".html");

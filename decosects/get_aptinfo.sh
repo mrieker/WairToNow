@@ -77,11 +77,6 @@ then
     mcs -debug -out:GetFixes.exe GetFixes.cs
 fi
 
-if [ WriteAirportsCsv.exe -ot WriteAirportsCsv.cs ]
-then
-    mcs -debug -out:WriteAirportsCsv.exe WriteAirportsCsv.cs
-fi
-
 if [ WriteAirwaysCsv.exe -ot WriteAirwaysCsv.cs ]
 then
     mcs -debug -out:WriteAirwaysCsv.exe WriteAirwaysCsv.cs
