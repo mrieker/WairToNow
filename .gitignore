@@ -20,6 +20,7 @@ decosects/ReadArptDgmPng_learnt.png
 .idea/workspace.xml
 machine_*.rej
 machine_*.csv
+maketopodatafiles
 purged-*
 readoneline
 streets

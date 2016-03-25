@@ -1364,7 +1364,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
             sb.append (Lib.DistString (nm, mphOption).replace (" ", ""));
             sb.append ('\u25B6');
             sb.append (wp.ident);
-            if (lastGPSpeed > 1.0F) {
+            if (lastGPSpeed > WairToNow.gpsMinSpeedMPS) {
                 long etams = nowms + Math.round (totnm / lastGPSpeed / Lib.KtPerMPS * 3600000.0F);
                 int etamin = (int) ((etams / 60000) % 1440);
                 sb.append (' ');
@@ -1383,7 +1383,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
         if (totnm > 0.0F) {
             sb.append ("total: ");
             sb.append (Lib.DistString (totnm, mphOption));
-            if (lastGPSpeed > 1.0F) {
+            if (lastGPSpeed > WairToNow.gpsMinSpeedMPS) {
                 sb.append (" ete: ");
                 int seconds = Math.round (totnm / lastGPSpeed / Lib.KtPerMPS * 3600.0F);
                 int minutes = seconds / 60;

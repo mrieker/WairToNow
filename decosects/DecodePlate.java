@@ -162,6 +162,7 @@ public class DecodePlate {
         HashSet<String> ipf = new HashSet<String> ();
         ipf.add ("ABI:IAP-VOR OR GPS-A:TQA");           // TQA needs to be extended a bit - not to scale
         ipf.add ("ARR:IAP-VOR RWY 33:DPA");             // DPA needs a fence - not to scale
+        ipf.add ("BIE:IAP-VOR RWY 36:CUEBE");
         ipf.add ("BOI:IAP-ILS OR LOC RWY 10R:SALLA");   // SALLA needs a fence - not to scale
         ipf.add ("DCU:IAP-VOR RWY 18:MASHA");           // MASHA needs a fence - not to scale
         ipf.add ("EWR:IAP-VORDME RWY 22L:PATRN");       // PATRN needs a fence - not to scale

@@ -37,30 +37,67 @@ public class WriteNavaidsCsv {
 
     public static void Main ()
     {
-        string type  = "";
-        string ident = "";
-        string name  = "";
-        string elev  = "";
-        string freq  = "";
-        string city  = "";
-        double lat   = 0.0;
-        double lon   = 0.0;
+        string type   = "";
+        string ident  = "";
+        string name   = "";
+        string elev   = "";
+        string freq   = "";
+        string city   = "";
+        double lat    = 0.0;
+        double lon    = 0.0;
+        double thdg   = 0.0;
+        string gsalt  = "";      // gs antenna elevation feet msl
+        string gsang  = "";      // angle in degrees, eg, 2.75
+        double gslat  = 0.0;     // glideslope antenna location
+        double gslon  = 0.0;
+        string dmealt = "";
+        double dmelat = 0.0;
+        double dmelon = 0.0;
 
         string line;
         while ((line = Console.ReadLine ()) != null) {
             if (line.StartsWith ("ILS1")) {
-                type  = line.Substring (18, 10).Trim ();
-                ident = line.Substring (28,  6).Trim ();
-                name  = line.Substring (44, 50).Trim () + " rwy " + line.Substring (15, 3).Trim ();  // airport name and runway number
-                city  = line.Substring (94, 40).Trim () + ", " + line.Substring (136, 20).Trim ();   // city and state
+                if (type != "") {
+                    Console.WriteLine (type + "," + ident + "," + elev + ",\"" + name + " - " + freq + " - " + city + "\"," + lat + "," + lon + "," + thdg + "," + gsalt + "," + gsang + "," + gslat + "," + gslon + "," + dmealt + "," + dmelat + "," + dmelon);
+                    type   = "";
+                    ident  = "";
+                    name   = "";
+                    elev   = "";
+                    freq   = "";
+                    city   = "";
+                    lat    = 0.0;
+                    lon    = 0.0;
+                    thdg   = 0.0;
+                    gsalt  = "";
+                    gsang  = "";
+                    gslat  = 0.0;
+                    gslon  = 0.0;
+                    dmealt = "";
+                    dmelat = 0.0;
+                    dmelon = 0.0;
+                }
+                type   = line.Substring (18, 10).Trim ();
+                ident  = line.Substring (28,  6).Trim ();
+                name   = line.Substring (44, 50).Trim () + " rwy " + line.Substring (15, 3).Trim ();  // airport name and runway number
+                city   = line.Substring (94, 40).Trim () + ", " + line.Substring (136, 20).Trim ();   // city and state
+                thdg   = Double.Parse (line.Substring (281, 6).Trim ()) - ParseVariation (line.Substring (287, 3).Trim ());
             }
             if (line.StartsWith ("ILS2")) {
-                lat   = DecodeLatLon (line.Substring (74, 11).Trim (), 'N', 'S');
-                lon   = DecodeLatLon (line.Substring (99, 11).Trim (), 'E', 'W');
-                elev  = line.Substring (126, 7).Trim ();
-                freq  = line.Substring (133, 7).Trim ();
-
-                Console.WriteLine (type + "," + ident + "," + elev + ",\"" + name + " - " + freq + " - " + city + "\"," + lat + "," + lon + ",,");
+                lat    = DecodeLatLon (line.Substring (74, 11).Trim (), 'N', 'S');
+                lon    = DecodeLatLon (line.Substring (99, 11).Trim (), 'E', 'W');
+                elev   = line.Substring (126, 7).Trim ();
+                freq   = line.Substring (133, 7).Trim ();
+            }
+            if (line.StartsWith ("ILS3")) {
+                gsalt  = line.Substring (126, 7).Trim ();
+                gsang  = line.Substring (148, 5).Trim ();
+                gslat  = DecodeLatLon (line.Substring (74, 11).Trim (), 'N', 'S');
+                gslon  = DecodeLatLon (line.Substring (99, 11).Trim (), 'E', 'W');
+            }
+            if (line.StartsWith ("ILS4")) {
+                dmealt = line.Substring (126, 7).Trim ();
+                dmelat = DecodeLatLon (line.Substring (74, 11).Trim (), 'N', 'S');
+                dmelon = DecodeLatLon (line.Substring (99, 11).Trim (), 'E', 'W');
             }
 
             if (line.StartsWith ("ILS5")) {
@@ -73,9 +110,12 @@ public class WriteNavaidsCsv {
                 string markerfreq = line.Substring (182,  3).Trim ();   // marker beacon frequency
 
                 if ((markeridnt != "") && (markerfreq != "")) {
-                    Console.WriteLine (markertype + "," + markeridnt + "," + markerelev + ",\"" + markername + " - " + markerfreq + " - " + city + "\"," + markerlat + "," + markerlon + ",,");
+                    Console.WriteLine (markertype + "," + markeridnt + "," + markerelev + ",\"" + markername + " - " + markerfreq + " - " + city + "\"," + markerlat + "," + markerlon + ",,,,,,,,");
                 }
             }
+        }
+        if (type != "") {
+            Console.WriteLine (type + "," + ident + "," + elev + ",\"" + name + " - " + freq + " - " + city + "\"," + lat + "," + lon + "," + thdg + "," + gsalt + "," + gsang + "," + gslat + "," + gslon + "," + dmealt + "," + dmelat + "," + dmelon);
         }
     }
 
@@ -86,5 +126,14 @@ public class WriteNavaidsCsv {
         if (str[lm1] == negch) sec = -sec;
         else if (str[lm1] != posch) throw new Exception ("bad latlon direction");
         return sec / 3600.0;
+    }
+
+    private static int ParseVariation (string str)
+    {
+        int lm1 = str.Length - 1;
+        int v = int.Parse (str.Substring (0, lm1));
+        if (str[lm1] == 'E') return -v;
+        if (str[lm1] == 'W') return v;
+        throw new Exception ("bad variation direction");
     }
 }

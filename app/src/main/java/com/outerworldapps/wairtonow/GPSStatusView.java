@@ -203,11 +203,6 @@ public class GPSStatusView
     @Override
     protected void onDraw (Canvas canvas)
     {
-        if (satellites == null) {
-            canvas.drawText ("No satellite status yet", 10, 40, textPaint);
-            return;
-        }
-
         int canvasWidth   = getWidth ();
         int circleCenterX = canvasWidth / 2;
         int circleCenterY = canvasWidth / 2;
@@ -231,7 +226,7 @@ public class GPSStatusView
             canvas.drawCircle (circleCenterX, circleCenterY, circleRadius * 60 / 90, ringsPaint);
             canvas.drawCircle (circleCenterX, circleCenterY, circleRadius * 90 / 90, ringsPaint);
 
-            for (GpsSatellite sat : satellites) {
+            if (satellites != null) for (GpsSatellite sat : satellites) {
                 // hasAlmanac() and hasEphemeris() seem to always return false
                 // getSnr() in range 0..30 approx
                 float size = sat.getSnr () / 3;

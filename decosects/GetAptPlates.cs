@@ -84,6 +84,8 @@ public class GetAptPlates {
                                 string typepart = parts[k+3];    // APD, IAP, ...
                                 string linkpart = parts[k+4];    // <a href="http://aeronav.faa.gov/d-tpp/1503/05039ad.pdf">AIRPORT DIAGRAM</a>
 
+                                //Console.WriteLine ("stat=" + statpart + " flag=" + flagpart + " type=" + typepart + " link=" + linkpart);
+
                                 i  = statpart.IndexOf ("</td>");
                                 statpart = statpart.Substring (0, i).Trim ();
 
@@ -94,12 +96,18 @@ public class GetAptPlates {
                                 i  = typepart.IndexOf ("</td>");
                                 typepart = typepart.Substring (0, i).Trim ();
 
-                                i  = linkpart.IndexOf ("\">");
-                                string pdfurl = linkpart.Substring (9, i - 9);
-                                i += 2;
-                                j  = linkpart.IndexOf ("</a>", i);
-
-                                string title  = linkpart.Substring (i, j - i);
+                                string pdfurl, title;
+                                if (flagpart != "D") {
+                                    i  = linkpart.IndexOf ("\">");
+                                    pdfurl = linkpart.Substring (9, i - 9);
+                                    i += 2;
+                                    j  = linkpart.IndexOf ("</a>", i);
+                                    title  = linkpart.Substring (i, j - i);
+                                } else {
+                                    i  = linkpart.IndexOf ("</td>");
+                                    pdfurl = "-";
+                                    title  = linkpart.Substring (0, i);
+                                }
 
                                 datfile.WriteLine (flagpart + " " + statpart + " " + faaid + " " + pdfurl + " " + typepart);
                                 datfile.WriteLine (title);

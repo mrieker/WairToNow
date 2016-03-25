@@ -498,22 +498,54 @@ END;
                 if (!$missed) die ("<P>good.db SELECT error<P>");
                 $first = TRUE;
                 while ($row = $missed->fetchArray (SQLITE3_ASSOC)) {
+                    $icaoid_plate = $row['icaoid_plate'];
+                    $parts  = explode (':', $icaoid_plate);
+                    $icaoid = $parts[0];
+                    $plate  = substr ($icaoid_plate, strlen ($icaoid) + 1);
+                    $delerr = '';
+                    if (PlateMarkedWithD ($icaoid, $plate)) {
+                        if ($gooddb->exec ("DELETE FROM LatLons WHERE icaoid_plate='$icaoid_plate'")) continue;
+                        $delerr = "<BR>error deleting $icaoid_plate: " . $gooddb->lastErrorMsg ();
+                    }
                     if ($first) {
                         echo "<P><B>Missing plates:</B></P><UL>\n";
                         $first = FALSE;
                     }
-                    $icaoid_plate = $row['icaoid_plate'];
-                    $parts  = explode (':', $icaoid_plate);
-                    $icaoid = $parts[0];
-                    $plate  = substr ($icaoid_plate, strlen ($icaoid));
                     echo "<SPAN ID=\"$icaoid_plate\"><LI><INPUT TYPE=BUTTON ONCLICK=\"popUp('$icaoid')\" VALUE=\"$icaoid\">$plate ";
                     echo "<INPUT TYPE=BUTTON VALUE=\"D'LEET\" ONCLICK=\"okToDel ('$icaoid_plate')\"></LI></SPAN>\n";
+                    echo $delerr;
                 }
                 if ($first) {
                     echo "<P>No missing plates since last check.</P>";
                 } else {
                     echo "</UL>";
                 }
+            }
+
+            /**
+             * See if the plate is marked 'D' on the FAA webpage.
+             * Fortunately we have datafiles with the parsed info.
+             */
+            function PlateMarkedWithD ($icaoid, $plateid)
+            {
+                $aptinfo = getAptInfo ($icaoid);
+                if (!$aptinfo) return FALSE;
+                $faaid   = $aptinfo[1];
+                $cycle   = getAiracCycles28 ();
+                $gapfile = fopen ("datums/getaptplates_$cycle/$faaid.dat", 'r');
+                if (!$gapfile) return FALSE;
+                while ($parmsline = fgets ($gapfile)) {
+                    $parmsline = trim ($parmsline);
+                    $parms     = explode (' ', $parmsline);
+                    $plateline = str_replace ('/', '', trim (fgets ($gapfile)));
+                    $itsplate  = $parms[4] . '-' . $plateline;
+                    if ($itsplate == $plateid) {
+                        fclose ($gapfile);
+                        return $parms[0] == 'D';
+                    }
+                }
+                fclose ($gapfile);
+                return FALSE;
             }
 
             /**

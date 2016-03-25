@@ -74,8 +74,6 @@ public class WaypointView extends LinearLayout
     public  float centerLon;
     private File oldSearchFile;
     private FindButton findButton;
-    public  float centerHdg;
-    public  float centerSpd;
     private InfoButton infoButton;
     private LinearLayout oldSearchRow;
     private LinearLayout waypointLinear;
@@ -86,7 +84,7 @@ public class WaypointView extends LinearLayout
     private SearchTextView searchTextView;
     private String tabName;
     public  WairToNow wairToNow;
-    private Waypoint selectedWaypoint;
+    public  Waypoint selectedWaypoint;
     public  Waypoint.Within waypointsWithin;
 
     public WaypointView (WairToNow ctx, String tn)
@@ -354,8 +352,6 @@ public class WaypointView extends LinearLayout
     {
         centerLat  = (float) loc.getLatitude ();
         centerLon  = (float) loc.getLongitude ();
-        centerSpd  = loc.getSpeed ();
-        centerHdg  = loc.getBearing ();
         centerAlt  = (float) loc.getAltitude ();
         centerTime = loc.getTime ();
     }

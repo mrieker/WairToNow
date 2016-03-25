@@ -174,6 +174,7 @@ public class ChartView
     private Paint currentBGPaint    = new Paint ();
     private Paint currentLnPaint    = new Paint ();
     private Paint currentTxPaint    = new Paint ();
+    private Paint topoPaint         = new Paint ();
     private Paint trailPaint        = new Paint ();
     private Paint wayptBGPaint      = new Paint ();
     private Paint[] faaWPPaints     = new Paint[] { new Paint (), new Paint () };
@@ -322,6 +323,11 @@ public class ChartView
         currentTxPaint.setStrokeWidth (2);
         currentTxPaint.setTextSize (ts);
         currentTxPaint.setTextAlign (Paint.Align.CENTER);
+
+        topoPaint.setColor (Color.BLUE);
+        topoPaint.setStyle (Paint.Style.FILL_AND_STROKE);
+        topoPaint.setStrokeWidth (5);
+        topoPaint.setTextSize (ts);
 
         trailPaint.setColor (Color.argb (255, 100, 75, 75));
         trailPaint.setStyle (Paint.Style.STROKE);
@@ -985,6 +991,10 @@ public class ChartView
             canvas.drawText ("out of memory error", canvasWidth / 2, canvasHeight * 3/4, courseTxPaint);
         }
 
+        if (wairToNow.optionsView.topoOption.checkBox.isChecked ()) {
+            DrawTopography (canvas);
+        }
+
         /*
          * Maybe draw CAP grid lines and numbers.
          */
@@ -1010,7 +1020,7 @@ public class ChartView
                     trailPath.rewind ();
                     // if standing still, draw a circle with our thinnest line
                     float mps = loc.getSpeed ();
-                    if (mps < 1.0F) {
+                    if (mps < WairToNow.gpsMinSpeedMPS) {
                         trailPaint.setStrokeWidth (sw);
                         trailPath.addCircle (pt.x, pt.y, dx, Path.Direction.CCW);
                     } else {
@@ -1279,7 +1289,7 @@ public class ChartView
         // we might still be in the middle of turning from a previous route segment onto the current
         // if so, draw a fillet for the remainder of the turn
         LatLon isect = drawCourseLineISect;
-        if (speed > 1.0F) {
+        if (speed > WairToNow.gpsMinSpeedMPS) {
 
             // see how far away we are from the current course line and don't bother drawing fillet if close
             float offcourse = Lib.GCOffCourseDist (orgLat, orgLon, clDest.lat, clDest.lon, arrowLat, arrowLon);
@@ -1314,7 +1324,7 @@ public class ChartView
             if (++ pai < len) {
                 Waypoint lastwp = clDest;
                 Waypoint nextwp = ara[pai];
-                if (speed > 1.0F) {
+                if (speed > WairToNow.gpsMinSpeedMPS) {
 
                     // make sure we are some minimal distance from next segment so we get a valid intersect point
                     float offcourse = Lib.GCOffCourseDist (nextwp.lat, nextwp.lon, lastwp.lat, lastwp.lon, arrowLat, arrowLon);
@@ -1607,6 +1617,33 @@ public class ChartView
     }
 
     /**
+     * Draw elevation every 10mins on chart.
+     */
+    private void DrawTopography (Canvas canvas)
+    {
+        final float spacing = 10.F/60.0F;
+        int ilatmin = Math.round (pmap.canvasSouthLat / spacing);
+        int ilatmax = Math.round (pmap.canvasNorthLat / spacing);
+        int ilonmin = Math.round (pmap.canvasWestLon  / spacing);
+        int ilonmax = Math.round (pmap.canvasEastLon  / spacing);
+        if (ilonmax < ilonmin) ilonmax += Math.round (360.0F / spacing);
+        for (int ilat = ilatmin; ilat <= ilatmax; ilat ++) {
+            for (int ilon = ilonmin; ilon <= ilonmax; ilon ++) {
+                float lat = ilat * spacing;
+                float lon = ilon * spacing;
+                if (LatLon2CanPixExact (lat, lon, canpix1)) {
+                    short elev = Topography.getElevMetres (lat, lon);
+                    if (elev != Topography.INVALID_ELEV) {
+                        String elevstr = Integer.toString (Math.round (elev * Lib.FtPerM));
+                        canvas.drawCircle (canpix1.x, canpix1.y, 5, topoPaint);
+                        canvas.drawText (elevstr, canpix1.x + 10, canpix1.y - 10, topoPaint);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
      * Draw CAP grid lines and numbers.
      */
     private void DrawCapGrid (Canvas canvas)
@@ -1894,7 +1931,7 @@ public class ChartView
                 courseInfoMCToStr = wairToNow.optionsView.HdgString (tcto, arrowLat, arrowLon, altitude);
 
                 courseInfoEteStr = "";
-                if (speed >= 1.0) {
+                if (speed >= WairToNow.gpsMinSpeedMPS) {
                     int etesec = (int) (dist * Lib.MPerNM / speed + 0.5);
                     int etemin = etesec / 60;
                     int etehrs = etemin / 60;
@@ -2155,7 +2192,6 @@ public class ChartView
             displayableCharts.put (streetChart.GetSpacenameSansRev (), streetChart);
 
             boolean[] autoAirChartHits = new boolean[autoAirCharts.length];
-            Point pt = new Point ();
             for (Iterator<AirChart> it = wairToNow.maintView.GetAirChartIterator (); it.hasNext ();) {
                 AirChart ac = it.next ();
                 if (ac.ContributesToCanvas (pmap)) {

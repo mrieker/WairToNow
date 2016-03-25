@@ -50,6 +50,7 @@ public class OptionsView
     public  CheckOption  gpsCompassOption;
     public  CheckOption  powerLockOption;
     public  CheckOption  userWPOption;
+    public  CheckOption  topoOption;
     public  DefAltOption ktsMphOption;
     public  DefAltOption magTrueOption;
     public  DefAltOption listMapOption;
@@ -81,6 +82,7 @@ public class OptionsView
         capGridOption     = new CheckOption  ("Show CAP grids",        false);
         faaWPOption       = new CheckOption  ("Show FAA waypoints",    false);
         userWPOption      = new CheckOption  ("Show User waypoints",   true);
+        topoOption        = new CheckOption  ("Show Topography",       false);
         powerLockOption   = new CheckOption  ("Power Lock",            false);
         gpsCompassOption  = new CheckOption  ("GPS status compass",    false);
         magTrueOption     = new DefAltOption ("Magnetic", "True");
@@ -122,6 +124,7 @@ public class OptionsView
         ll1.addView (capGridOption);
         ll1.addView (faaWPOption);
         ll1.addView (userWPOption);
+        ll1.addView (topoOption);
         ll1.addView (powerLockOption);
         ll1.addView (gpsCompassOption);
         ll1.addView (chartOrientOption);
@@ -265,6 +268,7 @@ public class OptionsView
                     if (name.equals ("capGrid"))     capGridOption.checkBox.setChecked    (valu.equals (boolTrue));
                     if (name.equals ("faaWPs"))      faaWPOption.checkBox.setChecked      (valu.equals (boolTrue));
                     if (name.equals ("userWPs"))     userWPOption.checkBox.setChecked     (valu.equals (boolTrue));
+                    if (name.equals ("topo"))        topoOption.checkBox.setChecked       (valu.equals (boolTrue));
                     if (name.equals ("powerLock"))   powerLockOption.checkBox.setChecked  (valu.equals (boolTrue));
                     if (name.equals ("gpsCompass"))  gpsCompassOption.checkBox.setChecked (valu.equals (boolTrue));
                     if (name.equals ("chartOrient")) chartOrientOption.setKey (valu);
@@ -294,6 +298,7 @@ public class OptionsView
                 csvwriter.write ("capGrid,"     + Boolean.toString (capGridOption.checkBox.isChecked ())    + "\n");
                 csvwriter.write ("faaWPs,"      + Boolean.toString (faaWPOption.checkBox.isChecked ())      + "\n");
                 csvwriter.write ("userWPs,"     + Boolean.toString (userWPOption.checkBox.isChecked ())     + "\n");
+                csvwriter.write ("topo,"        + Boolean.toString (topoOption.checkBox.isChecked ())       + "\n");
                 csvwriter.write ("powerLock,"   + Boolean.toString (powerLockOption.checkBox.isChecked ())  + "\n");
                 csvwriter.write ("gpsCompass,"  + Boolean.toString (gpsCompassOption.checkBox.isChecked ()) + "\n");
                 csvwriter.write ("chartOrient," + chartOrientOption.getKey ()                               + "\n");

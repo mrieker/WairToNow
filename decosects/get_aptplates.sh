@@ -9,6 +9,9 @@
 #
 #  Takes 3 hours to run
 #
+#  $1 = "" : do all plates of all airports
+#  $1 = icaoid : do all plates of just the one airport
+#
 
 #
 #  Split stdin into files airportids.tmp.{1..$1}
@@ -80,6 +83,11 @@ function downloadone
     type=$6
     title="$7"
     title=${title//\//}
+
+    if [ "$flag" == "D" ]
+    then
+        return
+    fi
 
     case $type in
 
@@ -193,8 +201,9 @@ function downloadone
 
 #
 #  Download all PDF files given in stdin and process them
-#  First stdin line has expiration date yyyymmdd
-#  Rest of lines are <flag> <state> <faaid> <aptdiagpdfurl> <type> '<title>'
+#  Lines are pairs of:
+#      <flag> <state> <faaid> <aptdiagpdfurl> <type>
+#      <title>
 #
 function downloadall
 {
@@ -217,6 +226,24 @@ function getaptplates
     set +e
     mono --debug GetAptPlates.exe $airac < airportids.tmp.$1 | downloadall $1
     rm airportids.tmp.$1
+}
+
+#
+#  Process just one airport whos icaoid is given in $1
+#
+function justdooneairport
+{
+    set -e
+    grep "^$1," datums/airports_$aixd.csv | mono --debug GetAptPlates.exe $airac | downloadall 0
+    dir=datums/aptplates_$expdate
+    stdir=$dir/state
+    mkdir -p $stdir
+    tmpfile=`echo aptplates.tmp/*`
+    state=${tmpfile#*.tmp/}
+    state=${state%.*}
+    sort -u $stdir/$state.csv $tmpfile > justdooneairport.tmp
+    mv -f justdooneairport.tmp $stdir/$state.csv
+    rm -rf aptplates.tmp
 }
 
 #
@@ -259,6 +286,12 @@ aixd=`./cureffdate -x yyyymmdd`
 expdate=`./cureffdate -28 -x yyyymmdd`
 if [ "$expdate" == "" ]
 then
+    exit
+fi
+
+if [ "$1" != "" ]
+then
+    justdooneairport $1
     exit
 fi
 

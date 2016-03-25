@@ -52,6 +52,7 @@ import android.widget.TextView;
 public class WairToNow extends Activity {
     private final static String TAG = "WairToNow";
     public final static long gpsDownDelay = 15000;
+    public final static float gpsMinSpeedMPS = 3.0F;
 
     public static String dbdir;
     public static WTNHandler wtnHandler;
@@ -89,6 +90,7 @@ public class WairToNow extends Activity {
     private TabButton agreeButton;
     public  TabButton currentTabButton;
     public  UserWPView userWPView;
+    private VirtNavView virtNav1View, virtNav2View;
     public  WaypointView waypointView1, waypointView2;
     private Waypoint pendingCourseSetWP;
 
@@ -227,6 +229,12 @@ public class WairToNow extends Activity {
         gpsStatusView = new GPSStatusView (this);
 
         /*
+         * Virtual nav dials.
+         */
+        virtNav1View = new VirtNavView (this, "VirtNav1");
+        virtNav2View = new VirtNavView (this, "VirtNav2");
+
+        /*
          * Set up GPS sampling.
          * We don't actually enable it here,
          * it gets enabled/disabled by the onResume()/onPause()
@@ -269,6 +277,8 @@ public class WairToNow extends Activity {
         tabButtonLayout.addView (routeButton);
         tabButtonLayout.addView (crumbsButton);
         tabButtonLayout.addView (planButton);
+        tabButtonLayout.addView (new TabButton (virtNav1View));
+        tabButtonLayout.addView (new TabButton (virtNav2View));
         tabButtonLayout.addView (optionsButton);
         tabButtonLayout.addView (maintButton);
         tabButtonLayout.addView (gpsStatusButton);
@@ -471,7 +481,7 @@ public class WairToNow extends Activity {
     {
         currentGPSLat = (float) loc.getLatitude ();
         currentGPSLon = (float) loc.getLongitude ();
-        if (loc.getSpeed () < 1.0F) {
+        if (loc.getSpeed () < gpsMinSpeedMPS) {
             loc.setBearing (currentGPSHdg);
         } else {
             currentGPSHdg = loc.getBearing ();
@@ -487,6 +497,8 @@ public class WairToNow extends Activity {
         glassView.SetGPSLocation (loc);
         gpsStatusView.SetGPSLocation (loc);
         routeView.SetGPSLocation (loc);
+        virtNav1View.SetGPSLocation (loc);
+        virtNav2View.SetGPSLocation (loc);
         waypointView1.SetGPSLocation (loc);
         waypointView2.SetGPSLocation (loc);
 

@@ -23,11 +23,11 @@
 
 function getzip
 {
-    if [ ! -f datums/$1.$expdate.zip ]
+    if [ ! -f datums/$1_$expdate.zip ]
     then
         rm -f $1.zip
         wget --no-check-certificate https://nfdc.faa.gov/webContent/56DaySub/$effdate/$1.zip
-        mv -f $1.zip datums/$1.$expdate.zip
+        mv -f $1.zip datums/$1_$expdate.zip
     fi
 }
 
@@ -123,8 +123,8 @@ getzip TWR
 #
 #  Generate airport and runway info
 #
-unzip datums/APT.$expdate.zip
-unzip datums/TWR.$expdate.zip
+unzip datums/APT_$expdate.zip
+unzip datums/TWR_$expdate.zip
 mkdir aptinfo.tmp
 cat APT.txt TWR.txt | mono --debug GetAirportIDs.exe airports.tmp runways.tmp aptinfo.tmp aptinfo.html
 rm -f APT.txt TWR.txt
@@ -132,28 +132,28 @@ rm -f APT.txt TWR.txt
 #
 #  Generate airway info
 #
-unzip datums/AWY.$expdate.zip
+unzip datums/AWY_$expdate.zip
 mono --debug WriteAirwaysCsv.exe < AWY.txt
 rm -f AWY.txt
 
 #
 #  Generate fix info
 #
-unzip datums/FIX.$expdate.zip
+unzip datums/FIX_$expdate.zip
 mono --debug GetFixes.exe < FIX.txt | sort > fixes.csv
 rm -f FIX.txt
 
 #
 #  Generate localizer info
 #
-unzip datums/ILS.$expdate.zip
+unzip datums/ILS_$expdate.zip
 mono --debug WriteLocalizersCsv.exe < ILS.txt | sort > localizers.csv
 rm -f ILS.txt
 
 #
 #  Generate navaid info
 #
-unzip datums/NAV.$expdate.zip
+unzip datums/NAV_$expdate.zip
 mono --debug WriteNavaidsCsv.exe < NAV.txt | sort > navaids.csv
 rm -f NAV.txt
 

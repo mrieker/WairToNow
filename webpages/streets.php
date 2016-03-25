@@ -28,6 +28,7 @@
     if (isset ($_GET['tile'])) {
         $tile = $_GET['tile'];
         $newpath = download ($tile);
+        header ('Content-Type: image/png');
         readfile ($newpath);
         return;
     }

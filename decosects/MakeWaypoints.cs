@@ -184,7 +184,8 @@ public class MakeWaypoints {
              * Load localizer info into database.
              */
             DoCommand (dbcon, "CREATE TABLE localizers (loc_type TEXT, loc_faaid TEXT, loc_elev INTEGER, loc_name TEXT NOT NULL, " +
-                    "loc_lat REAL NOT NULL, loc_lon REAL NOT NULL);");
+                    "loc_lat REAL NOT NULL, loc_lon REAL NOT NULL, loc_thdg REAL NOT NULL, gs_elev REAL, gs_tilt REAL, gs_lat REAL, gs_lon REAL, " +
+                    "dme_elev REAL, dme_lat REAL, dme_lon REAL);");
             DoCommand (dbcon, "CREATE TABLE lockeys (kw_key TEXT NOT NULL, kw_rowid INTEGER NOT NULL);");
             DoCommand (dbcon, "CREATE INDEX localizers_faaid ON localizers (loc_faaid);");
             DoCommand (dbcon, "CREATE INDEX localizers_lats  ON localizers (loc_lat);");
@@ -198,14 +199,22 @@ public class MakeWaypoints {
                 long rowid;
                 IDbCommand dbcmd1 = dbcon.CreateCommand ();
                 try {
-                    dbcmd1.CommandText = "INSERT INTO localizers (loc_type,loc_faaid,loc_elev,loc_name,loc_lat,loc_lon) " +
-                            "VALUES (@loc_type,@loc_faaid,@loc_elev,@loc_name,@loc_lat,@loc_lon); SELECT last_insert_rowid ()";
+                    dbcmd1.CommandText = "INSERT INTO localizers (loc_type,loc_faaid,loc_elev,loc_name,loc_lat,loc_lon,loc_thdg,gs_elev,gs_tilt,gs_lat,gs_lon,dme_elev,dme_lat,dme_lon) " +
+                            "VALUES (@loc_type,@loc_faaid,@loc_elev,@loc_name,@loc_lat,@loc_lon,@loc_thdg,@gs_elev,@gs_tilt,@gs_lat,@gs_lon,@dme_elev,@dme_lat,@dme_lon); SELECT last_insert_rowid ()";
                     dbcmd1.Parameters.Add (new SqliteParameter ("@loc_type",   cols[0]));
                     dbcmd1.Parameters.Add (new SqliteParameter ("@loc_faaid",  cols[1]));
                     dbcmd1.Parameters.Add (new SqliteParameter ("@loc_elev",   ParseElev (cols[2])));
                     dbcmd1.Parameters.Add (new SqliteParameter ("@loc_name",   cols[3]));
                     dbcmd1.Parameters.Add (new SqliteParameter ("@loc_lat",    double.Parse (cols[4])));
                     dbcmd1.Parameters.Add (new SqliteParameter ("@loc_lon",    double.Parse (cols[5])));
+                    dbcmd1.Parameters.Add (new SqliteParameter ("@loc_thdg",   cols[6]));
+                    dbcmd1.Parameters.Add (new SqliteParameter ("@gs_elev",    ParseElev (cols[7])));
+                    dbcmd1.Parameters.Add (new SqliteParameter ("@gs_tilt",    ParseElev (cols[8])));
+                    dbcmd1.Parameters.Add (new SqliteParameter ("@gs_lat",     ParseElev (cols[9])));
+                    dbcmd1.Parameters.Add (new SqliteParameter ("@gs_lon",     ParseElev (cols[10])));
+                    dbcmd1.Parameters.Add (new SqliteParameter ("@dme_elev",   ParseElev (cols[11])));
+                    dbcmd1.Parameters.Add (new SqliteParameter ("@dme_lat",    ParseElev (cols[12])));
+                    dbcmd1.Parameters.Add (new SqliteParameter ("@dme_lon",    ParseElev (cols[13])));
                     rowid = (long) dbcmd1.ExecuteScalar ();
                 } finally {
                     dbcmd1.Dispose ();
@@ -219,6 +228,18 @@ public class MakeWaypoints {
                     dbcmd2.ExecuteNonQuery ();
                 } finally {
                     dbcmd2.Dispose ();
+                }
+
+                if (cols[1].StartsWith ("I-")) {
+                    IDbCommand dbcmd3 = dbcon.CreateCommand ();
+                    try {
+                        dbcmd3.CommandText = "INSERT INTO lockeys (kw_key,kw_rowid) VALUES (@kw_key,@kw_rowid)";
+                        dbcmd3.Parameters.Add (new SqliteParameter ("@kw_key"  , "I" + cols[1].Substring (2)));
+                        dbcmd3.Parameters.Add (new SqliteParameter ("@kw_rowid", rowid));
+                        dbcmd3.ExecuteNonQuery ();
+                    } finally {
+                        dbcmd3.Dispose ();
+                    }
                 }
 
                 if (++ i == 1024) {

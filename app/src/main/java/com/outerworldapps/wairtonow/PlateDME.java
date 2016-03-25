@@ -232,12 +232,15 @@ public class PlateDME {
                     while (sb.length () < 5) sb.append (' ');
 
                     // distance (in nautical miles) to DME station
-                    float distBin = Lib.LatLonDist (gpslat, gpslon, wp.lat, wp.lon);
+                    float dmeelev = wp.GetDMEElev ();
+                    float dmelat  = wp.GetDMELat  ();
+                    float dmelon  = wp.GetDMELon  ();
+                    float distBin = Lib.LatLonDist (gpslat, gpslon, dmelat, dmelon);
                     boolean slantRange = false;
                     int slantRangeBeg = 0;
                     int slantRangeEnd = 0;
-                    if (wp.elev != Waypoint.ELEV_UNKNOWN) {
-                        distBin = Mathf.hypot (distBin, (gpsalt - wp.elev / Lib.FtPerM) / Lib.MPerNM);
+                    if (dmeelev != Waypoint.ELEV_UNKNOWN) {
+                        distBin = Mathf.hypot (distBin, (gpsalt - dmeelev / Lib.FtPerM) / Lib.MPerNM);
                         slantRange = true;
                     }
                     if ((checked & DMECB_DIST) != 0) {

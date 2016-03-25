@@ -376,7 +376,7 @@ public class GlassView
             }
 
             // make sure we are going some minimal speed so we can calculate time
-            if (currPos.speed > 1.0F) {
+            if (currPos.speed > WairToNow.gpsMinSpeedMPS) {
 
                 // time to destination. either HH:MM or MM:SS
                 sb.append (' ');

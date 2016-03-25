@@ -62,7 +62,7 @@ public abstract class Waypoint {
 
     private static ArrayList<Class<? extends Waypoint>> GetWaypointClasses ()
     {
-        ArrayList<Class<? extends Waypoint>> al = new ArrayList<> (4);
+        ArrayList<Class<? extends Waypoint>> al = new ArrayList<> (5);
         al.add (Airport.class);
         al.add (Fix.class);
         al.add (Intersection.class);
@@ -104,6 +104,9 @@ public abstract class Waypoint {
                 }
             } catch (Exception e) {
                 Log.e (TAG, "error reading " + dbname, e);
+            }
+            if (wplist.isEmpty () && ident.startsWith ("I") && !ident.startsWith ("I-")) {
+                return GetWaypointsByIdent ("I-" + ident.substring (1));
             }
         }
         return wplist;
@@ -162,7 +165,11 @@ public abstract class Waypoint {
                 sb.append (' ');
             }
         }
-        return sb.toString ().trim ();
+        String out = sb.toString ().trim ();
+        if (out.startsWith ("I ") && key.toUpperCase ().startsWith ("I-")) {
+            out = "I-" + out.substring (2);
+        }
+        return out;
     }
 
     public static LinkedList<Waypoint> GetWaypointsMatchingKey (String key)
@@ -297,6 +304,30 @@ public abstract class Waypoint {
         done.run ();
     }
 
+    // get magnetic variation
+    public float GetMagVar (float altmsl)
+    {
+        if (magvar != VAR_UNKNOWN) return magvar;
+        if (elev != ELEV_UNKNOWN) {
+            altmsl = elev / Lib.FtPerM;
+        }
+        return Lib.MagVariation (lat, lon, altmsl);
+    }
+
+    // DME is normally at same spot
+    public float GetDMEElev ()
+    {
+        return elev;
+    }
+    public float GetDMELat ()
+    {
+        return lat;
+    }
+    public float GetDMELon ()
+    {
+        return lon;
+    }
+
     /**
      * Get waypoints within a lat/lon area.
      */
@@ -391,6 +422,7 @@ public abstract class Waypoint {
     public static class Airport extends Waypoint  {
         public final static String  dbtable = "airports";
         public final static String  dbkeyid = "apt_icaoid";
+        @SuppressWarnings ("unused")  // reflection
         public final static String  dbkytbl = "aptkeys";
         public final static String[] dbcols = new String[] { "apt_icaoid", "apt_faaid", "apt_elev", "apt_name", "apt_lat", "apt_lon", "apt_desc", "apt_state" };
 
@@ -551,7 +583,6 @@ public abstract class Waypoint {
         public HashMap<String,Runway> GetRunways ()
         {
             if (runways == null) {
-                runways = new HashMap<> ();
 
                 /*
                  * Read list of runways into airport waypoint list.
@@ -820,23 +851,48 @@ public abstract class Waypoint {
         }
     }
 
-    private static class Localizer extends Waypoint {
+    public static class Localizer extends Waypoint {
+        @SuppressWarnings ("unused")  // reflection
         public final static String  dbtable = "localizers";
+        @SuppressWarnings ("unused")  // reflection
         public final static String  dbkeyid = "loc_faaid";
+        @SuppressWarnings ("unused")  // reflection
         public final static String  dbkytbl = "lockeys";
-        public final static String[] dbcols = new String[] { "loc_type", "loc_faaid", "loc_elev", "loc_name", "loc_lat", "loc_lon" };
+        @SuppressWarnings ("unused")  // reflection
+        public final static String[] dbcols = new String[] {
+                "loc_type", "loc_faaid", "loc_elev",
+                "loc_name", "loc_lat", "loc_lon", "loc_thdg",
+                "gs_elev", "gs_tilt", "gs_lat", "gs_lon",
+                "dme_elev", "dme_lat", "dme_lon" };
 
         public String type;  // "ILS", "LOC/DME", "LOCALIZER", etc
         public String descr;
 
+        public float thdg;
+        public float gs_elev;
+        public float gs_tilt;
+        public float gs_lat;
+        public float gs_lon;
+        public float dme_elev;
+        public float dme_lat;
+        public float dme_lon;
+
         public Localizer (Cursor result)
         {
-            this.type  = result.getString (0);
-            this.ident = result.getString (1);
-            this.elev  = result.isNull (2) ? ELEV_UNKNOWN : result.getFloat (2);
-            this.descr = result.getString (3);
-            this.lat   = result.getFloat (4);
-            this.lon   = result.getFloat (5);
+            this.type     = result.getString (0);
+            this.ident    = result.getString (1);
+            this.elev     = result.isNull    (2) ? ELEV_UNKNOWN : result.getFloat (2);
+            this.descr    = result.getString (3);
+            this.lat      = result.getFloat  (4);
+            this.lon      = result.getFloat  (5);
+            this.thdg     = result.getFloat  (6);
+            this.gs_elev  = result.isNull    (7) ? ELEV_UNKNOWN : result.getFloat (7);
+            this.gs_tilt  = result.isNull    (8) ? 0 : result.getFloat (8);
+            this.gs_lat   = result.getFloat  (9);
+            this.gs_lon   = result.getFloat (10);
+            this.dme_elev = result.isNull   (11) ? ELEV_UNKNOWN : result.getFloat (11);
+            this.dme_lat  = result.getFloat (12);
+            this.dme_lon  = result.getFloat (13);
         }
 
         @Override
@@ -856,12 +912,40 @@ public abstract class Waypoint {
         {
             return GetDetailText ();
         }
+
+        // make sure we match on something like ILWM as well as I-LWM
+        @Override
+        public boolean MatchesKeyword (String key)
+        {
+            return (ident.startsWith ("I-") && key.equals ("I" + ident.substring (2))) ||
+                    super.MatchesKeyword (key);
+        }
+
+        @Override
+        public float GetDMEElev ()
+        {
+            return ((dme_lat != 0) || (dme_lon != 0)) ? dme_elev : elev;
+        }
+        @Override
+        public float GetDMELat ()
+        {
+            return ((dme_lat != 0) || (dme_lon != 0)) ? dme_lat : lat;
+        }
+        @Override
+        public float GetDMELon ()
+        {
+            return ((dme_lat != 0) || (dme_lon != 0)) ? dme_lon : lon;
+        }
     }
 
     public static class Navaid extends Waypoint {
+        @SuppressWarnings ("unused")  // reflection
         public final static String  dbtable = "navaids";
+        @SuppressWarnings ("unused")  // reflection
         public final static String  dbkeyid = "nav_faaid";
+        @SuppressWarnings ("unused")  // reflection
         public final static String  dbkytbl = "navkeys";
+        @SuppressWarnings ("unused")  // reflection
         public final static String[] dbcols = new String[] { "nav_type", "nav_faaid", "nav_elev", "nav_name", "nav_lat", "nav_lon", "nav_magvar" };
 
         public String type;  // "NDB", "VOR", "VOR/DME", etc
@@ -898,9 +982,13 @@ public abstract class Waypoint {
     }
 
     private static class Fix extends Waypoint {
+        @SuppressWarnings ("unused")  // reflection
         public final static String  dbtable = "fixes";
+        @SuppressWarnings ("unused")  // reflection
         public final static String  dbkeyid = "fix_name";
+        @SuppressWarnings ("unused")  // reflection
         public final static String  dbkytbl = "fixkeys";
+        @SuppressWarnings ("unused")  // reflection
         public final static String[] dbcols = new String[] { "fix_name", "fix_lat", "fix_lon", "fix_desc" };
 
         private String descr;
@@ -937,9 +1025,13 @@ public abstract class Waypoint {
      * Defined in AWY.txt for intersections of airways where there is no fix.
      */
     public static class Intersection extends Waypoint {
+        @SuppressWarnings ("unused")  // reflection
         public final static String  dbtable = "intersections";
+        @SuppressWarnings ("unused")  // reflection
         public final static String  dbkeyid = "int_num";
+        @SuppressWarnings ("unused")  // reflection
         public final static String  dbkytbl = null;
+        @SuppressWarnings ("unused")  // reflection
         public final static String[] dbcols = new String[] { "int_num", "int_lat", "int_lon", "int_type" };
 
         private String type;

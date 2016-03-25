@@ -64,6 +64,7 @@ public class UserWPView extends LinearLayout
     private LinearLayout waypointListView;
     private SaveButton saveButton;
     public  TreeMap<String,UserWP> waypoints;
+    public  UserWP selectedUserWP;
 
     public UserWPView (WairToNow ctx)
             throws IOException
@@ -224,6 +225,7 @@ public class UserWPView extends LinearLayout
      */
     private void UserWPSelected (UserWP wp)
     {
+        selectedUserWP = wp;
         if (wp == null) {
             identTextView.setVal ("");
             latView.clear ();

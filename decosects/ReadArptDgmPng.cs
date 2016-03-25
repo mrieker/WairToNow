@@ -454,6 +454,7 @@ public class ReadArptDgmPng {
         // simply misread strings
         badStrings["KBDR:1^09.5'N"]   = "41^09.5'N";
         badStrings["KBPT:96^01.0'W"]  = "94^01.0'W";
+        badStrings["KEOD:87^28.S"]    = "87^28.5'W";
         badStrings["KNSI:33^1S"]      = "33^15'N";
         badStrings["KNSI:33'^14'N"]   = "33^14'N";
         badStrings["KPOB:^10'N"]      = "35^10'N";
