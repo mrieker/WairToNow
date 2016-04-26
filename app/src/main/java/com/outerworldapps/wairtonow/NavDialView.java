@@ -51,8 +51,9 @@ public class NavDialView extends View {
     private final static float DIALRATIO = 5;
     private final static float VORDEFLECT = 10;
     private final static float LOCDEFLECT = 3;
-    private final static float GSDEFLECT = 2;
+    private final static float GSDEFLECT = 1;
 
+    private boolean dmeSlant;
     public  DMEClickedListener dmeClickedListener;
     private float deflect;
     private float distance;
@@ -250,10 +251,11 @@ public class NavDialView extends View {
     /**
      * Set distance (DME) value.
      */
-    public void setDistance (float d, String i)
+    public void setDistance (float d, String i, boolean s)
     {
         distance = d;
         dmeIdent = i;
+        dmeSlant = s;
         invalidate ();
     }
 
@@ -497,29 +499,49 @@ public class NavDialView extends View {
 
     // x range : x0-120..x0-30
     // y range : 80..200
-    private static int drawDMEDigit (Canvas canvas, Paint digitPaint, int x0, int digit)
+    private int drawDMEDigit (Canvas canvas, Paint digitPaint, int x0, int digit)
     {
         int y0 = 80;
         int ss = sevensegs[digit];
 
         x0 -= 120;
 
-        if ((ss & 0x01) != 0) canvas.drawLine (x0 + 10, y0, x0 + 90, y0, digitPaint);  // top
-        if ((ss & 0x02) != 0) canvas.drawLine (x0 + 90, y0, x0 + 90, y0 + 60, digitPaint);  // top right
-        if ((ss & 0x04) != 0) canvas.drawLine (x0 + 90, y0 + 60, x0 + 90, y0 + 120, digitPaint);  // bot right
-        if ((ss & 0x08) != 0) canvas.drawLine (x0 + 90, y0 + 120, x0 + 10, y0 + 120, digitPaint);  // bot
-        if ((ss & 0x10) != 0) canvas.drawLine (x0 + 10, y0 + 120, x0 + 10, y0 + 60, digitPaint);  // bot left
-        if ((ss & 0x20) != 0) canvas.drawLine (x0 + 10, y0 + 60, x0 + 10, y0, digitPaint);  // top left
-        if ((ss & 0x40) != 0) canvas.drawLine (x0 + 10, y0 + 60, x0 + 90, y0 + 60, digitPaint);  // middle
+        int xs = dmeSlant ?  15 : 0;
+
+        //      a - b
+        //     /   /
+        //    c - d
+        //   /   /
+        //  e - f
+
+        int ax = x0 + 10;
+        int bx = x0 + 90;
+        int cx = ax - xs;
+        int cy = y0 + 60;
+        int dx = bx - xs;
+        int dy = y0 + 60;
+        int ex = cx - xs;
+        int ey = y0 + 120;
+        int fx = dx - xs;
+        int fy = y0 + 120;
+
+        if ((ss & 0x01) != 0) canvas.drawLine (ax, y0, bx, y0, digitPaint);  // top
+        if ((ss & 0x02) != 0) canvas.drawLine (bx, y0, dx, dy, digitPaint);  // top right
+        if ((ss & 0x04) != 0) canvas.drawLine (dx, dy, fx, fy, digitPaint);  // bot right
+        if ((ss & 0x08) != 0) canvas.drawLine (ex, ey, fx, fy, digitPaint);  // bot
+        if ((ss & 0x10) != 0) canvas.drawLine (cx, cy, ex, ey, digitPaint);  // bot left
+        if ((ss & 0x20) != 0) canvas.drawLine (ax, y0, cx, cy, digitPaint);  // top left
+        if ((ss & 0x40) != 0) canvas.drawLine (cx, cy, dx, dy, digitPaint);  // middle
 
         return x0;
     }
 
-    private static int drawDMEDot (Canvas canvas, Paint digitPaint, int x0)
+    private int drawDMEDot (Canvas canvas, Paint digitPaint, int x0)
     {
         int y0 = 80;
         x0 -= 30;
-        canvas.drawCircle (x0, y0 + 130, 5, digitPaint);
+        int xb = dmeSlant ? 130 / 4 : 0;
+        canvas.drawCircle (x0 - xb, y0 + 130, 5, digitPaint);
         return x0;
     }
 }

@@ -45,13 +45,12 @@ import android.util.TypedValue;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
-import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
 public class WairToNow extends Activity {
     private final static String TAG = "WairToNow";
-    public final static long gpsDownDelay = 15000;
+    public final static long gpsDownDelay = 4000;
     public final static float gpsMinSpeedMPS = 3.0F;
 
     public static String dbdir;
@@ -64,9 +63,11 @@ public class WairToNow extends Activity {
     public  ChartView chartView;
     public  CrumbsView crumbsView;
     private DetentHorizontalScrollView tabButtonScroller;
-    public  float currentGPSLat;
-    public  float currentGPSLon;
-    private float currentGPSHdg;
+    public  float currentGPSAlt;    // metres MSL
+    public  float currentGPSLat;    // degrees
+    public  float currentGPSLon;    // degrees
+    public  float currentGPSHdg;    // degrees true
+    public  float currentGPSSpd;    // metres per second
     public  float textSize;
     private GlassView glassView;
     private GPSListener gpsListener;
@@ -80,6 +81,7 @@ public class WairToNow extends Activity {
     private LinearLayout.LayoutParams tbsllp = new LinearLayout.LayoutParams (
             LinearLayout.LayoutParams.FILL_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
     private LocationManager locationManager;
+    public  long currentGPSTime;    // milliseconds since Jan 1, 1970 UTC
     private long lastLocUpdate;
     public  MaintView maintView;
     public  OpenStreetMap openStreetMap;
@@ -88,11 +90,21 @@ public class WairToNow extends Activity {
     private PlanView planView;
     public  RouteView routeView;
     private TabButton agreeButton;
+    private TabButton crumbsButton;
     public  TabButton currentTabButton;
+    private TabButton glassButton;
+    public  TabButton maintButton;
+    private TabButton virtNav1Button;
+    private TabButton virtNav2Button;
     public  UserWPView userWPView;
     private VirtNavView virtNav1View, virtNav2View;
     public  WaypointView waypointView1, waypointView2;
     private Waypoint pendingCourseSetWP;
+
+    public String lastPlate_fn;
+    public Waypoint.Airport lastPlate_aw;
+    public String lastPlate_pd;
+    public int lastPlate_ex;
 
     /** Called when the activity is first created. */
     @Override
@@ -233,6 +245,8 @@ public class WairToNow extends Activity {
          */
         virtNav1View = new VirtNavView (this, "VirtNav1");
         virtNav2View = new VirtNavView (this, "VirtNav2");
+        virtNav1Button = new TabButton (virtNav1View);
+        virtNav2Button = new TabButton (virtNav2View);
 
         /*
          * Set up GPS sampling.
@@ -257,12 +271,12 @@ public class WairToNow extends Activity {
         TabButton waypt1Button    = new TabButton (waypointView1);
         TabButton waypt2Button    = new TabButton (waypointView2);
         TabButton userWPButton    = new TabButton (userWPView);
-        TabButton glassButton     = new TabButton (glassView);
+        glassButton               = new TabButton (glassView);
         TabButton routeButton     = new TabButton (routeView);
-        TabButton crumbsButton    = new TabButton (crumbsView);
+        crumbsButton              = new TabButton (crumbsView);
         TabButton planButton      = new TabButton (planView);
         TabButton optionsButton   = new TabButton (optionsView);
-        TabButton maintButton     = new TabButton (maintView);
+        maintButton               = new TabButton (maintView);
         TabButton gpsStatusButton = new TabButton (gpsStatusView);
         TabButton filesButton     = new TabButton (filesView);
         TabButton helpButton      = new TabButton (helpView);
@@ -277,8 +291,8 @@ public class WairToNow extends Activity {
         tabButtonLayout.addView (routeButton);
         tabButtonLayout.addView (crumbsButton);
         tabButtonLayout.addView (planButton);
-        tabButtonLayout.addView (new TabButton (virtNav1View));
-        tabButtonLayout.addView (new TabButton (virtNav2View));
+        tabButtonLayout.addView (virtNav1Button);
+        tabButtonLayout.addView (virtNav2Button);
         tabButtonLayout.addView (optionsButton);
         tabButtonLayout.addView (maintButton);
         tabButtonLayout.addView (gpsStatusButton);
@@ -297,7 +311,29 @@ public class WairToNow extends Activity {
         setContentView (tabViewLayout);
         tabsVisible = true;
 
+        maintView.ExpdateCheck ();
+
+        UpdateTabVisibilities ();
+
         chartButton.DisplayNewTab ();
+    }
+
+    /**
+     * Type B option was changed, update tab button visibilities.
+     */
+    public void UpdateTabVisibilities ()
+    {
+        try {
+            boolean typeB = optionsView.typeBOption.checkBox.isChecked ();
+            int vis = typeB ? View.GONE : View.VISIBLE;
+            crumbsButton.setVisibility   (vis);
+            glassButton.setVisibility    (vis);
+            virtNav1Button.setVisibility (vis);
+            virtNav2Button.setVisibility (vis);
+        } catch (NullPointerException npe) {
+            // might get this when called during startup
+            Lib.Ignored ();
+        }
     }
 
     /**
@@ -305,6 +341,7 @@ public class WairToNow extends Activity {
      */
     private void StartupError (String msg, Exception e)
     {
+        Log.d (TAG, "StartupError: " + msg, e);
         String emsg = e.getMessage ();
         if (emsg == null) emsg = e.getClass ().getSimpleName ();
         StartupError (msg + ": " + emsg);
@@ -362,7 +399,7 @@ public class WairToNow extends Activity {
     /**
      * The button used for each tab.
      */
-    private class TabButton extends Button implements View.OnClickListener {
+    public class TabButton extends RingedButton implements View.OnClickListener {
         public final String ident;
         public View view;  // must also be CanBeMainView
 
@@ -479,11 +516,12 @@ public class WairToNow extends Activity {
      */
     public void SetCurrentLocation (Location loc)
     {
-        currentGPSLat = (float) loc.getLatitude ();
-        currentGPSLon = (float) loc.getLongitude ();
-        if (loc.getSpeed () < gpsMinSpeedMPS) {
-            loc.setBearing (currentGPSHdg);
-        } else {
+        currentGPSTime = loc.getTime ();
+        currentGPSLat  = (float) loc.getLatitude ();
+        currentGPSLon  = (float) loc.getLongitude ();
+        currentGPSAlt  = (float) loc.getAltitude ();
+        currentGPSSpd  = loc.getSpeed ();
+        if (currentGPSSpd > gpsMinSpeedMPS) {
             currentGPSHdg = loc.getBearing ();
         }
 
@@ -492,15 +530,12 @@ public class WairToNow extends Activity {
             pendingCourseSetWP = null;
         }
 
-        chartView.SetGPSLocation (loc);
-        crumbsView.SetGPSLocation (loc);
-        glassView.SetGPSLocation (loc);
-        gpsStatusView.SetGPSLocation (loc);
-        routeView.SetGPSLocation (loc);
-        virtNav1View.SetGPSLocation (loc);
-        virtNav2View.SetGPSLocation (loc);
-        waypointView1.SetGPSLocation (loc);
-        waypointView2.SetGPSLocation (loc);
+        chartView.SetGPSLocation ();
+        crumbsView.SetGPSLocation ();
+        glassView.SetGPSLocation ();
+        routeView.SetGPSLocation ();
+        virtNav1View.SetGPSLocation ();
+        virtNav2View.SetGPSLocation ();
 
         if (currentTabButton != null) {
             currentTabButton.view.invalidate ();
@@ -659,7 +694,7 @@ public class WairToNow extends Activity {
         }
         if (color != Color.TRANSPARENT) {
             long now = SystemClock.uptimeMillis ();
-            if (((now / 1024) & 1) == 0) {
+            if ((now & 1024) == 0) {
                 gpsAvailablePaint.setColor (color);
                 int w = view.getWidth ();
                 int h = view.getHeight ();
@@ -676,6 +711,14 @@ public class WairToNow extends Activity {
                 }
             });
         }
+    }
+
+    public boolean blinkingRedOn ()
+    {
+        if (planView.pretendEnabled) return false;
+        if (gpsAvailable) return false;
+        long now = SystemClock.uptimeMillis ();
+        return (now & 1024) == 0;
     }
 
     /*************************\

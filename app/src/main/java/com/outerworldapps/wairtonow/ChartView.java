@@ -30,6 +30,7 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.TreeMap;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
@@ -46,7 +47,6 @@ import android.graphics.Point;
 import android.graphics.PointF;
 import android.graphics.Rect;
 import android.graphics.RectF;
-import android.location.Location;
 import android.support.annotation.NonNull;
 import android.util.DisplayMetrics;
 import android.view.MotionEvent;
@@ -58,9 +58,10 @@ import android.widget.ListAdapter;
 /**
  * Display chart and current position and a specified course line.
  */
+@SuppressLint("ViewConstructor")
 public class ChartView
         extends View
-        implements WairToNow.CanBeMainView {
+        implements DisplayableChart.Invalidatable, WairToNow.CanBeMainView {
 
     private static final int coursecleartime  = 1000;
     private static final int waypointopentime = 1000;
@@ -79,7 +80,7 @@ public class ChartView
 
     private static final int capGridColor = Color.DKGRAY;
     private static final int centerColor  = Color.BLUE;
-    public  static final int courseColor  = Color.MAGENTA;
+    public  static final int courseColor  = Color.rgb (170, 0, 170);
     private static final int currentColor = Color.RED;
     private static final int selectColor  = Color.BLACK;
 
@@ -100,17 +101,9 @@ public class ChartView
     private float pixelHeightM;               // how many chart metres high pixels are
     private float pixelWidthM;                // how many chart metres wide pixels are
     private float speed;                      // metres/second
-    public  float tlLat, tlLon;               // lat/lon at top left of canvas
-    public  float trLat, trLon;               // lat/lon at top right of canvas
-    public  float blLat, blLon;               // lat/lon at bottom left of canvas
-    public  float brLat, brLon;               // lat/lon at bottom right of canvas
 
     private ArrayList<DrawWaypoint> allDrawWaypoints = new ArrayList<> ();
-    private AutoAirChart[] autoAirCharts = new AutoAirChart[] {
-            new AutoAirChart ("ENR"),
-            new AutoAirChart ("SEC"),
-            new AutoAirChart ("WAC")
-    };
+    private AutoAirChart[] autoAirCharts;
     private boolean centerInfoMphOption, centerInfoTrueOption;
     private boolean courseInfoMphOpt, courseInfoTrueOpt;
     private boolean gpsInfoMphOpt;
@@ -146,7 +139,6 @@ public class ChartView
     private LatLon drawCourseLineISect = new LatLon ();
     private LatLon newCtrLL = new LatLon ();
     private LinkedList<CapGrid> capgrids = new LinkedList<> ();
-    public  int canvasWidth, canvasHeight;     // last seen canvas width,height
     private int centerInfoCanvasHeight;
     private int centerInfoLLOption;
     private int courseInfoCanvasWidth;
@@ -158,8 +150,9 @@ public class ChartView
     private long downOnCourseInfo   = 0;
     private long downOnGPSInfo      = 0;
     private long lastGPSTimestamp   = 0;
-    private long thisGPSTimestamp   = 0;
+    private long timestamp          = 0;
     private long waypointOpenAt     = Long.MAX_VALUE;
+    private Paint airplanePaint     = new Paint ();
     private Paint capGridBGPaint    = new Paint ();
     private Paint capGridLnPaint    = new Paint ();
     private Paint capGridTxPaint    = new Paint ();
@@ -233,6 +226,12 @@ public class ChartView
 
         UnSetCanvasHdgRad ();
 
+        autoAirCharts = new AutoAirChart[] {
+            new AutoAirChart (wairToNow, "ENR"),
+            new AutoAirChart (wairToNow, "SEC"),
+            new AutoAirChart (wairToNow, "WAC")
+        };
+
         // airplane icon pointing up with center at (0,0)
         int acy = 181;
         airplanePath.moveTo (   0, 313 - acy);
@@ -256,6 +255,10 @@ public class ChartView
         airplanePath.lineTo ( +44, 326 - acy);
         airplanePath.lineTo (   0, 313 - acy);
         airplaneScale = ts * 1.5F / (313 - 69);
+
+        airplanePaint.setColor (currentColor);
+        airplanePaint.setStrokeWidth (10);
+        airplanePaint.setTextAlign (Paint.Align.CENTER);
 
         capGridBGPaint.setColor (Color.argb (170, 255, 255, 255));
         capGridBGPaint.setStyle (Paint.Style.STROKE);
@@ -370,7 +373,7 @@ public class ChartView
          * The street charts theoretically cover the whole world,
          * so there is just one chart object.
          */
-        streetChart = new StreetChart ();
+        streetChart = new StreetChart (wairToNow);
 
         /*
          * Used to display menu that selects which chart to display.
@@ -388,17 +391,17 @@ public class ChartView
      * The GPS has a new lat/lon and we want to put the arrow at that point.
      * Also, if we aren't displaced by the mouse, move that point to center screen.
      */
-    public void SetGPSLocation (Location loc)
+    public void SetGPSLocation ()
     {
-        lastGPSTimestamp = thisGPSTimestamp;
+        lastGPSTimestamp = timestamp;
         lastGPSHeading   = heading;
 
-        thisGPSTimestamp = loc.getTime ();
-        altitude = (float) loc.getAltitude ();
-        arrowLat = (float) loc.getLatitude ();
-        arrowLon = (float) loc.getLongitude ();
-        heading  = loc.getBearing ();
-        speed    = loc.getSpeed ();
+        timestamp = wairToNow.currentGPSTime;
+        altitude  = wairToNow.currentGPSAlt;
+        arrowLat  = wairToNow.currentGPSLat;
+        arrowLon  = wairToNow.currentGPSLon;
+        heading   = wairToNow.currentGPSHdg;
+        speed     = wairToNow.currentGPSSpd;
 
         if (!holdPosition) {
             centerLat = arrowLat;
@@ -540,6 +543,7 @@ public class ChartView
     @Override  // WairToNow.CanBeMainView
     public void OpenDisplay ()
     {
+        //noinspection ResourceType
         wairToNow.setRequestedOrientation (wairToNow.optionsView.chartOrientOption.getVal ());
         if (wairToNow.optionsView.powerLockOption.checkBox.isChecked ()) {
             wairToNow.getWindow ().addFlags (WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -577,6 +581,9 @@ public class ChartView
     @Override
     public boolean onTouchEvent (@NonNull MotionEvent event)
     {
+        // we might get divide-by-zero if we don't know canvas size yet
+        if ((pmap.canvasWidth == 0) || (pmap.canvasHeight == 0)) return false;
+
         /*
         int actionInt = event.getActionMasked ();
         String actionName = Integer.toString (actionInt);
@@ -787,11 +794,11 @@ public class ChartView
         centerLon       = lonStart;
         userRotationRad = rotStart;
         scaling         = scaStart;
-        MapLatLonsToCanvasPixels (canvasWidth, canvasHeight);
+        MapLatLonsToCanvasPixels (pmap.canvasWidth, pmap.canvasHeight);
 
         // figure out where new center point is in the old canvas
-        float newCtrX = canvasWidth  / 2;
-        float newCtrY = canvasHeight / 2;
+        float newCtrX = pmap.canvasWidth  / 2;
+        float newCtrY = pmap.canvasHeight / 2;
         float oldCtrX = fc * newCtrX + fs * newCtrY + tx;
         float oldCtrY = fc * newCtrY - fs * newCtrX + ty;
 
@@ -931,12 +938,6 @@ public class ChartView
         DrawChart (canvas, getWidth (), getHeight ());
 
         /*
-         * Draw center position text.
-         */
-        DrawCenterInfo (canvas, centerBGPaint);
-        DrawCenterInfo (canvas, centerTxPaint);
-
-        /*
          * Draw course destination text.
          */
         if (clDest != null) {
@@ -947,8 +948,10 @@ public class ChartView
         /*
          * Draw GPS (current position) info text.
          */
-        DrawGPSInfo (canvas, currentBGPaint);
-        DrawGPSInfo (canvas, currentTxPaint);
+        if (!wairToNow.optionsView.typeBOption.checkBox.isChecked ()) {
+            DrawGPSInfo (canvas, currentBGPaint);
+            DrawGPSInfo (canvas, currentTxPaint);
+        }
 
         /*
          * Draw chart selection button.
@@ -968,9 +971,20 @@ public class ChartView
             canvas.drawCircle (secondPointer.lx, secondPointer.ly, r, currentLnPaint);
         }
 
-        wairToNow.drawGPSAvailable (canvas, this);
+        /*
+         * Draw box around perimeter warning that GPS is not available.
+         */
+        if (!wairToNow.optionsView.typeBOption.checkBox.isChecked ()) {
+            wairToNow.drawGPSAvailable (canvas, this);
+        }
     }
 
+    /**
+     * Draw chart (or splash image if no chart currently selected).
+     * @param canvas = canvas to draw it on
+     * @param cw = canvas width
+     * @param ch = canvas height
+     */
     public void DrawChart (Canvas canvas, int cw, int ch)
     {
         /*
@@ -978,17 +992,59 @@ public class ChartView
          */
         MapLatLonsToCanvasPixels (cw, ch);
 
+        if (selectedChart != null) {
+
+            /*
+             * Draw whatever chart was selected by user.
+             */
+            DrawSelectedChart (canvas);
+
+            /*
+             * Draw center position text.
+             */
+            DrawCenterInfo (canvas, centerBGPaint);
+            DrawCenterInfo (canvas, centerTxPaint);
+        } else {
+
+            /*
+             * No chart selected, draw splash image centered on screen.
+             */
+            Bitmap bm = BitmapFactory.decodeResource (wairToNow.getResources (), R.drawable.splash);
+            Rect src = new Rect (0, 0, bm.getWidth (), bm.getHeight ());
+            int  rad = Math.min (cw, ch) * 3 / 8;
+            Rect dst = new Rect (cw / 2 - rad, ch / 2 - rad,
+                    cw / 2 + rad, ch / 2 + rad);
+            canvas.drawBitmap (bm, src, dst, null);
+
+            /*
+             * Draw airplane icon centered on screen.
+             */
+            airplanePaint.setStyle (Paint.Style.FILL);
+            canvas.save ();
+            canvas.translate (cw / 2, ch / 2);              // anything drawn below will be translated this much
+            canvas.scale (airplaneScale, airplaneScale);    // anything drawn below will be scaled this much
+            canvas.drawPath (airplanePath, airplanePaint);  // draw the airplane with vectors and filling
+            canvas.restore ();                              // remove translation/scaling/rotation
+        }
+    }
+
+    /**
+     * Draw chart last selected by user and any related points on the chart.
+     * @param canvas = canvas to draw it on
+     */
+    private void DrawSelectedChart (Canvas canvas)
+    {
         /*
          * Draw map image as background.
          */
         try {
-            DrawMapImage (canvas);
+            selectedChart.DrawOnCanvas (pmap, canvas, this, GetCanvasHdgRads ());
         } catch (OutOfMemoryError oome) {
             // sometimes fast panning gives bitmap oom errors
             // force all bitmaps closed, garbage collect and give up for now
             CloseDisplay ();
             System.gc ();
-            canvas.drawText ("out of memory error", canvasWidth / 2, canvasHeight * 3/4, courseTxPaint);
+            canvas.drawText ("out of memory error", pmap.canvasWidth / 2, pmap.canvasHeight * 3/4, courseTxPaint);
         }
 
         if (wairToNow.optionsView.topoOption.checkBox.isChecked ()) {
@@ -1006,7 +1062,7 @@ public class ChartView
          * Maybe draw crumbs trail.
          */
         Point pt = onDrawPt;
-        LinkedList<Location> shownTrail = wairToNow.crumbsView.GetShownTrail ();
+        LinkedList<Position> shownTrail = wairToNow.crumbsView.GetShownTrail ();
         if (shownTrail != null) {
             // set up arrow size when heading north
             // - go down 1mm, go right 1.5mm
@@ -1015,18 +1071,18 @@ public class ChartView
             // stroke width 0.3mm
             float sw = dy * 0.3F;
             // loop through each point and try to convert to canvas pixel
-            for (Location loc : shownTrail) {
-                if (LatLon2CanPixExact ((float) loc.getLatitude (), (float) loc.getLongitude (), pt)) {
+            for (Position pos : shownTrail) {
+                if (LatLon2CanPixExact (pos.latitude, pos.longitude, pt)) {
                     trailPath.rewind ();
                     // if standing still, draw a circle with our thinnest line
-                    float mps = loc.getSpeed ();
+                    float mps = pos.speed;
                     if (mps < WairToNow.gpsMinSpeedMPS) {
                         trailPaint.setStrokeWidth (sw);
                         trailPath.addCircle (pt.x, pt.y, dx, Path.Direction.CCW);
                     } else {
                         // if moving, draw arrow with thickness proportional to speed
                         trailPaint.setStrokeWidth ((Mathf.log10 (mps) + 1.0F) * sw);
-                        float a = Mathf.toRadians (loc.getBearing ()) - GetCanvasHdgRads ();
+                        float a = Mathf.toRadians (pos.heading) - GetCanvasHdgRads ();
                         float s = Mathf.sin (a);
                         float c = Mathf.cos (a);
                         float dxr = dx * c - dy * s;
@@ -1089,7 +1145,7 @@ public class ChartView
         /*
          * Draw an airplane icon where the GPS (current) lat/lon point is.
          */
-        if (LatLon2CanPixExact (arrowLat, arrowLon, pt)) {
+        if (!wairToNow.optionsView.typeBOption.checkBox.isChecked () && LatLon2CanPixExact (arrowLat, arrowLon, pt)) {
             DrawLocationArrow (canvas, pt, GetCanvasHdgRads (), pixelWidthM, pixelHeightM);
         }
     }
@@ -1520,25 +1576,40 @@ public class ChartView
      */
     public void DrawLocationArrow (Canvas canvas, Point pt, float canHdgRads, float mPerXPix, float mPerYPix)
     {
-        float hdg = heading - Mathf.toDegrees (canHdgRads); // heading angle relative to UP on screen
+        /*
+         * If not receiving GPS signal, blink the icon.
+         */
+        if (wairToNow.blinkingRedOn ()) return;
+
+        /*
+         * If not moving, draw circle instead of airplane.
+         */
+        if (speed < WairToNow.gpsMinSpeedMPS) {
+            airplanePaint.setStyle (Paint.Style.STROKE);
+            canvas.drawCircle (pt.x, pt.y, wairToNow.textSize * 0.5F, airplanePaint);
+            return;
+        }
+
+        /*
+         * Heading angle relative to UP on screen.
+         */
+        float hdg = heading - Mathf.toDegrees (canHdgRads);
 
         /*
          * Draw the icon.
          */
+        airplanePaint.setStyle (Paint.Style.FILL);
         canvas.save ();
-        try {
-            canvas.translate (pt.x, pt.y);                  // anything drawn below will be translated this much
-            canvas.scale (airplaneScale, airplaneScale);    // anything drawn below will be scaled this much
-            canvas.rotate (hdg);                            // anything drawn below will be rotated this much
-            canvas.drawPath (airplanePath, currentTxPaint); // draw the airplane with vectors and filling
-        } finally {
-            canvas.restore ();                              // remove translation/scaling/rotation
-        }
+        canvas.translate (pt.x, pt.y);                  // anything drawn below will be translated this much
+        canvas.scale (airplaneScale, airplaneScale);    // anything drawn below will be scaled this much
+        canvas.rotate (hdg);                            // anything drawn below will be rotated this much
+        canvas.drawPath (airplanePath, airplanePaint);  // draw the airplane with vectors and filling
+        canvas.restore ();                              // remove translation/scaling/rotation
 
         /*
          * If we have two fairly recent GPS samples, draw track forward for next 60 seconds.
          */
-        long gpsTimeDiff = thisGPSTimestamp - lastGPSTimestamp;
+        long gpsTimeDiff = timestamp - lastGPSTimestamp;
         if ((mPerXPix > 0) && (mPerYPix > 0) && (gpsTimeDiff > 100) && (gpsTimeDiff < 10000)) {
 
             // smoothed metres per second
@@ -1594,25 +1665,6 @@ public class ChartView
             }
 
             canvas.drawPoints (trackpoints, 0, trackpoints.length, currentLnPaint);
-        }
-    }
-
-    /**
-     * Draw the map image to the canvas.
-     * The charts are selected and drawn such that the centerLat,Lon
-     * is drawn at the center of the canvas.
-     */
-    private void DrawMapImage (Canvas canvas)
-    {
-        if (selectedChart != null) {
-            selectedChart.DrawOnCanvas (this, canvas);
-        } else {
-            Bitmap bm = BitmapFactory.decodeResource (wairToNow.getResources (), R.drawable.splash);
-            Rect src = new Rect (0, 0, bm.getWidth (), bm.getHeight ());
-            int  rad = Math.min (canvasWidth, canvasHeight) * 3 / 8;
-            Rect dst = new Rect (canvasWidth / 2 - rad, canvasHeight / 2 - rad,
-                                 canvasWidth / 2 + rad, canvasHeight / 2 + rad);
-            canvas.drawBitmap (bm, src, dst, null);
         }
     }
 
@@ -1696,13 +1748,6 @@ public class ChartView
     private void MapLatLonsToCanvasPixels (int cw, int ch)
     {
         /*
-         * Get canvas dimensions (eg (600,1024)).
-         * This is actually the visible part of the canvas that shows in the parent's window.
-         */
-        canvasWidth  = cw;
-        canvasHeight = ch;
-
-        /*
          * Read display metrics each time in case of orientation change.
          */
         wairToNow.getWindowManager ().getDefaultDisplay ().getMetrics (metrics);
@@ -1719,24 +1764,24 @@ public class ChartView
         if ((mappingCanvasHdgRads == GetCanvasHdgRads ()) &&
             (mappingCenterLat     == centerLat)     &&
             (mappingCenterLon     == centerLon)     &&
-            (mappingCanvasHeight  == canvasHeight)  &&
-            (mappingCanvasWidth   == canvasWidth)   &&
+            (mappingCanvasHeight  == ch)            &&
+            (mappingCanvasWidth   == cw)            &&
             (mappingPixelHeightM  == pixelHeightM)  &&
             (mappingPixelWidthM   == pixelWidthM)) return;
 
         mappingCanvasHdgRads = GetCanvasHdgRads ();
         mappingCenterLat     = centerLat;
         mappingCenterLon     = centerLon;
-        mappingCanvasHeight  = canvasHeight;
-        mappingCanvasWidth   = canvasWidth;
+        mappingCanvasHeight  = ch;
+        mappingCanvasWidth   = cw;
         mappingPixelHeightM  = pixelHeightM;
         mappingPixelWidthM   = pixelWidthM;
 
         /*
          * Compute the canvas pixel that gets the center lat/lon.
          */
-        int canvasCenterX = canvasWidth  / 2;
-        int canvasCenterY = canvasHeight / 2;
+        int canvasCenterX = cw / 2;
+        int canvasCenterY = ch / 2;
 
         /*
          * Compute the lat/lon of the four corners of the canvas such
@@ -1760,17 +1805,17 @@ public class ChartView
         float metresFromCenterToTopRiteX = -metresFromCenterToBotLeftX;
         float metresFromCenterToTopRiteY = -metresFromCenterToBotLeftY;
 
-        brLat = centerLat - metresFromCenterToBotRiteY / Lib.MPerNM / Lib.NMPerDeg;
-        brLon = centerLon + metresFromCenterToBotRiteX / Lib.MPerNM / Lib.NMPerDeg / Mathf.cos (brLat / 180.0 * Mathf.PI);
+        float brLat = centerLat - metresFromCenterToBotRiteY / Lib.MPerNM / Lib.NMPerDeg;
+        float brLon = centerLon + metresFromCenterToBotRiteX / Lib.MPerNM / Lib.NMPerDeg / Mathf.cos (brLat / 180.0 * Mathf.PI);
 
-        blLat = centerLat - metresFromCenterToBotLeftY / Lib.MPerNM / Lib.NMPerDeg;
-        blLon = centerLon + metresFromCenterToBotLeftX / Lib.MPerNM / Lib.NMPerDeg / Mathf.cos (blLat / 180.0 * Mathf.PI);
+        float blLat = centerLat - metresFromCenterToBotLeftY / Lib.MPerNM / Lib.NMPerDeg;
+        float blLon = centerLon + metresFromCenterToBotLeftX / Lib.MPerNM / Lib.NMPerDeg / Mathf.cos (blLat / 180.0 * Mathf.PI);
 
-        trLat = centerLat - metresFromCenterToTopRiteY / Lib.MPerNM / Lib.NMPerDeg;
-        trLon = centerLon + metresFromCenterToTopRiteX / Lib.MPerNM / Lib.NMPerDeg / Mathf.cos (trLat / 180.0 * Mathf.PI);
+        float trLat = centerLat - metresFromCenterToTopRiteY / Lib.MPerNM / Lib.NMPerDeg;
+        float trLon = centerLon + metresFromCenterToTopRiteX / Lib.MPerNM / Lib.NMPerDeg / Mathf.cos (trLat / 180.0 * Mathf.PI);
 
-        tlLat = centerLat - metresFromCenterToTopLeftY / Lib.MPerNM / Lib.NMPerDeg;
-        tlLon = centerLon + metresFromCenterToTopLeftX / Lib.MPerNM / Lib.NMPerDeg / Mathf.cos (tlLat / 180.0 * Mathf.PI);
+        float tlLat = centerLat - metresFromCenterToTopLeftY / Lib.MPerNM / Lib.NMPerDeg;
+        float tlLon = centerLon + metresFromCenterToTopLeftX / Lib.MPerNM / Lib.NMPerDeg / Mathf.cos (tlLat / 180.0 * Mathf.PI);
 
         tlLon = Lib.NormalLon (tlLon);
         trLon = Lib.NormalLon (trLon);
@@ -1780,9 +1825,7 @@ public class ChartView
         /*
          * Set up mapping.
          */
-        pmap.setup (canvasWidth, canvasHeight,
-                tlLat, tlLon, trLat, trLon,
-                blLat, blLon, brLat, brLon);
+        pmap.setup (cw, ch, tlLat, tlLon, trLat, trLon, blLat, blLon, brLat, brLon);
     }
 
     /**
@@ -1794,7 +1837,7 @@ public class ChartView
         if ((selectedChart == null) || !selectedChart.LatLon2CanPixExact (lat, lon, canpix)) {
             pmap.LatLon2CanPixAprox (lat, lon, canpix);
         }
-        return (canpix.x >= 0) && (canpix.x < canvasWidth) && (canpix.y >= 0) && (canpix.y < canvasHeight);
+        return (canpix.x >= 0) && (canpix.x < pmap.canvasWidth) && (canpix.y >= 0) && (canpix.y < pmap.canvasHeight);
     }
 
     /**
@@ -1816,7 +1859,7 @@ public class ChartView
         if (showCenterInfo) {
             int cx = (int)(paint.getTextSize () * 3.125);
             int dy = (int)paint.getFontSpacing ();
-            int by = canvasHeight - 10;
+            int by = pmap.canvasHeight - 10;
 
             boolean centerLLChanged = false;
             if ((centerInfoCenterLat != centerLat) ||
@@ -1887,17 +1930,18 @@ public class ChartView
 
             // user doesn't want any info shown, draw a little button instead
             float ts = wairToNow.textSize;
+            int   ch = pmap.canvasHeight;
             centerInfoBounds.left   = 0;
             centerInfoBounds.right  = (int) (ts * 2);
-            centerInfoBounds.top    = (int) (canvasHeight - ts * 2);
-            centerInfoBounds.bottom = canvasHeight;
+            centerInfoBounds.top    = (int) (ch - ts * 2);
+            centerInfoBounds.bottom = ch;
 
-            if (centerInfoCanvasHeight != canvasHeight) {
-                centerInfoCanvasHeight = canvasHeight;
+            if (centerInfoCanvasHeight != ch) {
+                centerInfoCanvasHeight = ch;
                 centerInfoPath.rewind ();
-                centerInfoPath.moveTo (ts, canvasHeight - ts * 2);
-                centerInfoPath.lineTo (ts * 2, canvasHeight - ts * 2);
-                centerInfoPath.lineTo (ts * 2, canvasHeight - ts);
+                centerInfoPath.moveTo (ts, ch - ts * 2);
+                centerInfoPath.lineTo (ts * 2, ch - ts * 2);
+                centerInfoPath.lineTo (ts * 2, ch - ts);
             }
             canvas.drawPath (centerInfoPath, paint);
         }
@@ -1942,7 +1986,7 @@ public class ChartView
                 }
             }
 
-            int cx = canvasWidth - (int)(paint.getTextSize () * 3);
+            int cx = pmap.canvasWidth - (int)(paint.getTextSize () * 3);
             int dy = (int)paint.getFontSpacing ();
 
             courseInfoBounds.setEmpty ();
@@ -1952,18 +1996,19 @@ public class ChartView
             DrawBoundedString (canvas, courseInfoBounds, paint, cx, dy * 4, courseInfoEteStr);
         } else {
             float ts = wairToNow.textSize;
+            int   cw = pmap.canvasWidth;
 
-            courseInfoBounds.left   = (int) (canvasWidth - ts * 2);
-            courseInfoBounds.right  = canvasWidth;
+            courseInfoBounds.left   = (int) (cw - ts * 2);
+            courseInfoBounds.right  = cw;
             courseInfoBounds.top    = 0;
             courseInfoBounds.bottom = (int) (ts * 2);
 
-            if (courseInfoCanvasWidth != canvasWidth) {
-                courseInfoCanvasWidth = canvasWidth;
+            if (courseInfoCanvasWidth != cw) {
+                courseInfoCanvasWidth = cw;
                 courseInfoPath.rewind ();
-                courseInfoPath.moveTo (canvasWidth - ts * 2, ts);
-                courseInfoPath.lineTo (canvasWidth - ts * 2, ts * 2);
-                courseInfoPath.lineTo (canvasWidth - ts, ts * 2);
+                courseInfoPath.moveTo (cw - ts * 2, ts);
+                courseInfoPath.lineTo (cw - ts * 2, ts * 2);
+                courseInfoPath.lineTo (cw - ts, ts * 2);
             }
             canvas.drawPath (courseInfoPath, paint);
         }
@@ -2035,15 +2080,18 @@ public class ChartView
      */
     private void DrawChartSelect (Canvas canvas, Paint paint)
     {
+        int cw = pmap.canvasWidth;
+        int ch = pmap.canvasHeight;
+
         /*
          * First time, display words so they know what this is about.
          */
         if (selectedChart == null) {
             chartSelectBounds.setEmpty ();
 
-            int cx = canvasWidth - (int)(paint.getTextSize () * 3.125);
+            int cx = cw - (int)(paint.getTextSize () * 3.125);
             int dy = (int)paint.getFontSpacing ();
-            int by = canvasHeight - 10;
+            int by = ch - 10;
 
             DrawBoundedString (canvas, chartSelectBounds, paint, cx, by - dy * 2, "select");
             DrawBoundedString (canvas, chartSelectBounds, paint, cx, by - dy,     "chart");
@@ -2052,17 +2100,17 @@ public class ChartView
             /*
              * Otherwise, show little arrow button so it doesn't take up so much room.
              */
-            if ((chartSelectBounds.right != canvasWidth - 1) || (chartSelectBounds.bottom != canvasHeight - 1)) {
+            if ((chartSelectBounds.right != cw - 1) || (chartSelectBounds.bottom != ch - 1)) {
                 float ts = wairToNow.textSize;
-                chartSelectBounds.left   = (int) (canvasWidth - ts * 2);
-                chartSelectBounds.top    = (int) (canvasHeight - ts * 2);
-                chartSelectBounds.right  = canvasWidth - 1;
-                chartSelectBounds.bottom = canvasHeight - 1;
+                chartSelectBounds.left   = (int) (cw - ts * 2);
+                chartSelectBounds.top    = (int) (ch - ts * 2);
+                chartSelectBounds.right  = cw - 1;
+                chartSelectBounds.bottom = ch - 1;
 
                 chartSelectPath.rewind ();
-                chartSelectPath.moveTo (canvasWidth - ts, canvasHeight - ts * 2);
-                chartSelectPath.lineTo (canvasWidth - ts * 2, canvasHeight - ts * 2);
-                chartSelectPath.lineTo (canvasWidth - ts * 2, canvasHeight - ts);
+                chartSelectPath.moveTo (cw - ts, ch - ts * 2);
+                chartSelectPath.lineTo (cw - ts * 2, ch - ts * 2);
+                chartSelectPath.lineTo (cw - ts * 2, ch - ts);
             }
             canvas.drawPath (chartSelectPath, paint);
         }

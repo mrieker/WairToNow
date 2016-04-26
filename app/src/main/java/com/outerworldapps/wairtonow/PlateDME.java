@@ -302,9 +302,9 @@ public class PlateDME {
                     if ((checked & DMECB_RADL) != 0) {
                         float hdgDeg = Lib.LatLonTC (wp.lat, wp.lon, gpslat, gpslon);
                         float varDeg = (wp.magvar == Waypoint.VAR_UNKNOWN) ? Lib.MagVariation (wp.lat, wp.lon, wp.elev) : wp.magvar;
-                        int hdgMag = ((int) (hdgDeg + varDeg + 0.5F) + 359) % 360 + 1;
+                        int hdgMag = (Math.round (hdgDeg + varDeg) + 359) % 360 + 1;
                         int len = sb.length ();
-                        sb.append (Integer.toString (hdgMag));
+                        sb.append (Integer.toString (hdgMag + 1000).substring (1));
                         sb.append ((char) 0x00B0);
                         while (sb.length () - len < 5) sb.insert (len, ' ');
                     }

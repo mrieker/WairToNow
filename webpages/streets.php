@@ -49,6 +49,15 @@
     {
         if (strpos ($tile, "..") !== FALSE) return FALSE;
 
+        $parts = explode ('/', $tile);
+        if (!is_numeric ($parts[0])) die ("bad or missing zoom level");
+        $z = intval ($parts[0]);
+        if (($z < 0) || ($z > 16)) die ("bad zoom level $z");
+
+        $lock = fopen ("streets/lock.file", "c");
+        if (!$lock) die ("error opening lock file");
+        if (!flock ($lock, LOCK_EX)) die ("error locking lock file");
+
         // see if we already have the file
         // also re-download if file is a year old
         $newpath = "streets/$tile";
@@ -85,7 +94,7 @@
                 // copy to a temporary file
                 $tmppath = "$newpath.tmp";
                 $ofile = fopen ($tmppath, 'wb');
-                if (!$ofile) return;
+                if (!$ofile) die ("error creating temp file");
                 while (!feof ($ifile)) {
                     fwrite ($ofile, fread ($ifile, 8192));
                 }
@@ -96,6 +105,8 @@
                 rename ($tmppath, $newpath);
             }
         }
+        flock ($lock, LOCK_UN);
+        fclose ($lock);
         return $newpath;
     }
 ?>

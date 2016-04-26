@@ -34,7 +34,14 @@ import android.widget.TextView;
  * for the whole world.
  */
 public class StreetChart implements DisplayableChart {
+
     private OpenStreetMap osm;
+    private WairToNow wairToNow;
+
+    public StreetChart (WairToNow wtn)
+    {
+        wairToNow = wtn;
+    }
 
     @Override  // DisplayableChart
     public String GetSpacenameSansRev ()
@@ -52,7 +59,7 @@ public class StreetChart implements DisplayableChart {
      * Get entry for chart selection menu.
      */
     @Override  // DisplayableChart
-    public View GetMenuSelector (ChartView chartView)
+    public View GetMenuSelector (@NonNull ChartView chartView)
     {
         TextView tv = new TextView (chartView.wairToNow);
         tv.setText (GetSpacenameSansRev ());
@@ -81,13 +88,17 @@ public class StreetChart implements DisplayableChart {
     }
 
     /**
-     * Draw tiles to canvas corresponding to lat,lon of current screen.
+     * Draw chart on canvas possibly scaled and/or rotated.
+     * @param pmap = mapping of lat/lons to canvas
+     * @param canvas = canvas to draw on
+     * @param inval = what to call in an arbitrary thread when a tile gets loaded
+     * @param canvasHdgRads = 'up' heading on canvas
      */
     @Override  // DisplayableChart
-    public void DrawOnCanvas (ChartView chartView, Canvas canvas)
+    public void DrawOnCanvas (@NonNull PixelMapper pmap, @NonNull Canvas canvas, @NonNull Invalidatable inval, float canvasHdgRads)
     {
-        osm = chartView.wairToNow.openStreetMap;
-        osm.Draw (canvas, chartView.pmap, chartView, chartView.GetCanvasHdgRads ());
+        osm = wairToNow.openStreetMap;
+        osm.Draw (canvas, pmap, inval, canvasHdgRads);
     }
 
     /**

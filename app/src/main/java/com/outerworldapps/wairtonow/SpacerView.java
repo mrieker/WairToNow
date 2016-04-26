@@ -20,26 +20,41 @@
 
 package com.outerworldapps.wairtonow;
 
-import android.graphics.Canvas;
-import android.graphics.Point;
-import android.support.annotation.NonNull;
+import android.content.Context;
+import android.util.AttributeSet;
 import android.view.View;
 
-/**
- * A chart, whether downloaded or not, that can be selected for display.
- */
-public interface DisplayableChart {
-    String GetSpacenameSansRev ();    // chart name without revision, eg, "New York SEC"
-    boolean IsDownloaded ();
-    View GetMenuSelector (@NonNull ChartView chartView);
-    void UserSelected ();
-    void CloseBitmaps ();
-
-    // used by ChartView - loads asynchronously, called in GUI thread
-    interface Invalidatable {
-        void postInvalidate ();
+public class SpacerView extends View {
+    public SpacerView (Context ctx)
+    {
+        super (ctx);
     }
-    void DrawOnCanvas (@NonNull PixelMapper pmap, @NonNull Canvas canvas, @NonNull Invalidatable inval, float canvasHdgRads);
-    boolean LatLon2CanPixExact (float lat, float lon, @NonNull Point canpix);
-    boolean CanPix2LatLonExact (float canpixx, float canpixy, @NonNull LatLon ll);
+
+    public SpacerView (Context ctx, AttributeSet attrs)
+    {
+        super (ctx, attrs);
+    }
+
+    public SpacerView (Context ctx, AttributeSet attrs, int defStyle)
+    {
+        super (ctx, attrs, defStyle);
+    }
+
+    @Override
+    protected final void onMeasure (int widthMeasureSpec, int heightMeasureSpec)
+    {
+        setMeasuredDimension (10, 10);
+    }
+
+    @Override
+    protected int getSuggestedMinimumHeight ()
+    {
+        return 10;
+    }
+
+    @Override
+    protected int getSuggestedMinimumWidth ()
+    {
+        return 10;
+    }
 }

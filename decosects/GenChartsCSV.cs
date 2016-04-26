@@ -21,7 +21,7 @@
 /**
  * @brief Generate <chartname>.csv file that contains all the parameters needed to convert lat/lon <-> chart/pixel
  */
-// gmcs -debug -out:GenChartsCSV.exe GenChartsCSV.cs
+// mcs -debug -out:GenChartsCSV.exe GenChartsCSV.cs
 
 // cd charts
 // mono --debug ../GenChartsCSV.exe 'New York 86 North' chartlist_all.htm
@@ -93,23 +93,12 @@ public class Chart {
             dt = dt.AddDays (56);
             enddate = dt.Year * 10000 + dt.Month * 100 + dt.Day;
         } else {
+            begdate = GetMetaInteger (htmfile, "dc.coverage.t.min");
             try {
-                begdate = GetHtmInteger (htmfile, "Beginning_Date");
-            } catch (Exception) {
-                Console.WriteLine ("no beginning date");
-            }
-            try {
-                if (htmfile.Contains ("Ending_Date:")) {
-                    enddate = GetHtmInteger (htmfile, "Ending_Date");
-                } else {
-                    enddate = GetHtmInteger (htmfile, "Ending_Time");
-                }
-            } catch (Exception) {
-                if (spacename.StartsWith ("Grand Canyon")) {
-                    enddate = 20991231;
-                } else {
-                    Console.WriteLine ("no ending date");
-                }
+                enddate = GetMetaInteger (htmfile, "dc.coverage.t.max");
+            } catch (FormatException) {
+                if (!spacename.Contains (" HEL ")) throw;
+                enddate = 0;
             }
         }
 
@@ -159,10 +148,9 @@ public class Chart {
                 string nextdate = htmfile.Substring (j, i - j);
                 int bd = StrDateDecode (thisdate);
                 int ed = StrDateDecode (nextdate);
-                if (begdate > bd) begdate = bd;
-                if (enddate < ed) enddate = ed;
-            } catch (Exception e) {
-                Console.WriteLine ("no start or stop date: " + e.Message);
+                if (begdate < bd) begdate = bd;
+                if (enddate > ed) enddate = ed;
+            } catch (Exception) {
             }
         }
 
@@ -196,6 +184,30 @@ public class Chart {
         String str;
         while ((str = tfwreader.ReadLine ().Trim ()) == "") { }
         return Double.Parse (str);
+    }
+
+    /**
+     * @brief Parse an integer meta value from the .htm file.
+     *        <meta name="dc.coverage.t.min" content="20160303"/>
+     */
+    private static int GetMetaInteger (string htmfile, string metaname)
+    {
+        return int.Parse (GetMetaString (htmfile, metaname));
+    }
+
+    /**
+     * @brief Parse a string meta value from the .htm file.
+     *        <meta name="dc.coverage.t.min" content="20160303"/>
+     */
+    private static string GetMetaString (string htmfile, string metaname)
+    {
+        int i = htmfile.IndexOf ("metaname=\"" + metaname + "\"");
+        if (i < 0) return null;
+        int j = htmfile.IndexOf ("content=\"", i);
+        if (j < 0) return null;
+        j += 9;
+        i  = htmfile.IndexOf ("\"", j);
+        return htmfile.Substring (j, i - j);
     }
 
     /**

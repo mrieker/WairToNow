@@ -41,7 +41,6 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
-import android.location.Location;
 import android.net.Uri;
 import android.text.Editable;
 import android.text.InputType;
@@ -69,16 +68,12 @@ public class WaypointView extends LinearLayout
 
     private DestinationButton destinationButton;
     private DownloadButton downloadButton;
-    public  float centerAlt;
-    public  float centerLat;
-    public  float centerLon;
     private File oldSearchFile;
     private FindButton findButton;
     private InfoButton infoButton;
     private LinearLayout oldSearchRow;
     private LinearLayout waypointLinear;
     private LocationButton locationButton;
-    public  long centerTime;
     private MetarButton metarButton;
     private OldSearchButtonListener oldSearchLis;
     private SearchTextView searchTextView;
@@ -343,17 +338,6 @@ public class WaypointView extends LinearLayout
             DelOldSearchButton (key);
             return true;
         }
-    }
-
-    /**
-     * Got an update on GPS location.
-     */
-    public void SetGPSLocation (Location loc)
-    {
-        centerLat  = (float) loc.getLatitude ();
-        centerLon  = (float) loc.getLongitude ();
-        centerAlt  = (float) loc.getAltitude ();
-        centerTime = loc.getTime ();
     }
 
     /**

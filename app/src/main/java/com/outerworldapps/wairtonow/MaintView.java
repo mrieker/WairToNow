@@ -91,9 +91,7 @@ public class MaintView
     private boolean updateDLProgSent;
     private Category enrCategory;
     private Category helCategory;
-    private Category miscCategory;
     private Category otherCategory;
-    private Category plateCategory;
     private Category secCategory;
     private Category tacCategory;
     private Category wacCategory;
@@ -101,6 +99,7 @@ public class MaintView
     private DownloadThread downloadThread;
     private Handler maintViewHandler;
     public  HashMap<String,String[]> chartedLims;
+    private LinkedList<Category> allCategories = new LinkedList<> ();
     private LinkedList<Downloadable> allDownloadables = new LinkedList<> ();
     public  WairToNow wairToNow;
     private ProgressDialog downloadProgress;
@@ -113,16 +112,17 @@ public class MaintView
     private volatile boolean downloadCancelled;
     private WaypointsCheckBox waypointsCheckBox;
 
-    private static final int MaintViewHandlerWhat_OPENDLPROG   = 0;
-    private static final int MaintViewHandlerWhat_UPDATEDLPROG = 1;
-    private static final int MaintViewHandlerWhat_CLOSEDLPROG  = 2;
-    private static final int MaintViewHandlerWhat_DLCOMPLETE   = 3;
-    private static final int MaintViewHandlerWhat_UNCHECKBOX   = 4;
-    private static final int MaintViewHandlerWhat_HAVENEWCHART = 5;
-    private static final int MaintViewHandlerWhat_REMUNLDCHART = 6;
-    private static final int MaintViewHandlerWhat_UNLDDONE     = 7;
-    private static final int MaintViewHandlerWhat_DLERROR      = 8;
-    private static final int MaintViewHandlerWhat_UPDRWDGMDLST = 9;
+    private static final int MaintViewHandlerWhat_OPENDLPROG   =  0;
+    private static final int MaintViewHandlerWhat_UPDATEDLPROG =  1;
+    private static final int MaintViewHandlerWhat_CLOSEDLPROG  =  2;
+    private static final int MaintViewHandlerWhat_DLCOMPLETE   =  3;
+    private static final int MaintViewHandlerWhat_UNCHECKBOX   =  4;
+    private static final int MaintViewHandlerWhat_HAVENEWCHART =  5;
+    private static final int MaintViewHandlerWhat_REMUNLDCHART =  6;
+    private static final int MaintViewHandlerWhat_UNLDDONE     =  7;
+    private static final int MaintViewHandlerWhat_DLERROR      =  8;
+    private static final int MaintViewHandlerWhat_UPDRWDGMDLST =  9;
+    private static final int MaintViewHandlerWhat_EXPDATECHECK = 10;
 
     private final static String[] columns_apt_faaid_faciluse = new String[] { "apt_faaid", "apt_faciluse" };
     private final static String[] columns_count_rp_faaid     = new String[] { "COUNT(rp_faaid)" };
@@ -157,8 +157,8 @@ public class MaintView
         unloadButton = new UnloadButton (ctx);
         addView (unloadButton);
 
-        miscCategory  = new Category ("Misc");
-        plateCategory = new Category ("Plates");
+        Category miscCategory  = new Category ("Misc");
+        Category plateCategory = new Category ("Plates");
         enrCategory   = new Category ("ENR");
         helCategory   = new Category ("HEL");
         secCategory   = new Category ("SEC");
@@ -288,7 +288,6 @@ public class MaintView
                     try {
                         String csvline = csvreader.readLine ();
                         ccb.airChart.ParseChartLimitsLine (csvline);
-                        UpdateDCBsLinkText (ccb);
                     } finally {
                         csvreader.close ();
                     }
@@ -299,6 +298,129 @@ public class MaintView
                 }
             }
         }
+    }
+
+    /**
+     * Check all downloaded charts for expiration date.
+     * If expired or about to expire, output warning dialog if there is internet connectivity.
+     */
+    public void ExpdateCheck ()
+    {
+        int maintColor = UpdateAllButtonColors ();
+        String msg;
+        switch (maintColor) {
+            case Color.RED: {
+                msg = "Charts are expired";
+                break;
+            }
+            case Color.YELLOW: {
+                msg = "Charts are about to expire";
+                break;
+            }
+            default: {
+                QueueDailyExpdateCheck ();
+                return;
+            }
+        }
+        CheckExpdateThread th = new CheckExpdateThread ();
+        th.msg = msg;
+        th.start ();
+    }
+
+    /**
+     * There are some expired charts, if there is internet connectivity, output warning dialog.
+     */
+    private class CheckExpdateThread extends Thread {
+        public String msg;
+
+        @Override
+        public void run ()
+        {
+            try {
+
+                /*
+                 * Check for internet connectivity by seeing if we can access webserver.
+                 */
+                URL url = new URL (dldir);
+                HttpURLConnection httpCon = (HttpURLConnection)url.openConnection ();
+                try {
+                    httpCon.setRequestMethod ("GET");
+                    httpCon.connect ();
+                    int rc = httpCon.getResponseCode ();
+                    if (rc != HttpURLConnection.HTTP_OK) {
+                        throw new IOException ("http response code " + rc);
+                    }
+                } finally {
+                    httpCon.disconnect ();
+                }
+
+                /*
+                 * Webserver accessible, output dialog warning box.
+                 */
+                wairToNow.runOnUiThread (new Runnable () {
+                    @Override
+                    public void run ()
+                    {
+                        AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
+                        adb.setTitle ("Chart Maint");
+                        adb.setMessage (msg);
+                        adb.setPositiveButton ("Update", new DialogInterface.OnClickListener () {
+                            @Override
+                            public void onClick (DialogInterface dialogInterface, int i)
+                            {
+                                wairToNow.maintButton.DisplayNewTab ();
+                            }
+                        });
+                        adb.setNegativeButton ("Later", null);
+                        adb.show ();
+                    }
+                });
+            } catch (IOException ioe) {
+                Log.i (TAG, "error probing " + dldir, ioe);
+            } finally {
+                QueueDailyExpdateCheck ();
+            }
+        }
+    }
+
+    /**
+     * Queue a check for expired charts at beginning of next day.
+     */
+    private void QueueDailyExpdateCheck ()
+    {
+        long msperday = 24 * 60 * 60 * 1000L;
+        long now = System.currentTimeMillis ();
+        long delay = msperday - now * msperday;
+        Message msg = maintViewHandler.obtainMessage (MaintViewHandlerWhat_EXPDATECHECK);
+        maintViewHandler.sendMessageDelayed (msg, delay);
+    }
+
+    /**
+     * Update all button and link colors based on current date vs expiration dates.
+     */
+    private int UpdateAllButtonColors ()
+    {
+        // update text color based on current date
+        for (Downloadable dcb : allDownloadables) {
+            int enddate = dcb.GetEndDate ();
+            int textColor = DownloadLinkColor (enddate);
+            dcb.UpdateSingleLinkText (textColor,
+                    (enddate == 0) ? "not downloaded" : ("valid to " + enddate));
+        }
+
+        // update category button color
+        int maintColor = Color.TRANSPARENT;
+        for (Category cat : allCategories) {
+            int catColor = cat.UpdateButtonColor ();
+            if (cat != wacCategory) {
+                maintColor = ComposeButtonColor (maintColor, catColor);
+            }
+        }
+
+        // update maint button color
+        // exclude WACs cuz we don't have any updates
+        wairToNow.maintButton.setRingColor (maintColor);
+        return maintColor;
     }
 
     @Override  // WairToNow.CanBeMainView
@@ -322,10 +444,7 @@ public class MaintView
     @Override  // WairToNow.CanBeMainView
     public void OpenDisplay ()
     {
-        // update color based on current date
-        for (Downloadable dcb : allDownloadables) {
-            UpdateDCBsLinkText (dcb);
-        }
+        UpdateAllButtonColors ();
 
         // force portrait, ie, disallow automatic flipping so it won't restart the app
         // in the middle of downloading some chart just because the screen got tilted.
@@ -392,6 +511,7 @@ public class MaintView
                 downloadButton.UpdateEnabled ();
                 unloadButton.UpdateEnabled ();
                 wairToNow.chartView.DownloadComplete ();
+                UpdateAllButtonColors ();
 
                 // maybe some database was marked for delete in the download thread
                 // (as a result of an upgrade, we delete old database files)
@@ -415,7 +535,7 @@ public class MaintView
             case MaintViewHandlerWhat_REMUNLDCHART: {
                 Downloadable dcb = (Downloadable) msg.obj;
                 dcb.RemovedDownloadedChart ();
-                UpdateDCBsLinkText (dcb);
+                UpdateAllButtonColors ();
                 break;
             }
             case MaintViewHandlerWhat_UNLDDONE: {
@@ -424,6 +544,7 @@ public class MaintView
                     unloadButton.unloadAlertDialog = null;
                 }
                 wairToNow.chartView.DownloadComplete ();
+                UpdateAllButtonColors ();
 
                 // maybe some database was marked for delete in the unload thread
                 // so close our handle so that it will actually delete
@@ -446,6 +567,10 @@ public class MaintView
             }
             case MaintViewHandlerWhat_UPDRWDGMDLST: {
                 UpdateRunwayDiagramDownloadStatus ();
+                break;
+            }
+            case MaintViewHandlerWhat_EXPDATECHECK: {
+                ExpdateCheck ();
                 break;
             }
         }
@@ -514,17 +639,46 @@ public class MaintView
      * Category of charts/files that can be downloaded.
      */
     private class Category extends LinearLayout implements OnClickListener {
-        public Button selButton;
+        public RingedButton selButton;
 
         public Category (String name)
         {
             super (wairToNow);
             setOrientation (VERTICAL);
-            selButton = new Button (wairToNow);
+            selButton = new RingedButton (wairToNow);
             selButton.setOnClickListener (this);
             selButton.setText (name);
             wairToNow.SetTextSize (selButton);
             selButton.setVisibility (GONE);
+            allCategories.addLast (this);
+        }
+
+        /**
+         * Set what the button color should be based on current date
+         * vs expiration dates of all items in this category.
+         * @return button color
+         */
+        public int UpdateButtonColor ()
+        {
+            int color = UpdateButtonColor (Color.TRANSPARENT, this);
+            selButton.setRingColor (color);
+            return color;
+        }
+
+        private int UpdateButtonColor (int color, ViewGroup vg)
+        {
+            for (int i = vg.getChildCount (); -- i >= 0;) {
+                View v = vg.getChildAt (i);
+                if (v instanceof Downloadable) {
+                    Downloadable dcb = (Downloadable) v;
+                    int enddate = dcb.GetEndDate ();
+                    int textColor = DownloadLinkColor (enddate);
+                    color = ComposeButtonColor (color, textColor);
+                } else if (v instanceof ViewGroup) {
+                    color = UpdateButtonColor (color, (ViewGroup) v);
+                }
+            }
+            return color;
         }
 
         @Override  // LinearLayout
@@ -537,32 +691,20 @@ public class MaintView
         @Override  // OnClickListener
         public void onClick (View v)
         {
-            miscCategory.selButton.setTextColor  (Color.BLACK);
-            plateCategory.selButton.setTextColor (Color.BLACK);
-            enrCategory.selButton.setTextColor   (Color.BLACK);
-            helCategory.selButton.setTextColor   (Color.BLACK);
-            secCategory.selButton.setTextColor   (Color.BLACK);
-            tacCategory.selButton.setTextColor   (Color.BLACK);
-            wacCategory.selButton.setTextColor   (Color.BLACK);
-            otherCategory.selButton.setTextColor (Color.BLACK);
-
-            selButton.setTextColor (Color.RED);
+            for (Category cat : allCategories) {
+                cat.selButton.setTextColor ((cat == this) ? Color.RED : Color.BLACK);
+            }
 
             itemsScrollView.removeAllViews ();
             itemsScrollView.addView (this);
         }
     }
 
-    /**
-     * Update the displayed link text and color based on what charts we actually
-     * have completely and successfully downloaded pertaining to this PossibleChart.
-     */
-    public static void UpdateDCBsLinkText (Downloadable dcb)
+    private static int ComposeButtonColor (int curColor, int newColor)
     {
-        int enddate = dcb.GetEndDate ();
-        int textColor = DownloadLinkColor (enddate);
-        dcb.UpdateSingleLinkText (textColor,
-                (enddate == 0) ? "not downloaded" : ("valid to " + enddate));
+        if (newColor == Color.RED) curColor = Color.RED;
+        if (newColor == Color.YELLOW && curColor != Color.RED) curColor = Color.YELLOW;
+        return curColor;
     }
 
     /**
@@ -668,7 +810,6 @@ public class MaintView
         public WaypointsCheckBox ()
         {
             enddate = GetWaypointExpDate ();
-            UpdateDCBsLinkText (this);
         }
 
         @Override  // DownloadCheckBox
@@ -708,7 +849,6 @@ public class MaintView
         {
             super.UncheckBox ();
             enddate = GetWaypointExpDate ();
-            UpdateDCBsLinkText (this);
             wairToNow.waypointView1.waypointsWithin.clear ();
             wairToNow.waypointView2.waypointsWithin.clear ();
         }
@@ -744,7 +884,6 @@ public class MaintView
         public ChartCheckBox (AirChart ac)
         {
             airChart = ac;
-            UpdateDCBsLinkText (this);
         }
 
         @Override  // DownloadCheckBox
@@ -782,7 +921,6 @@ public class MaintView
             try {
                 String csvLine = reader.readLine ();
                 airChart.ParseChartLimitsLine (csvLine);
-                UpdateDCBsLinkText (this);
             } finally {
                 reader.close ();
             }
@@ -1007,9 +1145,6 @@ public class MaintView
 
                 cblbParent = ll;
             }
-
-            // maybe change text from just state to state and status or wisa wersa
-            UpdateDCBsLinkText (this);
         }
 
         public void StartDwnld (Runnable done)
@@ -1030,7 +1165,6 @@ public class MaintView
         {
             cb.setChecked (false);
             enddate = GetPlatesExpDate (ss);
-            UpdateDCBsLinkText (this);
         }
         public int GetEndDate () { return enddate; }
         public boolean HasSomeUnloadableCharts ()

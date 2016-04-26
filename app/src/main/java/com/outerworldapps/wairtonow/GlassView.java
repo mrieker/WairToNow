@@ -28,7 +28,6 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
-import android.location.Location;
 import android.support.annotation.NonNull;
 import android.view.MotionEvent;
 import android.view.View;
@@ -146,16 +145,16 @@ public class GlassView
      * The GPS has new position information for us.
      * Save it and update screen.
      */
-    public void SetGPSLocation (Location loc)
+    public void SetGPSLocation ()
     {
         if (++ posIndex == positions.length) posIndex = 0;
         Position p  = positions[posIndex];
-        p.altitude  = (float) loc.getAltitude ();
-        p.heading   = loc.getBearing ();
-        p.latitude  = (float) loc.getLatitude ();
-        p.longitude = (float) loc.getLongitude ();
-        p.speed     = loc.getSpeed ();
-        p.time      = loc.getTime ();
+        p.altitude  = wairToNow.currentGPSAlt;
+        p.heading   = wairToNow.currentGPSHdg;
+        p.latitude  = wairToNow.currentGPSLat;
+        p.longitude = wairToNow.currentGPSLon;
+        p.speed     = wairToNow.currentGPSSpd;
+        p.time      = wairToNow.currentGPSTime;
     }
 
     /**
@@ -834,12 +833,4 @@ public class GlassView
         return st + (char)0xB0;
     }
 
-    public static class Position {
-        float altitude;    // metres
-        float heading;     // degrees
-        float latitude;    // degrees
-        float longitude;   // degrees
-        float speed;       // metres per second
-        long  time;        // milliseconds
-    }
 }

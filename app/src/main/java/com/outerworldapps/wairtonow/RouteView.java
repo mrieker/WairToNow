@@ -23,7 +23,6 @@ package com.outerworldapps.wairtonow;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.graphics.Color;
-import android.location.Location;
 import android.text.Editable;
 import android.text.Spannable;
 import android.text.SpannableStringBuilder;
@@ -76,10 +75,6 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
     private EditText editTextF;
     private EditText editTextT;
     private EditText editTextN;
-    private float lastGPSAlt;
-    private float lastGPSLat;
-    private float lastGPSLon;
-    private float lastGPSpeed;
     private float startingLat;
     private float startingLon;
     private int goodColor;
@@ -372,8 +367,8 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
      */
     private void ComputeRoute ()
     {
-        startingLat        = lastGPSLat;
-        startingLon        = lastGPSLon;
+        startingLat        = wairToNow.currentGPSLat;
+        startingLon        = wairToNow.currentGPSLon;
         analyzedRouteArray = null;
         pointAhead         = 999999999;
         ShutTrackingOff ();
@@ -856,6 +851,9 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
     public void OpenDisplay ()
     {
         displayOpen = true;
+        boolean typeB = wairToNow.optionsView.typeBOption.checkBox.isChecked ();
+        if (typeB) ShutTrackingOff ();
+        buttonTrack.setVisibility (typeB ? GONE : VISIBLE);
         if (trackingOn) UpdateTrackingDisplay ();
     }
 
@@ -1238,13 +1236,8 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
      * Got an update from the GPS.
      * If we are tracking, change the course if we have progressed to the next waypoint.
      */
-    public void SetGPSLocation (Location loc)
+    public void SetGPSLocation ()
     {
-        lastGPSAlt  = (float) loc.getAltitude ();
-        lastGPSLat  = (float) loc.getLatitude ();
-        lastGPSLon  = (float) loc.getLongitude ();
-        lastGPSpeed = loc.getSpeed ();
-
         if (trackingOn) CalcPointAhead ();
     }
 
@@ -1261,7 +1254,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
         int   npoints  = analyzedRouteArray.length;
         for (int i = npoints; -- i >= 0;) {
             Waypoint wp = analyzedRouteArray[i];
-            float dist = Lib.LatLonDist (lastGPSLat, lastGPSLon, wp.lat, wp.lon);
+            float dist = Lib.LatLonDist (wairToNow.currentGPSLat, wairToNow.currentGPSLon, wp.lat, wp.lon);
             if (destdist > dist) {
                 destdist = dist;
                 desti    = i;
@@ -1311,18 +1304,21 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
         Waypoint wpi = analyzedRouteArray[i];
         Waypoint wpj = analyzedRouteArray[j];
 
+        float lastlat = wairToNow.currentGPSLat;
+        float lastlon = wairToNow.currentGPSLon;
+
         // see if before segment from I to J.
         // if so, we are distance I from route segment.
         // use dot product, treating lat/lon as rectangular coords, that's good enough.
-        if (((wpj.lat - wpi.lat) * (lastGPSLat - wpi.lat) +
-                (wpj.lon - wpi.lon) * (lastGPSLon - wpi.lon)) < 0) {
-            return - Lib.LatLonDist (wpi.lat, wpi.lon, lastGPSLat, lastGPSLon);
+        if (((wpj.lat - wpi.lat) * (lastlat - wpi.lat) +
+                (wpj.lon - wpi.lon) * (lastlon - wpi.lon)) < 0) {
+            return - Lib.LatLonDist (wpi.lat, wpi.lon, lastlat, lastlon);
         }
 
         // since we are closer to I than J, we can't be off end of segment from I to J
 
         // somewhere in middle of segment, distance is off-course distance
-        return Math.abs (Lib.GCOffCourseDist (wpi.lat, wpi.lon, wpj.lat, wpj.lon, lastGPSLat, lastGPSLon));
+        return Math.abs (Lib.GCOffCourseDist (wpi.lat, wpi.lon, wpj.lat, wpj.lon, lastlat, lastlon));
     }
 
     /**
@@ -1348,8 +1344,10 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
          * Display all points ahead of us and the heading and distance between them.
          * Also display ETA in Zulu for position reporting purposes.
          */
-        float lastlat = lastGPSLat;
-        float lastlon = lastGPSLon;
+        float lastGPSAlt = wairToNow.currentGPSAlt;
+        float lastGPSpeed = wairToNow.currentGPSSpd;
+        float lastlat = wairToNow.currentGPSLat;
+        float lastlon = wairToNow.currentGPSLon;
         float totnm   = 0.0F;
         boolean mphOption = wairToNow.optionsView.ktsMphOption.getAlt ();
         for (int i = pointAhead; i < analyzedRouteArray.length; i ++) {

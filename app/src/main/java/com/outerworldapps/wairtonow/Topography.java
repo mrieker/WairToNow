@@ -57,6 +57,9 @@ public class Topography {
         int ilatdeg = ilatmin / 60 - 1000;
         int ilondeg = ilonmin / 60 - 1000;
 
+        if (ilatdeg >= 90) return INVALID_ELEV;
+        if (ilatdeg < -90) return INVALID_ELEV;
+
         /*
          * See if corresponding file is already loaded in memory.
          * If not, put on requested queue and return that it is invalid.

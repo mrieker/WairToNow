@@ -57,7 +57,8 @@ public abstract class AirChart implements DisplayableChart {
     private final static String TAG = "WairToNow";
     private final static boolean showtilenames = false;
 
-    private final static AirTileLoader airTileLoader = new AirTileLoader ();
+    private final static Object airTileLoaderLock = new Object ();
+    private static AirTileLoader airTileLoaderThread;
 
     private static ThreadLocal<float[]> flt4PerThread = new ThreadLocal<float[]> () {
         @Override protected float[] initialValue () { return new float[4]; }
@@ -204,7 +205,7 @@ public abstract class AirChart implements DisplayableChart {
      * Get entry for chart selection menu.
      */
     @Override  // DisplayableChart
-    public View GetMenuSelector (ChartView chartView)
+    public View GetMenuSelector (@NonNull ChartView chartView)
     {
         PixelMapper pmap = chartView.pmap;
         float arrowLat = chartView.arrowLat;
@@ -329,122 +330,40 @@ public abstract class AirChart implements DisplayableChart {
 
     /**
      * Draw chart on canvas possibly scaled and/or rotated.
+     * @param pmap = mapping of lat/lons to canvas
      * @param canvas = canvas to draw on
+     * @param inval = what to call in an arbitrary thread when a tile gets loaded
+     * @param canvasHdgRads = 'up' heading on canvas
      */
     @Override  // DisplayableChart
-    public void DrawOnCanvas (ChartView chartView, Canvas canvas)
+    public void DrawOnCanvas (@NonNull PixelMapper pmap, @NonNull Canvas canvas, @NonNull Invalidatable inval, float canvasHdgRads)
     {
-        DrawOnCanvas (chartView, canvas, true);
+        DrawOnCanvas (pmap, canvas, inval, true);
     }
-    public void DrawOnCanvas (ChartView chartView, Canvas canvas, boolean includeLegends)
+    public void DrawOnCanvas (@NonNull PixelMapper pmap, @NonNull Canvas canvas, @NonNull Invalidatable inval, boolean includeLegends)
     {
         viewDrawCycle ++;
 
-        /*
-         * Create transformation matrix that scales and rotates the unscaled chart
-         * as a whole such that the given points match up.
-         *
-         *    [matrix] * [some_xy_in_chart] => [some_xy_in_canvas]
-         */
-        float[] points = drawOnCanvasPoints;
-        Point point = drawOnCanvasPoint;
-
-        LatLon2ChartPixelExact (chartView.tlLat, chartView.tlLon, point);
-        points[ 0] = point.x;  points[ 8] = 0;
-        points[ 1] = point.y;  points[9] = 0;
-
-        LatLon2ChartPixelExact (chartView.trLat, chartView.trLon, point);
-        points[ 2] = point.x;  points[10] = chartView.canvasWidth;
-        points[ 3] = point.y;  points[11] = 0;
-
-        LatLon2ChartPixelExact (chartView.blLat, chartView.blLon, point);
-        points[ 4] = point.x;  points[12] = 0;
-        points[ 5] = point.y;  points[13] = chartView.canvasHeight;
-
-        LatLon2ChartPixelExact (chartView.brLat, chartView.brLon, point);
-        points[ 6] = point.x;  points[14] = chartView.canvasWidth;
-        points[ 7] = point.y;  points[15] = chartView.canvasHeight;
-
-        if (!drawOnCanvasChartMat.setPolyToPoly (points, 0, points, 8, 4)) {
-            Log.e (TAG, "can't position chart");
-            return;
-        }
-        if (!drawOnCanvasChartMat.invert (undrawOnCanvasChartMat)) {
-            Log.e (TAG, "can't unposition chart");
-            return;
-        }
-
-        /*
-         * Get size of the canvas that we are drawing on.
-         * Don't use clip bounds because we want all tiles for the canvas marked
-         * as referenced so we don't keep loading and unloading the bitmaps.
-         */
-        canvasBounds.right  = chartView.canvasWidth;
-        canvasBounds.bottom = chartView.canvasHeight;
-
-        /*
-         * When zoomed out, scaling < 1.0 and we want to undersample the bitmaps by that
-         * much.  Eg, if scaling = 0.5, we want to sample half**2 the bitmap pixels and
-         * scale the bitmap back up to twice its size.  But when zoomed in, ie, scaling
-         * > 1.0, we don't want to oversample the bitmaps, just sample them normally, so
-         * we don't run out of memory doing so.  Also, using a Mathf.ceil() on it seems to
-         * use up a lot less memory than using arbitrary real numbers.
-         */
-        float ts = Mathf.hypot (points[6] - points[0], points[7] - points[1])
-                           / Mathf.hypot (chartView.canvasWidth, chartView.canvasHeight);
-        int tileScaling = (int) Mathf.ceil (ts);
+        int tileScaling = ComputeChartMapping (pmap);
+        if (tileScaling <= 0) return;
 
         /*
          * Scan through each tile that composes the chart.
          */
-        GetAirTiles (chartView, tileScaling, includeLegends);
-        Matrix tileMat = drawOnCanvasTileMat;
+        GetAirTiles (inval, tileScaling, includeLegends);
         for (int i = 0; i < ntilez; i ++) {
             AirTile tile = tilez[i];
-
-            /*
-             * Set up a matrix that maps an unscaled tile onto the canvas.
-             * If tileScaling=1, the unscaled tile is 256x256 plus overlap
-             * If tileScaling=2, the unscaled tile is 512x512 plus overlap
-             * If tileScaling=3, the unscaled tile is 768X768 plus overlap
-             * ...etc
-             */
-            tileMat.setTranslate (tile.leftPixel * tileScaling, tile.topPixel * tileScaling);
-                                                        // translate tile into position within whole unscaled chart
-            tileMat.postConcat (drawOnCanvasChartMat);  // position tile onto canvas
-
-            /*
-             * Compute the canvas points corresponding to the four corners of an unscaled tile.
-             */
-            int tws = tileScaling * tile.width;
-            int ths = tileScaling * tile.height;
-            points[0] =   0; points[1] =   0;
-            points[2] = tws; points[3] =   0;
-            points[4] =   0; points[5] = ths;
-            points[6] = tws; points[7] = ths;
-            tileMat.mapPoints (points, 8, points, 0, 4);
-
-            /*
-             * Get canvas bounds of the tile, given that the tile may be tilted.
-             */
-            int testLeft = (int)Math.min (Math.min (points[ 8], points[10]), Math.min (points[12], points[14]));
-            int testRite = (int)Math.max (Math.max (points[ 8], points[10]), Math.max (points[12], points[14]));
-            int testTop  = (int)Math.min (Math.min (points[ 9], points[11]), Math.min (points[13], points[15]));
-            int testBot  = (int)Math.max (Math.max (points[ 9], points[11]), Math.max (points[13], points[15]));
 
             /*
              * Attempt to draw tile iff it intersects the part of canvas we are drawing.
              * Otherwise, don't waste time and memory loading the bitmap, and certainly
              * don't mark the tile as referenced so we don't keep it in memory.
              */
-            if (canvasBounds.intersects (testLeft, testTop, testRite, testBot)) {
-                if (tileScaling != 1) {
-                    tileMat.preScale ((float)tileScaling, (float)tileScaling);
-                }
+            if (MapTileToCanvas (tile)) {
                 try {
                     Bitmap bm = tile.GetScaledBitmap ();
                     if (bm != null) {
-                        canvas.drawBitmap (bm, tileMat, null);
+                        canvas.drawBitmap (bm, drawOnCanvasTileMat, null);
                         if (tile.tileDrawCycle == 0) loadedBitmaps.add (tile);
                         tile.tileDrawCycle = viewDrawCycle;
 
@@ -452,7 +371,7 @@ public abstract class AirChart implements DisplayableChart {
                         if (showtilenames) {
                             canvas.save ();
                             try {
-                                canvas.concat (tileMat);
+                                canvas.concat (drawOnCanvasTileMat);
                                 canvas.drawLine (0, 0, tile.width,  0, stntxpaint);
                                 canvas.drawLine (0, 0, 0, tile.height, stntxpaint);
                                 DrawTileName (canvas, tile, stnbgpaint);
@@ -555,25 +474,9 @@ public abstract class AirChart implements DisplayableChart {
      *                      3: 1/9 as many original pixels, etc
      * @param l = include legend pixels
      */
-    private void GetAirTiles (ChartView chartView, int s, boolean l)
+    private void GetAirTiles (Invalidatable inval, int s, boolean l)
     {
-        // get dimensions of unscaled tile 0,0 and assume that all tiles are the same
-        // (except that the ones on the right and bottom edges may be smaller)
-        if ((wstep == 0) || (hstep == 0)) {
-            AirTile at0 = new AirTile (chartView, 0, 0, 1, true);
-            String name0 = at0.getPngName ();
-            BitmapFactory.Options bfo = new BitmapFactory.Options ();
-            bfo.inJustDecodeBounds = true;
-            BitmapFactory.decodeFile (name0, bfo);
-            wstep = bfo.outWidth;
-            hstep = bfo.outHeight;
-            if ((wstep <= 0) || (hstep <= 0)) {
-                Log.e (TAG, "error sizing tile " + name0);
-                wstep = 0;
-                hstep = 0;
-                return;
-            }
-        }
+        if (!MakeSureWeHaveTileSize ()) return;
 
         // if we don't have the requested array of tiles, get them
         if ((tilez == null) || (scaling != s) || (legends != l)) {
@@ -586,13 +489,152 @@ public abstract class AirChart implements DisplayableChart {
             ntilez = 0;
             for (int h = 0; h < height; h += hstep) {
                 for (int w = 0; w < width; w += wstep) {
-                    AirTile at = new AirTile (chartView, w, h, s, l);
+                    AirTile at = new AirTile (inval, w, h, s, l);
                     if (l || !at.isLegendOnly) tilez[ntilez++] = at;
                 }
             }
             scaling = s;
             legends = l;
         }
+    }
+
+    /**
+     * Compute mapping of the chart as a whole onto the canvas.
+     * @param pmap = canvas mapping
+     * @return 0: mapping invalid; else: tile scaling factor
+     */
+    private int ComputeChartMapping (PixelMapper pmap)
+    {
+        /*
+         * Create transformation matrix that scales and rotates the unscaled chart
+         * as a whole such that the given points match up.
+         *
+         *    [matrix] * [some_xy_in_chart] => [some_xy_in_canvas]
+         */
+        float[] points = drawOnCanvasPoints;
+        Point point = drawOnCanvasPoint;
+
+        LatLon2ChartPixelExact (pmap.lastTlLat, pmap.lastTlLon, point);
+        points[ 0] = point.x;  points[ 8] = 0;
+        points[ 1] = point.y;  points[9] = 0;
+
+        LatLon2ChartPixelExact (pmap.lastTrLat, pmap.lastTrLon, point);
+        points[ 2] = point.x;  points[10] = pmap.canvasWidth;
+        points[ 3] = point.y;  points[11] = 0;
+
+        LatLon2ChartPixelExact (pmap.lastBlLat, pmap.lastBlLon, point);
+        points[ 4] = point.x;  points[12] = 0;
+        points[ 5] = point.y;  points[13] = pmap.canvasHeight;
+
+        LatLon2ChartPixelExact (pmap.lastBrLat, pmap.lastBrLon, point);
+        points[ 6] = point.x;  points[14] = pmap.canvasWidth;
+        points[ 7] = point.y;  points[15] = pmap.canvasHeight;
+
+        if (!drawOnCanvasChartMat.setPolyToPoly (points, 0, points, 8, 4)) {
+            Log.e (TAG, "can't position chart");
+            return 0;
+        }
+        if (!drawOnCanvasChartMat.invert (undrawOnCanvasChartMat)) {
+            Log.e (TAG, "can't unposition chart");
+            return 0;
+        }
+
+        /*
+         * Get size of the canvas that we are drawing on.
+         * Don't use clip bounds because we want all tiles for the canvas marked
+         * as referenced so we don't keep loading and unloading the bitmaps.
+         */
+        canvasBounds.right  = pmap.canvasWidth;
+        canvasBounds.bottom = pmap.canvasHeight;
+
+        /*
+         * When zoomed out, scaling < 1.0 and we want to undersample the bitmaps by that
+         * much.  Eg, if scaling = 0.5, we want to sample half**2 the bitmap pixels and
+         * scale the bitmap back up to twice its size.  But when zoomed in, ie, scaling
+         * > 1.0, we don't want to oversample the bitmaps, just sample them normally, so
+         * we don't run out of memory doing so.  Also, using a Mathf.ceil() on it seems to
+         * use up a lot less memory than using arbitrary real numbers.
+         */
+        float ts = Mathf.hypot (points[6] - points[0], points[7] - points[1])
+                / Mathf.hypot (pmap.canvasWidth, pmap.canvasHeight);
+        return (int) Mathf.ceil (ts);
+    }
+
+    /**
+     * Make sure we have the size of the unscaled tile bitmaps from server.
+     */
+    private boolean MakeSureWeHaveTileSize ()
+    {
+        // get dimensions of unscaled tile 0,0 and assume that all tiles are the same
+        // (except that the ones on the right and bottom edges may be smaller)
+        if ((wstep == 0) || (hstep == 0)) {
+            AirTile at0 = new AirTile (null, 0, 0, 1, true);
+            String name0 = at0.getPngName ();
+            BitmapFactory.Options bfo = new BitmapFactory.Options ();
+            bfo.inJustDecodeBounds = true;
+            BitmapFactory.decodeFile (name0, bfo);
+            wstep = bfo.outWidth;
+            hstep = bfo.outHeight;
+            if ((wstep <= 0) || (hstep <= 0)) {
+                Log.e (TAG, "error sizing tile " + name0);
+                wstep = 0;
+                hstep = 0;
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Map a chart tile to the canvas.
+     * @param tile = tile to be mapped onto canvas
+     * @return whether any part of it appears at all
+     */
+    private boolean MapTileToCanvas (AirTile tile)
+    {
+        Matrix tileMat = drawOnCanvasTileMat;
+        float[] points = drawOnCanvasPoints;
+
+        /*
+         * Set up a matrix that maps an unscaled tile onto the canvas.
+         * If tileScaling=1, the unscaled tile is 256x256 plus overlap
+         * If tileScaling=2, the unscaled tile is 512x512 plus overlap
+         * If tileScaling=3, the unscaled tile is 768X768 plus overlap
+         * ...etc
+         */
+        tileMat.setTranslate (tile.leftPixel * scaling, tile.topPixel * scaling);
+        // translate tile into position within whole unscaled chart
+        tileMat.postConcat (drawOnCanvasChartMat);  // position tile onto canvas
+
+        /*
+         * Compute the canvas points corresponding to the four corners of an unscaled tile.
+         */
+        int tws = scaling * tile.width;
+        int ths = scaling * tile.height;
+        points[0] =   0; points[1] =   0;
+        points[2] = tws; points[3] =   0;
+        points[4] =   0; points[5] = ths;
+        points[6] = tws; points[7] = ths;
+        tileMat.mapPoints (points, 8, points, 0, 4);
+
+        /*
+         * Get canvas bounds of the tile, given that the tile may be tilted.
+         */
+        int testLeft = (int)Math.min (Math.min (points[ 8], points[10]), Math.min (points[12], points[14]));
+        int testRite = (int)Math.max (Math.max (points[ 8], points[10]), Math.max (points[12], points[14]));
+        int testTop  = (int)Math.min (Math.min (points[ 9], points[11]), Math.min (points[13], points[15]));
+        int testBot  = (int)Math.max (Math.max (points[ 9], points[11]), Math.max (points[13], points[15]));
+
+        /*
+         * Attempt to draw tile iff it intersects the part of canvas we are drawing.
+         * Otherwise, don't waste time and memory loading the bitmap, and certainly
+         * don't mark the tile as referenced so we don't keep it in memory.
+         */
+        if (!canvasBounds.intersects (testLeft, testTop, testRite, testBot)) return false;
+        if (scaling != 1) {
+            tileMat.preScale ((float) scaling, (float) scaling);
+        }
+        return true;
     }
 
     /**
@@ -614,14 +656,14 @@ public abstract class AirChart implements DisplayableChart {
 
         private Bitmap bitmap;         // bitmap that contains the image
         private boolean legends;       // include legend pixels
-        private ChartView chartView;   // where tile is being displayed
         private File pngFile;          // name of bitmap file
         private int scaling;           // scaling factor used to fetch bitmap with
+        private Invalidatable inval;   // callback when tile gets loaded
         private String pngName;        // name of bitmap file
 
-        public AirTile (ChartView cv, int lp, int tp, int sf, boolean lg)
+        public AirTile (Invalidatable inv, int lp, int tp, int sf, boolean lg)
         {
-            chartView = cv;
+            inval     = inv;
             leftPixel = lp;
             topPixel  = tp;
             scaling   = sf;
@@ -651,7 +693,7 @@ public abstract class AirChart implements DisplayableChart {
             // if we don't have bitmap in memory,
             // queue to thread for loading
             Bitmap bm;
-            synchronized (airTileLoader) {
+            synchronized (airTileLoaderLock) {
                 bm = bitmap;
                 if ((bm == null) && !queued) {
 
@@ -664,7 +706,10 @@ public abstract class AirChart implements DisplayableChart {
                     queued = true;
 
                     // wake the AirTileLoader thread
-                    airTileLoader.notifyAll ();
+                    if (airTileLoaderThread == null) {
+                        airTileLoaderThread = new AirTileLoader ();
+                        airTileLoaderThread.start ();
+                    }
                 }
             }
             return bm;
@@ -673,14 +718,14 @@ public abstract class AirChart implements DisplayableChart {
         /**
          * Called in AirTileThread to read bitmap into memorie.
          */
-        public Bitmap LoadBitmap ()
+        public Bitmap LoadScaledBitmap ()
         {
             // see if all legend pixels and caller doesn't want legends
             if (!legends && isLegendOnly) return null;
 
             // we need some pixels from a bitmap file
             try {
-                return ReadBitmap (null);
+                return ReadScaledBitmap (null);
             } catch (Throwable t) {
                 Log.e (TAG, "error loading bitmap " + pngName, t);
                 return null;
@@ -692,7 +737,7 @@ public abstract class AirChart implements DisplayableChart {
          * optionally undersampling.  It may throw exceptions and
          * out-of-memory errors.
          */
-        private Bitmap ReadBitmap (BitmapFactory.Options bfo) throws IOException
+        private Bitmap ReadScaledBitmap (BitmapFactory.Options bfo) throws IOException
         {
             // make image filename if we haven't already
             getPngName ();
@@ -772,8 +817,8 @@ public abstract class AirChart implements DisplayableChart {
          */
         private void MakePartialBitmap (int[] pixels) throws IOException
         {
-            AirTile unclippedAirTile = new AirTile (chartView, leftPixel, topPixel, 1, true);
-            Bitmap bm = unclippedAirTile.ReadBitmap (null);
+            AirTile unclippedAirTile = new AirTile (inval, leftPixel, topPixel, 1, true);
+            Bitmap bm = unclippedAirTile.ReadScaledBitmap (null);
             bm.getPixels (pixels, 0, width, 0, 0, width, height);
             bm.recycle ();
             for (int y = 0; y < height; y ++) {
@@ -786,7 +831,7 @@ public abstract class AirChart implements DisplayableChart {
         }
 
         /**
-         * Called in AirTileThread via LoadBitmap() to read scaled bitmap into memorie.
+         * Called in AirTileThread via LoadScaledBitmap() to read scaled bitmap into memorie.
          * Creates the scaled tile from unscaled tiles if not already on flash.
          *
          * The scaled tiles are 256x256, same as unscaled tiles, they just cover
@@ -855,11 +900,11 @@ public abstract class AirChart implements DisplayableChart {
                     int scaledpixelsdownfromscaledtiletop  = Math.round ((float) ystep * hstep / scaling);
 
                     // read the unscaled sub-tile into memory, undersampling it to scale it down
-                    AirTile unscaledTile = new AirTile (chartView,
+                    AirTile unscaledTile = new AirTile (inval,
                             unscaledpixelsoverfromchartleft,
                             unscaledpixelsdownfromcharttop,
                             1, legends);
-                    Bitmap bm = unscaledTile.ReadBitmap (bfo);
+                    Bitmap bm = unscaledTile.ReadScaledBitmap (bfo);
 
                     // get the scaled sub-tile width and height.  don't let it run off edge of the scaled tile.
                     int bmw = bm.getWidth ();
@@ -904,7 +949,7 @@ public abstract class AirChart implements DisplayableChart {
          */
         public void postInvalidate ()
         {
-            chartView.postInvalidate ();
+            inval.postInvalidate ();
         }
     }
 
@@ -913,11 +958,6 @@ public abstract class AirChart implements DisplayableChart {
      */
     private static class AirTileLoader extends Thread {
         public final static LinkedList<AirTile> tilesToLoad = new LinkedList<> ();
-
-        public AirTileLoader ()
-        {
-            start ();
-        }
 
         @Override
         public void run ()
@@ -930,20 +970,14 @@ public abstract class AirChart implements DisplayableChart {
             while (true) {
 
                 /*
-                 * Get a tile to load.  If none, wait for something.
-                 * But tell GUI thread to re-draw screen cuz we probably
-                 * just loaded a bunch of tiles.
+                 * Get a tile to load.  If none, we are all done.
                  */
                 AirTile tile;
-                synchronized (airTileLoader) {
-                    while (tilesToLoad.isEmpty ()) {
+                synchronized (airTileLoaderLock) {
+                    if (tilesToLoad.isEmpty ()) {
                         SQLiteDBs.CloseAll ();
-
-                        try {
-                            airTileLoader.wait ();
-                        } catch (InterruptedException ie) {
-                            Lib.Ignored ();
-                        }
+                        airTileLoaderThread = null;
+                        break;
                     }
                     tile = tilesToLoad.removeFirst ();
                 }
@@ -951,12 +985,13 @@ public abstract class AirChart implements DisplayableChart {
                 /*
                  * Got something to do, try to load the tile in memory.
                  */
-                Bitmap bm = tile.LoadBitmap ();
+                Bitmap bm = tile.LoadScaledBitmap ();
 
                 /*
-                 * Mark that we are done trying to load the bitmap.
+                 * Mark that we are done trying to load the bitmap
+                 * and trigger re-drawing the screen.
                  */
-                synchronized (airTileLoader) {
+                synchronized (airTileLoaderLock) {
                     tile.bitmap = bm;
                     tile.queued = false;
                 }

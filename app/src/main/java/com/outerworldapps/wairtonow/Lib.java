@@ -644,7 +644,7 @@ public class Lib {
                     bestRow = swapRow;
                 }
             }
-            if (pivot == 0.0) throw new RuntimeException ("not invertable");
+            if (pivot == 0.0) throw new ArithmeticException ("matrix not invertible");
             if (bestRow != row) {
                 float[] tmp = T_row_;
                 T[row] = T_row_ = T[bestRow];

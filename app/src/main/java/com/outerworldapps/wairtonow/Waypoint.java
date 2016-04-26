@@ -20,11 +20,18 @@
 
 package com.outerworldapps.wairtonow;
 
+import android.app.AlertDialog;
+import android.content.Context;
+import android.content.DialogInterface;
 import android.content.pm.ActivityInfo;
 import android.database.Cursor;
+import android.text.InputType;
 import android.util.Log;
+import android.view.KeyEvent;
 import android.view.View;
+import android.view.inputmethod.EditorInfo;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -44,6 +51,10 @@ import java.util.TreeMap;
  * Each individual waypoint in the database (airport, localizer, navaid, fix)
  */
 public abstract class Waypoint {
+    public interface Selected {
+        void wpSeld (Waypoint wp);
+    }
+
     public final static String TAG = "WairToNow";
     public final static float ELEV_UNKNOWN = 999999.0F;
     public final static int   VAR_UNKNOWN  = 999999;
@@ -69,6 +80,96 @@ public abstract class Waypoint {
         al.add (Localizer.class);
         al.add (Navaid.class);
         return al;
+    }
+
+    /**
+     * Display a text dialog for user to enter a waypoint ident.
+     * @param ctx = what app this is part of
+     * @param title = title for the dialog box
+     * @param nearlat = nearby latitude
+     * @param nearlon = nearby longitude
+     * @param oldid = initial value for dialog box
+     * @param wpsel = what to call when waypoint selection complete
+     */
+    public static void ShowWaypointDialog (
+            final Context ctx,
+            final String title,
+            final float nearlat,
+            final float nearlon,
+            final String oldid,
+            final Selected wpsel)
+    {
+        // set up a text box to enter the new identifier in
+        // populate it with the current identifier
+        final EditText ident = new EditText (ctx);
+        ident.setInputType (InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        ident.setSingleLine ();
+        ident.setText (oldid);
+
+        // set up and display an alert dialog box to enter new identifier
+        AlertDialog.Builder adb = new AlertDialog.Builder (ctx);
+        adb.setTitle (title);
+        adb.setView (ident);
+        adb.setPositiveButton ("OK", new DialogInterface.OnClickListener () {
+            @Override
+            public void onClick (DialogInterface dialogInterface, int i)
+            {
+                waypointEntered (ctx, title, wpsel, nearlat, nearlon, ident);
+            }
+        });
+        adb.setNeutralButton ("OFF", new DialogInterface.OnClickListener () {
+            @Override
+            public void onClick (DialogInterface dialogInterface, int i)
+            {
+                ident.setText ("");
+                waypointEntered (ctx, title, wpsel, nearlat, nearlon, ident);
+            }
+        });
+        adb.setNegativeButton ("Cancel", null);
+        final AlertDialog dmeDialog = adb.show ();
+
+        // set up listener for the DONE keyboard key
+        ident.setOnEditorActionListener (new TextView.OnEditorActionListener () {
+            @Override
+            public boolean onEditorAction (TextView textView, int i, KeyEvent keyEvent)
+            {
+                if (i == EditorInfo.IME_ACTION_DONE) {
+                    dmeDialog.dismiss ();
+                    waypointEntered (ctx, title, wpsel, nearlat, nearlon, ident);
+                }
+                return false;
+            }
+        });
+    }
+
+    private static void waypointEntered (
+            Context ctx,
+            String title,
+            Selected wpsel,
+            float nearlat,
+            float nearlon,
+            EditText ident)
+    {
+        String newid = ident.getText ().toString ().replace (" ", "").toUpperCase (Locale.US);
+        if (newid.equals ("")) {
+            wpsel.wpSeld (null);
+        } else {
+            LinkedList<Waypoint> wplist = GetWaypointsByIdent (newid);
+            Waypoint bestwp = null;
+            float bestnm = 999999.0F;
+            for (Waypoint wp : wplist) {
+                float nm = Lib.LatLonDist (wp.lat, wp.lon, nearlat, nearlon);
+                if (bestnm > nm) {
+                    bestnm = nm;
+                    bestwp = wp;
+                }
+            }
+            if (bestwp == null) {
+                ShowWaypointDialog (ctx, title, nearlat, nearlon, newid, wpsel);
+                return;
+            }
+            wpsel.wpSeld (bestwp);
+        }
     }
 
     /**
@@ -666,7 +767,7 @@ public abstract class Waypoint {
             @Override  // OnClickListener
             public void onClick (View button)
             {
-                PlateView pv = new PlateView (wpv, WairToNow.dbdir + "/datums/aptplates_" + ex + "/" + fn, aw, pd, ex);
+                PlateView pv = new PlateView (wpv, WairToNow.dbdir + "/datums/aptplates_" + ex + "/" + fn, aw, pd, ex, true);
 
                 /*
                  * Display this view, telling any previous view to release any screen locks.

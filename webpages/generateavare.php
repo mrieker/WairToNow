@@ -28,8 +28,8 @@
 
     $apddir   = "datums/apdgeorefs_$cycles28";
     $dbname   = "viewiap/generateavare.db";
-    $oldname  = "../decosects/avare/geoplates.db";
-    $areaname = "../decosects/avare/area_geoplates.db";
+    $oldname  = "$datdir/avare_$cycles28.db";
+    $areaname = "$datdir/avarea_$cycles28.db";
 
     /*
      * If we have any CSV file newer than DB file, re-create DB file.

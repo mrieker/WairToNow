@@ -95,11 +95,12 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
 
     private final static byte[] nullblob = new byte[0];
 
+    private boolean full;
     private int expdate;                // plate expiration date, eg, 20150917
     private PlateImage plateImage;      // displays the plate image bitmap
     private String plateid;             // which plate, eg, "IAP-LOC RWY 16"
     private WairToNow wairToNow;
-    private WaypointView waypointView;  // airport waypoint page we are psrt of
+    private WaypointView waypointView;  // airport waypoint page we are part of
     private Waypoint.Airport airport;   // which airport, eg, "KBVY"
 
     private final static String[] columns_apdgeorefs1 = new String[] { "gr_wfta", "gr_wftb", "gr_wftc", "gr_wftd", "gr_wfte", "gr_wftf" };
@@ -107,16 +108,19 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
     private final static String[] columns_georefs2 = new String[] { "gr_waypt", "gr_bmpixx", "gr_bmpixy", "gr_zpixels" };
     private final static String[] columns_iapgeorefs1 = new String[] { "gr_waypt", "gr_bmpixx", "gr_bmpixy" };
 
-    public PlateView (WaypointView wv, String fn, Waypoint.Airport aw, String pd, int ex)
+    public PlateView (WaypointView wv, String fn, Waypoint.Airport aw, String pd, int ex, boolean fu)
     {
         super (wv.wairToNow);
+        full = fu;
         waypointView = wv;
         wairToNow = wv.wairToNow;
         construct (fn, aw, pd, ex);
     }
-    public PlateView (WairToNow wtn, String fn, Waypoint.Airport aw, String pd, int ex)
+    public PlateView (WairToNow wtn, String fn, Waypoint.Airport aw, String pd, int ex, boolean fu)
     {
         super (wtn);
+        full = fu;
+        waypointView = null;
         wairToNow = wtn;
         construct (fn, aw, pd, ex);
     }
@@ -131,6 +135,10 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         if (plateid.startsWith ("APD-")) {
             plateImage = new APDPlateImage (fn);
         } else if (plateid.startsWith ("IAP-")) {
+            wairToNow.lastPlate_fn = fn;
+            wairToNow.lastPlate_aw = aw;
+            wairToNow.lastPlate_pd = pd;
+            wairToNow.lastPlate_ex = ex;
             plateImage = new IAPPlateImage (fn);
         } else if (plateid.startsWith ("RWY-")) {
             plateImage = new RWYPlateImage ();
@@ -499,21 +507,24 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         /**
          * Draw airplane icon showing current location on plate.
          */
-        protected boolean DrawLocationArrow (Canvas canvas)
+        protected boolean DrawLocationArrow (Canvas canvas, boolean isAptDgm)
         {
             if ((xfmwfte == 0.0) && (xfmwftf == 0.0)) return false;
 
-            int bitmapX = LatLon2BitmapX (waypointView.centerLat, waypointView.centerLon);
-            int bitmapY = LatLon2BitmapY (waypointView.centerLat, waypointView.centerLon);
-            float canPointX = BitmapX2CanvasX (bitmapX);
-            float canPointY = BitmapY2CanvasY (bitmapY);
-            canPoint.x = Math.round (canPointX);
-            canPoint.y = Math.round (canPointY);
-            float canXPerBmpX = BitmapX2CanvasX (bitmapX + 1) - canPointX;
-            float canYPerBmpY = BitmapY2CanvasY (bitmapY + 1) - canPointY;
-            float mPerCanX = mPerBmpPix / canXPerBmpX;
-            float mPerCanY = mPerBmpPix / canYPerBmpY;
-            wairToNow.chartView.DrawLocationArrow (canvas, canPoint, 0.0F, mPerCanX, mPerCanY);
+            if (!wairToNow.optionsView.typeBOption.checkBox.isChecked () ||
+                    (isAptDgm && (wairToNow.currentGPSSpd < 80.0F * Lib.MPerNM / 3600.0F))) {
+                int bitmapX = LatLon2BitmapX (wairToNow.currentGPSLat, wairToNow.currentGPSLon);
+                int bitmapY = LatLon2BitmapY (wairToNow.currentGPSLat, wairToNow.currentGPSLon);
+                float canPointX = BitmapX2CanvasX (bitmapX);
+                float canPointY = BitmapY2CanvasY (bitmapY);
+                canPoint.x = Math.round (canPointX);
+                canPoint.y = Math.round (canPointY);
+                float canXPerBmpX = BitmapX2CanvasX (bitmapX + 1) - canPointX;
+                float canYPerBmpY = BitmapY2CanvasY (bitmapY + 1) - canPointY;
+                float mPerCanX = mPerBmpPix / canXPerBmpX;
+                float mPerCanY = mPerBmpPix / canYPerBmpY;
+                wairToNow.chartView.DrawLocationArrow (canvas, canPoint, 0.0F, mPerCanX, mPerCanY);
+            }
             return true;
         }
 
@@ -723,7 +734,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
              * Also draw runway centerlines on airport diagrams
              * so user can easily verify georeference info.
              */
-            if (DrawLocationArrow (canvas)) {
+            if (DrawLocationArrow (canvas, true)) {
                 for (Waypoint.Runway rwy : airport.GetRunways ().values ()) {
                     int begBmX = LatLon2BitmapX (rwy.begLat, rwy.begLon);
                     int begBmY = LatLon2BitmapY (rwy.begLat, rwy.begLon);
@@ -737,7 +748,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                 }
             }
 
-            wairToNow.drawGPSAvailable (canvas, this);
+            if (full) wairToNow.drawGPSAvailable (canvas, this);
         }
     }
 
@@ -745,7 +756,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
      * Display a runway diagram made up from runway information,
      * and backed by OpenStreetMap tiles.
      */
-    private class RWYPlateImage extends GRPlateImage {
+    private class RWYPlateImage extends GRPlateImage implements DisplayableChart.Invalidatable {
 
         // one of these per runway half
         private class RwyInfo {
@@ -947,13 +958,13 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             /*
              * Show debugging lines through airport reference point.
              */
-            if (false) {
+            /*{
                 rwyPaint.setColor (Color.WHITE);
                 float aptCanX = BitmapX2CanvasX (LatLon2BitmapX (airport.lat, airport.lon));
                 float aptCanY = BitmapY2CanvasY (LatLon2BitmapY (airport.lat, airport.lon));
                 canvas.drawLine (0, aptCanY, width, aptCanY, rwyPaint);
                 canvas.drawLine (aptCanX, 0, aptCanX, height, rwyPaint);
-            }
+            }*/
 
             /*
              * Draw scale.
@@ -1052,9 +1063,9 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             /*
              * Draw airplane.
              */
-            DrawLocationArrow (canvas);
+            DrawLocationArrow (canvas, true);
 
-            wairToNow.drawGPSAvailable (canvas, this);
+            if (full) wairToNow.drawGPSAvailable (canvas, this);
         }
 
         /**
@@ -1097,7 +1108,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
      */
     public static PixelMapper GetRWYPlateImageDefaultOSMMapping (Waypoint.Airport apt, WairToNow wairToNow)
     {
-        PlateView pv = new PlateView (wairToNow, null, apt, "RWY-RUNWAY", 99999999);
+        PlateView pv = new PlateView (wairToNow, null, apt, "RWY-RUNWAY", 99999999, false);
         int width  = wairToNow.displayWidth;
         int height = wairToNow.displayHeight;
         ((RWYPlateImage) pv.plateImage).CalcOSMBackground (width, height);
@@ -1150,7 +1161,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             GetIAPGeoRefPoints ();
 
             /*
-             * For instrument approach plates, allow manual entry of waypoints for georeferencing.
+             * Allow manual entry of waypoints for georeferencing.
              */
             DetentHorizontalScrollView hsv = new DetentHorizontalScrollView (wairToNow);
             wairToNow.SetDetentSize (hsv);
@@ -1420,7 +1431,9 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             /*
              * Draw little triangle button at top to hide/show IAP georef edit buttons.
              */
-            DrawEditButton (canvas);
+            if (full && !wairToNow.optionsView.typeBOption.checkBox.isChecked ()) {
+                DrawEditButton (canvas);
+            }
 
             /*
              * Draw diamonds for all defined IAP georeference points.
@@ -1431,33 +1444,35 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
              *     CYAN : machine but not being used
              * Also draw box and waypoint name if crosshairs enabled.
              */
-            float dimnddx = GEOREFDIMND / Lib.MMPerIn * metrics.xdpi;
-            float dimnddy = GEOREFDIMND / Lib.MMPerIn * metrics.ydpi;
-            for (IAPGeoRefMap grm : iapGeoRefMaps.values ()) {
-                geoRefPaint.setColor (
-                        !grm.manual ? (grm.used ? Color.BLUE : Color.CYAN) :
-                        !grm.valid ? Color.RED : !grm.used ? Color.YELLOW : Color.GREEN);
-                float canvasX = BitmapX2CanvasX (grm.pixelx);
-                float canvasY = BitmapY2CanvasY (grm.pixely);
-                diamond.rewind  ();
-                diamond.moveTo  (canvasX, canvasY - dimnddy);
-                diamond.rLineTo ( dimnddx,  dimnddy);
-                diamond.rLineTo (-dimnddx,  dimnddy);
-                diamond.rLineTo (-dimnddx, -dimnddy);
-                diamond.rLineTo ( dimnddx, -dimnddy);
-                canvas.drawPath (diamond, geoRefPaint);
+            if (!wairToNow.optionsView.typeBOption.checkBox.isChecked ()) {
+                float dimnddx = GEOREFDIMND / Lib.MMPerIn * metrics.xdpi;
+                float dimnddy = GEOREFDIMND / Lib.MMPerIn * metrics.ydpi;
+                for (IAPGeoRefMap grm : iapGeoRefMaps.values ()) {
+                    geoRefPaint.setColor (
+                            !grm.manual ? (grm.used ? Color.BLUE : Color.CYAN) :
+                            !grm.valid ? Color.RED : !grm.used ? Color.YELLOW : Color.GREEN);
+                    float canvasX = BitmapX2CanvasX (grm.pixelx);
+                    float canvasY = BitmapY2CanvasY (grm.pixely);
+                    diamond.rewind  ();
+                    diamond.moveTo  (canvasX, canvasY - dimnddy);
+                    diamond.rLineTo ( dimnddx,  dimnddy);
+                    diamond.rLineTo (-dimnddx,  dimnddy);
+                    diamond.rLineTo (-dimnddx, -dimnddy);
+                    diamond.rLineTo ( dimnddx, -dimnddy);
+                    canvas.drawPath (diamond, geoRefPaint);
 
-                if (showIAPEditButtons) {
-                    float lox = BitmapX2CanvasX (grm.pixelx - GEOREFBOX);
-                    float hix = BitmapX2CanvasX (grm.pixelx + GEOREFBOX);
-                    float loy = BitmapY2CanvasY (grm.pixely - GEOREFBOX);
-                    float hiy = BitmapY2CanvasY (grm.pixely + GEOREFBOX);
-                    canvas.drawLine (lox, loy, hix, loy, geoRefPaint);
-                    canvas.drawLine (lox, hiy, hix, hiy, geoRefPaint);
-                    canvas.drawLine (lox, loy, lox, hiy, geoRefPaint);
-                    canvas.drawLine (hix, loy, hix, hiy, geoRefPaint);
-                    float lineHeight = geoRefPaint.getFontSpacing ();
-                    canvas.drawText (grm.ident, canvasX, hiy + lineHeight, geoRefPaint);
+                    if (showIAPEditButtons) {
+                        float lox = BitmapX2CanvasX (grm.pixelx - GEOREFBOX);
+                        float hix = BitmapX2CanvasX (grm.pixelx + GEOREFBOX);
+                        float loy = BitmapY2CanvasY (grm.pixely - GEOREFBOX);
+                        float hiy = BitmapY2CanvasY (grm.pixely + GEOREFBOX);
+                        canvas.drawLine (lox, loy, hix, loy, geoRefPaint);
+                        canvas.drawLine (lox, hiy, hix, hiy, geoRefPaint);
+                        canvas.drawLine (lox, loy, lox, hiy, geoRefPaint);
+                        canvas.drawLine (hix, loy, hix, hiy, geoRefPaint);
+                        float lineHeight = geoRefPaint.getFontSpacing ();
+                        canvas.drawText (grm.ident, canvasX, hiy + lineHeight, geoRefPaint);
+                    }
                 }
             }
 
@@ -1483,13 +1498,16 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             /*
              * Draw any enabled DMEs and timer.
              */
-            plateDME.DrawDMEs (canvas, waypointView.centerLat, waypointView.centerLon, waypointView.centerAlt, waypointView.centerTime);
+            if (!wairToNow.optionsView.typeBOption.checkBox.isChecked ()) {
+                plateDME.DrawDMEs (canvas, wairToNow.currentGPSLat, wairToNow.currentGPSLon,
+                        wairToNow.currentGPSAlt, wairToNow.currentGPSTime);
+            }
             plateTimer.DrawTimer (canvas);
 
             /*
              * Draw airplane if we have enough georeference info.
              */
-            DrawLocationArrow (canvas);
+            DrawLocationArrow (canvas, false);
 
             /*
              * Draw IAP georeferencing crosshairs.
@@ -1502,7 +1520,12 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                 canvas.drawLine (0, crosshairCanvasY, getWidth (), crosshairCanvasY, geoRefPaint);
             }
 
-            wairToNow.drawGPSAvailable (canvas, this);
+            /*
+             * Draw GPS Available box around plate border.
+             */
+            if (full && !wairToNow.optionsView.typeBOption.checkBox.isChecked ()) {
+                wairToNow.drawGPSAvailable (canvas, this);
+            }
         }
 
         /**

@@ -7,7 +7,7 @@
     <com.outerworldapps.wairtonow.DetentHorizontalScrollView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:id="@+id/buttonscroller">
+        android:id="@+id/buttonscrollerport">
 
         <LinearLayout
             android:orientation="horizontal"
@@ -18,25 +18,39 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="OFF"
-                android:id="@+id/modebutton"/>
+                android:id="@+id/modebuttonport"/>
+
+            <com.outerworldapps.wairtonow.SpacerView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"/>
 
             <Button
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Use FAAWP1"
-                android:id="@+id/use_faawp1"/>
+                android:text="FAAWP1"
+                android:id="@+id/use_faawp1port"/>
 
             <Button
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Use FAAWP2"
-                android:id="@+id/use_faawp2"/>
+                android:text="FAAWP2"
+                android:id="@+id/use_faawp2port"/>
 
             <Button
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Use UserWP"
-                android:id="@+id/use_userwp"/>
+                android:text="UserWP"
+                android:id="@+id/use_userwpport"/>
+
+            <com.outerworldapps.wairtonow.SpacerView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"/>
+
+            <Button
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Unlkd"
+                android:id="@+id/orientport"/>
 
         </LinearLayout>
 
@@ -45,25 +59,25 @@
     <com.outerworldapps.wairtonow.DetentHorizontalScrollView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:id="@+id/identscroller"
+        android:id="@+id/identscrollerport"
         android:layout_gravity="center_horizontal">
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:id="@+id/wpident"/>
+            android:id="@+id/wpidentport"/>
 
     </com.outerworldapps.wairtonow.DetentHorizontalScrollView>
 
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:id="@+id/wpstatus"
+        android:id="@+id/wpstatusport"
         android:layout_gravity="center_horizontal"/>
 
     <com.outerworldapps.wairtonow.NavDialView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:id="@+id/navdial"/>
+        android:id="@+id/navdialport"/>
 
 </LinearLayout>

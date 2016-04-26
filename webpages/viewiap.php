@@ -85,7 +85,7 @@
                 for ($i = 0; $i < strlen ($firstx); $i ++) $firsts[] = $firstx[$i];
                 outputLinkTable ("first", $firsts, 10);
 
-                echo "<P><A HREF=\"generateavare.php\">Avare Compatible DB</A></P>\n";
+                //echo "<P><A HREF=\"generateavare.php\">Avare Compatible DB</A></P>\n";
 
                 $goodnames = scandir ("../webdata/iaputil");
                 $goodlatest = '';

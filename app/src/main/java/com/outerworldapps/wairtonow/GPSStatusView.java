@@ -36,7 +36,6 @@ import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.location.GpsSatellite;
 import android.location.GpsStatus;
-import android.location.Location;
 import android.view.View;
 
 /**
@@ -51,18 +50,12 @@ public class GPSStatusView
     private final static String[] compDirs = new String[] { "N", "E", "S", "W" };
 
     private DecimalFormat formatter = new DecimalFormat ("#.#");
-    private float altitude;    // metres MSL
     private float compRotDeg;  // compass rotation
-    private float latitude;    // degrees
-    private float longitude;   // degrees
-    private float heading;     // degrees true
-    private float speed;       // metres per second
     private float[] geomag;
     private float[] gravity;
     private float[] orient = new float[3];
     private float[] rotmat = new float[9];
     private Iterable<GpsSatellite> satellites;
-    private long  time;        // milliseconds since Jan 1, 1970 UTC
     private WairToNow wairToNow;
     private Paint ignoredSpotsPaint = new Paint ();
     private Paint ringsPaint        = new Paint ();
@@ -100,20 +93,6 @@ public class GPSStatusView
     public String GetTabName ()
     {
         return "GPS";
-    }
-
-    /**
-     * The GPS has new position information for us.
-     * Save it and update screen.
-     */
-    public void SetGPSLocation (Location loc)
-    {
-        altitude  = (float) loc.getAltitude ();
-        heading   = loc.getBearing ();
-        latitude  = (float) loc.getLatitude ();
-        longitude = (float) loc.getLongitude ();
-        speed     = loc.getSpeed ();
-        time      = loc.getTime ();
     }
 
     public void SetGPSStatus (GpsStatus sts)
@@ -244,15 +223,20 @@ public class GPSStatusView
         float yy = canvasWidth;
         float dy = textPaint.getTextSize () * 1.25F;
 
-        String timestr = utcfmt.format (time);
+        String timestr = utcfmt.format (wairToNow.currentGPSTime);
         canvas.drawText (timestr, circleCenterX, yy, textPaint);
         yy += dy;
 
+        float latitude  = wairToNow.currentGPSLat;
+        float longitude = wairToNow.currentGPSLon;
         String locstr = wairToNow.optionsView.LatLonString (latitude,  'N', 'S') + "    " +
                         wairToNow.optionsView.LatLonString (longitude, 'E', 'W');
         canvas.drawText (locstr, circleCenterX, yy, textPaint);
         yy += dy;
 
+        float altitude = wairToNow.currentGPSAlt;
+        float heading  = wairToNow.currentGPSHdg;
+        float speed    = wairToNow.currentGPSSpd;
         String althdgstr = Integer.toString ((int) (altitude / 3.28084)) + " ft MSL    " +
                            wairToNow.optionsView.HdgString (heading, latitude, longitude, altitude) + "    ";
         if (wairToNow.optionsView.ktsMphOption.getAlt ()) {

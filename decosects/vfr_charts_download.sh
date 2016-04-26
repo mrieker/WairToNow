@@ -18,8 +18,7 @@ set -e
 function downloadgroup
 {
     grep "http://aeronav.faa.gov/content/aeronav/$1_files/" chartlist_all.htm > charts.tmp1
-    sed 's/.*href="//g' charts.tmp1 | grep -i [.]zip | grep -i -v _P[.]zip > charts.tmp2
-    sed 's/".*//g' charts.tmp2 | downloadfiles
+    grep -i [.]zip charts.tmp1 | grep -i -v _P[.]zip | downloadfiles
     rm charts.tmp*
 }
 
@@ -28,6 +27,9 @@ function downloadfiles
     # link = "http://aeronav.faa.gov/content/aeronav/sectional_files/New_York_86.zip"
     while read link
     do
+        link=${link#*href=\"}
+        link=${link%%\"*}
+        echo link=$link
         if [ "$next28" == "1" ]
         then
             linknozip=${link%.zip}

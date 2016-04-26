@@ -40,6 +40,7 @@ import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.Point;
+import android.support.annotation.NonNull;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.View;
@@ -57,12 +58,12 @@ public class OpenStreetMap {
     private static final long TILE_RETRY_MS = 1000L*10;
 
     private boolean prefetchRunwayTiles;
+    private DisplayableChart.Invalidatable redrawView;
     private DownloadThread downloadThread;
     private MainTileDrawer mainTileDrawer;
     private Paint copyrtBGPaint = new Paint ();
     private Paint copyrtTxPaint = new Paint ();
     private final TreeSet<String> downloadTilenames = new TreeSet<> ();
-    private View redrawView;
     private WairToNow wairToNow;
 
     public OpenStreetMap (WairToNow wtn)
@@ -88,10 +89,10 @@ public class OpenStreetMap {
      * Draw tiles to canvas corresponding to given lat/lons.
      * @param canvas = canvas that draws to the view
      * @param pmap = maps canvas/view pixels to lat/lon
-     * @param view = view that the canvas draws to
-     * @param canvasHdgRads = heading that is "up" (radians)
+     * @param inval = what to call in an arbitrary thread when a tile gets loaded
+     * @param canvasHdgRads = 'up' heading on the canvas
      */
-    public void Draw (Canvas canvas, PixelMapper pmap, View view, float canvasHdgRads)
+    public void Draw (@NonNull Canvas canvas, @NonNull PixelMapper pmap, @NonNull DisplayableChart.Invalidatable inval, float canvasHdgRads)
     {
         /*
          * If thread is busy working on a queue of tiles, tell it not to bother,
@@ -101,7 +102,7 @@ public class OpenStreetMap {
          */
         redrawView = null;
         StopDownloadingTileFiles ();
-        redrawView = view;
+        redrawView = inval;
 
         /*
          * Draw tiles.
@@ -565,7 +566,7 @@ public class OpenStreetMap {
                      */
                     if (!bulkDownloads.isEmpty ()) {
                         FetchTiles ();
-                        View v = redrawView;
+                        DisplayableChart.Invalidatable v = redrawView;
                         if (v != null) v.postInvalidate ();
                         continue;
                     }

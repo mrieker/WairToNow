@@ -20,10 +20,10 @@
 
 package com.outerworldapps.wairtonow;
 
+import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.graphics.Color;
-import android.location.Location;
 import android.text.InputType;
 import android.util.Log;
 import android.util.Xml;
@@ -55,6 +55,10 @@ import java.util.TreeMap;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
+/**
+ * Manage bread crumbs files.
+ */
+@SuppressLint("ViewConstructor")
 public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
     private final static int INTERVALMS   = 10000;
     private final static int TYPE_UNKNOWN = 0;
@@ -137,7 +141,7 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
     /**
      * Get locations of the currently selected trail.
      */
-    public LinkedList<Location> GetShownTrail ()
+    public LinkedList<Position> GetShownTrail ()
     {
         return (activeButton == null) ? null : activeButton.trail;
     }
@@ -155,10 +159,10 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
     /**
      * Process an incoming GPS location.
      */
-    public void SetGPSLocation (Location loc)
+    public void SetGPSLocation ()
     {
         if (activeButton != null) {
-            activeButton.GotGPSLocation (loc);
+            activeButton.GotGPSLocation ();
         }
     }
 
@@ -168,7 +172,7 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
      */
     private abstract class TrailButton extends Button implements OnClickListener {
         public int type;
-        public LinkedList<Location> trail;
+        public LinkedList<Position> trail;
         public String name;
 
         public TrailButton ()
@@ -186,7 +190,7 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
         public abstract void CloseClicked ();
 
         // there is an incoming GPS location to process
-        public abstract void GotGPSLocation (Location loc);
+        public abstract void GotGPSLocation ();
 
         @Override  // OnClickListener
         public final void onClick (View v)
@@ -245,8 +249,8 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
             setTextColor (Color.BLUE);
 
             // position chart screen to first point in the recording
-            Location firstloc = trail.getFirst ();
-            wairToNow.chartView.SetCenterLatLon ((float) firstloc.getLatitude (), (float) firstloc.getLongitude ());
+            Position firstloc = trail.getFirst ();
+            wairToNow.chartView.SetCenterLatLon (firstloc.latitude, firstloc.longitude);
 
             // tell caller we were successful setting up
             return true;
@@ -259,7 +263,7 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
         }
 
         @Override  // TrailButton
-        public void GotGPSLocation (Location loc)
+        public void GotGPSLocation ()
         { }
 
         @Override  // OnLongClickListener
@@ -335,6 +339,7 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
          * Set the button's text string based on the name
          * and whether the file exists or not.
          */
+        @SuppressLint("SetTextI18n")
         protected void SetButtonText ()
         {
             String dateSuffix = "";
@@ -351,7 +356,8 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
         private String GetStats ()
         {
             // get list of points on trail by reading fike
-            LinkedList<Location> trail = new LinkedList<> ();
+            LinkedList<Position> trail = new LinkedList<> ();
+            //noinspection ThrowableResultOfMethodCallIgnored
             Exception e = ReadTrailFile (trail, name, type, true);
             String err = "";
             if (e != null) {
@@ -365,20 +371,20 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
             // scan list to generate stats
             float distnm  = 0;
             float peakkts = 0;
-            Location lastloc = null;
+            Position lastpos = null;
             long finished = 0;
             long started  = 0;
-            for (Location loc : trail) {
-                if (lastloc == null) {
-                    started = loc.getTime ();
+            for (Position pos : trail) {
+                if (lastpos == null) {
+                    started = pos.time;
                 } else {
-                    distnm += Lib.LatLonDist ((float) lastloc.getLatitude (), (float) lastloc.getLongitude (),
-                            (float) loc.getLatitude (), (float) loc.getLongitude ());
+                    distnm += Lib.LatLonDist (lastpos.latitude, lastpos.longitude,
+                            pos.latitude, pos.longitude);
                 }
-                float kts = loc.getSpeed () * Lib.KtPerMPS;
+                float kts = pos.speed * Lib.KtPerMPS;
                 if (peakkts < kts) peakkts = kts;
-                finished = loc.getTime ();
-                lastloc  = loc;
+                finished = pos.time;
+                lastpos  = pos;
             }
 
             // format elapsed time string
@@ -413,6 +419,7 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
      * Create a new trail recording file and start recording to it.
      */
     private class CreateNewButton extends TrailButton {
+        @SuppressLint("SetTextI18n")
         public CreateNewButton ()
         {
             setText ("Create...");
@@ -483,7 +490,7 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
         { }
 
         @Override  // TrailButton
-        public void GotGPSLocation (Location loc)
+        public void GotGPSLocation ()
         { }
     }
 
@@ -555,18 +562,18 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
         }
 
         @Override  // ShowExistingButton
-        public void GotGPSLocation (Location loc)
+        public void GotGPSLocation ()
         {
             if (closed) {
-                super.GotGPSLocation (loc);
+                super.GotGPSLocation ();
                 return;
             }
 
             // get recording start time from first sample
-            if (started == 0) started = loc.getTime ();
+            if (started == 0) started = wairToNow.currentGPSTime;
 
             // only record once every INTERVALMS
-            int thisIntervalsSinceStarted = (int) ((loc.getTime () - started) / INTERVALMS);
+            int thisIntervalsSinceStarted = (int) ((wairToNow.currentGPSTime - started) / INTERVALMS);
             if (thisIntervalsSinceStarted > lastIntervalsSinceStarted) {
 
                 // try to write record to file
@@ -575,12 +582,12 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
                         writer.write (" </trkseg><trkseg>\n");
                     }
                     writer.write (
-                            "  <trkpt lat=\"" + loc.getLatitude () +
-                                    "\" lon=\"" + loc.getLongitude () +
-                                    "\"><ele>" + loc.getAltitude () +
-                            "</ele><heading>" + loc.getBearing () +
-                            "</heading><speed>" + loc.getSpeed () +
-                            "</speed><time>" + gpxdatefmt.format (new Date (loc.getTime ())) +
+                            "  <trkpt lat=\"" + wairToNow.currentGPSLat +
+                                    "\" lon=\"" + wairToNow.currentGPSLon +
+                                    "\"><ele>" + wairToNow.currentGPSAlt +
+                            "</ele><heading>" + wairToNow.currentGPSHdg +
+                            "</heading><speed>" + wairToNow.currentGPSSpd +
+                            "</speed><time>" + gpxdatefmt.format (new Date (wairToNow.currentGPSTime)) +
                             "</time></trkpt>\n");
                 } catch (IOException ioe) {
                     Log.w (TAG, "error writing " + name, ioe);
@@ -589,7 +596,14 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
                 }
 
                 // successful, add it to screen
-                trail.addLast (new Location (loc));
+                Position pos = new Position ();
+                pos.latitude  = wairToNow.currentGPSLat;
+                pos.longitude = wairToNow.currentGPSLon;
+                pos.altitude  = wairToNow.currentGPSAlt;
+                pos.heading   = wairToNow.currentGPSHdg;
+                pos.speed     = wairToNow.currentGPSSpd;
+                pos.time      = wairToNow.currentGPSTime;
+                trail.addLast (pos);
                 wairToNow.chartView.invalidate ();
 
                 lastIntervalsSinceStarted = thisIntervalsSinceStarted;
@@ -605,10 +619,11 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
      */
     private static long GetTrailFileDate (String name, int type)
     {
-        LinkedList<Location> trail = new LinkedList<> ();
+        LinkedList<Position> trail = new LinkedList<> ();
+        //noinspection ThrowableResultOfMethodCallIgnored
         Exception e = ReadTrailFile (trail, name, type, false);
         if (e != null) return 0;
-        return trail.getFirst ().getTime ();
+        return trail.getFirst ().time;
     }
 
     /**
@@ -619,7 +634,7 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
      * @param all = true: read all records; false: read just first record
      * @return null: success; else: error
      */
-    private static Exception ReadTrailFile (LinkedList<Location> trail, String name, int type, boolean all)
+    private static Exception ReadTrailFile (LinkedList<Position> trail, String name, int type, boolean all)
     {
         try {
             BufferedReader br = new BufferedReader (
@@ -632,14 +647,14 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
                         String line;
                         while ((line = br.readLine ()) != null) {
                             String[] cols = Lib.QuotedCSVSplit (line);
-                            Location loc  = new Location ("trail " + name);
-                            loc.setAltitude  (Double.parseDouble (cols[0]));
-                            loc.setBearing   (Float.parseFloat   (cols[1]));
-                            loc.setLatitude  (Double.parseDouble (cols[2]));
-                            loc.setLongitude (Double.parseDouble (cols[3]));
-                            loc.setSpeed     (Float.parseFloat   (cols[4]));
-                            loc.setTime      (Long.parseLong     (cols[5]));
-                            trail.addLast (loc);
+                            Position pos  = new Position ();
+                            pos.altitude  = Float.parseFloat (cols[0]);
+                            pos.heading   = Float.parseFloat (cols[1]);
+                            pos.latitude  = Float.parseFloat (cols[2]);
+                            pos.longitude = Float.parseFloat (cols[3]);
+                            pos.speed     = Float.parseFloat (cols[4]);
+                            pos.time      = Long.parseLong   (cols[5]);
+                            trail.addLast (pos);
                             if (!all) break;
                         }
                         if (trail.size () <= 0) throw new IOException ("empty file");
@@ -650,7 +665,7 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
                         XmlPullParser xpp = Xml.newPullParser ();
                         xpp.setFeature (XmlPullParser.FEATURE_PROCESS_NAMESPACES, false);
                         xpp.setInput (br);
-                        Location loc = null;
+                        Position pos = null;
                         String text = null;
                         for (int eventType = xpp.getEventType (); eventType != XmlPullParser.END_DOCUMENT; eventType = xpp.next ()) {
                             switch (eventType) {
@@ -658,9 +673,9 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
                                     text = null;
                                     switch (xpp.getName ()) {
                                         case "trkpt": {
-                                            loc = new Location ("trail " + name);
-                                            loc.setLatitude (Double.parseDouble (xpp.getAttributeValue (null, "lat")));
-                                            loc.setLongitude (Double.parseDouble (xpp.getAttributeValue (null, "lon")));
+                                            pos = new Position ();
+                                            pos.latitude  = Float.parseFloat (xpp.getAttributeValue (null, "lat"));
+                                            pos.longitude = Float.parseFloat (xpp.getAttributeValue (null, "lon"));
                                             break;
                                         }
                                     }
@@ -673,33 +688,36 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
                                 case XmlPullParser.END_TAG: {
                                     switch (xpp.getName ()) {
                                         case "ele": {
-                                            if (loc == null) throw new NullPointerException ("<ele> outside of <trkpt>");
-                                            loc.setAltitude (Double.parseDouble (text));
+                                            if (pos == null) throw new NullPointerException ("<ele> outside of <trkpt>");
+                                            if (text == null) throw new NullPointerException ("no text for <ele>");
+                                            pos.altitude = Float.parseFloat (text);
                                             text = null;
                                             break;
                                         }
                                         case "heading": {
-                                            if (loc == null) throw new NullPointerException ("<heading> outside of <trkpt>");
-                                            loc.setBearing (Float.parseFloat (text));
+                                            if (pos == null) throw new NullPointerException ("<heading> outside of <trkpt>");
+                                            if (text == null) throw new NullPointerException ("no text for <heading>");
+                                            pos.heading = Float.parseFloat (text);
                                             text = null;
                                             break;
                                         }
                                         case "speed": {
-                                            if (loc == null) throw new NullPointerException ("<speed> outside of <trkpt>");
-                                            loc.setSpeed (Float.parseFloat (text));
+                                            if (pos == null) throw new NullPointerException ("<speed> outside of <trkpt>");
+                                            if (text == null) throw new NullPointerException ("no text for <speed>");
+                                            pos.speed = Float.parseFloat (text);
                                             text = null;
                                             break;
                                         }
                                         case "time": {
-                                            if (loc == null) throw new NullPointerException ("<time> outside of <trkpt>");
+                                            if (pos == null) throw new NullPointerException ("<time> outside of <trkpt>");
                                             Date date = gpxdatefmt.parse (text);
-                                            loc.setTime (date.getTime ());
+                                            pos.time = date.getTime ();
                                             text = null;
                                             break;
                                         }
                                         case "trkpt": {
-                                            trail.addLast (loc);
-                                            loc = null;
+                                            trail.addLast (pos);
+                                            pos = null;
                                             break;
                                         }
                                     }
