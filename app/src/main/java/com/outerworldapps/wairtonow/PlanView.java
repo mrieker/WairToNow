@@ -20,9 +20,10 @@
 
 package com.outerworldapps.wairtonow;
 
+import android.annotation.SuppressLint;
 import android.app.AlertDialog;
+import android.content.pm.ActivityInfo;
 import android.database.Cursor;
-import android.location.Location;
 import android.text.InputType;
 import android.util.TypedValue;
 import android.view.View;
@@ -36,11 +37,12 @@ import android.widget.TextView;
 import java.util.Locale;
 import java.util.TreeMap;
 
+@SuppressLint("ViewConstructor")
 public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
     private static final long pretendInterval = 1000;
 
     private boolean displayOpen;
-    public  boolean pretendEnabled;
+    private boolean pretendEnabled;
     private Button ptendCapCen;
     private CheckBox ptendCheckbox;
     private EditText fromAirport;
@@ -66,6 +68,7 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
     private TextView tv0;
     private WairToNow wairToNow;
 
+    @SuppressLint("SetTextI18n")
     public PlanView (WairToNow ctx)
     {
         super (ctx);
@@ -107,8 +110,9 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
             @Override
             public void onClick (View view)
             {
-                ptendLat.setVal (wairToNow.chartView.centerLat);
-                ptendLon.setVal (wairToNow.chartView.centerLon);
+                PixelMapper pmap = wairToNow.chartView.pmap;
+                ptendLat.setVal (pmap.centerLat);
+                ptendLon.setVal (pmap.centerLon);
             }
         });
 
@@ -240,12 +244,37 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
         Reset ();
 
         addView (linearLayout);
+
+        /*// set up a course for debugging
+        ptendCheckbox.setChecked (true);
+        ptendAltitude.setText ("14000");
+        ptendHeading.setText ("270");
+        ptendSpeed.setText ("300");
+        ptendTurnRt.setText ("0");
+        lastPtendLat =   38.8F; // 42.5F;
+        lastPtendLon = -104.7F; // -71.0F;
+        ptendLat.setVal (lastPtendLat);
+        ptendLon.setVal (lastPtendLon);
+        SetPretendEnabled (true);
+        */
     }
 
     @Override  // WairToNow.CanBeMainView
     public String GetTabName ()
     {
         return "Plan";
+    }
+
+    @Override  // CanBeMainView
+    public int GetOrientation ()
+    {
+        return ActivityInfo.SCREEN_ORIENTATION_USER;
+    }
+
+    @Override  // CanBeMainView
+    public boolean IsPowerLocked ()
+    {
+        return false;
     }
 
     @Override  // WairToNow.CanBeMainView
@@ -318,10 +347,15 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
      */
     private void SetPretendEnabled (boolean enab)
     {
-        pretendEnabled = enab;
-        if (enab) {
-            ptendTime = System.currentTimeMillis ();
-            WairToNow.wtnHandler.runDelayed (pretendInterval, pretendStepper);
+        if (pretendEnabled != enab) {
+            pretendEnabled = enab;
+            if (enab) {
+                ptendTime = System.currentTimeMillis ();
+                wairToNow.gpsDisabled ++;
+                WairToNow.wtnHandler.runDelayed (pretendInterval, pretendStepper);
+            } else {
+                wairToNow.gpsDisabled --;
+            }
         }
     }
 
@@ -331,6 +365,7 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
      * and display the list with a "locate" button for each that
      * shows where the airport is on the chart.
      */
+    @SuppressLint("SetTextI18n")
     private void FindButtonClicked ()
     {
         try {
@@ -452,6 +487,7 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
         wairToNow.SetCurrentTab (wairToNow.chartView);
     }
 
+    @SuppressLint("SetTextI18n")
     private void PretendStep ()
     {
         if (pretendEnabled) {
@@ -517,14 +553,9 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
             /*
              * Send the values in the form of a GPS reading to the active screen.
              */
-            Location loc = new Location ("PlanPretend");
-            loc.setAltitude (altft / Lib.FtPerM);
-            loc.setBearing (newhdg);
-            loc.setLatitude (newlat);
-            loc.setLongitude (newlon);
-            loc.setSpeed (spdkts / Lib.KtPerMPS);
-            loc.setTime (newnow);
-            wairToNow.SetCurrentLocation (loc);
+            wairToNow.SetCurrentLocation (
+                    spdkts / Lib.KtPerMPS, altft / Lib.FtPerM,
+                    newhdg, newlat, newlon, newnow);
 
             /*
              * Start the timer to do next interval.

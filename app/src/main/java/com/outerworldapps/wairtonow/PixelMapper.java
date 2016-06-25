@@ -64,6 +64,7 @@ public class PixelMapper {
      * @param brLat  = bottom right corner latitude
      * @param brLon  = bottom right corner longitude
      */
+    @SuppressWarnings("ConstantConditions")
     public void setup (int width, int height,
             float tlLat, float tlLon, float trLat, float trLon,
             float blLat, float blLon, float brLat, float brLon)
@@ -249,9 +250,7 @@ public class PixelMapper {
      */
     public boolean LatLon2CanPixAprox (float lat, float lon, Point canpix)
     {
-        while (lon < centerLon - 180.0F) lon += 360.0F;
-        while (lon > centerLon + 180.0F) lon -= 360.0F;
-
+        lon = Lib.NormalLon (lon);
         float  w =              ll2pix_2_0 * lat + ll2pix_2_1 * lon + ll2pix_2_2;
         canpix.x = Math.round ((ll2pix_0_0 * lat + ll2pix_0_1 * lon + ll2pix_0_2) / w);
         canpix.y = Math.round ((ll2pix_1_0 * lat + ll2pix_1_1 * lon + ll2pix_1_2) / w);

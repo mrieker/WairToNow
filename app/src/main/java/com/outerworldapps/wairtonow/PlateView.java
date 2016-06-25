@@ -20,7 +20,9 @@
 
 package com.outerworldapps.wairtonow;
 
+import android.annotation.SuppressLint;
 import android.content.ContentValues;
+import android.content.pm.ActivityInfo;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.graphics.Bitmap;
@@ -37,11 +39,9 @@ import android.os.SystemClock;
 import android.support.annotation.NonNull;
 import android.text.InputType;
 import android.util.Base64;
-import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
-import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -72,6 +72,7 @@ import java.util.zip.Inflater;
  * and allows scaling and translation by finger gestures.
  * APDs and IAPs have georef info so can present the current position.
  */
+@SuppressLint("ViewConstructor")
 public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
     private final static String TAG = "WairToNow";
     private final static boolean disableWebServer = true;
@@ -97,6 +98,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
 
     private boolean full;
     private int expdate;                // plate expiration date, eg, 20150917
+    private Paint exppaint;
     private PlateImage plateImage;      // displays the plate image bitmap
     private String plateid;             // which plate, eg, "IAP-LOC RWY 16"
     private WairToNow wairToNow;
@@ -156,13 +158,24 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         return waypointView.GetTabName ();
     }
 
+    @Override  // CanBeMainView
+    public int GetOrientation ()
+    {
+        return ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
+    }
+
+    @Override  // CanBeMainView
+    public boolean IsPowerLocked ()
+    {
+        return wairToNow.optionsView.powerLockOption.checkBox.isChecked ();
+    }
+
     /**
      * Close any open bitmaps so we don't take up too much memory.
      */
     @Override  // WairToNow.CanBeMainView
     public void CloseDisplay ()
     {
-        wairToNow.getWindow ().clearFlags (WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         plateImage.CloseBitmaps ();
     }
 
@@ -171,11 +184,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
      */
     @Override  // WairToNow.CanBeMainView
     public void OpenDisplay ()
-    {
-        if (wairToNow.optionsView.powerLockOption.checkBox.isChecked ()) {
-            wairToNow.getWindow ().addFlags (WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        }
-    }
+    { }
 
     /**
      * If back arrow pressed when viewing a plate,
@@ -202,26 +211,15 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
      */
     private Waypoint FindWaypoint (String wayptid)
     {
-        // see if there is a [dmedist/hdgtrue suffix on the waypoint identifier
-        // if so, save the values and strip it off
-        float dmedist = 0;
-        float hdgtrue = 0;
-        int j = -1;
-        int i = wayptid.indexOf ('[');
-        if (i >= 0) j = wayptid.indexOf ('/', i);
-        if (j >= 0) {
-            dmedist = Float.parseFloat (wayptid.substring (i + 1, j));
-            hdgtrue = Float.parseFloat (wayptid.substring (j + 1));
-            wayptid = wayptid.substring (0, i);
-        }
-
         // if it might be a runway, look it up in the current airport
         Waypoint bestwp = null;
         if (wayptid.startsWith ("RW")) {
-            String rwno = wayptid.substring (2);
+            Waypoint.RNavParse rnp = new Waypoint.RNavParse (wayptid);
+            String rwno = rnp.baseident.substring (2);
             HashMap<String,Waypoint.Runway> rws = airport.GetRunways ();
             bestwp = rws.get (rwno);
             if (bestwp == null) bestwp = rws.get ("0" + rwno);
+            if (bestwp != null) bestwp = rnp.makeWaypoint (bestwp);
         }
 
         if (bestwp == null) {
@@ -250,11 +248,6 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             }
         }
 
-        // apply any dme distance and true heading
-        if ((bestwp != null) && (j >= 0)) {
-            bestwp = new Waypoint.DMEOffset (bestwp, dmedist, hdgtrue);
-        }
-
         return bestwp;
     }
 
@@ -263,8 +256,6 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
      * Allows panning and zooming.
      */
     private abstract class PlateImage extends View {
-        protected DisplayMetrics metrics = new DisplayMetrics ();
-
         private ADVPanAndZoom advPanAndZoom;
         private float         unzoomedCanvasWidth;
         private Rect          bitmapRect = new Rect ();    // biggest centered square completely filled by bitmap
@@ -275,18 +266,17 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         {
             super (wairToNow);
             advPanAndZoom = new ADVPanAndZoom ();
-            wairToNow.getWindowManager ().getDefaultDisplay ().getMetrics (metrics);
         }
 
         public abstract void CloseBitmaps ();
         protected abstract void GotMouseDown (float x, float y);
-        protected abstract void GotMouseUp ();
+        protected abstract void GotMouseUp (float x, float y);
 
         /**
          * Callback for mouse events on the image.
          * We use this for scrolling the map around.
          */
-        @Override
+        @Override  // View
         public boolean onTouchEvent (@NonNull MotionEvent event)
         {
             return advPanAndZoom.OnTouchEvent (event);
@@ -307,9 +297,9 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                 GotMouseDown (x, y);
             }
 
-            public void MouseUp ()
+            public void MouseUp (float x, float y)
             {
-                GotMouseUp ();
+                GotMouseUp (x, y);
             }
 
             public void Panning (float x, float y, float dx, float dy)
@@ -386,8 +376,8 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             int canHeight = getHeight ();
 
             // get drawring area dimensions in inches
-            float xdpi = metrics.xdpi;
-            float ydpi = metrics.ydpi;
+            float xdpi = wairToNow.dotsPerInchX;
+            float ydpi = wairToNow.dotsPerInchY;
             float canInWidth  = canWidth  / xdpi;
             float canInHeight = canHeight / ydpi;
 
@@ -427,8 +417,8 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             }
 
             // get drawring area dimensions in inches
-            float xdpi = metrics.xdpi;
-            float ydpi = metrics.ydpi;
+            float xdpi = wairToNow.dotsPerInchX;
+            float ydpi = wairToNow.dotsPerInchY;
             float canInWidth  = canWidth  / xdpi;
             float canInHeight = canHeight / ydpi;
 
@@ -472,6 +462,31 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             float ny = (canvasY - canvasRect.top) / canvasRect.height ();
             return (int) (ny * bitmapRect.height () + 0.5F) + bitmapRect.top;
         }
+
+        /**
+         * If plate is expired, draw an hash on top of it.
+         * @param canvas = where to draw hash
+         * @param outline = outline of plate on canvas
+         */
+        protected void DrawExpiredHash (Canvas canvas, RectF outline)
+        {
+            if (expdate < MaintView.deaddate) {
+                if (exppaint == null) {
+                    exppaint = new Paint ();
+                    exppaint.setColor (Color.RED);
+                    exppaint.setStrokeWidth (2);
+                }
+                canvas.save ();
+                canvas.clipRect (outline);
+                float ch = outline.height ();
+                float step = wairToNow.dotsPerInch * 0.75F;
+                for (float i = outline.left - ch; i < outline.right; i += step) {
+                    canvas.drawLine (i, outline.top, ch + i, outline.bottom, exppaint);
+                    canvas.drawLine (i, outline.bottom, ch + i, outline.top, exppaint);
+                }
+                canvas.restore ();
+            }
+        }
     }
 
     /**
@@ -502,6 +517,11 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
              * Display bitmap to canvas.
              */
             canvas.drawBitmap (bitmap, null, canTmpRect, null);
+
+            /*
+             * Draw hash if expired.
+             */
+            DrawExpiredHash (canvas, canTmpRect);
         }
 
         /**
@@ -519,11 +539,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                 float canPointY = BitmapY2CanvasY (bitmapY);
                 canPoint.x = Math.round (canPointX);
                 canPoint.y = Math.round (canPointY);
-                float canXPerBmpX = BitmapX2CanvasX (bitmapX + 1) - canPointX;
-                float canYPerBmpY = BitmapY2CanvasY (bitmapY + 1) - canPointY;
-                float mPerCanX = mPerBmpPix / canXPerBmpX;
-                float mPerCanY = mPerBmpPix / canYPerBmpY;
-                wairToNow.chartView.DrawLocationArrow (canvas, canPoint, 0.0F, mPerCanX, mPerCanY);
+                wairToNow.DrawLocationArrow (canvas, canPoint, 0.0F);
             }
             return true;
         }
@@ -536,8 +552,10 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         {
             float avglatcos = Mathf.cos (Mathf.toRadians (airport.lat));
 
+            //noinspection UnnecessaryLocalVariable
             float inorthing = ilat;                // 60nm units north of equator
             float ieasting  = ilon * avglatcos;    // 60nm units east of prime meridian
+            //noinspection UnnecessaryLocalVariable
             float jnorthing = jlat;                // 60nm units north of equator
             float jeasting  = jlon * avglatcos;    // 60nm units east of prime meridian
 
@@ -708,7 +726,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         }
 
         protected void GotMouseDown (float x, float y) { }
-        protected void GotMouseUp () { }
+        protected void GotMouseUp (float x, float y) { }
 
         /**
          * Draw the plate image and any other marks on it we want.
@@ -789,7 +807,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
 
                 // get runway midpoint and heading from this end to the midpoint
                 float midLat = (rwy.lat + rwy.endLat) / 2.0F;
-                float midLon = (rwy.lon + rwy.endLon) / 2.0F;
+                float midLon = Lib.AvgLons (rwy.lon, rwy.endLon);
                 float hdgDeg = Lib.LatLonTC (rwy.lat, rwy.lon, midLat, midLon);
 
                 // get lat/lon on centerline of beginning of runway
@@ -939,7 +957,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         }
 
         protected void GotMouseDown (float x, float y) { }
-        protected void GotMouseUp () { }
+        protected void GotMouseUp (float x, float y) { }
 
         /**
          * Draw the plate image and any other marks on it we want.
@@ -1349,11 +1367,15 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             }
             plateDME.GotMouseDown (x, y);
             plateTimer.GotMouseDown (x, y);
+            wairToNow.currentCloud.MouseDown (Math.round (x), Math.round (y),
+                    System.currentTimeMillis ());
         }
 
-        protected void GotMouseUp ()
+        protected void GotMouseUp (float x, float y)
         {
             plateDME.GotMouseUp ();
+            if (wairToNow.currentCloud.MouseUp (Math.round (x), Math.round (y),
+                    System.currentTimeMillis ())) invalidate ();
         }
 
         /**
@@ -1445,8 +1467,8 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
              * Also draw box and waypoint name if crosshairs enabled.
              */
             if (!wairToNow.optionsView.typeBOption.checkBox.isChecked ()) {
-                float dimnddx = GEOREFDIMND / Lib.MMPerIn * metrics.xdpi;
-                float dimnddy = GEOREFDIMND / Lib.MMPerIn * metrics.ydpi;
+                float dimnddx = GEOREFDIMND / Lib.MMPerIn * wairToNow.dotsPerInchX;
+                float dimnddy = GEOREFDIMND / Lib.MMPerIn * wairToNow.dotsPerInchY;
                 for (IAPGeoRefMap grm : iapGeoRefMaps.values ()) {
                     geoRefPaint.setColor (
                             !grm.manual ? (grm.used ? Color.BLUE : Color.CYAN) :
@@ -1505,9 +1527,10 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             plateTimer.DrawTimer (canvas);
 
             /*
-             * Draw airplane if we have enough georeference info.
+             * Draw airplane and current location info if we have enough georeference info.
              */
             DrawLocationArrow (canvas, false);
+            wairToNow.currentCloud.DrawIt (canvas);
 
             /*
              * Draw IAP georeferencing crosshairs.
@@ -1532,6 +1555,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
          * See which georef points will be used to locate the airplane.
          * Find pairs that give greatest width for longitude and height for latitude.
          */
+        @SuppressLint("SetTextI18n")
         private void UpdateIAPGeoRefs ()
         {
             // find two valid points farthest apart
@@ -1596,6 +1620,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             float xc = getWidth () / 2;
             float xl = xc - ts * 2;
             float xr = xc + ts * 2;
+            //noinspection UnnecessaryLocalVariable
             float yt = ts;
             float yb = ts * 2;
 
@@ -1763,6 +1788,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         }
 
         private class GeoRefSave extends Button implements OnClickListener {
+            @SuppressLint("SetTextI18n")
             public GeoRefSave ()
             {
                 super (wairToNow);
@@ -1783,6 +1809,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         }
 
         private class GeoRefDelete extends Button implements OnClickListener {
+            @SuppressLint("SetTextI18n")
             public GeoRefDelete ()
             {
                 super (wairToNow);
@@ -1841,11 +1868,12 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         }
 
         protected void GotMouseDown (float x, float y) { }
-        protected void GotMouseUp () { }
+        protected void GotMouseUp (float x, float y) { }
 
         /**
          * Draw the plate image.
          */
+        @SuppressLint("DrawAllocation")
         @Override  // View
         public void onDraw (Canvas canvas)
         {
@@ -1924,6 +1952,11 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                      * Display bitmap to canvas.
                      */
                     canvas.drawBitmap (bm, null, canTmpRect, null);
+
+                    /*
+                     * Draw hash if expired.
+                     */
+                    DrawExpiredHash (canvas, canTmpRect);
                 }
             }
         }
@@ -2141,8 +2174,9 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
      * @param zblob   = compressed bitmap pixels surrounding the waypoint
      * @return 0: webserver is down, not saved; 1: successfully saved
      */
-    private static int SaveGeoRefToWebserver (String icaoid, String plateid, String wayptid,
-                                              int bmpixx, int bmpixy, byte[] zblob)
+    private static int SaveGeoRefToWebserver (String icaoid,
+                                              @SuppressWarnings("ParameterCanBeLocal") String plateid,
+                                              String wayptid, int bmpixx, int bmpixy, byte[] zblob)
     {
         if (disableWebServer) return 1;
 

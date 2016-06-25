@@ -76,14 +76,12 @@ public class NavDialView extends View {
     private Paint dirArrowPaint;
     private Paint dmeDigitPaint;
     private Paint dmeIdentPaint;
-    private Paint headingPaint;
     private Paint innerRingPaint;
     private Paint obsArrowPaint;
     private Paint outerRingPaint;
     private Paint vorNeedlePaint;
     private Path adfNeedlePath;
     private Path frArrowPath;
-    private Path headingPath;
     private Path obsArrowPath;
     private Path toArrowPath;
     private String dmeIdent;
@@ -142,12 +140,7 @@ public class NavDialView extends View {
         dmeIdentPaint.setColor (Color.rgb (255, 170, 0));
         dmeIdentPaint.setStyle (Paint.Style.FILL_AND_STROKE);
         dmeIdentPaint.setStrokeWidth (3);
-        dmeIdentPaint.setTextAlign (Paint.Align.RIGHT);
         dmeIdentPaint.setTextSize (DMETEXTSIZE);
-
-        headingPaint = new Paint ();
-        headingPaint.setColor (Color.MAGENTA);
-        headingPaint.setStyle (Paint.Style.FILL_AND_STROKE);
 
         innerRingPaint = new Paint ();
         innerRingPaint.setColor (Color.WHITE);
@@ -168,35 +161,29 @@ public class NavDialView extends View {
         vorNeedlePaint.setStrokeWidth (25);
 
         adfNeedlePath = new Path ();
-        adfNeedlePath.moveTo (0, -604);
+        adfNeedlePath.moveTo (  0, -604);
         adfNeedlePath.lineTo (-55, -473);
         adfNeedlePath.lineTo (-20, -473);
-        adfNeedlePath.lineTo (-20, 604);
-        adfNeedlePath.lineTo (20, 604);
-        adfNeedlePath.lineTo (20, -473);
-        adfNeedlePath.lineTo (55, -473);
-        adfNeedlePath.lineTo (0, -604);
+        adfNeedlePath.lineTo (-20,  604);
+        adfNeedlePath.lineTo ( 20,  604);
+        adfNeedlePath.lineTo ( 20, -473);
+        adfNeedlePath.lineTo ( 55, -473);
+        adfNeedlePath.lineTo (  0, -604);
 
         frArrowPath = new Path ();
         frArrowPath.moveTo (327,  92);
         frArrowPath.lineTo (400, 188);
         frArrowPath.lineTo (473,  92);
 
-        headingPath = new Path ();
-        headingPath.moveTo (0, -775);
-        headingPath.lineTo (70, -675);
-        headingPath.lineTo (-70, -675);
-        headingPath.lineTo (0, -775);
-
         obsArrowPath = new Path ();
         obsArrowPath.moveTo (-71, -518);
-        obsArrowPath.lineTo (0, -624);
-        obsArrowPath.lineTo (71, -518);
+        obsArrowPath.lineTo (  0, -624);
+        obsArrowPath.lineTo ( 71, -518);
 
         toArrowPath = new Path ();
-        toArrowPath.moveTo (327, -92);
+        toArrowPath.moveTo (327,  -92);
         toArrowPath.lineTo (400, -188);
-        toArrowPath.lineTo (473, -92);
+        toArrowPath.lineTo (473,  -92);
 
         distance = NODISTANCE;
         heading = NOHEADING;
@@ -450,10 +437,15 @@ public class NavDialView extends View {
 
         // heading arrow
         if (heading != NOHEADING) {
-            canvas.save ();
-            canvas.rotate (heading);
-            canvas.drawPath (headingPath, headingPaint);
-            canvas.restore ();
+            Context ctx = getContext ();
+            if (ctx instanceof WairToNow) {
+                canvas.save ();
+                canvas.rotate (heading);
+                canvas.translate (0, - 725);
+                canvas.scale (2.0F, 2.0F);
+                ((WairToNow) ctx).DrawAirplaneSymbol (canvas);
+                canvas.restore ();
+            }
         }
 
         canvas.restore ();
@@ -489,7 +481,16 @@ public class NavDialView extends View {
                 drawDMEDigit (canvas, digitPaint, x0, 10);
             }
             if (dmeIdent != null) {
-                canvas.drawText (dmeIdent, -120, 220 + DMETEXTSIZE, identPaint);
+                Waypoint.RNavParse rnavParse = new Waypoint.RNavParse (dmeIdent);
+                if (rnavParse.rnavsuffix != null) {
+                    identPaint.setTextAlign (Paint.Align.RIGHT);
+                    canvas.drawText (rnavParse.baseident, -80, 220 + DMETEXTSIZE, identPaint);
+                    identPaint.setTextAlign (Paint.Align.LEFT);
+                    canvas.drawText (rnavParse.rnavsuffix, 80, 220 + DMETEXTSIZE, identPaint);
+                } else {
+                    identPaint.setTextAlign (Paint.Align.RIGHT);
+                    canvas.drawText (rnavParse.baseident, -120, 220 + DMETEXTSIZE, identPaint);
+                }
             }
         }
     }

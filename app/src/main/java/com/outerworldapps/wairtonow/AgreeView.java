@@ -20,8 +20,10 @@
 
 package com.outerworldapps.wairtonow;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.SharedPreferences;
+import android.content.pm.ActivityInfo;
 import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
@@ -31,6 +33,7 @@ import android.widget.TextView;
 /**
  * Validate that user has agreed to licence terms.
  */
+@SuppressLint("ViewConstructor")
 public class AgreeView extends ScrollView implements WairToNow.CanBeMainView {
     private HelpView helpView;
     private WairToNow wairToNow;
@@ -47,6 +50,19 @@ public class AgreeView extends ScrollView implements WairToNow.CanBeMainView {
         return "Agree";
     }
 
+    @Override  // CanBeMainView
+    public int GetOrientation ()
+    {
+        return ActivityInfo.SCREEN_ORIENTATION_USER;
+    }
+
+    @Override  // CanBeMainView
+    public boolean IsPowerLocked ()
+    {
+        return false;
+    }
+
+    @SuppressLint("SetTextI18n")
     public void OpenDisplay ()
     {
         removeAllViews ();

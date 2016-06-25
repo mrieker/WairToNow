@@ -43,7 +43,21 @@
         echo "@@name=$name\n";
         $size = filesize ($name);
         echo "@@size=$size\n";
-        $read = readfile ($name);
+        if ($size > 1024 * 1024) {
+            $file = fopen ($name, 'rb');
+            if (!$file) die ("error opening $name\n");
+            $read = 0;
+            while (($len = $size - $read) > 0) {
+                if ($len > 8192) $len = 8192;
+                $data  = fread ($file, $len);
+                if ($data === FALSE) die ("error reading $name\n");
+                $read += $len;
+                echo $data;
+            }
+            fclose ($file);
+        } else {
+            $read = readfile ($name);
+        }
         if ($read != $size) {
             die ("size $size ne read $read for $name\n");
         }

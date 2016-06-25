@@ -26,6 +26,7 @@ public class Mathf {
     public static float atan2 (double y, double x) { return (float)Math.atan2 (y, x); }
     public static float hypot (double x, double y) { return (float)Math.hypot (x, y); }
 
+    public static float acos (double x) { return (float)Math.acos (x); }
     public static float asin (double x) { return (float)Math.asin (x); }
     public static float atan (double x) { return (float)Math.atan (x); }
     public static float cos  (double x) { return (float)Math.cos (x); }

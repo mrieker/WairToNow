@@ -31,6 +31,7 @@ using System.Text;
 
 public class ChartTiff {
     public Bitmap bmp;
+    public int begdate;
     public int enddate;
     public int height;
     public int width;
@@ -45,6 +46,16 @@ public class ChartTiff {
     private double e_e, e_F_rada, e_lam0, e_n, e_phi0, e_rho0;
 
     public ChartTiff (string prefix, string spacename)
+    {
+        Construct (prefix, spacename, true);
+    }
+
+    public ChartTiff (string prefix, string spacename, bool readbm)
+    {
+        Construct (prefix, spacename, readbm);
+    }
+
+    private void Construct (string prefix, string spacename, bool readbm)
     {
         this.prefix = prefix;
         this.spacename = spacename;
@@ -68,6 +79,8 @@ public class ChartTiff {
         double centerLon = Double.Parse (chartLineFields[ 1]);
         double stanPar1  = Double.Parse (chartLineFields[ 2]);
         double stanPar2  = Double.Parse (chartLineFields[ 3]);
+        width            = int.Parse    (chartLineFields[ 4]);
+        height           = int.Parse    (chartLineFields[ 5]);
         double rada      = Double.Parse (chartLineFields[ 6]);
         double radb      = Double.Parse (chartLineFields[ 7]);
         tfw_a            = Double.Parse (chartLineFields[ 8]);
@@ -76,6 +89,7 @@ public class ChartTiff {
         tfw_d            = Double.Parse (chartLineFields[11]);
         tfw_e            = Double.Parse (chartLineFields[12]);
         tfw_f            = Double.Parse (chartLineFields[13]);
+        begdate          = int.Parse    (chartLineFields[14]);
         enddate          = int.Parse    (chartLineFields[15]);
 
         double[][] mat = new double[][] {
@@ -94,9 +108,11 @@ public class ChartTiff {
         /*
          * Read TIF file into a bitmap.
          */
-        bmp = new Bitmap (prefix + spacename + ".tif");
-        width  = bmp.Width;
-        height = bmp.Height;
+        if (readbm) {
+            bmp = new Bitmap (prefix + spacename + ".tif");
+            width  = bmp.Width;
+            height = bmp.Height;
+        }
 
         /*
          * Compute Lambert Conformal Projection parameters.

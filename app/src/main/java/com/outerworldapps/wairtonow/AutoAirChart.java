@@ -22,8 +22,10 @@ package com.outerworldapps.wairtonow;
 
 import android.app.AlertDialog;
 import android.content.DialogInterface;
+import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Matrix;
 import android.graphics.Point;
 import android.support.annotation.NonNull;
 import android.util.TypedValue;
@@ -40,11 +42,14 @@ import java.util.TreeSet;
  * Group of same-scaled air (eg, SEC or WAC) charts (that are downloaded) sown together.
  */
 public class AutoAirChart implements DisplayableChart, Comparator<AirChart> {
+    private float macroNLat, macroSLat;
+    private float macroELon, macroWLon;
     private HashSet<String> dontAskAboutDownloading = new HashSet<> ();
     private long viewDrawCycle;
     private String basename;
     private String category;
     private TreeMap<AirChart,Long> airChartsAsync = new TreeMap<> (this);
+    private TreeMap<AirChart,Long> airChartsSync = new TreeMap<> (this);
     private WairToNow wairToNow;
 
     public AutoAirChart (WairToNow wtn, String cat)
@@ -133,6 +138,11 @@ public class AutoAirChart implements DisplayableChart, Comparator<AirChart> {
             ac.CloseBitmaps ();
         }
         airChartsAsync.clear ();
+
+        for (AirChart ac : airChartsSync.keySet ()) {
+            ac.CloseBitmaps ();
+        }
+        airChartsSync.clear ();
     }
 
     @Override  // DisplayableChart
@@ -186,6 +196,100 @@ public class AutoAirChart implements DisplayableChart, Comparator<AirChart> {
     }
 
     /**
+     * Get macro bitmap lat/lon step size limits.
+     * @param limits = where to return min,max limits.
+     */
+    @Override  // DisplayableChart
+    public void GetL2StepLimits (int[] limits)
+    {
+        // all we do is 16min x 16min blocks
+        // log2(16) = 4, so return 4.
+        limits[1] = limits[0] = 4;
+    }
+
+    /**
+     * Create a bitmap that fits the given pixel mapping.
+     * This should be called in a non-UI thread as it is synchronous.
+     * @param slat = southern latitude
+     * @param nlat = northern latitude
+     * @param wlon = western longiture
+     * @param elon = eastern longitude
+     * @return corresponding bitmap
+     */
+    @Override  // DisplayableChart
+    public Bitmap GetMacroBitmap (float slat, float nlat, float wlon, float elon)
+    {
+        macroSLat = slat;
+        macroNLat = nlat;
+        macroWLon = wlon;
+        macroELon = elon;
+
+        Bitmap abm = Bitmap.createBitmap (EarthSector.MBMSIZE, EarthSector.MBMSIZE, Bitmap.Config.RGB_565);
+        Canvas can = new Canvas (abm);
+
+        // fill white background for enroute charts cuz they sometimes leave gaps
+        if (category.equals ("ENR")) can.drawColor (Color.WHITE);
+
+        // select charts that are part of the requested macrobitmap area
+        PixelMapper pmap = new PixelMapper ();
+        pmap.setup (EarthSector.MBMSIZE, EarthSector.MBMSIZE, nlat, wlon, nlat, elon, slat, wlon, slat, elon);
+        SelectCharts (airChartsSync, pmap);
+
+        // draw all downloaded selected charts
+        // charts will return transparent pixels where they don't cover an area
+        float[] floats = new float[16];
+        floats[0] = 0;
+        floats[1] = 0;
+        floats[2] = EarthSector.MBMSIZE;
+        floats[3] = 0;
+        floats[4] = 0;
+        floats[5] = EarthSector.MBMSIZE;
+        floats[6] = EarthSector.MBMSIZE;
+        floats[7] = EarthSector.MBMSIZE;
+        Matrix matrix = new Matrix ();
+        Point srctlpix = new Point ();
+        Point srctrpix = new Point ();
+        Point srcblpix = new Point ();
+        Point srcbrpix = new Point ();
+        for (AirChart ac : airChartsSync.keySet ()) {
+            if (ac.IsDownloaded ()) {
+                Bitmap cbm = ac.GetMacroBitmap (slat, nlat, wlon, elon, false);
+                ac.LatLon2MacroBitmap (nlat, wlon, srctlpix);
+                ac.LatLon2MacroBitmap (nlat, elon, srctrpix);
+                ac.LatLon2MacroBitmap (slat, wlon, srcblpix);
+                ac.LatLon2MacroBitmap (slat, elon, srcbrpix);
+                floats[ 8] = srctlpix.x;
+                floats[ 9] = srctlpix.y;
+                floats[10] = srctrpix.x;
+                floats[11] = srctrpix.y;
+                floats[12] = srcblpix.x;
+                floats[13] = srcblpix.y;
+                floats[14] = srcbrpix.x;
+                floats[15] = srcbrpix.y;
+                matrix.setPolyToPoly (floats, 8, floats, 0, 4);
+                can.drawBitmap (cbm, matrix, null);
+                cbm.recycle ();
+            }
+        }
+
+        return abm;
+    }
+
+    @Override  // DisplayableChart
+    public void LatLon2MacroBitmap (float lat, float lon, @NonNull Point mbmpix)
+    {
+        float x;
+        if (macroELon < macroWLon) {
+            if (lon < (macroELon + macroWLon) / 2.0F) lon += 360.0F;
+            x = (lon - macroWLon) / (macroELon - macroWLon + 360.0F);
+        } else {
+            x = (lon - macroWLon) / (macroELon - macroWLon);
+        }
+        mbmpix.x = Math.round (x * EarthSector.MBMSIZE);
+        mbmpix.y = Math.round ((macroNLat - lat) / (macroNLat - macroSLat) * EarthSector.MBMSIZE);
+    }
+
+    /**
      * Select list of charts that are viewable and get rid of ones that aren't.
      */
     private void SelectCharts (TreeMap<AirChart,Long> airCharts, PixelMapper pmap)
@@ -236,39 +340,44 @@ public class AutoAirChart implements DisplayableChart, Comparator<AirChart> {
     private void MaybePromptChartDownload (final TreeSet<String> aad)
     {
         if ((aad != null) && !aad.isEmpty ()) {
-
-            // build dialog box
-            AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
-            adb.setTitle ("Auto " + category);
-
-            // make prompt string listing all the charts (like 2, 3 maybe 4)
-            StringBuilder prompt = new StringBuilder ();
-            prompt.append ("Download ");
-            boolean first = true;
-            for (String snnr : aad) {
-                if (!first) prompt.append ("\nand ");
-                prompt.append (snnr);
-                first = false;
-            }
-            prompt.append ('?');
-            adb.setMessage (prompt);
-
-            // start downloading each chart if OK clicked
-            adb.setPositiveButton ("OK", new DialogInterface.OnClickListener () {
+            wairToNow.runOnUiThread (new Runnable () {
                 @Override
-                public void onClick (DialogInterface dialogInterface, int i)
+                public void run ()
                 {
+                    // build dialog box
+                    AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
+                    adb.setTitle ("Auto " + category);
+
+                    // make prompt string listing all the charts (like 2, 3 maybe 4)
+                    StringBuilder prompt = new StringBuilder ();
+                    prompt.append ("Download ");
+                    boolean first = true;
                     for (String snnr : aad) {
-                        wairToNow.maintView.StartDownloadingChart (snnr);
+                        if (!first) prompt.append ("\nand ");
+                        prompt.append (snnr);
+                        first = false;
                     }
+                    prompt.append ('?');
+                    adb.setMessage (prompt);
+
+                    // start downloading each chart if OK clicked
+                    adb.setPositiveButton ("OK", new DialogInterface.OnClickListener () {
+                        @Override
+                        public void onClick (DialogInterface dialogInterface, int i)
+                        {
+                            for (String snnr : aad) {
+                                wairToNow.maintView.StartDownloadingChart (snnr);
+                            }
+                        }
+                    });
+
+                    // just ignore if Cancel clicked
+                    adb.setNegativeButton ("Cancel", null);
+
+                    // display the dialog
+                    adb.show ();
                 }
             });
-
-            // just ignore if Cancel clicked
-            adb.setNegativeButton ("Cancel", null);
-
-            // display the dialog
-            adb.show ();
         }
     }
 

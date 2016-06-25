@@ -20,21 +20,16 @@
 
 package com.outerworldapps.wairtonow;
 
-import java.io.File;
-import java.io.IOException;
-
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.SharedPreferences;
+import android.content.res.Configuration;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
-import android.location.GpsStatus;
-import android.location.Location;
-import android.location.LocationListener;
-import android.location.LocationManager;
-import android.location.LocationProvider;
+import android.graphics.Path;
+import android.graphics.Point;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
@@ -45,8 +40,18 @@ import android.util.TypedValue;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.WindowManager;
+import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.TableLayout;
+import android.widget.TableRow;
 import android.widget.TextView;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 public class WairToNow extends Activity {
     private final static String TAG = "WairToNow";
@@ -62,40 +67,47 @@ public class WairToNow extends Activity {
     private boolean tabsVisible;
     public  ChartView chartView;
     public  CrumbsView crumbsView;
+    public  CurrentCloud currentCloud;
     private DetentHorizontalScrollView tabButtonScroller;
+    private float airplaneScale;
     public  float currentGPSAlt;    // metres MSL
     public  float currentGPSLat;    // degrees
     public  float currentGPSLon;    // degrees
     public  float currentGPSHdg;    // degrees true
     public  float currentGPSSpd;    // metres per second
+    public  float dotsPerInch, dotsPerInchX, dotsPerInchY;
     public  float textSize;
     private GlassView glassView;
-    private GPSListener gpsListener;
-    private GPSStatusView gpsStatusView;
+    public  final HashMap<String,MetarRepo> metarRepos = new HashMap<> ();
     public  int displayWidth;
     public  int displayHeight;
+    public  int gpsDisabled;
     private LinearLayout tabButtonLayout;
     private LinearLayout tabViewLayout;
     private LinearLayout.LayoutParams ctvllp = new LinearLayout.LayoutParams (
             LinearLayout.LayoutParams.FILL_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
     private LinearLayout.LayoutParams tbsllp = new LinearLayout.LayoutParams (
             LinearLayout.LayoutParams.FILL_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-    private LocationManager locationManager;
     public  long currentGPSTime;    // milliseconds since Jan 1, 1970 UTC
     private long lastLocUpdate;
     public  MaintView maintView;
+    public  final NexradRepo nexradRepo = new NexradRepo ();
     public  OpenStreetMap openStreetMap;
     public  OptionsView optionsView;
+    private Paint airplanePaint = new Paint ();
     private Paint gpsAvailablePaint;
-    private PlanView planView;
+    private Path airplanePath = new Path ();
     public  RouteView routeView;
+    public  SensorsView sensorsView;
     private TabButton agreeButton;
+    private TabButton chartButton;
     private TabButton crumbsButton;
     public  TabButton currentTabButton;
     private TabButton glassButton;
     public  TabButton maintButton;
     private TabButton virtNav1Button;
     private TabButton virtNav2Button;
+    public  final TrafficRepo trafficRepo = new TrafficRepo ();
     public  UserWPView userWPView;
     private VirtNavView virtNav1View, virtNav2View;
     public  WaypointView waypointView1, waypointView2;
@@ -116,12 +128,26 @@ public class WairToNow extends Activity {
 
         ctvllp.weight = 1;
 
+        DisplayMetrics metrics = new DisplayMetrics ();
+        getWindowManager ().getDefaultDisplay ().getMetrics (metrics);
+        dotsPerInchX = metrics.xdpi;
+        dotsPerInchY = metrics.ydpi;
+        dotsPerInch  = Mathf.sqrt (dotsPerInchX * dotsPerInchY);
+
         File efd = getExternalFilesDir (null);
         if (efd == null) {
             StartupError ("external storage not available");
             return;
         }
         dbdir = efd.getAbsolutePath ();
+
+        SharedPreferences prefs = getPreferences (MODE_PRIVATE);
+        Map<String,?> keys = prefs.getAll ();
+        for (Map.Entry<String,?> entry : keys.entrySet ()) {
+            Log.d (TAG, "pref[" + entry.getKey () + "]=" + entry.getValue ().toString ());
+        }
+
+        loadLastKnownPosition ();
 
         /*
          * Make sure database directory exists.
@@ -142,10 +168,7 @@ public class WairToNow extends Activity {
         /*
          * Get text size to use throughout.
          */
-        DisplayMetrics metrics = new DisplayMetrics ();
-        getWindowManager ().getDefaultDisplay ().getMetrics (metrics);
-        float dpi = Mathf.sqrt (metrics.xdpi * metrics.ydpi);
-        textSize = dpi / 7;
+        textSize = dotsPerInch / 7;
 
         /*
          * Also get screen size in pixels.
@@ -162,6 +185,34 @@ public class WairToNow extends Activity {
         gpsAvailablePaint.setStyle (Paint.Style.FILL_AND_STROKE);
         gpsAvailablePaint.setTextAlign (Paint.Align.CENTER);
 
+        // airplane icon pointing up with center at (0,0)
+        int acy = 181;
+        airplanePath.moveTo (0, 313 - acy);
+        airplanePath.lineTo ( -44, 326 - acy);
+        airplanePath.lineTo ( -42, 301 - acy);
+        airplanePath.lineTo ( -15, 281 - acy);
+        airplanePath.lineTo ( -18, 216 - acy);
+        airplanePath.lineTo (-138, 255 - acy);
+        airplanePath.lineTo (-138, 219 - acy);
+        airplanePath.lineTo (-17, 150 - acy);
+        airplanePath.lineTo ( -17,  69 - acy);
+        airplanePath.cubicTo (0, 39 - acy,
+                0, 39 - acy,
+                +17, 69 - acy);
+        airplanePath.lineTo ( +17, 150 - acy);
+        airplanePath.lineTo (+138, 219 - acy);
+        airplanePath.lineTo (+138, 255 - acy);
+        airplanePath.lineTo ( +18, 216 - acy);
+        airplanePath.lineTo ( +15, 281 - acy);
+        airplanePath.lineTo ( +42, 301 - acy);
+        airplanePath.lineTo ( +44, 326 - acy);
+        airplanePath.lineTo (0, 313 - acy);
+        airplaneScale = textSize * 1.5F / (313 - 69);
+
+        airplanePaint.setColor (CurrentCloud.currentColor);
+        airplanePaint.setStrokeWidth (10);
+        airplanePaint.setTextAlign (Paint.Align.CENTER);
+
         /*
          * License agreement.
          */
@@ -173,6 +224,11 @@ public class WairToNow extends Activity {
         optionsView = new OptionsView (this);
 
         /*
+         * Cloud in upper-left corner showing current position from GPS.
+         */
+        currentCloud = new CurrentCloud (this);
+
+        /*
          * Open Street Maps access.
          */
         openStreetMap = new OpenStreetMap (this);
@@ -180,15 +236,18 @@ public class WairToNow extends Activity {
         /*
          * Planning page.
          */
-        planView = new PlanView (this);
+        PlanView planView = new PlanView (this);
 
         /*
          * Create a view that views charts based on lat/lon.
+         */
+        chartView = new ChartView (this);
+
+        /*
          * Create a view for updating database.
          */
         try {
             maintView = new MaintView (this);
-            chartView = new ChartView (this);
         } catch (Exception e) {
             StartupError ("error reading chart database", e);
             return;
@@ -238,7 +297,7 @@ public class WairToNow extends Activity {
         /*
          * View GPS status.
          */
-        gpsStatusView = new GPSStatusView (this);
+        sensorsView = new SensorsView (this);
 
         /*
          * Virtual nav dials.
@@ -249,25 +308,10 @@ public class WairToNow extends Activity {
         virtNav2Button = new TabButton (virtNav2View);
 
         /*
-         * Set up GPS sampling.
-         * We don't actually enable it here,
-         * it gets enabled/disabled by the onResume()/onPause()
-         * methods so we only sample when the app is actually
-         * being used.
-         */
-        locationManager = (LocationManager)getSystemService (LOCATION_SERVICE);
-        gpsListener = new GPSListener ();
-        Location lastLoc = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-        if (lastLoc == null) {
-            lastLoc = new Location ("WairToNow onCreate()");
-        }
-        gpsListener.onLocationChanged (lastLoc);
-
-        /*
          * Set up tab system.
          */
         agreeButton               = new TabButton (agreeView);
-        TabButton chartButton     = new TabButton (chartView);
+        chartButton               = new TabButton (chartView);
         TabButton waypt1Button    = new TabButton (waypointView1);
         TabButton waypt2Button    = new TabButton (waypointView2);
         TabButton userWPButton    = new TabButton (userWPView);
@@ -277,7 +321,7 @@ public class WairToNow extends Activity {
         TabButton planButton      = new TabButton (planView);
         TabButton optionsButton   = new TabButton (optionsView);
         maintButton               = new TabButton (maintView);
-        TabButton gpsStatusButton = new TabButton (gpsStatusView);
+        TabButton sensorsButton   = new TabButton (sensorsView);
         TabButton filesButton     = new TabButton (filesView);
         TabButton helpButton      = new TabButton (helpView);
         tabButtonLayout = new LinearLayout (this);
@@ -295,7 +339,7 @@ public class WairToNow extends Activity {
         tabButtonLayout.addView (virtNav2Button);
         tabButtonLayout.addView (optionsButton);
         tabButtonLayout.addView (maintButton);
-        tabButtonLayout.addView (gpsStatusButton);
+        tabButtonLayout.addView (sensorsButton);
         tabButtonLayout.addView (filesButton);
         tabButtonLayout.addView (helpButton);
         //tabButtonLayout.addView (new TabButton (new ExpView (this)));
@@ -309,7 +353,7 @@ public class WairToNow extends Activity {
         tabViewLayout.addView (tabButtonScroller);
 
         setContentView (tabViewLayout);
-        tabsVisible = true;
+        tabsVisible = prefs.getBoolean ("tabVisibility", true);
 
         maintView.ExpdateCheck ();
 
@@ -352,7 +396,8 @@ public class WairToNow extends Activity {
         AlertDialog.Builder adb = new AlertDialog.Builder (this);
         adb.setTitle ("Startup error");
         adb.setMessage (msg + "\nTry clearing data or removing and re-installing app.");
-        adb.setPositiveButton ("OK", new DialogInterface.OnClickListener () {
+        adb.setPositiveButton ("OK", new DialogInterface.OnClickListener ()
+        {
             @Override
             public void onClick (DialogInterface dialogInterface, int i)
             {
@@ -391,6 +436,7 @@ public class WairToNow extends Activity {
     @Override
     public void onDestroy ()
     {
+        saveLastKnownPosition ();
         crumbsView.CloseFiles ();
         SQLiteDBs.CloseAll ();
         super.onDestroy ();
@@ -438,12 +484,20 @@ public class WairToNow extends Activity {
                 ((CanBeMainView)currentTabButton.view).CloseDisplay ();
             }
 
-            // show the new view and force tab buttons visible
+            // show the new view
             currentTabButton = this;
-            SetTabVisibility (true);
+            SetCurrentView ();
 
             // tell the new view that it is now being displayed
-            ((CanBeMainView)view).OpenDisplay ();
+            CanBeMainView cbmv = (CanBeMainView) view;
+            //noinspection ResourceType
+            setRequestedOrientation (cbmv.GetOrientation ());
+            if (cbmv.IsPowerLocked ()) {
+                getWindow ().addFlags (WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            } else {
+                getWindow ().clearFlags (WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            }
+            cbmv.OpenDisplay ();
         }
     }
 
@@ -469,11 +523,28 @@ public class WairToNow extends Activity {
     /**
      * Turn on/off visibility of tab button row.
      */
-    public void SetTabVisibility (boolean vis)
+    private void SetTabVisibility (boolean vis)
     {
+        // save new value to preferences
         tabsVisible = vis;
+        SharedPreferences prefs = getPreferences (MODE_PRIVATE);
+        SharedPreferences.Editor editr = prefs.edit ();
+        editr.putBoolean ("tabVisibility", vis);
+        editr.commit ();
+
+        // rebuild screen contents with/without button row
+        SetCurrentView ();
+    }
+
+    /**
+     * Build display with selected tab view and button row.
+     */
+    private void SetCurrentView ()
+    {
         tabViewLayout.removeAllViews ();
-        tabViewLayout.addView (currentTabButton.view, ctvllp);
+        if (currentTabButton != null) {
+            tabViewLayout.addView (currentTabButton.view, ctvllp);
+        }
         if (tabsVisible) {
             tabViewLayout.addView (tabButtonScroller, tbsllp);
         }
@@ -512,17 +583,41 @@ public class WairToNow extends Activity {
     }
 
     /**
+     * Location of the airplane has been received from GPS.
+     */
+    public void LocationReceived (float speed, float altitude, float heading,
+                                  float latitude, float longitude, long time)
+    {
+        // say GPS is available cuz we just got a point
+        gpsAvailable = true;
+
+        // reset GPS timeout timer
+        lastLocUpdate = SystemClock.uptimeMillis ();
+        if (!lastLocQueued) {
+            lastLocQueued = true;
+            Message msg = wtnHandler.obtainMessage (334, WairToNow.this);
+            wtnHandler.sendMessageAtTime (msg, lastLocUpdate + gpsDownDelay);
+        }
+
+        // post it through to update position on screen unless disabled
+        if (gpsDisabled == 0) {
+            SetCurrentLocation (speed, altitude, heading, latitude, longitude, time);
+        }
+    }
+
+    /**
      * Set the current location of the airplane.
      */
-    public void SetCurrentLocation (Location loc)
+    public void SetCurrentLocation (float speed, float altitude, float heading,
+                                    float latitude, float longitude, long time)
     {
-        currentGPSTime = loc.getTime ();
-        currentGPSLat  = (float) loc.getLatitude ();
-        currentGPSLon  = (float) loc.getLongitude ();
-        currentGPSAlt  = (float) loc.getAltitude ();
-        currentGPSSpd  = loc.getSpeed ();
+        currentGPSTime = time;
+        currentGPSLat  = latitude;
+        currentGPSLon  = longitude;
+        currentGPSAlt  = altitude;
+        currentGPSSpd  = speed;
         if (currentGPSSpd > gpsMinSpeedMPS) {
-            currentGPSHdg = loc.getBearing ();
+            currentGPSHdg = heading;
         }
 
         if (pendingCourseSetWP != null) {
@@ -534,6 +629,7 @@ public class WairToNow extends Activity {
         crumbsView.SetGPSLocation ();
         glassView.SetGPSLocation ();
         routeView.SetGPSLocation ();
+        sensorsView.SetGPSLocation ();
         virtNav1View.SetGPSLocation ();
         virtNav2View.SetGPSLocation ();
 
@@ -572,8 +668,22 @@ public class WairToNow extends Activity {
     {
         hasAgreed = true;
         agreeButton.setVisibility (View.GONE);
-        locationManager.requestLocationUpdates (LocationManager.GPS_PROVIDER, 1000L, 1.0F, gpsListener);
-        locationManager.addGpsStatusListener (gpsListener);
+        sensorsView.startGPSReceiver ();
+
+        if (MaintView.GetWaypointExpDate () <= 0) {
+            AlertDialog.Builder adb = new AlertDialog.Builder (this);
+            adb.setTitle ("Chart Maint");
+            adb.setMessage ("At a minimum you should download the waypoint database and a nearby chart.");
+            adb.setPositiveButton ("OK", new DialogInterface.OnClickListener () {
+                @Override
+                public void onClick (DialogInterface dialogInterface, int i)
+                {
+                    SetCurrentTab (maintView);
+                }
+            });
+            adb.setNegativeButton ("Not Now", null);
+            adb.show ();
+        }
     }
 
     /**
@@ -583,8 +693,7 @@ public class WairToNow extends Activity {
     public void onPause ()
     {
         super.onPause ();
-        locationManager.removeUpdates (gpsListener);
-        locationManager.removeGpsStatusListener (gpsListener);
+        sensorsView.stopGPSReceiverDelayed ();
 
         // maybe some database files marked for delete
         // so close our handles so they will be deleted
@@ -610,13 +719,6 @@ public class WairToNow extends Activity {
                     ((Runnable) msg.obj).run ();
                     break;
                 }
-                case 333: {
-                    Object[] args = (Object[]) msg.obj;
-                    GPSListener gll = (GPSListener) args[0];
-                    Location loc = (Location) args[1];
-                    gll.onLocationChanged (loc);
-                    break;
-                }
                 case 334: {
                     WairToNow wtn = (WairToNow) msg.obj;
                     long now = SystemClock.uptimeMillis ();
@@ -634,51 +736,6 @@ public class WairToNow extends Activity {
         }
     }
 
-    private class GPSListener implements GpsStatus.Listener, LocationListener {
-        private GpsStatus gpsStatus;
-
-        @Override  // LocationListener
-        public void onLocationChanged (Location loc)
-        {
-            lastLocUpdate = SystemClock.uptimeMillis ();
-            if (!lastLocQueued) {
-                lastLocQueued = true;
-                Message msg = wtnHandler.obtainMessage (334, WairToNow.this);
-                wtnHandler.sendMessageAtTime (msg, lastLocUpdate + gpsDownDelay);
-            }
-
-            onStatusChanged (loc.getProvider (), LocationProvider.AVAILABLE, null);
-            if (!planView.pretendEnabled) SetCurrentLocation (loc);
-        }
-
-        @Override  // LocationListener
-        public void onProviderDisabled(String arg0)
-        { }
-
-        @Override  // LocationListener
-        public void onProviderEnabled(String arg0)
-        { }
-
-        @Override  // LocationListener
-        public void onStatusChanged(String provider, int status, Bundle extras)
-        {
-            gpsAvailable = (status == LocationProvider.AVAILABLE);
-            if (currentTabButton != null) currentTabButton.view.invalidate ();
-        }
-
-        @Override  // GpsStatus.Listener
-        public void onGpsStatusChanged (int event)
-        {
-            switch (event) {
-                case GpsStatus.GPS_EVENT_SATELLITE_STATUS: {
-                    gpsStatus = locationManager.getGpsStatus (gpsStatus);
-                    gpsStatusView.SetGPSStatus (gpsStatus);
-                    if (currentTabButton != null) currentTabButton.view.invalidate ();
-                }
-            }
-        }
-    }
-
     /**
      * Draw GPS availability message on georeferenced page.
      * @param canvas = what to draw it on
@@ -687,7 +744,7 @@ public class WairToNow extends Activity {
     public void drawGPSAvailable (Canvas canvas, final View view)
     {
         int color = Color.TRANSPARENT;
-        if (planView.pretendEnabled) {
+        if (gpsDisabled != 0) {
             color = Color.YELLOW;
         } else if (!gpsAvailable) {
             color = Color.RED;
@@ -715,10 +772,61 @@ public class WairToNow extends Activity {
 
     public boolean blinkingRedOn ()
     {
-        if (planView.pretendEnabled) return false;
+        if (gpsDisabled != 0) return false;
         if (gpsAvailable) return false;
         long now = SystemClock.uptimeMillis ();
         return (now & 1024) == 0;
+    }
+
+    /**
+     * Draw the airplane location arrow symbol.
+     * @param canvas     = canvas to draw it on
+     * @param pt         = where on canvas to draw symbol
+     * @param canHdgRads = true heading on canvas that is up
+     * Other inputs:
+     *   heading = true heading for the arrow symbol (degrees, latest gps sample)
+     *   speed = airplane speed (mps, latest gps sample)
+     *   airplanePath,Scaling = drawing of airplane pointing at 0deg true
+     *   thisGPSTimestamp = time of latest gps sample
+     *   lastGPSTimestamp = time of previous gps sample
+     *   lastGPSHeading = true heading for the arrow symbol (previous gps sample)
+     */
+    public void DrawLocationArrow (Canvas canvas, Point pt, float canHdgRads)
+    {
+        /*
+         * If not receiving GPS signal, blink the icon.
+         */
+        if (blinkingRedOn ()) return;
+
+        /*
+         * If not moving, draw circle instead of airplane.
+         */
+        if (currentGPSSpd < gpsMinSpeedMPS) {
+            airplanePaint.setStyle (Paint.Style.STROKE);
+            canvas.drawCircle (pt.x, pt.y, textSize * 0.5F, airplanePaint);
+            return;
+        }
+
+        /*
+         * Heading angle relative to UP on screen.
+         */
+        float hdg = currentGPSHdg - Mathf.toDegrees (canHdgRads);
+
+        /*
+         * Draw the icon.
+         */
+        canvas.save ();
+        canvas.translate (pt.x, pt.y);  // anything drawn below will be translated this much
+        canvas.rotate (hdg);            // anything drawn below will be rotated this much
+        DrawAirplaneSymbol (canvas);    // draw the airplane with vectors and filling
+        canvas.restore ();              // remove translation/scaling/rotation
+    }
+
+    public void DrawAirplaneSymbol (Canvas canvas)
+    {
+        airplanePaint.setStyle (Paint.Style.FILL);
+        canvas.scale (airplaneScale, airplaneScale);    // anything drawn below will be scaled this much
+        canvas.drawPath (airplanePath, airplanePaint);  // draw the airplane with vectors and filling
     }
 
     /*************************\
@@ -730,6 +838,8 @@ public class WairToNow extends Activity {
     public boolean onCreateOptionsMenu(Menu menu)
     {
         // main menu
+        menu.add ("Chart");
+        menu.add ("More");
         menu.add ("Hide");
         menu.add ("Show");
         menu.add ("Re-center");
@@ -744,21 +854,163 @@ public class WairToNow extends Activity {
     public boolean onOptionsItemSelected(MenuItem menuItem)
     {
         CharSequence sel = menuItem.getTitle ();
+        if ("Chart".equals (sel)) {
+            chartButton.onClick (chartButton);
+        }
         if ("Exit".equals (sel)) {
+            saveLastKnownPosition ();
+            crumbsView.CloseFiles ();
             SQLiteDBs.CloseAll ();
             System.exit (0); // finish () doesn't really exit
         }
         if ("Hide".equals (sel)) {
             SetTabVisibility (false);
         }
+        if ("More".equals (sel)) {
+            ShowMoreMenu ();
+        }
         if ("Re-center".equals (sel) && hasAgreed) {
             chartView.ReCenter ();
-            SetCurrentTab (chartView);
+            if (currentTabButton.view != chartView) {
+                SetCurrentTab (chartView);
+            }
         }
         if ("Show".equals (sel)) {
             SetTabVisibility (true);
         }
         return true;
+    }
+
+    /**
+     * Save most recent GPS position to preferences so it will be there on restart.
+     */
+    private void saveLastKnownPosition ()
+    {
+        SharedPreferences prefs = getPreferences (MODE_PRIVATE);
+        SharedPreferences.Editor editr = prefs.edit ();
+        editr.putFloat ("lastKnownAlt", currentGPSAlt);
+        editr.putFloat ("lastKnownHdg", currentGPSHdg);
+        editr.putFloat ("lastKnownLat", currentGPSLat);
+        editr.putFloat ("lastKnownLon", currentGPSLon);
+        editr.putFloat ("lastKnownSpd", currentGPSSpd);
+        editr.putLong ("lastKnownTime", currentGPSTime);
+        editr.commit ();
+    }
+
+    /**
+     * Load last saved GPS position.
+     */
+    private void loadLastKnownPosition ()
+    {
+        SharedPreferences prefs = getPreferences (MODE_PRIVATE);
+        currentGPSAlt  = prefs.getFloat ("lastKnownAlt", 0);
+        currentGPSHdg  = prefs.getFloat ("lastKnownHdg", 0);
+        currentGPSLat  = prefs.getFloat ("lastKnownLat", 0);
+        currentGPSLon  = prefs.getFloat ("lastKnownLon", 0);
+        currentGPSSpd  = prefs.getFloat ("lastKnownSpd", 0);
+        currentGPSTime = prefs.getLong ("lastKnownTime", 0);
+    }
+
+    /**
+     * Sense landscape/portrait change.
+     */
+    @Override
+    public void onConfigurationChanged (Configuration config)
+    {
+        super.onConfigurationChanged (config);
+
+        DisplayMetrics metrics = new DisplayMetrics ();
+        getWindowManager ().getDefaultDisplay ().getMetrics (metrics);
+
+        displayWidth  = metrics.widthPixels;
+        displayHeight = metrics.heightPixels;
+
+        dotsPerInchX  = metrics.xdpi;
+        dotsPerInchY  = metrics.ydpi;
+        dotsPerInch   = Mathf.sqrt (dotsPerInchX * dotsPerInchY);
+    }
+
+    /**
+     * "More" button clicked, show buttons, same as Tab buttons,
+     * in an alert dialog box.
+     */
+    private void ShowMoreMenu ()
+    {
+        /*
+         * Determine number of buttons for each row.
+         */
+        int buttonsPerRow = 2;
+        if (displayWidth > displayHeight) {
+            buttonsPerRow = 4;
+        }
+
+        /*
+         * Start a dialog box and a scroll view to put the buttons in.
+         */
+        ScrollView sv = new ScrollView (this);
+        AlertDialog.Builder adb = new AlertDialog.Builder (this);
+        adb.setView (sv);
+        adb.setNegativeButton ("Cancel", null);
+
+        /*
+         * Set up on click listener to select the page when clicked.
+         */
+        final AlertDialog ad = adb.create ();
+        View.OnClickListener menuButtonListener = new View.OnClickListener () {
+            @Override
+            public void onClick (View view)
+            {
+                ad.dismiss ();
+                TabButton tb = (TabButton) view.getTag ();
+                tb.onClick (tb);
+            }
+        };
+
+        /*
+         * Go through the buttons in the tabButtonLayout,
+         * creating a regular button for each one.
+         */
+        TableLayout tableLayout = new TableLayout (this);
+        TableRow tableRow = null;
+        int numButtons = tabButtonLayout.getChildCount ();
+        for (int i = 0; i < numButtons; i ++) {
+            View v = tabButtonLayout.getChildAt (i);
+            if (v instanceof TabButton) {
+                TabButton tb = (TabButton) v;
+                if (tb.getVisibility () != View.GONE) {
+
+                    /*
+                     * Create a regular button that calls the TabButton when clicked.
+                     */
+                    Button but = new Button (this);
+                    but.setOnClickListener (menuButtonListener);
+                    but.setTag (tb);
+                    but.setText (tb.ident);
+                    but.setTextColor ((tb == currentTabButton) ? Color.RED : Color.BLACK);
+                    but.setVisibility (tb.getVisibility ());
+                    SetTextSize (but);
+
+                    /*
+                     * Add the regular button to the table, creating a row if needed,
+                     * closing the row if it is filled.
+                     */
+                    if (tableRow == null) {
+                        tableRow = new TableRow (this);
+                        tableLayout.addView (tableRow);
+                    }
+                    tableRow.addView (but);
+                    if (tableRow.getChildCount () >= buttonsPerRow) {
+                        tableRow = null;
+                    }
+                }
+            }
+        }
+
+        /*
+         * Add the button table to the scroll view and show the dialog.
+         */
+        sv.addView (tableLayout);
+        ad.show ();
     }
 
     /*************************\
@@ -786,6 +1038,8 @@ public class WairToNow extends Activity {
      */
     public interface CanBeMainView {
         String GetTabName ();
+        int GetOrientation ();
+        boolean IsPowerLocked ();
         void OpenDisplay ();
         void CloseDisplay ();
         void ReClicked ();

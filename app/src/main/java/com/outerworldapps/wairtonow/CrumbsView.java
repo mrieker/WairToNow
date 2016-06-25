@@ -21,8 +21,11 @@
 package com.outerworldapps.wairtonow;
 
 import android.annotation.SuppressLint;
+import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
+import android.content.SharedPreferences;
+import android.content.pm.ActivityInfo;
 import android.graphics.Color;
 import android.text.InputType;
 import android.util.Log;
@@ -31,6 +34,8 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.RadioButton;
+import android.widget.RadioGroup;
 import android.widget.ScrollView;
 
 import org.xmlpull.v1.XmlPullParser;
@@ -49,8 +54,10 @@ import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.GregorianCalendar;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Locale;
+import java.util.TimeZone;
 import java.util.TreeMap;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
@@ -60,7 +67,7 @@ import java.util.zip.GZIPOutputStream;
  */
 @SuppressLint("ViewConstructor")
 public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
-    private final static int INTERVALMS   = 10000;
+    private final static int INTERVALMS   = 10000;  // record a point every 10 seconds
     private final static int TYPE_UNKNOWN = 0;
     private final static int TYPE_CSV_GZ  = 1;
     private final static int TYPE_GPX_GZ  = 2;
@@ -77,12 +84,25 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
     {
         super (wtn);
         wairToNow = wtn;
+        gpxdatefmt.setTimeZone (TimeZone.getTimeZone ("UTC"));
     }
 
     @Override  // CanBeMainView
     public String GetTabName ()
     {
         return "Crumbs";
+    }
+
+    @Override  // CanBeMainView
+    public int GetOrientation ()
+    {
+        return ActivityInfo.SCREEN_ORIENTATION_USER;
+    }
+
+    @Override  // CanBeMainView
+    public boolean IsPowerLocked ()
+    {
+        return false;
     }
 
     @Override  // CanBeMainView
@@ -219,8 +239,15 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
     /**
      * Show an existing trail recording file.
      */
-    private class ShowExistingButton extends TrailButton implements OnLongClickListener {
+    private class ShowExistingButton extends TrailButton implements OnLongClickListener, Runnable {
         protected long started;
+
+        private int rtplayback;
+        private Iterator<Position> rtpbiter;
+        private long realtime;
+        private long rtpbtime;
+        private Position lastposition;
+        private Position nextposition;
 
         public ShowExistingButton (String n, int t, long d)
         {
@@ -245,21 +272,180 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
                 }
             }
 
+            // make radio buttons to select playback speed
+            SharedPreferences prefs = wairToNow.getPreferences (Activity.MODE_PRIVATE);
+            rtplayback = prefs.getInt ("crumbPlaybackSpeed", 0);
+            RadioGroup rg = new RadioGroup (wairToNow);
+            rg.setOrientation (LinearLayout.VERTICAL);
+            rg.addView (new PaceButton (0, "static"));
+            rg.addView (new PaceButton (1, "normal"));
+            rg.addView (new PaceButton (2, "2x normal"));
+            rg.addView (new PaceButton (3, "3x normal"));
+            rg.addView (new PaceButton (5, "5x normal"));
+            rg.addView (new PaceButton (8, "8x normal"));
+            rg.addView (new PaceButton (10, "10x normal"));
+            rg.check (rtplayback);
+            ScrollView sv = new ScrollView (wairToNow);
+            sv.addView (rg);
+
+            // display dialog to query playback speed
+            AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
+            adb.setTitle (name);
+            adb.setView (sv);
+            adb.setPositiveButton ("OK", new DialogInterface.OnClickListener () {
+                @Override
+                public void onClick (DialogInterface dialogInterface, int i)
+                {
+                    OpenItUp ();
+                }
+            });
+            adb.setNegativeButton ("Cancel", null);
+            adb.show ();
+
+            return false;
+        }
+
+        // radio button to select playback speed
+        private class PaceButton extends RadioButton implements OnClickListener {
+            public PaceButton (int n, String s)
+            {
+                super (wairToNow);
+                setId (n);
+                setOnClickListener (this);
+                setText (s);
+                wairToNow.SetTextSize (this);
+            }
+            public void onClick (View v)
+            {
+                rtplayback = getId ();
+            }
+        }
+
+        // playback speed selected, display the trail and start playback
+        private void OpenItUp ()
+        {
+            activeButton = this;
+            wairToNow.SetCurrentTab (wairToNow.chartView);
+
+            SharedPreferences prefs = wairToNow.getPreferences (Activity.MODE_PRIVATE);
+            SharedPreferences.Editor editr = prefs.edit ();
+            editr.putInt ("crumbPlaybackSpeed", rtplayback);
+            editr.commit ();
+
             // set button blue meaning this is a playback
             setTextColor (Color.BLUE);
 
             // position chart screen to first point in the recording
-            Position firstloc = trail.getFirst ();
-            wairToNow.chartView.SetCenterLatLon (firstloc.latitude, firstloc.longitude);
+            Position firstpos = trail.getFirst ();
+            wairToNow.chartView.SetCenterLatLon (firstpos.latitude, firstpos.longitude);
 
-            // tell caller we were successful setting up
-            return true;
+            // maybe do real-time playback
+            if (rtplayback > 0) {
+
+                // set up to step through the points in the file sequentially
+                rtpbiter  = trail.iterator ();
+
+                // get first two points in the file
+                // if there is just one, nothing to playback
+                if (!rtpbiter.hasNext ()) {
+                    rtpbiter = null;
+                } else {
+                    lastposition = firstpos;
+                    nextposition = rtpbiter.next ();
+
+                    // get time offset
+                    realtime = System.currentTimeMillis ();
+                    rtpbtime = firstpos.time;
+
+                    // allow chart to reposition to keep playback point in the center
+                    wairToNow.chartView.ReCenter ();
+
+                    // don't listen to any GPS updates so we don't move screen to GPS position
+                    wairToNow.gpsDisabled ++;
+
+                    // move chart to first point
+                    run ();
+                }
+            }
+        }
+
+        /**
+         * Playback the next co-ordinate on the existing trail.
+         */
+        @Override  // Runnable
+        public void run ()
+        {
+            if (rtpbiter != null) {
+
+                // see if we need next point along the trail
+                long now  = System.currentTimeMillis ();
+                long time = (now - realtime) * rtplayback + rtpbtime;
+                Position lpos = lastposition;
+                Position npos = nextposition;
+                while ((time > npos.time) || (lpos.time >= npos.time)) {
+                    if (!rtpbiter.hasNext ()) {
+                        npos = null;
+                        break;
+                    }
+                    lpos = npos;
+                    npos = rtpbiter.next ();
+                }
+                if (npos != null) {
+                    lastposition = lpos;
+                    nextposition = npos;
+
+                    // pretend the playback position report just came in from the GPS
+                    // notify anyone (such as ChartView) who cares
+                    float f = (float) (time - lpos.time) / (npos.time - lpos.time);
+                    wairToNow.SetCurrentLocation (
+                            (npos.speed     - lpos.speed)     * f + lpos.speed,
+                            (npos.altitude  - lpos.altitude)  * f + lpos.altitude,
+                            interpHdgLon (npos.heading,   lpos.heading,   f),
+                            (npos.latitude  - lpos.latitude)  * f + lpos.latitude,
+                            interpHdgLon (npos.longitude, lpos.longitude, f),
+                            time
+                    );
+
+                    // step airplane along at about same rate as GPS does
+                    long diff = (now - realtime) % 1000;
+                    WairToNow.wtnHandler.runDelayed (1000 - diff, this);
+                } else {
+
+                    // no more points, playback is complete
+                    PlaybackComplete ();
+                }
+            }
+        }
+
+        private float interpHdgLon (float next, float last, float f)
+        {
+            float diff = next - last;
+            while (diff >= 180.0F) diff -= 360.0F;
+            while (diff < -180.0F) diff += 360.0F;
+            return Lib.NormalLon (diff * f + last);
+        }
+
+        private void PlaybackComplete ()
+        {
+            rtpbiter = null;
+            lastposition = null;
+            nextposition = null;
+
+            // when real GPS co-ord comes in, don't re-center the screen,
+            // just leave it at last trail co-ordinate
+            wairToNow.chartView.SetCenterLatLon (wairToNow.currentGPSLat, wairToNow.currentGPSLon);
+
+            // allow real incoming GPS co-ords to be processed now
+            wairToNow.gpsDisabled --;
         }
 
         @Override  // TrailButton
         public void CloseClicked ()
         {
             trail = null;
+            if (rtpbiter != null) {
+                PlaybackComplete ();
+            }
         }
 
         @Override  // TrailButton
@@ -587,7 +773,7 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
                                     "\"><ele>" + wairToNow.currentGPSAlt +
                             "</ele><heading>" + wairToNow.currentGPSHdg +
                             "</heading><speed>" + wairToNow.currentGPSSpd +
-                            "</speed><time>" + gpxdatefmt.format (new Date (wairToNow.currentGPSTime)) +
+                            "</speed><time>" + gpxdatefmt.format (wairToNow.currentGPSTime) +
                             "</time></trkpt>\n");
                 } catch (IOException ioe) {
                     Log.w (TAG, "error writing " + name, ioe);
@@ -634,6 +820,7 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
      * @param all = true: read all records; false: read just first record
      * @return null: success; else: error
      */
+    @SuppressWarnings("ConstantConditions")
     private static Exception ReadTrailFile (LinkedList<Position> trail, String name, int type, boolean all)
     {
         try {

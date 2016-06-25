@@ -20,12 +20,16 @@
 
 package com.outerworldapps.wairtonow;
 
+import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.pm.ActivityInfo;
 import android.database.Cursor;
+import android.graphics.Color;
+import android.text.Editable;
 import android.text.InputType;
+import android.text.TextWatcher;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
@@ -84,15 +88,16 @@ public abstract class Waypoint {
 
     /**
      * Display a text dialog for user to enter a waypoint ident.
-     * @param ctx = what app this is part of
+     * @param wtn = what app this is part of
      * @param title = title for the dialog box
      * @param nearlat = nearby latitude
      * @param nearlon = nearby longitude
      * @param oldid = initial value for dialog box
      * @param wpsel = what to call when waypoint selection complete
      */
+    @SuppressLint("SetTextI18n")
     public static void ShowWaypointDialog (
-            final Context ctx,
+            final WairToNow wtn,
             final String title,
             final float nearlat,
             final float nearlon,
@@ -100,21 +105,137 @@ public abstract class Waypoint {
             final Selected wpsel)
     {
         // set up a text box to enter the new identifier in
-        // populate it with the current identifier
-        final EditText ident = new EditText (ctx);
+        final EditText ident = new EditText (wtn);
+        ident.setEms (5);
         ident.setInputType (InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         ident.setSingleLine ();
-        ident.setText (oldid);
+
+        // set up a text box to enter a RNAV offset radial
+        final EditText rnavradl = new EditText (wtn);
+        rnavradl.setEms (3);
+        rnavradl.setInputType (InputType.TYPE_CLASS_NUMBER);
+        rnavradl.setSingleLine ();
+        rnavradl.addTextChangedListener (new TextWatcher () {
+            private String before;
+
+            @Override
+            public void beforeTextChanged (CharSequence charSequence, int i, int i1, int i2)
+            {
+                before = charSequence.toString ();
+            }
+
+            @Override
+            public void onTextChanged (CharSequence charSequence, int i, int i1, int i2)
+            { }
+
+            @Override
+            public void afterTextChanged (Editable editable)
+            {
+                String after = editable.toString ();
+                if (!after.equals ("")) {
+                    try {
+                        float value = Float.parseFloat (after);
+                        if ((value >= 0.0F) && (value <= 360.0F)) return;
+                    } catch (NumberFormatException nfe) {
+                        Lib.Ignored ();
+                    }
+                    editable.replace (0, after.length (), before);
+                }
+            }
+        });
+
+        // set up a spinner to say mag/true for RNAV offset radial
+        final MagTrueSpinner magTrue = new MagTrueSpinner (wtn);
+
+        // set up a text box to enter RNAV offset distance
+        final EditText rnavdist = new EditText (wtn);
+        rnavdist.setEms (3);
+        rnavdist.setInputType (InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        rnavdist.setSingleLine ();
+        rnavdist.addTextChangedListener (new TextWatcher () {
+            private String before;
+
+            @Override
+            public void beforeTextChanged (CharSequence charSequence, int i, int i1, int i2)
+            {
+                before = charSequence.toString ();
+            }
+
+            @Override
+            public void onTextChanged (CharSequence charSequence, int i, int i1, int i2)
+            { }
+
+            @Override
+            public void afterTextChanged (Editable editable)
+            {
+                String after = editable.toString ();
+                if (!after.equals ("")) {
+                    try {
+                        float value = Float.parseFloat (after);
+                        if ((value >= 0.0F) && (value <= 999.0F)) return;
+                    } catch (NumberFormatException nfe) {
+                        Lib.Ignored ();
+                    }
+                    editable.replace (0, after.length (), before);
+                }
+            }
+        });
+
+        // fill in initial values for those boxes from given oldid string
+        boolean hasRNavOffset = false;
+        try {
+            RNavParse rnavParse = new RNavParse (oldid);
+            ident.setText (rnavParse.baseident);
+            if (rnavParse.rnavsuffix != null) {
+                rnavradl.setText (Lib.FloatNTZ (rnavParse.rnavradial));
+                magTrue.setMag (rnavParse.magnetic);
+                rnavdist.setText (Lib.FloatNTZ (rnavParse.rnavdistance));
+                hasRNavOffset = true;
+            }
+        } catch (Exception e) {
+            ident.setText (oldid);
+        }
+
+        // put those boxes in a linear layout
+        final LinearLayout ll = new LinearLayout (wtn);
+        ll.setOrientation (LinearLayout.HORIZONTAL);
+        ll.addView (ident);
+        if (hasRNavOffset) {
+
+            // already has RNAV offset, display the RNAV offset boxes too
+            addRNavOffsetBoxes (ll, rnavradl, magTrue, rnavdist);
+        } else {
+
+            // no RNAV offset, give them a button to show the boxes if they want
+            Button rnavOffsetButton = new Button (wtn);
+            rnavOffsetButton.setText ("RNAV>>");
+            rnavOffsetButton.setOnClickListener (new View.OnClickListener () {
+                @Override
+                public void onClick (View view)
+                {
+                    ll.removeAllViews ();
+                    ll.addView (ident);
+                    addRNavOffsetBoxes (ll, rnavradl, magTrue, rnavdist);
+                }
+            });
+            ll.addView (rnavOffsetButton);
+        }
+
+        // wrap that all in an horizontal scroll in case of small screen
+        DetentHorizontalScrollView sv = new DetentHorizontalScrollView (wtn);
+        wtn.SetDetentSize (sv);
+        sv.addView (ll);
 
         // set up and display an alert dialog box to enter new identifier
-        AlertDialog.Builder adb = new AlertDialog.Builder (ctx);
+        AlertDialog.Builder adb = new AlertDialog.Builder (wtn);
         adb.setTitle (title);
-        adb.setView (ident);
+        adb.setView (sv);
         adb.setPositiveButton ("OK", new DialogInterface.OnClickListener () {
             @Override
             public void onClick (DialogInterface dialogInterface, int i)
             {
-                waypointEntered (ctx, title, wpsel, nearlat, nearlon, ident);
+                waypointEntered (wtn, title, wpsel, nearlat, nearlon,
+                        ident, rnavradl, magTrue, rnavdist);
             }
         });
         adb.setNeutralButton ("OFF", new DialogInterface.OnClickListener () {
@@ -122,11 +243,12 @@ public abstract class Waypoint {
             public void onClick (DialogInterface dialogInterface, int i)
             {
                 ident.setText ("");
-                waypointEntered (ctx, title, wpsel, nearlat, nearlon, ident);
+                waypointEntered (wtn, title, wpsel, nearlat, nearlon,
+                        ident, rnavradl, magTrue, rnavdist);
             }
         });
         adb.setNegativeButton ("Cancel", null);
-        final AlertDialog dmeDialog = adb.show ();
+        final AlertDialog ad = adb.show ();
 
         // set up listener for the DONE keyboard key
         ident.setOnEditorActionListener (new TextView.OnEditorActionListener () {
@@ -134,27 +256,48 @@ public abstract class Waypoint {
             public boolean onEditorAction (TextView textView, int i, KeyEvent keyEvent)
             {
                 if (i == EditorInfo.IME_ACTION_DONE) {
-                    dmeDialog.dismiss ();
-                    waypointEntered (ctx, title, wpsel, nearlat, nearlon, ident);
+                    ad.dismiss ();
+                    waypointEntered (wtn, title, wpsel, nearlat, nearlon,
+                            ident, rnavradl, magTrue, rnavdist);
                 }
                 return false;
             }
         });
     }
 
+    private static void addRNavOffsetBoxes (LinearLayout ll, EditText rnavradl, MagTrueSpinner magTrue, EditText rnavdist)
+    {
+        Context ctx = ll.getContext ();
+        ll.addView (new TextViewString (ctx, "["));
+        ll.addView (rnavradl);
+        ll.addView (new TextViewString (ctx, "\u00B0"));
+        ll.addView (magTrue);
+        ll.addView (new TextViewString (ctx, "@"));
+        ll.addView (rnavdist);
+        ll.addView (new TextViewString (ctx, "nm"));
+    }
+
     private static void waypointEntered (
-            Context ctx,
+            WairToNow wtn,
             String title,
             Selected wpsel,
             float nearlat,
             float nearlon,
-            EditText ident)
+            EditText ident,
+            EditText rnavradl,
+            MagTrueSpinner magTrue,
+            EditText rnavdist)
     {
+        // if ident entered is blank, tell caller that user wants no ident selected
         String newid = ident.getText ().toString ().replace (" ", "").toUpperCase (Locale.US);
         if (newid.equals ("")) {
             wpsel.wpSeld (null);
         } else {
+
+            // something in ident box, look it up in waypoint database
             LinkedList<Waypoint> wplist = GetWaypointsByIdent (newid);
+
+            // look for the one so named that is closest to given lat/lon
             Waypoint bestwp = null;
             float bestnm = 999999.0F;
             for (Waypoint wp : wplist) {
@@ -164,50 +307,114 @@ public abstract class Waypoint {
                     bestwp = wp;
                 }
             }
+
+            // get RNAV offset info
+            String rnavradlstr = rnavradl.getText ().toString ();
+            boolean magnetic   = magTrue.getMag ();
+            String rnavdiststr = rnavdist.getText ().toString ();
+            String rnavsuffix  = rnavradlstr + (magnetic ? "@" : "T@") + rnavdiststr;
+
+            // if waypoint not found, re-prompt
             if (bestwp == null) {
-                ShowWaypointDialog (ctx, title, nearlat, nearlon, newid, wpsel);
+                newid += "[" + rnavsuffix;
+                ShowWaypointDialog (wtn, title, nearlat, nearlon, newid, wpsel);
                 return;
             }
+
+            // if a RNAV distance given, wrap the waypoint with RNAV radial/distance info
+            if (!rnavradlstr.equals ("") || !rnavdiststr.equals ("")) {
+                try {
+                    float rnavradlbin = Float.parseFloat (rnavradlstr);
+                    float rnavdistbin = Float.parseFloat (rnavdiststr);
+                    if (rnavdistbin != 0) {
+                        rnavsuffix = Lib.FloatNTZ (rnavradlbin) + (magnetic ? "@" : "T@") +
+                                Lib.FloatNTZ (rnavdistbin);
+                        bestwp = new RNavOffset (bestwp, rnavdistbin, rnavradlbin, magnetic, rnavsuffix);
+                    }
+                } catch (NumberFormatException nfe) {
+                    newid += "[" + rnavsuffix;
+                    ShowWaypointDialog (wtn, title, nearlat, nearlon, newid, wpsel);
+                    return;
+                }
+            }
+
+            // tell caller that a waypoint has been selected,
+            // possibly wrapped with a RNavOffset.
             wpsel.wpSeld (bestwp);
         }
     }
 
     /**
      * Find waypoints by identifier (airport icaoid, localizer ident, navaid identifier, fix name).
+     * May include a RNAV offset, ie, bearing and distance.
      */
     public static LinkedList<Waypoint> GetWaypointsByIdent (String ident)
     {
         LinkedList<Waypoint> wplist = new LinkedList<> ();
-        int waypointexpdate = MaintView.GetWaypointExpDate ();
-        String dbname = "waypoints_" + waypointexpdate + ".db";
-        SQLiteDBs sqldb = SQLiteDBs.open (dbname);
-        if (sqldb != null) {
-            try {
-                for (Class<? extends Waypoint> wpclass : wpclasses) {
-                    String dbtable  = (String) wpclass.getField ("dbtable").get (null);
-                    String dbkeyid  = (String) wpclass.getField ("dbkeyid").get (null);
-                    String[] dbcols = (String[]) wpclass.getField ("dbcols").get (null);
-                    Cursor result = sqldb.query (
-                            dbtable, dbcols,
-                            dbkeyid + "=?", new String[] { ident },
-                            null, null, null, null);
-                    try {
-                        if (result.moveToFirst ()) {
-                            do {
-                                Constructor<? extends Waypoint> ctor = wpclass.getConstructor (Cursor.class);
-                                Waypoint wpe = ctor.newInstance (result);
-                                wplist.addLast (wpe);
-                            } while (result.moveToNext ());
-                        }
-                    } finally {
-                        result.close ();
-                    }
-                }
-            } catch (Exception e) {
-                Log.e (TAG, "error reading " + dbname, e);
+
+        /*
+         * If there is a [rnavoffset on the end, get ident then add that offset.
+         */
+        RNavParse rnavParse;
+        try {
+            rnavParse = new RNavParse (ident);
+        } catch (Exception e) {
+            rnavParse = null;
+        }
+        if ((rnavParse != null) && (rnavParse.rnavsuffix != null)) {
+
+            /*
+             * Look for all instances of the base identifier waypoint.
+             */
+            LinkedList<Waypoint> basewps = GetWaypointsByIdent (rnavParse.baseident);
+
+            /*
+             * Add the RNAV offset to each of those for the resultant value.
+             */
+            for (Waypoint basewp : basewps) {
+                Waypoint rnavwp = rnavParse.makeWaypoint (basewp);
+                wplist.addLast (rnavwp);
             }
-            if (wplist.isEmpty () && ident.startsWith ("I") && !ident.startsWith ("I-")) {
-                return GetWaypointsByIdent ("I-" + ident.substring (1));
+        } else {
+
+            /*
+             * Otherwise, just get the waypoint as named.
+             */
+            int waypointexpdate = MaintView.GetWaypointExpDate ();
+            String dbname = "waypoints_" + waypointexpdate + ".db";
+            SQLiteDBs sqldb = SQLiteDBs.open (dbname);
+            if (sqldb != null) {
+                try {
+
+                    /*
+                     * Search through each of the waypoint tables to get all matches.
+                     */
+                    for (Class<? extends Waypoint> wpclass : wpclasses) {
+                        String dbtable  = (String) wpclass.getField ("dbtable").get (null);
+                        String dbkeyid  = (String) wpclass.getField ("dbkeyid").get (null);
+                        String[] dbcols = (String[]) wpclass.getField ("dbcols").get (null);
+                        Cursor result = sqldb.query (
+                                dbtable, dbcols,
+                                dbkeyid + "=?", new String[] { ident },
+                                null, null, null, null);
+                        try {
+                            if (result.moveToFirst ()) {
+                                do {
+                                    Constructor<? extends Waypoint> ctor = wpclass.getConstructor (Cursor.class);
+                                    Waypoint wpe = ctor.newInstance (result);
+                                    wplist.addLast (wpe);
+                                } while (result.moveToNext ());
+                            }
+                        } finally {
+                            result.close ();
+                        }
+                    }
+                } catch (Exception e) {
+                    Log.e (TAG, "error reading " + dbname, e);
+                }
+                if (wplist.isEmpty () && ident.startsWith ("I") && !ident.startsWith ("I-")) {
+                    return GetWaypointsByIdent ("I-" + ident.substring (1));
+                }
             }
         }
         return wplist;
@@ -345,6 +552,86 @@ public abstract class Waypoint {
         }
 
         return matches;
+    }
+
+    /**
+     * Parse a waypoint[rnavdist/rnavradial
+     * or waypoint[rnavradial@rnavdist string
+     */
+    public static class RNavParse {
+        public String baseident;    // waypoint
+        public String rnavsuffix;    // [... or null if missing
+        public float rnavdistance;   // parsed distance
+        public float rnavradial;     // parsed radial
+        public boolean magnetic;    // true: magnetic; false: true
+
+        public RNavParse (String ident)
+        {
+            int i = ident.lastIndexOf ('[');
+            if (i < 0) {
+                baseident = ident;
+                return;
+            }
+            baseident = ident.substring (0, i).trim ();
+            String suffix = ident.substring (++ i).replace (" ", "").toUpperCase (Locale.US);
+            i = suffix.indexOf ('/');
+            if (i >= 0) {
+                String diststr = suffix.substring (0, i);
+                String radlstr = suffix.substring (++ i);
+                if (parseDistanceRadial (diststr, radlstr, false)) {
+                    StringBuilder sb = new StringBuilder ();
+                    sb.append (Lib.FloatNTZ (rnavdistance));
+                    sb.append ('/');
+                    sb.append (Lib.FloatNTZ (rnavradial));
+                    if (magnetic) sb.append ('M');
+                    rnavsuffix = sb.toString ();
+                }
+                return;
+            }
+            i = suffix.indexOf ('@');
+            if (i >= 0) {
+                String radlstr = suffix.substring (0, i);
+                String diststr = suffix.substring (++ i);
+                if (parseDistanceRadial (diststr, radlstr, true)) {
+                    StringBuilder sb = new StringBuilder ();
+                    sb.append (Lib.FloatNTZ (rnavradial));
+                    if (!magnetic) sb.append ('T');
+                    sb.append ('@');
+                    sb.append (Lib.FloatNTZ (rnavdistance));
+                    rnavsuffix = sb.toString ();
+                }
+                return;
+            }
+            throw new NumberFormatException ("unknown rnav offset " + suffix);
+        }
+
+        private boolean parseDistanceRadial (String diststr, String radlstr, boolean mag)
+        {
+            magnetic = mag;
+            rnavdistance = Float.parseFloat (diststr);
+            if (rnavdistance <= 0) {
+                rnavsuffix = null;
+                return false;
+            }
+            if (radlstr.endsWith ("M")) {
+                magnetic = true;
+                radlstr = radlstr.substring (0, radlstr.length () - 1);
+            } else if (radlstr.endsWith ("T")) {
+                magnetic = false;
+                radlstr = radlstr.substring (0, radlstr.length () - 1);
+            }
+            rnavradial = Float.parseFloat (radlstr);
+            while (rnavradial > 360.0F) rnavradial -= 360.0F;
+            while (rnavradial <   0.0F) rnavradial += 360.0F;
+            return true;
+        }
+
+        public Waypoint makeWaypoint (Waypoint basewp)
+        {
+            if (!basewp.ident.equals (baseident)) throw new IllegalArgumentException ("basewp");
+            if ((rnavsuffix == null) || (rnavdistance == 0)) return basewp;
+            return new RNavOffset (basewp, rnavdistance, rnavradial, magnetic, rnavsuffix);
+        }
     }
 
     // see if two waypoints are equal
@@ -527,6 +814,9 @@ public abstract class Waypoint {
         public final static String  dbkytbl = "aptkeys";
         public final static String[] dbcols = new String[] { "apt_icaoid", "apt_faaid", "apt_elev", "apt_name", "apt_lat", "apt_lon", "apt_desc", "apt_state" };
 
+        private final static char metarsHidden = '\u25B6';  // right-pointing triangle when closed
+        private final static char metarsShown  = '\u25BC';  // down-pointing triangle when open
+
         public  final String name;       // eg, "BEVERLY MUNI"
         public  final String faaident;   // non-ICAO ident
 
@@ -575,16 +865,41 @@ public abstract class Waypoint {
          * It consists of the detail text
          * followed by a list of buttons, one button per approach plate
          */
+        @SuppressLint("SetTextI18n")
         @Override
         public void GetDetailViews (WaypointView wpv, LinearLayout ll)
         {
-            // standard detail text at the top
+            // start with ADS-B derived metars etc at the top
+            // just present a button for each type we currently have if any
+            // the user must click the button to see the info
+            synchronized (wpv.wairToNow.metarRepos) {
+                MetarRepo repo = wpv.wairToNow.metarRepos.get (ident);
+                if (repo != null) {
+                    for (Iterator<String> it = repo.metarTypes.keySet ().iterator (); it.hasNext ();) {
+                        String type = it.next ();
+                        TreeMap<Long,Metar> metars = repo.metarTypes.get (type);
+                        if (metars.isEmpty ()) {
+                            it.remove ();
+                        } else {
+                            TextView tv = new TextView (wpv.wairToNow);
+                            tv.setOnClickListener (showHideAdsbMetars);
+                            tv.setTag (type);
+                            tv.setTextColor (Color.CYAN);
+                            wpv.wairToNow.SetTextSize (tv);
+                            tv.setText (metarsHidden + " " + type);
+                            ll.addView (tv);
+                        }
+                    }
+                }
+            }
+
+            // next comes standard detail text
             super.GetDetailViews (wpv, ll);
 
             // get list of plates from database and the corresponding .gif file name
             String[] dbnames = SQLiteDBs.Enumerate ();
             int latestexpdate = 0;
-            TreeMap<String,String> latestplates   = new TreeMap<> ();
+            TreeMap<String,String> latestplates    = new TreeMap<> ();
             HashMap<String,Integer> latestexpdates = new HashMap<> ();
 
             for (String dbname : dbnames) {
@@ -744,6 +1059,7 @@ public abstract class Waypoint {
         /**
          * These buttons are used to display a plate (apt diagram, iap, sid, star, etc).
          */
+        @SuppressLint("ViewConstructor")
         private static class PlateButton extends Button implements View.OnClickListener {
             private Airport aw;  // eg, "KBVY"
             private int ex;      // eg, 20150527
@@ -781,42 +1097,100 @@ public abstract class Waypoint {
                 wpv.wairToNow.setRequestedOrientation (ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
             }
         }
+
+        /**
+         * Show/Hide ADS-B derived Metars, etc.
+         * Each type is given a TextView that can be clicked on to open it up.
+         * The first character of the text view is an arrow char, either metarsHidden
+         * or metarsShown that indicates the state of the text view.
+         */
+        private final View.OnClickListener showHideAdsbMetars = new View.OnClickListener () {
+            @SuppressLint("SetTextI18n")
+            @Override
+            public void onClick (View view)
+            {
+                String nowstr   = Lib.TimeStringUTC (System.currentTimeMillis ());
+                String nowyear_ = nowstr.substring (0, 5);
+                TextView tv = (TextView) view;
+                WairToNow wtn = (WairToNow) tv.getContext ();
+                String type = (String) tv.getTag ();
+                if (tv.getText ().charAt (0) == metarsHidden) {
+                    synchronized (wtn.metarRepos) {
+                        MetarRepo repo = wtn.metarRepos.get (ident);
+                        if (repo == null) return;
+                        TreeMap<Long,Metar> metars = repo.metarTypes.get (type);
+                        if (metars == null) return;
+                        if (metars.isEmpty ()) return;
+                        tv.setText (metarsShown + " " + type);
+                        for (Metar met : metars.values ()) {
+                            String timestr = Lib.TimeStringUTC (met.time);
+                            timestr = timestr.replace (nowyear_, "");
+                            timestr = timestr.replace (":00.000 UTC'", "z");
+                            timestr = timestr.replace (".000 UTC'", "z");
+                            tv.append ("\n" + timestr + " " + met.type + " " + met.data);
+                        }
+                    }
+                } else {
+                    tv.setText (metarsHidden + " " + type);
+                }
+            }
+        };
     }
 
     /**
-     * A DME offset from another waypoint.
+     * An RNAV offset from another waypoint.
      */
-    public static class DMEOffset extends Waypoint {
-        private float dmedist, hdgtrue;
-        private Waypoint basewp;
+    public static class RNavOffset extends Waypoint {
+        private boolean magnetic;  // rnavradl is magnetic
+        private float hdgtrue;
+        private float rnavdist;
+        private float rnavradl;
+        public Waypoint basewp;
 
-        public DMEOffset (Waypoint basewp, float dmedist, float hdgtrue)
+        /**
+         * Wrap the given waypoint with a distance and an heading
+         * @param basewp   = waypoint to be wrapped
+         * @param rnavdist = distance away from the basewp (naut miles)
+         * @param rnavradl = direction away from the basewp (degrees)
+         * @param mag      = true: magnetic; false: true
+         * @param suffix   = string to represent the RNAV portion
+         */
+        public RNavOffset (Waypoint basewp, float rnavdist, float rnavradl, boolean mag, String suffix)
         {
-            this.basewp  = basewp;
-            this.dmedist = dmedist;
-            this.hdgtrue = hdgtrue;
+            if (rnavdist == 0) throw new IllegalArgumentException ("rnavdist zero");
+            this.basewp   = basewp;
+            this.rnavdist = rnavdist;
+            this.rnavradl = rnavradl;
+            this.magnetic = mag;
+            this.hdgtrue  = rnavradl;
+            if (mag) {
+                this.hdgtrue -= basewp.GetMagVar (basewp.elev);
+            }
 
-            ident = basewp.ident + '[' + dmedist + '/' + hdgtrue;
-            lat = Lib.LatHdgDist2Lat (basewp.lat, hdgtrue, dmedist);
-            lon = Lib.LatLonHdgDist2Lon (basewp.lat, basewp.lon, hdgtrue, dmedist);
+            ident = basewp.ident + "[" + suffix;
+            lat = Lib.LatHdgDist2Lat (basewp.lat, hdgtrue, rnavdist);
+            lon = Lib.LatLonHdgDist2Lon (basewp.lat, basewp.lon, hdgtrue, rnavdist);
         }
 
         @Override  // Waypoint
         public String GetType ()
         {
-            return "DMEOffset." + basewp.GetType ();
+            return "RNavOffset." + basewp.GetType ();
         }
 
         @Override  // Waypoint
         public String GetDetailText ()
         {
-            return "DME " + dmedist + " on " + hdgtrue + "\u00B0 true from " + basewp.GetDetailText ();
+            return "RNAV offset " + Lib.FloatNTZ (rnavdist) + "nm on " + Lib.FloatNTZ (rnavradl) +
+                    (magnetic ? "\u00B0 magnetic from " : "\u00B0 true from ") +
+                    basewp.GetDetailText ();
         }
 
         @Override  // Waypoint
         public String MenuKey ()
         {
-            return basewp.MenuKey () + '[' + dmedist + '/' + basewp;
+            return "RNAV " + Lib.FloatNTZ (rnavdist) + "nm " + Lib.FloatNTZ (rnavradl) +
+                    (magnetic ? "\u00B0M from " : "\u00B0T from ") + basewp.MenuKey ();
         }
     }
 

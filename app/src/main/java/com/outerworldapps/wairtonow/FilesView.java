@@ -20,17 +20,7 @@
 
 package com.outerworldapps.wairtonow;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.FileReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
-import java.util.Arrays;
-import java.util.zip.GZIPInputStream;
-
+import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.app.ProgressDialog;
 import android.content.ActivityNotFoundException;
@@ -54,9 +44,21 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.util.Arrays;
+import java.util.zip.GZIPInputStream;
+
 /**
  * Display a menu to display file system contents.
  */
+@SuppressLint({ "SetTextI18n", "ViewConstructor" })
 public class FilesView
         extends LinearLayout
         implements Handler.Callback, WairToNow.CanBeMainView {
@@ -87,10 +89,21 @@ public class FilesView
         return "Files";
     }
 
+    @Override  // CanBeMainView
+    public int GetOrientation ()
+    {
+        return ActivityInfo.SCREEN_ORIENTATION_USER;
+    }
+
+    @Override  // CanBeMainView
+    public boolean IsPowerLocked ()
+    {
+        return false;
+    }
+
     @Override  // WairToNow.CanBeMainView
     public void OpenDisplay()
     {
-        wairToNow.setRequestedOrientation (ActivityInfo.SCREEN_ORIENTATION_USER);
         FillList (currentFileName);
     }
 
@@ -165,6 +178,7 @@ public class FilesView
      * If it is a directory, the contents are a list of buttons
      * that can be clicked to open the corresponding file.
      */
+    @SuppressLint("SetJavaScriptEnabled")
     private void FillList (String name)
     {
         currentFileName = name;

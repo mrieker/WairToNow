@@ -20,14 +20,20 @@
 
 package com.outerworldapps.wairtonow;
 
+import android.graphics.Canvas;
+import android.graphics.Paint;
 import android.graphics.PointF;
+import android.graphics.Rect;
 import android.hardware.GeomagneticField;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Locale;
+import java.util.TimeZone;
 
 public class Lib {
 
@@ -38,7 +44,9 @@ public class Lib {
     public static final float MMPerIn   = 25.4F;    // millimetres per inch
     public static final float SMPerNM   = 1.15078F;
     public static final int   MPerNM    = 1852;     // metres per naut mile
-    public static final float GRAVACCEL = 9.80665F;  // metres per second squared
+
+    private static ThreadLocal<SimpleDateFormat> utcfmt = new ThreadLocal<> ();
+    private static Rect drawBoundedStringBounds = new Rect ();
 
     /**
      * Split a comma-separated value string into its various substrings.
@@ -165,6 +173,98 @@ public class Lib {
         if (lonb - lona > 180.0F) lona += 360.0F;
         if (lona - lonb > 180.0F) lonb += 360.0F;
         return NormalLon ((lona + lonb) / 2.0F);
+    }
+
+    /**
+     * See if the two latitude ranges overlap.
+     * @param aSouthLat = first range south edge
+     * @param aNorthLat = first range north edge
+     * @param bSouthLat = second range south edge
+     * @param bNorthLat = second range north edge
+     * @return whether or not they overlap
+     */
+    public static boolean LatOverlap (float aSouthLat, float aNorthLat, float bSouthLat, float bNorthLat)
+    {
+        float aSouthLat1 = Math.min (aSouthLat, aNorthLat);
+        float aNorthLat1 = Math.max (aSouthLat, aNorthLat);
+        float bSouthLat1 = Math.min (bSouthLat, bNorthLat);
+        float bNorthLat1 = Math.max (bSouthLat, bNorthLat);
+        return (aNorthLat1 > bSouthLat1) && (bNorthLat1 > aSouthLat1);
+    }
+
+    public static boolean LatOverlap (float aSouthLat, float aNorthLat, float singleLat)
+    {
+        float aSouthLat1 = Math.min (aSouthLat, aNorthLat);
+        float aNorthLat1 = Math.max (aSouthLat, aNorthLat);
+        return (aNorthLat1 > singleLat) && (singleLat > aSouthLat1);
+    }
+
+    /**
+     * See if the two longitude ranges overlap, no matter what their wrapping is.
+     * @param aWestLon = first range west edge
+     * @param aEastLon = first range east edge
+     * @param bWestLon = second range west edge
+     * @param bEastLon = second range east edge
+     * @return whether or not they overlap
+     */
+    public static boolean LonOverlap (float aWestLon, float aEastLon, float bWestLon, float bEastLon)
+    {
+        // make sure all values in range -180.0..+179.999999999
+        float aWestLon1 = Lib.Westmost (aWestLon, aEastLon);
+        float aEastLon1 = Lib.Eastmost (aWestLon, aEastLon);
+        float bWestLon1 = Lib.Westmost (bWestLon, bEastLon);
+        float bEastLon1 = Lib.Eastmost (bWestLon, bEastLon);
+
+        // set up secondary segments that hold same segments
+        float aWestLon2 = aWestLon1;
+        float aEastLon2 = aEastLon1;
+        float bWestLon2 = bWestLon1;
+        float bEastLon2 = bEastLon1;
+
+        // if a segment wraps, split it into two segments
+        if (aEastLon1 < aWestLon1) {
+            aEastLon2 = aEastLon1;
+            aWestLon2 = -180.0F;
+            aEastLon1 =  180.0F;
+        }
+
+        // likewise with b segment
+        if (bEastLon1 < bWestLon1) {
+            bEastLon2 = bEastLon1;
+            bWestLon2 = -180.0F;
+            bEastLon1 =  180.0F;
+        }
+
+        // all {a,b}East{1,2} are .gt. corresponding {a,b}West{1.2}
+        // so now we can test for direct overlap
+        return  ((aEastLon1 > bWestLon1) && (bEastLon1 > aWestLon1)) ||  // a1,b1 overlap
+                ((aEastLon1 > bWestLon2) && (bEastLon2 > aWestLon1)) ||  // a1,b2 overlap
+                ((aEastLon2 > bWestLon1) && (bEastLon1 > aWestLon2)) ||  // a2,b1 overlap
+                ((aEastLon2 > bWestLon2) && (bEastLon2 > aWestLon2));    // a2,b2 overlap
+    }
+
+    public static boolean LonOverlap (float aWestLon, float aEastLon, float singleLon)
+    {
+        // make sure all values in range -180.0..+179.999999999
+        float aWestLon1  = Westmost (aWestLon, aEastLon);
+        float aEastLon1  = Eastmost (aWestLon, aEastLon);
+        float singleLon1 = NormalLon (singleLon);
+
+        // set up secondary segment that holds same segment
+        float aWestLon2 = aWestLon1;
+        float aEastLon2 = aEastLon1;
+
+        // if a segment wraps, split it into two segments
+        if (aEastLon1 < aWestLon1) {
+            aEastLon2 = aEastLon1;
+            aWestLon2 = -180.0F;
+            aEastLon1 =  180.0F;
+        }
+
+        // all aEast{1,2} are .gt. corresponding aWest{1.2}
+        // so now we can test for direct overlap
+        return  ((aEastLon1 > singleLon1) && (singleLon1 > aWestLon1)) ||
+                ((aEastLon2 > singleLon1) && (singleLon1 > aWestLon2));
     }
 
     /**
@@ -764,6 +864,7 @@ public class Lib {
         //  y = (-+ r1 * a2 +- r2 * a1) / (b2 * a1 - b1 * a2)
         //  y = (-+ a2 +- a1) * r / (b2 * a1 - b1 * a2)
         float q = r / (b2 * a1 - b1 * a2);
+        //noinspection PointlessArithmeticExpression
         v[VY+0] = (  a2 + a1) * q;
         v[VY+1] = (  a2 - a1) * q;
         v[VY+2] = (- a2 + a1) * q;
@@ -771,6 +872,7 @@ public class Lib {
 
         // similar for matching x's
         // the q is same as for y except negative
+        //noinspection PointlessArithmeticExpression
         v[VX+0] = (- b2 - b1) * q;
         v[VX+1] = (- b2 + b1) * q;
         v[VX+2] = (  b2 - b1) * q;
@@ -922,9 +1024,61 @@ public class Lib {
     }
 
     /**
+     * Float to string, strip trailing ".0" if any
+     */
+    public static String FloatNTZ (float f)
+    {
+        String s = Float.toString (f);
+        if (s.endsWith (".0")) s = s.substring (0, s.length () - 2);
+        return s;
+    }
+
+    /**
+     * Convert millisecond time to printable string.
+     */
+    public static String TimeStringUTC (long timems)
+    {
+        SimpleDateFormat sdf = utcfmt.get ();
+        if (sdf == null) {
+            sdf = new SimpleDateFormat ("yyyy-MM-dd HH:mm:ss.SSS 'UTC'''", Locale.US);
+            sdf.setTimeZone (TimeZone.getTimeZone ("UTC"));
+            utcfmt.set (sdf);
+        }
+        return sdf.format (timems);
+    }
+
+    /**
+     * Draw a string and keep track of its bounds.
+     * *** UI THREAD ONLY ***
+     * @param canvas = canvas to draw string on
+     * @param overallBounds = keeps track of bounds of several strings, start with 0,0,0,0
+     * @param paint = paint used to draw string
+     * @param cx = string's X center
+     * @param ty = string's Y top
+     * @param st = string
+     */
+    public static void DrawBoundedString (Canvas canvas, Rect overallBounds, Paint paint, int cx, int ty, String st)
+    {
+        if (st != null) {
+            canvas.drawText (st, cx, ty, paint);
+
+            if ((overallBounds.left == 0) && (overallBounds.right == 0)) {
+                paint.getTextBounds (st, 0, st.length (), overallBounds);
+                overallBounds.offset (cx - overallBounds.width () / 2, ty);
+            } else {
+                paint.getTextBounds (st, 0, st.length (), drawBoundedStringBounds);
+                drawBoundedStringBounds.offset (cx - drawBoundedStringBounds.width () / 2, ty);
+                overallBounds.union (drawBoundedStringBounds);
+            }
+        }
+    }
+
+    /**
      * Various compiler warnings.
      */
     public static void Ignored () { }
-    public static void Ignored (boolean x) { }
-    public static void Ignored (int x) { }
+    public static void Ignored (@SuppressWarnings("UnusedParameters") boolean x) { }
+    public static void Ignored (@SuppressWarnings("UnusedParameters") float x) { }
+    public static void Ignored (@SuppressWarnings("UnusedParameters") int x) { }
+    public static void Ignored (@SuppressWarnings("UnusedParameters") long x) { }
 }

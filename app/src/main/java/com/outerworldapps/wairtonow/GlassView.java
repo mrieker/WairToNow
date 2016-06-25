@@ -20,9 +20,7 @@
 
 package com.outerworldapps.wairtonow;
 
-import java.util.Arrays;
-import java.util.Comparator;
-
+import android.annotation.SuppressLint;
 import android.content.pm.ActivityInfo;
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -33,9 +31,13 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
 
+import java.util.Arrays;
+import java.util.Comparator;
+
 /**
  * Display a glass cockpit panel.
  */
+@SuppressLint("ViewConstructor")
 public class GlassView
         extends View
         implements WairToNow.CanBeMainView {
@@ -139,6 +141,18 @@ public class GlassView
     public String GetTabName ()
     {
         return "Glass";
+    }
+
+    @Override  // CanBeMainView
+    public int GetOrientation ()
+    {
+        return ActivityInfo.SCREEN_ORIENTATION_USER;
+    }
+
+    @Override  // CanBeMainView
+    public boolean IsPowerLocked ()
+    {
+        return false;
     }
 
     /**
@@ -335,19 +349,22 @@ public class GlassView
      */
     private void DrawChart (Canvas canvas, int centX, int centY, int radius, float course)
     {
-        canvas.save ();
-        if (canvas.clipRect (centX - radius, centY - radius, centX + radius, centY + radius)) {
-            int canWidth  = getWidth ();
-            int canHeight = getHeight ();
-            int canCentX  = canWidth  / 2;
-            int canCentY  = canHeight / 2;
-            canvas.translate (centX - canCentX, centY + radius / 2 - canCentY);
-            wairToNow.chartView.ReCenter ();
-            wairToNow.chartView.SetCanvasHdgRad (Mathf.toRadians (course));
-            wairToNow.chartView.DrawChart (canvas, canWidth, canHeight);
-            wairToNow.chartView.UnSetCanvasHdgRad ();
+        if (wairToNow.chartView.backing instanceof Chart2DView) {
+            Chart2DView chart2DView = (Chart2DView) wairToNow.chartView.backing;
+            canvas.save ();
+            if (canvas.clipRect (centX - radius, centY - radius, centX + radius, centY + radius)) {
+                int canWidth = getWidth ();
+                int canHeight = getHeight ();
+                int canCentX = canWidth / 2;
+                int canCentY = canHeight / 2;
+                canvas.translate (centX - canCentX, centY + radius / 2 - canCentY);
+                chart2DView.ReCenter ();
+                chart2DView.SetCanvasHdgRad (Mathf.toRadians (course));
+                chart2DView.DrawChart (canvas, canWidth, canHeight);
+                chart2DView.UnSetCanvasHdgRad ();
+            }
+            canvas.restore ();
         }
-        canvas.restore ();
     }
 
     /**

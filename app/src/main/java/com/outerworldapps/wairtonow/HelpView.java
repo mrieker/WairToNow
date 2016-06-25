@@ -21,6 +21,8 @@
 package com.outerworldapps.wairtonow;
 
 
+import android.annotation.SuppressLint;
+import android.content.pm.ActivityInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.view.View;
@@ -31,10 +33,12 @@ import android.webkit.WebView;
  * Allows internal links to other resource pages
  * and allows external links to web pages.
  */
+@SuppressLint("ViewConstructor")
 public class HelpView extends WebView
         implements WairToNow.CanBeMainView {
     private WairToNow wairToNow;
 
+    @SuppressLint({ "AddJavascriptInterface", "SetJavaScriptEnabled" })
     public HelpView (WairToNow wtn)
     {
         super (wtn);
@@ -65,6 +69,18 @@ public class HelpView extends WebView
     {
         goBack ();
         return this;
+    }
+
+    @Override  // CanBeMainView
+    public int GetOrientation ()
+    {
+        return ActivityInfo.SCREEN_ORIENTATION_USER;
+    }
+
+    @Override  // CanBeMainView
+    public boolean IsPowerLocked ()
+    {
+        return false;
     }
 
     /**

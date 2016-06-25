@@ -50,7 +50,7 @@ int main ()
             if (minelev > elev) minelev = elev;
         }
         if (++ count % 1000000 == 0) {
-            printf ("count=%9d\n", count);
+            printf ("count=%9d/233280000\n", count);
             fflush (stdout);
         }
     }

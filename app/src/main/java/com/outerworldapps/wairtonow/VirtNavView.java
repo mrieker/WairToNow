@@ -20,6 +20,7 @@
 
 package com.outerworldapps.wairtonow;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.pm.ActivityInfo;
 import android.graphics.Canvas;
@@ -28,7 +29,6 @@ import android.text.SpannableStringBuilder;
 import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.View;
-import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
@@ -38,6 +38,7 @@ import android.widget.TextView;
  * Display an OBS-dial looking screen that can be set to a waypoint
  * and operated like an ADF/VOR/ILS/LOC receiver.
  */
+@SuppressLint("ViewConstructor")
 public class VirtNavView extends LinearLayout
         implements NavDialView.DMEClickedListener, NavDialView.OBSChangedListener, WairToNow.CanBeMainView {
 
@@ -85,33 +86,33 @@ public class VirtNavView extends LinearLayout
      **/
     public String GetTabName () { return label; }
 
-    public void OpenDisplay ()
+    @Override  // CanBeMainView
+    public int GetOrientation ()
     {
         /*
          * Set screen orientation to match whatever button currently says.
          */
         switch (orientButton.getText ().toString ()) {
             default: {  // also for "Unlkd"
-                wairToNow.setRequestedOrientation (ActivityInfo.SCREEN_ORIENTATION_USER);
-                break;
+                return ActivityInfo.SCREEN_ORIENTATION_USER;
             }
             case "Land": {
-                wairToNow.setRequestedOrientation (ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
-                break;
+                return ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
             }
             case "Port": {
-                wairToNow.setRequestedOrientation (ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
-                break;
+                return ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
             }
         }
+    }
 
-        /*
-         * Maybe lock the screen on so it doesn't time out.
-         */
-        if (wairToNow.optionsView.powerLockOption.checkBox.isChecked ()) {
-            wairToNow.getWindow ().addFlags (WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        }
+    @Override  // CanBeMainView
+    public boolean IsPowerLocked ()
+    {
+        return wairToNow.optionsView.powerLockOption.checkBox.isChecked ();
+    }
 
+    public void OpenDisplay ()
+    {
         /*
          * Tell anyone who cares that this screen is open.
          */
@@ -126,7 +127,6 @@ public class VirtNavView extends LinearLayout
     public void CloseDisplay ()
     {
         open = false;
-        wairToNow.getWindow ().clearFlags (WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     }
 
     public void ReClicked () { }
@@ -173,6 +173,7 @@ public class VirtNavView extends LinearLayout
      *
      * @param wp = waypoint active in that source
      */
+    @SuppressLint("SetTextI18n")
     private void useWaypointButtonClicked (Waypoint wp)
     {
         dmeWaypoint = waypoint = wp;
@@ -264,6 +265,7 @@ public class VirtNavView extends LinearLayout
         Button useFAAWP1, useFAAWP2, useUserWP;
         FrameLayout plateViewFrame;
         if (oldLandscape) {
+            @SuppressLint("InflateParams")
             View mainView = inflater.inflate (R.layout.virtnavland, null);
 
             removeAllViews ();
@@ -284,6 +286,7 @@ public class VirtNavView extends LinearLayout
 
             plateViewFrame = (FrameLayout) findViewById (R.id.plateviewland);
         } else {
+            @SuppressLint("InflateParams")
             View mainView = inflater.inflate (R.layout.virtnavport, null);
 
             removeAllViews ();
@@ -413,6 +416,7 @@ public class VirtNavView extends LinearLayout
     /**
      * Set text on button to match what the screen orientation currently is.
      */
+    @SuppressLint("SetTextI18n")
     private void setOrientButtonText ()
     {
         int orientation = wairToNow.getRequestedOrientation ();
@@ -441,7 +445,7 @@ public class VirtNavView extends LinearLayout
      */
     private void wpIdentClicked ()
     {
-        Waypoint.ShowWaypointDialog (wairToNow, "Enter Waypoint",
+        Waypoint.ShowWaypointDialog (wairToNow, "Enter Nav Waypoint",
                 wairToNow.currentGPSLat, wairToNow.currentGPSLon,
                 (waypoint == null) ? "" : waypoint.ident,
                 new Waypoint.Selected () {
@@ -560,7 +564,7 @@ public class VirtNavView extends LinearLayout
     }
 
     /**
-     * Set up current heading marker (magenta triangle).
+     * Set up current heading marker (red triangle).
      */
     private void currentHeading ()
     {

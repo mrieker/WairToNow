@@ -1,16 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-	package="com.outerworldapps.wairtonow"
-	android:versionCode="20700"
-	android:versionName="2.7" >
+<manifest
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    package="com.outerworldapps.wairtonow"
+	android:versionCode="30000"
+	android:versionName="3.0" >
 
 	<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+	<uses-permission android:name="android.permission.BLUETOOTH"/>
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"/>
 	<uses-permission android:name="android.permission.INTERNET"/>
 	<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
 
 	<application
 		android:icon="@drawable/icon"
-		android:label="@string/app_name" >
+		android:label="@string/app_name"
+		android:theme="@style/DefaultTextColor"
+        tools:ignore="GoogleAppIndexingWarning">
 		<activity
 			android:name=".WairToNow"
 			android:label="@string/app_name"
@@ -22,5 +28,4 @@
 			</intent-filter>
 		</activity>
 	</application>
-
 </manifest>

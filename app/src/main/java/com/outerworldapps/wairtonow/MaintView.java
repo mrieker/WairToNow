@@ -20,29 +20,7 @@
 
 package com.outerworldapps.wairtonow;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.FileReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.util.AbstractMap;
-import java.util.Calendar;
-import java.util.GregorianCalendar;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.Map;
-import java.util.TreeMap;
-import java.util.zip.GZIPInputStream;
-
+import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.app.ProgressDialog;
 import android.content.ContentValues;
@@ -77,16 +55,44 @@ import android.widget.TextView;
 
 import com.github.rongi.rotate_layout.layout.RotateLayout;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.AbstractMap;
+import java.util.Calendar;
+import java.util.GregorianCalendar;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.zip.GZIPInputStream;
+
 /**
  * Display a menu to download database and charts.
  */
+@SuppressLint("ViewConstructor")
 public class MaintView
         extends LinearLayout
         implements Handler.Callback, WairToNow.CanBeMainView, DialogInterface.OnCancelListener,
         CompoundButton.OnCheckedChangeListener {
     public  final static String TAG = "WairToNow";
-    public  final static String dldir = "http://toutatis.nii.net/WairToNow";
+    public  final static String dldir = "http://www.outerworldapps.com/WairToNow";
     public  final static int NWARNDAYS = 5;
+    public  final static int INDEFINITE = 99999999;
+
+    public static int deaddate;     // yyyymmdd of when charts are expired
+    public static int warndate;     // yyyymmdd of when charts about to be expired
 
     private boolean updateDLProgSent;
     private Category enrCategory;
@@ -131,6 +137,7 @@ public class MaintView
     private final static String[] columns_gr_bmpixx          = new String[] { "gr_bmpixx" };
     private final static String[] columns_pl_faaid           = new String[] { "pl_faaid" };
 
+    @SuppressLint("SetTextI18n")
     public MaintView (WairToNow ctx)
             throws IOException
     {
@@ -186,7 +193,9 @@ public class MaintView
         addView (itemsScrollView);
 
         waypointsCheckBox = new WaypointsCheckBox ();
+        TopographyCheckBox topographyCheckBox = new TopographyCheckBox ();
         miscCategory.addView (waypointsCheckBox);
+        miscCategory.addView (topographyCheckBox);
 
         runwayDiagramDownloadStatus = new TextView (ctx);
         wairToNow.SetTextSize (runwayDiagramDownloadStatus);
@@ -306,33 +315,15 @@ public class MaintView
      */
     public void ExpdateCheck ()
     {
-        int maintColor = UpdateAllButtonColors ();
-        String msg;
-        switch (maintColor) {
-            case Color.RED: {
-                msg = "Charts are expired";
-                break;
-            }
-            case Color.YELLOW: {
-                msg = "Charts are about to expire";
-                break;
-            }
-            default: {
-                QueueDailyExpdateCheck ();
-                return;
-            }
-        }
+        UpdateAllButtonColors ();
         CheckExpdateThread th = new CheckExpdateThread ();
-        th.msg = msg;
         th.start ();
     }
 
     /**
-     * There are some expired charts, if there is internet connectivity, output warning dialog.
+     * Check expiration dates and webserver availability.
      */
     private class CheckExpdateThread extends Thread {
-        public String msg;
-
         @Override
         public void run ()
         {
@@ -341,7 +332,7 @@ public class MaintView
                 /*
                  * Check for internet connectivity by seeing if we can access webserver.
                  */
-                URL url = new URL (dldir);
+                URL url = new URL (dldir + "/chartlimits.php");
                 HttpURLConnection httpCon = (HttpURLConnection)url.openConnection ();
                 try {
                     httpCon.setRequestMethod ("GET");
@@ -350,49 +341,82 @@ public class MaintView
                     if (rc != HttpURLConnection.HTTP_OK) {
                         throw new IOException ("http response code " + rc);
                     }
+
+                    /*
+                     * Able to access webserver, might as well see if there are helicopter chart updates.
+                     * If so, mark the current helicopter expiration date = updated chart effective date.
+                     */
+                    BufferedReader csvReader = new BufferedReader (new InputStreamReader (httpCon.getInputStream ()), 4096);
+                    String csvLine;
+                    while ((csvLine = csvReader.readLine ()) != null) {
+                        AirChart newAirChart = AirChart.Factory (MaintView.this, csvLine);
+                        AirChart oldAirChart = null;
+                        for (Downloadable downloadable : allDownloadables) {
+                            if (downloadable.GetSpaceNameNoRev ().equals (newAirChart.spacenamenr)) {
+                                oldAirChart = downloadable.GetAirChart ();
+                                break;
+                            }
+                        }
+                        if ((oldAirChart != null) && (oldAirChart.enddate == INDEFINITE)
+                                && (newAirChart.begdate > oldAirChart.begdate)) {
+                            oldAirChart.enddate = newAirChart.begdate;
+                        }
+                    }
                 } finally {
                     httpCon.disconnect ();
+                    SQLiteDBs.CloseAll ();
                 }
 
                 /*
-                 * Webserver accessible, output dialog warning box.
+                 * Webserver accessible, update buttons and maybe output dialog warning box.
                  */
                 wairToNow.runOnUiThread (new Runnable () {
                     @Override
                     public void run ()
                     {
-                        AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
-                        adb.setTitle ("Chart Maint");
-                        adb.setMessage (msg);
-                        adb.setPositiveButton ("Update", new DialogInterface.OnClickListener () {
-                            @Override
-                            public void onClick (DialogInterface dialogInterface, int i)
-                            {
-                                wairToNow.maintButton.DisplayNewTab ();
+                        int maintColor = UpdateAllButtonColors ();
+                        String msg = null;
+                        switch (maintColor) {
+                            case Color.RED: {
+                                msg = "Charts are expired";
+                                break;
                             }
-                        });
-                        adb.setNegativeButton ("Later", null);
-                        adb.show ();
+                            case Color.YELLOW: {
+                                msg = "Charts are about to expire";
+                                break;
+                            }
+                        }
+                        if (msg != null) {
+                            AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
+                            adb.setTitle ("Chart Maint");
+                            adb.setMessage (msg);
+                            adb.setPositiveButton ("Update", new DialogInterface.OnClickListener () {
+                                @Override
+                                public void onClick (DialogInterface dialogInterface, int i)
+                                {
+                                    wairToNow.maintButton.DisplayNewTab ();
+                                }
+                            });
+                            adb.setNegativeButton ("Tomorrow", null);
+                            adb.show ();
+                        }
                     }
                 });
             } catch (IOException ioe) {
                 Log.i (TAG, "error probing " + dldir, ioe);
             } finally {
-                QueueDailyExpdateCheck ();
+                SQLiteDBs.CloseAll ();
+
+                /*
+                 * Run this all again tomorrow.
+                 */
+                long msperday = 24 * 60 * 60 * 1000L;
+                long now = System.currentTimeMillis ();
+                long delay = msperday - now * msperday;
+                Message msg = maintViewHandler.obtainMessage (MaintViewHandlerWhat_EXPDATECHECK);
+                maintViewHandler.sendMessageDelayed (msg, delay);
             }
         }
-    }
-
-    /**
-     * Queue a check for expired charts at beginning of next day.
-     */
-    private void QueueDailyExpdateCheck ()
-    {
-        long msperday = 24 * 60 * 60 * 1000L;
-        long now = System.currentTimeMillis ();
-        long delay = msperday - now * msperday;
-        Message msg = maintViewHandler.obtainMessage (MaintViewHandlerWhat_EXPDATECHECK);
-        maintViewHandler.sendMessageDelayed (msg, delay);
     }
 
     /**
@@ -400,12 +424,22 @@ public class MaintView
      */
     private int UpdateAllButtonColors ()
     {
+        // get dates to check chart expiration dates against
+        GregorianCalendar now = new GregorianCalendar ();
+        deaddate = now.get (Calendar.YEAR) * 10000 + (now.get (Calendar.MONTH) -
+                Calendar.JANUARY + 1) * 100 + now.get (Calendar.DAY_OF_MONTH);
+        now.add (Calendar.DAY_OF_YEAR, NWARNDAYS);
+        warndate = now.get (Calendar.YEAR) * 10000 + (now.get (Calendar.MONTH) -
+                Calendar.JANUARY + 1) * 100 + now.get (Calendar.DAY_OF_MONTH);
+
         // update text color based on current date
         for (Downloadable dcb : allDownloadables) {
             int enddate = dcb.GetEndDate ();
             int textColor = DownloadLinkColor (enddate);
             dcb.UpdateSingleLinkText (textColor,
-                    (enddate == 0) ? "not downloaded" : ("valid to " + enddate));
+                    (enddate == 0) ? "not downloaded" :
+                            (enddate == INDEFINITE) ? "valid indefinitely" :
+                                    ("valid to " + enddate));
         }
 
         // update category button color
@@ -438,6 +472,20 @@ public class MaintView
         return wairToNow.chartView;
     }
 
+    @Override  // CanBeMainView
+    public int GetOrientation ()
+    {
+        // force portrait, ie, disallow automatic flipping so it won't restart the app
+        // in the middle of downloading some chart just because the screen got tilted.
+        return ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
+    }
+
+    @Override  // CanBeMainView
+    public boolean IsPowerLocked ()
+    {
+        return false;
+    }
+
     /**
      * This screen is about to become active.
      */
@@ -445,10 +493,6 @@ public class MaintView
     public void OpenDisplay ()
     {
         UpdateAllButtonColors ();
-
-        // force portrait, ie, disallow automatic flipping so it won't restart the app
-        // in the middle of downloading some chart just because the screen got tilted.
-        wairToNow.setRequestedOrientation (ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
 
         // maybe list/map mode changed for plate display so rebuild buttons
         stateMapView.Rebuild ();
@@ -590,6 +634,7 @@ public class MaintView
     /**
      * The 'Plate' category page shows how many runway background tiles we have yet to download.
      */
+    @SuppressLint("SetTextI18n")
     public void UpdateRunwayDiagramDownloadStatus ()
     {
         /*
@@ -710,25 +755,16 @@ public class MaintView
     /**
      * Use an appropriate color:
      *    WHITE  : not loaded
-     *    GREEN  : good for at least 10 more days
-     *    YELLOW : expires within 10 days
+     *    GREEN  : good for at least NWARNDAYS more days
+     *    YELLOW : expires within NWARNDAYS days
      *    RED    : expires in less than 1 day
      */
     public static int DownloadLinkColor (int enddate)
     {
         if (enddate == 0) return Color.WHITE;
-
-        GregorianCalendar now = new GregorianCalendar ();
-        GregorianCalendar end = new GregorianCalendar (enddate / 10000, (enddate / 100) % 100 - 1, enddate % 100);
-        int textColor = Color.RED;
-        if (end.after (now)) {
-            textColor = Color.YELLOW;
-            now.add (Calendar.DAY_OF_YEAR, NWARNDAYS);
-            if (end.after (now)) {
-                textColor = Color.GREEN;
-            }
-        }
-        return textColor;
+        if (enddate < deaddate) return Color.RED;
+        if (enddate < warndate) return Color.YELLOW;
+        return Color.GREEN;
     }
 
     /**
@@ -756,6 +792,7 @@ public class MaintView
         void DownloadComplete (String csvName) throws IOException;
         void RemovedDownloadedChart ();
         void UpdateSingleLinkText (int c, String t);
+        AirChart GetAirChart ();
     }
 
     /**
@@ -784,16 +821,73 @@ public class MaintView
         public boolean IsChecked () { return checkBox.isChecked (); }
         public void CheckBox () { checkBox.setChecked (true); }
         public void UncheckBox () { checkBox.setChecked (false); }
+        public AirChart GetAirChart () { return null; }
 
         public abstract boolean HasSomeUnloadableCharts ();
         public abstract void DownloadComplete (String csvName) throws IOException;
         public abstract void RemovedDownloadedChart ();
 
+        @SuppressLint("SetTextI18n")
         public void UpdateSingleLinkText (int c, String t)
         {
             linkText.setTextColor (c);
             linkText.setText (GetSpaceNameNoRev () + ": " + t);
         }
+    }
+
+    /**
+     * Enable download topography zip files.
+     * datums/topo/{-90..89}.zip
+     */
+    private class TopographyCheckBox extends DownloadCheckBox {
+
+        @Override  // DownloadCheckBox
+        public int GetEndDate ()
+        {
+            return GetTopographyExpDate ();
+        }
+
+        @Override  // DownloadCheckBox
+        public String GetSpaceNameNoRev ()
+        {
+            return "Topography";
+        }
+
+        @Override  // DownloadCheckBox
+        public boolean HasSomeUnloadableCharts ()
+        {
+            return GetEndDate () != 0;
+        }
+
+        @Override  // DownloadCheckBox
+        public void DownloadComplete (String csvName)
+        { }
+
+        @Override  // DownloadCheckBox
+        public void RemovedDownloadedChart ()
+        { }
+    }
+
+    public static int GetTopographyExpDate ()
+    {
+        // see if we have all 180 /datums/topo/<ilatdeg>.zip files
+        String[] topoNames = new File (WairToNow.dbdir + "/datums/topo").list ();
+        if (topoNames == null) return 0;
+        int numZipFiles = 0;
+        for (String topoName : topoNames) {
+            if (topoName.endsWith (".zip")) {
+                int i = topoName.lastIndexOf ('/') + 1;
+                try {
+                    int ilatdeg = Integer.parseInt (topoName.substring (i, topoName.length () - 4));
+                    if ((ilatdeg >= -90) && (ilatdeg < 90)) numZipFiles ++;
+                } catch (NumberFormatException nfe) {
+                    Lib.Ignored ();
+                }
+            }
+        }
+
+        // if so, indefinite expiration, else download needed
+        return (numZipFiles == 180) ? INDEFINITE : 0;
     }
 
     /**
@@ -906,6 +1000,12 @@ public class MaintView
         {
             return airChart.enddate != 0;
         }
+
+        /**
+         * Get corresponding air chart, if any.
+         */
+        @Override  // DownloadCheckBox
+        public AirChart GetAirChart () { return airChart; }
 
         /**
          * Download has completed for a chart.
@@ -1039,10 +1139,12 @@ public class MaintView
             if (scbParent != null) scbParent.removeAllViews ();
 
             if (wairToNow.optionsView.listMapOption.getAlt ()) {
+                //noinspection deprecation
                 AbsoluteLayout al = new AbsoluteLayout (wairToNow);
 
                 for (StateCheckBox sb : stateCheckBoxes.values ()) {
                     sb.Rebuild ();
+                    //noinspection deprecation
                     AbsoluteLayout.LayoutParams lp = new AbsoluteLayout.LayoutParams (
                             ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
                             sb.xx * 4, sb.yy * 4
@@ -1161,6 +1263,7 @@ public class MaintView
         {
             cb.setChecked (true);
         }
+        public AirChart GetAirChart () { return null; }
         public void UncheckBox ()
         {
             cb.setChecked (false);
@@ -1189,6 +1292,7 @@ public class MaintView
             enddate = 0;
         }
 
+        @SuppressLint("SetTextI18n")
         public void UpdateSingleLinkText (int c, String t)
         {
             lb.setTextColor (c);
@@ -1255,6 +1359,7 @@ public class MaintView
      * download checkbox checked.
      */
     private class DownloadButton extends Button implements OnClickListener {
+        @SuppressLint("SetTextI18n")
         public DownloadButton (Context ctx)
         {
             super (ctx);
@@ -1314,6 +1419,7 @@ public class MaintView
     private class UnloadButton extends Button implements OnClickListener {
         private AlertDialog unloadAlertDialog;
 
+        @SuppressLint("SetTextI18n")
         public UnloadButton (Context ctx)
         {
             super (ctx);
@@ -1610,11 +1716,9 @@ public class MaintView
 
         /**
          * Callback from DownloadFileList() for each file downloaded
-         * @param servername = name of file on server
-         * @param localname  = name of file on flash
          */
         @Override // DFLUpd
-        public void downloaded (String servername, String localname)
+        public void downloaded ()
         {
             if (!updateDLProgSent) {
                 updateDLProgSent = true;
@@ -1849,6 +1953,7 @@ public class MaintView
         private int      resid;
         private Matrix   matrix = new Matrix ();
 
+        @SuppressLint("SetTextI18n")
         public ChartDiagView (int rid)
         {
             super (wairToNow);
@@ -1892,6 +1997,18 @@ public class MaintView
             }
 
             @Override  // CanBeMainView
+            public int GetOrientation ()
+            {
+                return ActivityInfo.SCREEN_ORIENTATION_USER;
+            }
+
+            @Override  // CanBeMainView
+            public boolean IsPowerLocked ()
+            {
+                return false;
+            }
+
+            @Override  // CanBeMainView
             public void OpenDisplay()
             {
                 if (bitmap == null) bitmap = BitmapFactory.decodeResource (wairToNow.getResources (), resid);
@@ -1930,7 +2047,7 @@ public class MaintView
             { }
 
             @Override
-            public void MouseUp ()
+            public void MouseUp (float x, float y)
             { }
 
             @Override
@@ -1951,7 +2068,7 @@ public class MaintView
     }
 
     private interface DFLUpd {
-        void downloaded (String servername, String localname);
+        void downloaded ();
         boolean isCancelled ();
     }
 
@@ -2028,7 +2145,7 @@ public class MaintView
                             String eoftag = Lib.ReadStreamLine (is);
                             if (!eoftag.equals ("@@eof")) throw new IOException ("bad end-of-file tag " + eoftag);
                             Lib.RenameFile (tempname, permname);
-                            dflupd.downloaded (servername, permname);
+                            dflupd.downloaded ();
                             bulkfilelist.remove (servername);
                             retry = 0;
                         }

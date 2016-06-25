@@ -20,24 +20,20 @@
 
 package com.outerworldapps.wairtonow;
 
-import android.app.AlertDialog;
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.text.Editable;
 import android.text.InputType;
 import android.text.TextWatcher;
 import android.util.TypedValue;
-import android.view.View;
-import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.LinearLayout;
-import android.widget.RadioButton;
-import android.widget.RadioGroup;
-import android.widget.Spinner;
 import android.widget.TextView;
 
 /**
  * Editable lat/lon box.
  */
+@SuppressLint("ViewConstructor")
 public class LatLonView extends LinearLayout {
     private Context ctx;
     private float   textSizeSize;
@@ -353,9 +349,8 @@ public class LatLonView extends LinearLayout {
     /**
      * Box for editing neg/pos indicator value
      */
-    private class Neg extends Spinner implements OnClickListener {
-        private AlertDialog alert;
-        private boolean isNeg, isPos;
+    private class Neg extends TextArraySpinner {
+        private int defidx;
 
         /**
          * Constructor
@@ -364,9 +359,13 @@ public class LatLonView extends LinearLayout {
         {
             super (ctx);
 
-            String[] items = new String[] { "", posst, negst };
-            ArrayAdapter<String> adapter = new ArrayAdapter<> (ctx, android.R.layout.simple_spinner_item, items);
-            setAdapter (adapter);
+            setTextSize (textSizeUnit, textSizeSize);
+
+            String[] labels = new String[] { posst, negst };
+            setLabels (labels, null, null, null);
+
+            defidx = negst.equals ("West") ? 1 : 0;
+            setIndex (defidx);
         }
 
         /**
@@ -374,13 +373,7 @@ public class LatLonView extends LinearLayout {
          */
         public void Clear ()
         {
-            isNeg = false;
-            isPos = false;
-            setSelection (0);
-            if (alert != null) {
-                alert.dismiss ();
-                alert = null;
-            }
+            setIndex (defidx);
         }
 
         /**
@@ -390,8 +383,7 @@ public class LatLonView extends LinearLayout {
          */
         public boolean getVal ()
         {
-            TextView selected = (TextView)getSelectedView ();
-            return (selected != null) && selected.getText ().toString ().equals (negst);
+            return getIndex () != 0;
         }
 
         /**
@@ -401,52 +393,7 @@ public class LatLonView extends LinearLayout {
          */
         public void setVal (boolean val)
         {
-            isNeg =  val;
-            isPos = !val;
-            setSelection (val ? 2 : 1);
-        }
-
-        /**
-         * The given popup is really ugly so supply our own.
-         */
-        @Override  // Spinner
-        public boolean performClick ()
-        {
-            Context ctx = getContext ();
-
-            if (alert != null) alert.dismiss ();
-
-            RadioButton rbpos = new RadioButton (ctx);
-            rbpos.setText (posst);
-            rbpos.setTextSize (textSizeUnit, textSizeSize);
-            rbpos.setChecked (isPos);
-            rbpos.setTag (false);
-            rbpos.setOnClickListener (this);
-
-            RadioButton rbneg = new RadioButton (ctx);
-            rbneg.setText (negst);
-            rbneg.setTextSize (textSizeUnit, textSizeSize);
-            rbneg.setChecked (isNeg);
-            rbneg.setTag (true);
-            rbneg.setOnClickListener (this);
-
-            RadioGroup rgroup = new RadioGroup (ctx);
-            rgroup.addView (rbpos);
-            rgroup.addView (rbneg);
-
-            AlertDialog.Builder adb = new AlertDialog.Builder (getContext ());
-            adb.setView (rgroup);
-            alert = adb.show ();
-
-            return true;
-        }
-
-        @Override  // OnClickListener
-        public void onClick (View v)
-        {
-            setVal ((Boolean) v.getTag ());
-            alert.dismiss ();
-            alert = null;
+            setIndex (val ? 1 : 0);
         }
     }
 }

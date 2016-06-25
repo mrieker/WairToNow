@@ -20,6 +20,7 @@
 
 package com.outerworldapps.wairtonow;
 
+import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Point;
 import android.support.annotation.NonNull;
@@ -42,4 +43,9 @@ public interface DisplayableChart {
     void DrawOnCanvas (@NonNull PixelMapper pmap, @NonNull Canvas canvas, @NonNull Invalidatable inval, float canvasHdgRads);
     boolean LatLon2CanPixExact (float lat, float lon, @NonNull Point canpix);
     boolean CanPix2LatLonExact (float canpixx, float canpixy, @NonNull LatLon ll);
+
+    // used by Chart3DView - loads synchronously, called in EarthSector.LoaderThread
+    void GetL2StepLimits (int[] limits);
+    Bitmap GetMacroBitmap (float slat, float nlat, float wlon, float elon);
+    void LatLon2MacroBitmap (float lat, float lon, @NonNull Point mbmpix);
 }

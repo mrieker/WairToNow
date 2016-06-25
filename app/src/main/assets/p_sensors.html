@@ -1,0 +1,90 @@
+<HTML>
+    <BODY>
+        <H2>Sensors page</H2>
+        <P>This page is used to select which sensors the app uses to tell what is happening in the
+            area.  There are four main sources to select from:</P>
+        <UL>
+            <LI><B>Internal GPS</B> - enables using the Android device's internal GPS receiver to
+                determine position information.<BR>
+                <IMG SRC="sensors-internal-qtr.png"></LI>
+            <LI><B>Bluetooth GPS/ADS-B</B> - enables receiving GPS and/or ADS-B information from an
+                external device over a Bluetooth connection.  There are two selections available so
+                you can have two bluetooth devices (eg, one GPS and one ADS-B).
+                <UL>
+                    <LI>The very first time you are going to use a particular device with this
+                        Android, you must pair it by going to the Android's settings page, then
+                        find Bluetooth (possibly under Wireless & Networks).  You may then have to
+                        click some button to get the new device to show up.  Then follow the prompts
+                        to get it to pair up.  Once successfully paired, it does not need to be
+                        paired up again.</LI>
+                    <LI>Once the device is paired up, select it from the <TT>(select)</TT> box.  If
+                        the device isn't listed there, try clicking the <TT>Refresh</TT> button at
+                        the bottom of the selection box.</LI>
+                    <LI>The <B>Secure</B> checkbox is provided for those devices that require a
+                        secure connection.  If you aren't sure which you need, try one then the
+                        other.</LI>
+                    <LI>Once the device is selected and you have set the <TT>Secure</TT> checkbox
+                        one way or the other, check the checkbox by the <TT>Bluetooth GPS/ADS-B</TT>
+                        message and it should connect assuming it is in range and operating.</LI>
+                    <LI>Bluetooth can be picky about connecting so you may have to restart the app
+                        after a connection failure to get it to work.  To restart the app, click on
+                        the Android's menu button then select <TT>Exit</TT> then re-open the app.
+                        It may also help to turn the device you are trying to connect with off then
+                        back on.</LI>
+                    <LI>Once the device starts sending data to the app, the status message below
+                        the <TT>Secure</TT> checkbox will start counting the number of bytes
+                        received.</LI>
+                </UL>
+                <IMG SRC="sensors-blue-qtr.png">
+            </LI>
+            <LI><B>WiFi UDP GPS/ADS-B</B> - enables receiving GPS and/or ADS-B information from an
+                external device over a WiFi UDP port.  More than one external device can send
+                information to the app at a time using the same UDP port.  There are two selections
+                available so you can have two different UDP ports if necessary.
+                <UL>
+                    <LI>Enter the port number your device will be sending on in the port box.  For
+                        example, <A HREF="http://stratux.me/">Stratux</A> seems to like port
+                        4000.</LI>
+                    <LI>Check the checkbox next to the <TT>WiFi UDP GPS/ADS-B</TT> message and it
+                        should start listening for inbound packets.</LI>
+                    <LI>There is no connection as such as there is with Bluetooth or TCP, but the
+                        status message below the port number box should start counting bytes as it
+                        receives packets.</LI>
+                </UL>
+                <IMG SRC="sensors-udp-qtr.png">
+            </LI>
+            <LI><B>WiFi TCP GPS/ADS-B</B> - enables receiving GPS and/or ADS-B information from an
+                external device over a WiFi TCP connection.  More than one external device can send
+                information to the app at a time using the same TCP port.  There are two selections
+                available so you can have two different TCP ports if necessary.
+                <UL>
+                    <LI>Enter the port number your device will be sending on in the port box.</LI>
+                    <LI>Check the checkbox next to the <TT>WiFi TCP GPS/ADS-B</TT> message and it
+                        should start listening for inbound connections.</LI>
+                    <LI>The status message box below the port number will indicate how many inbound
+                        connections have been established, so you can see if your device has
+                        connected or not.</LI>
+                </UL>
+            </LI>
+        </UL>
+        <P>Note:  You should only have just one source of GPS information enabled at a time so
+            the app doesn't receive closely spaced (distance-wise and time-wise) readings.</P>
+        <P>The Bluetooth and WiFi types accept dump978, GDL-90 and NMEA packets in any mix.</P>
+        <UL>
+            <LI><B>dump978</B> is a program available on the Internet that decodes ADS-B packets
+                received from an SDR (software defined radio).  The author has successfully used it
+                with a Windows-based laptop and with a Linux-based Raspberry PI.  The computer
+                (laptop or Raspberry PI) runs the <TT>rtl_sdr</TT> and <TT>dump978</TT> programs
+                then pipes the data to an Android WiFi TCP port using <TT>nc</TT> (netcat) or
+                similar program.  It can either literally use WiFi or can use <TT>adb forward</TT>
+                to send the data over a USB cable between the laptop and the Android device as the
+                WiFi may be unreliable.  WairToNow currently processes basic, long and uplink
+                message types.
+            <LI><B>GDL-90</B> is a protocol used by ADS-B equipment to send ADS-B information to
+                display devices.  WairToNow currently processes basic, heartbeat, long, ownship,
+                ownship/geoalt, traffic, and uplink messages.
+            <LI><B>NMEA</B> is a protocol used by GPS equipment to send GPS position information to
+                display devices.  WairToNow currently processes GGA, GSV, RMC, RTM and VTG messages.
+        </UL>
+    </BODY>
+</HTML>

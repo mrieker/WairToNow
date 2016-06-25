@@ -94,12 +94,12 @@ public class PlateTimer {
 
         // see if timer running
         if (timerStarted > 0) {
-            int dmex = canvasWidth - (int) Mathf.ceil (timrCharWidth * 6.5F);
-            int dmey = (int) Mathf.ceil (timrTextHeight * 1.25F);
+            int timrx = canvasWidth - (int) Mathf.ceil (timrCharWidth * 6.5F);
+            int timry = (int) Mathf.ceil (timrTextHeight * 1.25F);
 
-            timrButtonBounds.top    = dmey - (int) Math.ceil (timrTextAscent);
-            timrButtonBounds.bottom = dmey;
-            timrButtonBounds.left   = dmex;
+            timrButtonBounds.top    = timry - (int) Math.ceil (timrTextAscent);
+            timrButtonBounds.bottom = timry;
+            timrButtonBounds.left   = timrx;
             timrButtonBounds.right  = canvasWidth - timrButtonBounds.top;
 
             // draw black background rectangle where text goes
@@ -121,8 +121,8 @@ public class PlateTimer {
                 sb.append ("---:--");
             }
 
-            dmex -= (int) Mathf.ceil (timrCharWidth / 5.0F);
-            canvas.drawText (sb.toString (), dmex, dmey, timrTxPaint);
+            timrx -= (int) Mathf.ceil (timrCharWidth / 5.0F);
+            canvas.drawText (sb.toString (), timrx, timry, timrTxPaint);
 
             // come back in a second for update
             if (!timerQueued && inrange) {

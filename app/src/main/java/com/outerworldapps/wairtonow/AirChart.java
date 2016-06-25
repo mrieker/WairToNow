@@ -20,6 +20,7 @@
 
 package com.outerworldapps.wairtonow;
 
+import android.annotation.SuppressLint;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
@@ -30,7 +31,6 @@ import android.graphics.Path;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.support.annotation.NonNull;
-import android.util.DisplayMetrics;
 import android.util.Log;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -83,12 +83,14 @@ public abstract class AirChart implements DisplayableChart {
     private int ntilez;         // number of entries in tilez that are valid
     private int scaling;        // 1=full scale, 2=half sized, 3=third sized, etc
     private int wstep;          // widthwise pixel step for each tile
+    private int[] expiredpixels;
     private LinkedList<AirTile>  loadedBitmaps = new LinkedList<> ();
     private long viewDrawCycle = 0;  // incremented each drawing cycle
     private MaintView maintView;
     private Matrix drawOnCanvasChartMat   = new Matrix ();
     private Matrix drawOnCanvasTileMat    = new Matrix ();
     private Matrix undrawOnCanvasChartMat = new Matrix ();
+    private Paint expiredpaint;
     private Paint stnbgpaint;   // "showtilenames" background paint
     private Paint stntxpaint;   // "showtilenames" foreground paint
     private Point drawOnCanvasPoint = new Point ();
@@ -98,12 +100,19 @@ public abstract class AirChart implements DisplayableChart {
     private String revision;    // eg, "92"
     private WairToNow wairToNow;
 
-    private float chartedEastLon;  // *NOT NORMALIZED* -- always >= chartedWestLon
-    private float chartedWestLon;  // normalized
-    private float chartedSouthLat, chartedNorthLat;
+    private int leftMacroChartPix;
+    private int riteMacroChartPix;
+    private int topMacroChartPix;
+    private int botMacroChartPix;
+
+    private float chartedEastLon;  // lat/lon limits of charted (non-legend) area
+    private float chartedWestLon;
+    private float chartedNorthLat;
+    private float chartedSouthLat;
     public  int autoOrder;
+    public  int begdate;
     public  int enddate;
-    private int chartedBotPix, chartedLeftPix;
+    private int chartedBotPix, chartedLeftPix;  // pixel limits of charted (non-legend) area
     private int chartedRitePix, chartedTopPix;
     public  int chartheight, chartwidth;  // pixel width & height of this chart including legend areas
 
@@ -131,6 +140,10 @@ public abstract class AirChart implements DisplayableChart {
         wairToNow = maintView.wairToNow;
 
         ParseChartLimitsLine (csvLine);
+
+        expiredpaint = new Paint ();
+        expiredpaint.setColor (Color.RED);
+        expiredpaint.setStrokeWidth (2);
 
         // set up paints used to show tile names at top center of each tile
         if (showtilenames) {
@@ -163,35 +176,13 @@ public abstract class AirChart implements DisplayableChart {
     }
 
     /**
-     * See if this chart could contribute something to the canvas.
+     * See if the non-legend area of chart could contribute something to the canvas.
      * @param pmap = lat/lon mapping to the canvas
      */
     public boolean ContributesToCanvas (PixelMapper pmap)
     {
-        // if our northmost pixels are south of the southmost part of canvas, we have nothing to contribute
-        if (chartedNorthLat <= pmap.canvasSouthLat) return false;
-
-        // if our southmost pixels are north of the northmost part of canvas, we have nothing to contribute
-        if (chartedSouthLat >= pmap.canvasNorthLat) return false;
-
-        // get canvas longitudes
-        // pmap has east lon minimally .ge. west lon
-        float canvasWest = pmap.canvasWestLon;
-        float canvasEast = pmap.canvasEastLon;
-
-        // wrap canvas east to be minimally .ge. chart west
-        while (canvasEast < chartedWestLon) {
-            canvasWest += 360.0F;
-            canvasEast += 360.0F;
-        }
-        while (canvasEast - chartedWestLon >= 360.0F) {
-            canvasWest -= 360.0F;
-            canvasEast -= 360.0F;
-        }
-
-        // canvas east .ge. chart west
-        // contributes if canvas west .lt. chart east
-        return canvasWest < chartedEastLon;
+        return Lib.LatOverlap (pmap.canvasSouthLat, pmap.canvasNorthLat, chartedSouthLat, chartedNorthLat) &&
+                Lib.LonOverlap (pmap.canvasWestLon, pmap.canvasEastLon, chartedWestLon, chartedEastLon);
     }
 
     /**
@@ -204,15 +195,15 @@ public abstract class AirChart implements DisplayableChart {
     /**
      * Get entry for chart selection menu.
      */
+    @SuppressLint("SetTextI18n")
     @Override  // DisplayableChart
     public View GetMenuSelector (@NonNull ChartView chartView)
     {
         PixelMapper pmap = chartView.pmap;
-        float arrowLat = chartView.arrowLat;
-        float arrowLon = chartView.arrowLon;
-        DisplayMetrics metrics = chartView.metrics;
+        float arrowLat = wairToNow.currentGPSLat;
+        float arrowLon = wairToNow.currentGPSLon;
 
-        float arrowradpix = Mathf.sqrt (metrics.xdpi * metrics.ydpi) / 32.0F;
+        float arrowradpix = wairToNow.dotsPerInch / 32.0F;
         float canvasradpix = arrowradpix * 1.5F;
 
         // ratio of chart pixels / icon pixels
@@ -499,7 +490,159 @@ public abstract class AirChart implements DisplayableChart {
     }
 
     /**
-     * Compute mapping of the chart as a whole onto the canvas.
+     * Get macro bitmap lat/lon step size limits.
+     * @param limits = where to return min,max limits.
+     */
+    @Override  // DisplayableChart
+    public void GetL2StepLimits (int[] limits)
+    {
+        // all we do is 16min x 16min blocks
+        // log2(16) = 4, so return 4.
+        limits[1] = limits[0] = 4;
+    }
+
+    /**
+     * Create a bitmap that fits the given pixel mapping.
+     * This should be called in a non-UI thread as it is synchronous.
+     * @param slat = southern latitude
+     * @param nlat = northern latitude
+     * @param wlon = western longiture
+     * @param elon = eastern longitude
+     * @return corresponding bitmap
+     */
+    @Override  // DisplayableChart
+    public Bitmap GetMacroBitmap (float slat, float nlat, float wlon, float elon)
+    {
+        return GetMacroBitmap (slat, nlat, wlon, elon, true);
+    }
+
+    public Bitmap GetMacroBitmap (float slat, float nlat, float wlon, float elon, boolean legends)
+    {
+        /*
+         * Find range of canvas pixels that cover the requested lat/lon range.
+         */
+        Point lastTlChartPix = new Point ();
+        Point lastTrChartPix = new Point ();
+        Point lastBlChartPix = new Point ();
+        Point lastBrChartPix = new Point ();
+        LatLon2ChartPixelExact (nlat, wlon, lastTlChartPix);
+        LatLon2ChartPixelExact (nlat, elon, lastTrChartPix);
+        LatLon2ChartPixelExact (slat, wlon, lastBlChartPix);
+        LatLon2ChartPixelExact (slat, elon, lastBrChartPix);
+
+        leftMacroChartPix = Math.min (Math.min (lastTlChartPix.x, lastTrChartPix.x), Math.min (lastBlChartPix.x, lastBrChartPix.x));
+        riteMacroChartPix = Math.max (Math.max (lastTlChartPix.x, lastTrChartPix.x), Math.max (lastBlChartPix.x, lastBrChartPix.x));
+        topMacroChartPix  = Math.min (Math.min (lastTlChartPix.y, lastTrChartPix.y), Math.min (lastBlChartPix.y, lastBrChartPix.y));
+        botMacroChartPix  = Math.max (Math.max (lastTlChartPix.y, lastTrChartPix.y), Math.max (lastBlChartPix.y, lastBrChartPix.y));
+
+        /*
+         * See if we already have a suitable .png file image.
+         */
+        StringBuilder sb = new StringBuilder ();
+        sb.append (WairToNow.dbdir);
+        sb.append ("/charts/");
+        sb.append (spacenamewr.replace (' ', '_'));
+        sb.append ("/3D/");
+        sb.append (leftMacroChartPix);
+        sb.append ('-');
+        sb.append (riteMacroChartPix);
+        sb.append ('/');
+        sb.append (topMacroChartPix);
+        sb.append ('-');
+        sb.append (botMacroChartPix);
+        if (!legends) sb.append ('@');
+        sb.append (".png");
+        String mbmPngName = sb.toString ();
+
+        File mbmPngFile = new File (mbmPngName);
+        if (mbmPngFile.exists ()) {
+            Bitmap mbm = BitmapFactory.decodeFile (mbmPngName);
+            if ((mbm != null) &&
+                    (mbm.getWidth  () == EarthSector.MBMSIZE) &&
+                    (mbm.getHeight () == EarthSector.MBMSIZE)) {
+                return mbm;
+            }
+            Log.e (TAG, "bitmap corrupt " + mbmPngName);
+            Lib.Ignored (mbmPngFile.delete ());
+        }
+
+        /*
+         * Make sure we know the tile bitmap size.
+         */
+        if (!MakeSureWeHaveTileSize ()) return null;
+
+        /*
+         * Create an empty bitmap that we will map that range of canvas pixels to.
+         */
+        Bitmap mbm = Bitmap.createBitmap (EarthSector.MBMSIZE, EarthSector.MBMSIZE,
+                legends ? Bitmap.Config.RGB_565 : Bitmap.Config.ARGB_8888);
+        Canvas can = new Canvas (mbm);
+
+        // Conversion between chart pixels and macrobitmap pixels
+
+        // leftMacroChartPix  <=>  0
+        // riteMacroChartPix  <=>  mbmWidth
+        //  topMacroChartPix  <=>  0
+        //  botMacroChartPix  <=>  mbmHeight
+
+        // (someChartXPix - leftMacroChartPix) / (riteMacroChartPix - leftMacroChartPix) = someMbmXPix / macroBitmapWidth
+        // (someChartYPix - topMacroChartPix)  / (botMacroChartPix  - topMacroChartPix)  = someMbmYPix / macroBitmapHeight
+
+        /*
+         * Loop through all possible tiles that can go on that macrobitmap.
+         */
+        Rect dst = new Rect ();
+        for (int chartYIdx = topMacroChartPix / hstep; chartYIdx <= botMacroChartPix / hstep; chartYIdx ++) {
+            for (int chartXIdx = leftMacroChartPix / wstep; chartXIdx <= riteMacroChartPix / wstep; chartXIdx ++) {
+                int leftTilePix = chartXIdx * wstep;
+                int topTilePix  = chartYIdx * hstep;
+                int riteTilePix = leftTilePix + hstep;
+                int botTilePix  = topTilePix  + wstep;
+
+                if ((leftTilePix >= 0) && (leftTilePix < chartwidth) &&
+                        (topTilePix >= 0) && (topTilePix < chartheight)) {
+                    dst.left   = (leftTilePix - leftMacroChartPix) * EarthSector.MBMSIZE / (riteMacroChartPix - leftMacroChartPix);
+                    dst.top    = (topTilePix  - topMacroChartPix)  * EarthSector.MBMSIZE / (botMacroChartPix  - topMacroChartPix);
+                    dst.right  = (riteTilePix - leftMacroChartPix) * EarthSector.MBMSIZE / (riteMacroChartPix - leftMacroChartPix);
+                    dst.bottom = (botTilePix  - topMacroChartPix)  * EarthSector.MBMSIZE / (botMacroChartPix  - topMacroChartPix);
+
+                    AirTile tile = new AirTile (null, leftTilePix, topTilePix, 1, legends);
+                    Bitmap tbm = tile.LoadScaledBitmap ();
+                    if (tbm != null) can.drawBitmap (tbm, null, dst, null);
+                    tile.recycle ();
+                }
+            }
+        }
+
+        /*
+         * Write to a .png file in case we need it again.
+         */
+        try {
+            WritePngFile (mbmPngFile, mbm);
+            Log.i (TAG, "wrote " + mbmPngName);
+        } catch (IOException ioe) {
+            Log.e (TAG, "error writing " + mbmPngName, ioe);
+        }
+
+        return mbm;
+    }
+
+    /**
+     * Get what pixel is for a given lat/lon in the most recent GetMacroBitmap() call bitmap.
+     * @param lat = latitude (degrees)
+     * @param lon = longitude (degrees)
+     * @param mbmpix = where to return the corresponding macro bitmap pixel number
+     */
+    @Override  // DisplayableChart
+    public void LatLon2MacroBitmap (float lat, float lon, @NonNull Point mbmpix)
+    {
+        LatLon2ChartPixelExact (lat, lon, mbmpix);
+        mbmpix.x = (mbmpix.x - leftMacroChartPix) * EarthSector.MBMSIZE / (riteMacroChartPix - leftMacroChartPix);
+        mbmpix.y = (mbmpix.y - topMacroChartPix)  * EarthSector.MBMSIZE / (botMacroChartPix  - topMacroChartPix);
+    }
+
+    /**
+     * Compate mapping of the chart as a whole onto the canvas.
      * @param pmap = canvas mapping
      * @return 0: mapping invalid; else: tile scaling factor
      */
@@ -638,6 +781,32 @@ public abstract class AirChart implements DisplayableChart {
     }
 
     /**
+     * Write an internally generated bitmap to a .png file.
+     * @param pngFile = where to write the file
+     * @param bm = bitmap to be written
+     * @throws IOException = error writing file
+     */
+    private void WritePngFile (File pngFile, Bitmap bm)
+            throws IOException
+    {
+        // write .png file
+        String pngName = pngFile.getPath ();
+        Lib.Ignored (pngFile.getParentFile ().mkdirs ());
+        FileOutputStream os = new FileOutputStream (pngName + ".tmp");
+        bm.compress (Bitmap.CompressFormat.PNG, 0, os);
+        os.close ();
+        Lib.RenameFile (pngName + ".tmp", pngName);
+
+        // write filename to filelist file so it will be deleted on next revision
+        String fn = WairToNow.dbdir + "/charts/" +
+                spacenamenr.replace (' ', '_') + ".filelist.txt";
+        FileWriter fw = new FileWriter (fn, true);
+        int i = pngName.indexOf ("charts/");
+        fw.write (pngName.substring (i) + "\n");
+        fw.close ();
+    }
+
+    /**
      * Contains an image that is a small part of an air chart.
      * Might have to create a clipped/scaled tile file if none exists already.
      * Clipped tiles (what have legened area alpha'd out) are indicated by an @.png suffix
@@ -743,6 +912,7 @@ public abstract class AirChart implements DisplayableChart {
             getPngName ();
 
             // see if we already have exact tile needed
+            Bitmap bm = null;
             if (!pngFile.exists ()) {
 
                 // unscaled files (unless caller wants legends chopped off) can only come from server
@@ -757,30 +927,40 @@ public abstract class AirChart implements DisplayableChart {
                 else MakeScaledBitmap (pixels);
 
                 // write to flash for next time
-                Bitmap bm = Bitmap.createBitmap (pixels, width, height, Bitmap.Config.ARGB_8888);
-                Lib.Ignored (pngFile.getParentFile ().mkdirs ());
-                FileOutputStream os = new FileOutputStream (pngName + ".tmp");
-                bm.compress (Bitmap.CompressFormat.PNG, 0, os);
-                os.close ();
-                Lib.RenameFile (pngName + ".tmp", pngName);
-
-                // write filename to filelist file so it will be deleted on next revision
-                String fn = WairToNow.dbdir + "/charts/" +
-                        spacenamenr.replace (' ', '_') + ".filelist.txt";
-                FileWriter fw = new FileWriter (fn, true);
-                int i = pngName.indexOf ("charts/");
-                fw.write (pngName.substring (i) + "\n");
-                fw.close ();
-
-                // return created bitmap
-                if (bfo == null) return bm;
+                bm = Bitmap.createBitmap (pixels, width, height, Bitmap.Config.ARGB_8888);
+                WritePngFile (pngFile, bm);
 
                 // caller wants undersampling, throw this one away
-                bm.recycle ();
+                if (bfo != null) {
+                    bm.recycle ();
+                    bm = null;
+                }
             }
 
             // read tile, possibly undersampling
-            return BitmapFactory.decodeFile (pngName, bfo);
+            if (bm == null) bm = BitmapFactory.decodeFile (pngName, bfo);
+
+            // draw hash if expired
+            if (enddate < MaintView.deaddate) {
+                int bmw = bm.getWidth ();
+                int bmh = bm.getHeight ();
+                if (!bm.isMutable ()) {
+                    if ((expiredpixels == null) || (expiredpixels.length < bmw * bmh)) {
+                        expiredpixels = new int[bmw*bmh];
+                    }
+                    bm.getPixels (expiredpixels, 0, bmw, 0, 0, bmw, bmh);
+                    bm.recycle ();
+                    bm = Bitmap.createBitmap (bmw, bmh, Bitmap.Config.ARGB_8888);
+                    bm.setPixels (expiredpixels, 0, bmw, 0, 0, bmw, bmh);
+                }
+                Canvas bmc = new Canvas (bm);
+                for (int i = -bmh; i < bmw; i += bmw / 4) {
+                    bmc.drawLine (i, 0, bmh + i, bmh, expiredpaint);
+                    bmc.drawLine (bmh + i, 0, i, bmh, expiredpaint);
+                }
+            }
+
+            return bm;
         }
 
         public String getPngName ()
@@ -1016,8 +1196,9 @@ public abstract class AirChart implements DisplayableChart {
         String[] values = Lib.QuotedCSVSplit (csvLine);
         chartwidth      = Integer.parseInt (values[0]);
         chartheight     = Integer.parseInt (values[1]);
-        enddate         = Integer.parseInt (values[2]);
-        spacenamewr     = values[3];                      // eg, "New York SEC 87"
+        begdate         = Integer.parseInt (values[2]);
+        enddate         = Integer.parseInt (values[3]);
+        spacenamewr     = values[4];                      // eg, "New York SEC 87"
         int i           = spacenamewr.lastIndexOf (' ');  // remove revision number from the end
         revision        = spacenamewr.substring (i + 1);
         spacenamenr     = spacenamewr.substring (0, i);
@@ -1027,7 +1208,7 @@ public abstract class AirChart implements DisplayableChart {
          * so we get a zero for enddate.  Make it something non-zero so
          * we don't confuse it with an unloaded chart.
          */
-        if (enddate == 0) enddate = 99999999;
+        if (enddate == 0) enddate = MaintView.INDEFINITE;
 
         /*
          * Determine limits of charted (non-legend) area.
@@ -1112,12 +1293,10 @@ public abstract class AirChart implements DisplayableChart {
         }
 
         /*
-         * Normalize west longitude limit to -180.0..+179.999999999.
-         * Normalize east longitude limit to just >= of west limit.
+         * Normalize longitude limits to -180.0..+179.999999999.
          */
         chartedWestLon = Lib.NormalLon (chartedWestLon);
         chartedEastLon = Lib.NormalLon (chartedEastLon);
-        if (chartedEastLon < chartedWestLon) chartedEastLon += 360.0F;
 
         /*
          * Some charts have a record in outlines.txt giving where the charted pixels are.
@@ -1189,10 +1368,7 @@ public abstract class AirChart implements DisplayableChart {
         /*
          * If lat/lon out of lat/lon limits, point is not in chart area
          */
-        if ((lat < chartedSouthLat) || (lat > chartedNorthLat)) return false;
-        lon = Lib.NormalLon (lon);
-        if (lon < chartedWestLon) lon += 360.0F;
-        if (lon > chartedEastLon) return false;
+        if (!TestLatLonIsCharted (lat, lon)) return false;
 
         /*
          * It is within lat/lon limits, check pixel limits too.
@@ -1217,10 +1393,16 @@ public abstract class AirChart implements DisplayableChart {
          */
         LatLon ll = llPerThread.get ();
         ChartPixel2LatLonExact (pixx, pixy, ll);
-        if ((ll.lat < chartedSouthLat) || (ll.lat > chartedNorthLat)) return false;
+        return TestLatLonIsCharted (ll.lat, ll.lon);
+    }
 
-        if (ll.lon < chartedWestLon) ll.lon += 360.0;
-        return ll.lon <= chartedEastLon;
+    /**
+     * Test given lat/lon against chart lat/lon limits.
+     */
+    private boolean TestLatLonIsCharted (float lat, float lon)
+    {
+        return Lib.LatOverlap (chartedSouthLat, chartedNorthLat, lat) &&
+                Lib.LonOverlap (chartedWestLon, chartedEastLon, lon);
     }
 
     /**
@@ -1250,7 +1432,7 @@ public abstract class AirChart implements DisplayableChart {
         @Override  // AirChart
         protected String ParseParams (String csvLine)
         {
-            String[] values = csvLine.split (",", 16);
+            String[] values = csvLine.split (",", 15);
             float centerLat = Float.parseFloat (values[ 0]);
             float centerLon = Float.parseFloat (values[ 1]);
             float stanPar1  = Float.parseFloat (values[ 2]);
@@ -1332,9 +1514,8 @@ public abstract class AirChart implements DisplayableChart {
 
             /*
              * Return common parameter portion of csvLine.
-             * Note that values[14] is not used.
              */
-            return values[4] + ',' + values[5] + ',' + values[15];
+            return values[4] + ',' + values[5] + ',' + values[14];
         }
 
         /**
@@ -1477,11 +1658,12 @@ public abstract class AirChart implements DisplayableChart {
      *  11 : y pixel for point at south,east
      *  12 : chart width
      *  13 : chart height
-     *  14 : expiration date yyyymmdd
-     *  15 : chart space name including revision number
+     *  14 : effective date yyyymmdd
+     *  15 : expiration date yyyymmdd
+     *  16 : chart space name including revision number
      *
      * Example for ONC A-1 chart:
-     *   psp:88,-36,80,24,4337,87,5737,199,1118,4690,8090,5279,9254,6693,99999999,ONC A-1 19690603
+     *   psp:88,-36,80,24,4337,87,5737,199,1118,4690,8090,5279,9254,6693,19690603,99999999,ONC A-1 19690603
      *
      * The basic projection transformation is:
      *   beta = 90 - latitude
@@ -1568,8 +1750,9 @@ public abstract class AirChart implements DisplayableChart {
      *   3 : east longitude (pixel col x=width)
      *   4 : chart width
      *   5 : chart height
-     *   6 : expiration date yyyymmdd
-     *   7 : chart space name including revision number
+     *   6 : effective date yyyymmdd
+     *   7 : expiration date yyyymmdd
+     *   8 : chart space name including revision number
      */
     private static class Box extends AirChart {
         public final static String pfx = "box:";

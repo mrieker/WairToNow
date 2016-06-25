@@ -20,6 +20,7 @@
 
 package com.outerworldapps.wairtonow;
 
+import android.content.pm.ActivityInfo;
 import android.database.Cursor;
 import android.util.Log;
 import android.view.View;
@@ -49,12 +50,25 @@ public class ExpView extends ScrollView implements WairToNow.CanBeMainView {
         addView (textView);
     }
 
-    // CanBeMainView implementation
+    @Override  // CanBeMainView
     public String GetTabName ()
     {
         return "Exp";
     }
 
+    @Override  // CanBeMainView
+    public int GetOrientation ()
+    {
+        return ActivityInfo.SCREEN_ORIENTATION_USER;
+    }
+
+    @Override  // CanBeMainView
+    public boolean IsPowerLocked ()
+    {
+        return false;
+    }
+
+    @Override  // CanBeMainView
     public void OpenDisplay ()
     {
         textView.setText ("");
@@ -66,6 +80,7 @@ public class ExpView extends ScrollView implements WairToNow.CanBeMainView {
         threadb.start ();
     }
 
+    @Override  // CanBeMainView
     public void CloseDisplay ()
     {
         enabled = false;
@@ -75,6 +90,7 @@ public class ExpView extends ScrollView implements WairToNow.CanBeMainView {
         threadb = null;
     }
 
+    @Override  // CanBeMainView
     public void ReClicked ()
     {
         if (enabled) {
@@ -84,6 +100,7 @@ public class ExpView extends ScrollView implements WairToNow.CanBeMainView {
         }
     }
 
+    @Override  // CanBeMainView
     public View GetBackPage ()
     {
         return this;

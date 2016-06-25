@@ -45,6 +45,14 @@
             }
         }
         echo "datums/waypoints_$cycles56.db.gz\n";
+    } else if ($undername == 'Topography') {
+
+        /*
+         * Topography is several .zip files.
+         */
+        for ($lat = -90; $lat < 90; $lat ++) {
+            echo "datums/topo/$lat.zip\n";
+        }
     } else if (strpos ($undername, 'State_') === 0) {
 
         /*

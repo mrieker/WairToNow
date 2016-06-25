@@ -20,17 +20,6 @@
 
 package com.outerworldapps.wairtonow;
 
-import java.io.BufferedInputStream;
-import java.io.File;
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.TreeSet;
-
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -41,9 +30,21 @@ import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.Point;
 import android.support.annotation.NonNull;
-import android.util.DisplayMetrics;
 import android.util.Log;
-import android.view.View;
+
+import java.io.BufferedInputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.PrintWriter;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.TreeSet;
 
 /**
  * Single instance contains all the street map tiles for the whole world.
@@ -51,8 +52,8 @@ import android.view.View;
 public class OpenStreetMap {
     private final static String TAG = "WairToNow";
 
-    private static final int BitmapSize = 256;  // all OSM tiles are this size
-    private static final int MAXZOOM = 16;      // openstreepmap.org doesn't like serving zoom 17
+    public  static final int BitmapSize = 256;  // all OSM tiles are this size
+    public  static final int MAXZOOM = 16;      // openstreepmap.org doesn't like serving zoom 17
     private static final float MinPixIn = 0.24F / Lib.MMPerIn;  // min inches on screen for a tile pixel
     private static final long TILE_FILE_AGE_MS = 1000L*60*60*24*365;
     private static final long TILE_RETRY_MS = 1000L*10;
@@ -144,7 +145,7 @@ public class OpenStreetMap {
         public boolean DrawTile ()
         {
             /*
-             * Try to draw the bitmap or start downloaded it if we don't have it.
+             * Try to draw the bitmap or start downloading it if we don't have it.
              * Meanwhile, try to draw zoomed out tile if we have one.
              */
             if (TryToDrawTile (canvas, zoom, tileX, tileY, true)) return true;
@@ -291,7 +292,6 @@ public class OpenStreetMap {
      * It does a callback to DrawTile() for each tile needed.
      */
     private static abstract class TileDrawer {
-        private DisplayMetrics metrics = new DisplayMetrics ();
         protected float[] canvaspts = new float[8];
         protected int tileX, tileY, zoom;
         protected Point northwestcanpix = new Point ();
@@ -309,14 +309,10 @@ public class OpenStreetMap {
          * @param pmap = what pixels to draw to and the corresponding lat/lon mapping
          * @param canvasHdgRads = heading for 'up'
          */
+        @SuppressWarnings("ConstantConditions")
         public boolean DrawTiles (WairToNow wairToNow, PixelMapper pmap, float canvasHdgRads)
         {
             boolean gotatile = false;
-
-            /*
-             * Read display metrics each time in case of orientation change.
-             */
-            wairToNow.getWindowManager ().getDefaultDisplay ().getMetrics (metrics);
 
             /*
              * Get drawing area size in pixels.
@@ -331,8 +327,8 @@ public class OpenStreetMap {
              */
 
             // get canvas size in inches
-            float canvasWidthIn  = w / metrics.xdpi;
-            float canvasHeightIn = h / metrics.ydpi;
+            float canvasWidthIn  = w / wairToNow.dotsPerInchX;
+            float canvasHeightIn = h / wairToNow.dotsPerInchY;
 
             // width of rotated canvas in inches
             float canvasWholeLonIn = canvasWidthIn * Math.abs (Mathf.cos (canvasHdgRads)) +
@@ -340,6 +336,7 @@ public class OpenStreetMap {
 
             // longitude degrees spanned by the canvas
             float canvasWholeLonDeg = pmap.canvasEastLon - pmap.canvasWestLon;
+            if (canvasWholeLonDeg < 0.0F) canvasWholeLonDeg += 360.0F;
 
             // how many deg longitude are on a tile at zoom=MAXZOOM
             float tileWidthLonDeg = 360.0F / (1 << MAXZOOM);
@@ -753,6 +750,85 @@ public class OpenStreetMap {
                 }
             }
             return true;
+        }
+    }
+
+    /**
+     * Synchronously read a tile's bitmap file.
+     */
+    public static Bitmap ReadTileBitmap (int tileIX, int tileIY, int zoomLevel)
+    {
+        String tilename = zoomLevel + "/" + tileIX + "/" + tileIY + ".png";
+        String permname = WairToNow.dbdir + "/streets/" + tilename;
+        String tempname = permname + ".tmp";
+        File permfile = new File (permname);
+        try {
+
+            /*
+             * See if flash file exists.
+             */
+            if (!permfile.exists ()) {
+
+                /*
+                 * If not, open connection to the server to fetch it.
+                 */
+                URL url = new URL (MaintView.dldir + "/streets.php?tile=" + tilename);
+                HttpURLConnection httpCon = (HttpURLConnection)url.openConnection ();
+                try {
+
+                    /*
+                     * Check HTTP status and open reading stream.
+                     */
+                    httpCon.setRequestMethod ("GET");
+                    int rc = httpCon.getResponseCode ();
+                    if (rc != HttpURLConnection.HTTP_OK) {
+                        throw new IOException ("http response code " + rc);
+                    }
+                    InputStream is = httpCon.getInputStream ();
+                    try {
+
+                        /*
+                         * Read stream into temp file.
+                         */
+                        Lib.Ignored (permfile.getParentFile ().mkdirs ());
+                        OutputStream os = new FileOutputStream (tempname);
+                        try {
+                            byte[] buff = new byte[4096];
+                            while (true) {
+                                rc = is.read (buff);
+                                if (rc <= 0) break;
+                                os.write (buff, 0, rc);
+                            }
+                        } finally {
+                            os.close ();
+                        }
+                    } finally {
+                        is.close ();
+                    }
+                } finally {
+                    httpCon.disconnect ();
+                }
+
+                /*
+                 * Successfully wrote complete temp file,
+                 * rename temp file to permanant file.
+                 */
+                Lib.RenameFile (tempname, permname);
+            }
+
+            /*
+             * Read flash file into memorie.
+             */
+            Bitmap bm = BitmapFactory.decodeFile (permname);
+            if (bm == null) throw new IOException ("bitmap corrupt");
+            if ((bm.getWidth () != BitmapSize) || (bm.getHeight () != BitmapSize)) {
+                throw new IOException ("bitmap bad size " + bm.getWidth () + "," + bm.getHeight ());
+            }
+            return bm;
+        } catch (Exception e) {
+            Log.e (TAG, "error reading tile: " + tilename, e);
+            Lib.Ignored (permfile.delete ());
+            return null;
         }
     }
 }

@@ -20,15 +20,7 @@
 
 package com.outerworldapps.wairtonow;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.util.Collection;
-import java.util.TreeMap;
-
+import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
@@ -47,9 +39,19 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.Collection;
+import java.util.TreeMap;
+
 /**
  * This view presents a screen that lets the user manage user-defined waypoints.
  */
+@SuppressLint({ "SetTextI18n", "ViewConstructor" })
 public class UserWPView extends LinearLayout
         implements WairToNow.CanBeMainView {
     private final static String TAG = "WairToNow";
@@ -195,8 +197,6 @@ public class UserWPView extends LinearLayout
     @Override
     public void OpenDisplay ()
     {
-        wairToNow.setRequestedOrientation (ActivityInfo.SCREEN_ORIENTATION_USER);
-
         // in case lat/lon format option was changed
         String format = wairToNow.optionsView.LatLonString (10.0F/3600.0F, 'N', 'S');
         latView.setFormat (format);
@@ -209,6 +209,18 @@ public class UserWPView extends LinearLayout
     public View GetBackPage ()
     {
         return wairToNow.chartView;
+    }
+
+    @Override  // CanBeMainView
+    public int GetOrientation ()
+    {
+        return ActivityInfo.SCREEN_ORIENTATION_USER;
+    }
+
+    @Override  // CanBeMainView
+    public boolean IsPowerLocked ()
+    {
+        return false;
     }
 
     /**
@@ -399,8 +411,9 @@ public class UserWPView extends LinearLayout
         @Override
         public void onClick (View v)
         {
-            latView.setVal (wairToNow.chartView.centerLat);
-            lonView.setVal (wairToNow.chartView.centerLon);
+            PixelMapper pmap = wairToNow.chartView.pmap;
+            latView.setVal (pmap.centerLat);
+            lonView.setVal (pmap.centerLon);
         }
     }
 

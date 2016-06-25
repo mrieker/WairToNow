@@ -20,22 +20,7 @@
 
 package com.outerworldapps.wairtonow;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.zip.GZIPInputStream;
-
+import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
@@ -57,14 +42,30 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.zip.GZIPInputStream;
+
 /**
  * This view presents a menu so the user can select a FAA waypoint by name.
  * It can also pick a waypoint that is nearby a given lat/lon.
  */
+@SuppressLint({ "SetTextI18n", "ViewConstructor" })
 public class WaypointView extends LinearLayout
         implements WairToNow.CanBeMainView {
     public final static String TAG = "WairToNow";
-    private final static float nearbynm = 5.0F;
 
     private DestinationButton destinationButton;
     private DownloadButton downloadButton;
@@ -76,6 +77,7 @@ public class WaypointView extends LinearLayout
     private LocationButton locationButton;
     private MetarButton metarButton;
     private OldSearchButtonListener oldSearchLis;
+    private RNavOffsetButton rnavOffsetButton;
     private SearchTextView searchTextView;
     private String tabName;
     public  WairToNow wairToNow;
@@ -143,6 +145,12 @@ public class WaypointView extends LinearLayout
          */
         locationButton = new LocationButton (ctx);
         ll1.addView (locationButton);
+
+        /*
+         * This button can be clicked to add an RNAV-style offset to the waypoint.
+         */
+        rnavOffsetButton = new RNavOffsetButton ();
+        ll1.addView (rnavOffsetButton);
 
         /*
          * This button can be clicked to get the waypoint's METAR.
@@ -354,7 +362,6 @@ public class WaypointView extends LinearLayout
     @Override
     public void OpenDisplay ()
     {
-        wairToNow.setRequestedOrientation (ActivityInfo.SCREEN_ORIENTATION_USER);
         LoadOldSearchButtons ();  // reload buttons in case changed by other WaypointView instance
     }
     @Override
@@ -366,20 +373,32 @@ public class WaypointView extends LinearLayout
     public void ReClicked ()
     { }
 
+    @Override  // CanBeMainView
+    public int GetOrientation ()
+    {
+        return ActivityInfo.SCREEN_ORIENTATION_USER;
+    }
+
+    @Override  // CanBeMainView
+    public boolean IsPowerLocked ()
+    {
+        return false;
+    }
+
     /**
      * Find waypoints near the given lat/lon and let user select one and open it.
      */
-    public void OpenWaypointAtLatLon (final float lat, final float lon)
+    public void OpenWaypointAtLatLon (final float lat, final float lon, float radiusnm)
     {
         // get all waypoints within box from given lat/lon
-        float del = nearbynm / wairToNow.chartView.scaling / Lib.NMPerDeg;
+        float del = radiusnm / Lib.NMPerDeg;
         Collection<Waypoint> wpcollection = new Waypoint.Within ().Get (lat - del, lat + del, lon - del, lon + del);
 
         // remove all waypoints greater than radius from the collection
         for (Iterator<Waypoint> it = wpcollection.iterator (); it.hasNext ();) {
             Waypoint wp = it.next ();
             float dist = Lib.LatLonDist (lat, lon, wp.lat, wp.lon);
-            if (dist > nearbynm / wairToNow.chartView.scaling) {
+            if (dist > radiusnm) {
                 it.remove ();
             }
         }
@@ -476,6 +495,7 @@ public class WaypointView extends LinearLayout
             findButton.setEnabled (false);
             destinationButton.setEnabled (false);
             locationButton.setEnabled (false);
+            rnavOffsetButton.setEnabled (false);
             metarButton.setEnabled (false);
             infoButton.setEnabled (false);
             downloadButton.setEnabled (false);
@@ -485,6 +505,7 @@ public class WaypointView extends LinearLayout
             wp.GetDetailViews (this, waypointLinear);
             destinationButton.setEnabled (true);
             locationButton.setEnabled (true);
+            rnavOffsetButton.setEnabled (true);
             metarButton.setEnabled (wp.HasMetar ());
             infoButton.setEnabled (wp.HasInfo ());
             downloadButton.setEnabled (wp.NeedsDwnld ());
@@ -553,16 +574,36 @@ public class WaypointView extends LinearLayout
             selectedWaypoint = null;
             destinationButton.setEnabled (false);
             locationButton.setEnabled (false);
+            rnavOffsetButton.setEnabled (false);
             metarButton.setEnabled (false);
             infoButton.setEnabled (false);
             downloadButton.setEnabled (false);
             setEnabled (false);
 
+            // get what user typed in to search for
             String key = searchTextView.getText ().toString ();
-            key = Waypoint.NormalizeKey (key);
-            searchTextView.setText (key);
-            LinkedList<Waypoint> matches = Waypoint.GetWaypointsMatchingKey (key);
 
+            // check for ident[rnavoffset string
+            // if so, try searching for that specially
+            // cuz NormalizeKey() will munge it
+            LinkedList<Waypoint> matches = null;
+            try {
+                Waypoint.RNavParse rnavParse = new Waypoint.RNavParse (key);
+                if (rnavParse.rnavsuffix != null) {
+                    matches = Waypoint.GetWaypointsByIdent (key);
+                }
+            } catch (Exception e) {
+                Lib.Ignored ();
+            }
+
+            // if not ident[rnavoffset, do a general search
+            if (matches == null) {
+                key = Waypoint.NormalizeKey (key);
+                searchTextView.setText (key);
+                matches = Waypoint.GetWaypointsMatchingKey (key);
+            }
+
+            // let user select from the matches, if any
             if (matches.size () == 0) {
                 TextView dt = new TextView (wairToNow);
                 wairToNow.SetTextSize (dt);
@@ -629,13 +670,138 @@ public class WaypointView extends LinearLayout
     }
 
     /**
-     * Button used to get the METAR and TAF information for the current waypoint.
+     * Button used to add/remove an RNAV offset from the current waypoint.
+     */
+    private class RNavOffsetButton extends Button implements OnClickListener {
+        public RNavOffsetButton ()
+        {
+            super (wairToNow);
+            setText ("RNAV");
+            wairToNow.SetTextSize (this);
+            setEnabled (false);
+            setOnClickListener (this);
+        }
+
+        /**
+         * Called when the RNAV button is clicked.
+         */
+        @Override
+        public void onClick (View v)
+        {
+            if (selectedWaypoint != null) {
+                if (selectedWaypoint instanceof Waypoint.RNavOffset) {
+                    remRNavOffset ();
+                } else {
+                    addRNavOffset ();
+                }
+            }
+        }
+
+        /**
+         * Add an RNAV offset to currently selected waypoint.
+         */
+        private void addRNavOffset ()
+        {
+            Context ctx = getContext ();
+
+            // create data entry boxes
+            final EditText radial = new EditText (ctx);
+            final MagTrueSpinner magnetic = new MagTrueSpinner (ctx);
+            final EditText distance = new EditText (ctx);
+
+            // three digits each should be plenty
+            radial.setInputType (InputType.TYPE_CLASS_NUMBER);
+            distance.setInputType (InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+            radial.setSingleLine ();
+            distance.setSingleLine ();
+            radial.setEms (3);
+            distance.setEms (3);
+
+            // make a linear layout for the boxes
+            LinearLayout ll = new LinearLayout (ctx);
+            ll.setOrientation (HORIZONTAL);
+            ll.addView (radial);
+            ll.addView (new TextViewString (ctx, "\u00B0"));
+            ll.addView (magnetic);
+            ll.addView (new TextViewString (ctx, "@"));
+            ll.addView (distance);
+            ll.addView (new TextViewString (ctx, "nm"));
+
+            // wrap in an horizontal scroll in case of small screen
+            DetentHorizontalScrollView sv = new DetentHorizontalScrollView (ctx);
+            wairToNow.SetDetentSize (sv);
+            sv.addView (ll);
+
+            // create dialog box
+            AlertDialog.Builder adb = new AlertDialog.Builder (ctx);
+            adb.setTitle ("Add RNAV offset to " + selectedWaypoint.ident);
+            adb.setView (sv);
+            adb.setPositiveButton ("OK", new DialogInterface.OnClickListener () {
+                @Override
+                public void onClick (DialogInterface dialogInterface, int i) {
+                    // parse numeric radial and distance values
+                    // don't bother if distance is zero
+                    float rnavradl, rnavdist;
+                    try {
+                        rnavradl = Float.parseFloat (radial.getText ().toString ());
+                        rnavdist = Float.parseFloat (distance.getText ().toString ());
+                        if (rnavdist == 0) return;
+                    } catch (NumberFormatException nfe) {
+                        return;
+                    }
+
+                    // make new waypoint at an offset from the current waypoint
+                    boolean mag = magnetic.getMag ();
+                    String suffix = Lib.FloatNTZ (rnavradl) + (mag ? "@" : "T@") + Lib.FloatNTZ (rnavdist);
+                    Waypoint.RNavOffset rnavwp = new Waypoint.RNavOffset (selectedWaypoint,
+                            rnavdist, rnavradl, mag, suffix);
+
+                    // select it
+                    AddOldSearchButton (rnavwp.ident, true);
+                    WaypointSelected (rnavwp);
+                }
+            });
+            adb.setNegativeButton ("Cancel", null);
+
+            // display dialog
+            adb.show ();
+        }
+
+        /**
+         * Remove the RNAV offset from the currently selected waypoint.
+         */
+        private void remRNavOffset ()
+        {
+            Context ctx = getContext ();
+
+            final Waypoint.RNavOffset rnavOffset = (Waypoint.RNavOffset) selectedWaypoint;
+
+            // create dialog box
+            AlertDialog.Builder adb = new AlertDialog.Builder (ctx);
+            adb.setTitle ("Remove RNAV offset from " + selectedWaypoint.ident);
+            adb.setMessage ("...and return to plain " + rnavOffset.basewp.ident);
+            adb.setPositiveButton ("OK", new DialogInterface.OnClickListener () {
+                @Override
+                public void onClick (DialogInterface dialogInterface, int i)
+                {
+                    WaypointSelected (rnavOffset.basewp);
+                }
+            });
+            adb.setNegativeButton ("Cancel", null);
+
+            // display dialog
+            adb.show ();
+        }
+    }
+
+    /**
+     * Button used to get the Internet derived METAR and TAF information for the current waypoint.
      */
     private class MetarButton extends Button implements OnClickListener {
         public MetarButton (Context ctx)
         {
             super (ctx);
-            setText ("METAR");
+            setText ("WebMETAR");
             wairToNow.SetTextSize (this);
             setEnabled (false);
             setOnClickListener (this);
@@ -711,6 +877,7 @@ public class WaypointView extends LinearLayout
     }
 
     private class MyWebView extends WebView implements WairToNow.CanBeMainView {
+        @SuppressLint("SetJavaScriptEnabled")
         public MyWebView (String content)
         {
             super (wairToNow);
@@ -731,6 +898,18 @@ public class WaypointView extends LinearLayout
         public String GetTabName ()
         {
             return WaypointView.this.GetTabName ();
+        }
+
+        @Override  // CanBeMainView
+        public int GetOrientation ()
+        {
+            return WaypointView.this.GetOrientation ();
+        }
+
+        @Override  // CanBeMainView
+        public boolean IsPowerLocked ()
+        {
+            return WaypointView.this.IsPowerLocked ();
         }
 
         // if back button clicked, show the waypoint search page

@@ -23,32 +23,43 @@ package com.outerworldapps.wairtonow;
 import android.util.Log;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
+import java.io.RandomAccessFile;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
 
 /**
  * Contains topography info (ground elevation at a given lat/lon).
  */
 public class Topography {
     public final static String TAG = "WairToNow";
-    public final static short INVALID_ELEV = (short) 0x8000;
+    public final static short INVALID_ELEV = (short) -1;
 
     private final static HashMap<Integer,short[]> loadedTopos = new HashMap<> ();
-    private final static HashSet<Integer> requestedTopos = new HashSet<> ();
-    private static LoaderThread loaderThread;
 
-    public static short getElevMetres (float lat, float lon)
-    {
-        if (lon < -180) lon += 360;
-        if (lon >= 180) lon -= 360;
+    private static String topoZipName;
+    private static TopoZipFile topoZipFile;
 
+    public static void purge () {
+        synchronized (loadedTopos) {
+            loadedTopos.clear ();
+            if (topoZipFile != null) {
+                try { topoZipFile.close (); } catch (IOException ioe) { Lib.Ignored (); }
+                topoZipFile = null;
+                topoZipName = null;
+            }
+        }
+    }
+
+    /**
+     * Get elevation for a given lat/lon.
+     * Synchronous, may take a moment to complete.
+     *
+     * @param lat = latitude, rounded to nearest minute
+     * @param lon = longitude, rounded to nearest minute
+     * @return INVALID_ELEV: elevation unknown; else: elevation in metres MSL
+     */
+    public static short getElevMetres (float lat, float lon) {
         /*
          * Split given lat,lon into degrees and minutes.
          */
@@ -60,131 +71,103 @@ public class Topography {
         if (ilatdeg >= 90) return INVALID_ELEV;
         if (ilatdeg < -90) return INVALID_ELEV;
 
+        if (ilondeg < -180) ilondeg += 360;
+        if (ilondeg >= 180) ilondeg -= 360;
+
         /*
          * See if corresponding file is already loaded in memory.
-         * If not, put on requested queue and return that it is invalid.
+         * If not, read it in and save on list.
          */
         int key = (ilatdeg << 16) + (ilondeg & 0xFFFF);
         short[] topos;
         synchronized (loadedTopos) {
-            topos = loadedTopos.get (key);
-            if (topos == null) {
-                requestedTopos.add (key);
-                if (loaderThread == null) {
-                    loaderThread = new LoaderThread ();
-                    loaderThread.start ();
-                }
-                return INVALID_ELEV;
+            if (loadedTopos.containsKey (key)) {
+                topos = loadedTopos.get (key);
+            } else {
+                topos = ReadFile (ilatdeg, ilondeg);
+                loadedTopos.put (key, topos);
             }
         }
+
+        /*
+         * File corrupt.
+         */
+        if (topos == null) return INVALID_ELEV;
 
         /*
          * Loaded in memory, return value.
          */
         ilatmin %= 60;
         ilonmin %= 60;
-        return topos[ilatmin*60+ilonmin];
+        short topo = topos[ilatmin*60+ilonmin];
+        if (topo < INVALID_ELEV) topo = INVALID_ELEV;
+        return topo;
     }
 
-    private static class LoaderThread extends Thread {
-        @Override
-        public void run ()
-        {
-            final int bsize = 7200;
-            byte[] bytes = new byte[bsize];
-            int rc;
+    /**
+     * Read topo data from Zip file.
+     * @param ilatdeg = latitude degree of topo data
+     * @param ilondeg = longitude degree of topo data
+     * @return array of shorts giving elevation (metres MSL)
+     *         ...indexed by minutelatitude*60+minutelongitude
+     */
+    private static short[] ReadFile (int ilatdeg, int ilondeg)
+    {
+        /*
+         * Open corresponding topo/ilatdeg.zip file if not already.
+         */
+        String name = WairToNow.dbdir + "/datums/topo/" + ilatdeg + ".zip";
+        if (!name.equals (topoZipName)) {
 
-            while (true) {
-
-                /*
-                 * See if there is a file being requested.
-                 */
-                int key;
-                synchronized (loadedTopos) {
-                    Iterator<Integer> it = requestedTopos.iterator ();
-                    if (!it.hasNext ()) {
-                        loaderThread = null;
-                        return;
-                    }
-                    key = it.next ();
-                    it.remove ();
-                }
-
-                /*
-                 * Build filename and see if it exists.
-                 */
-                short ilatdeg = (short) (key >> 16);
-                short ilondeg = (short) key;
-                String subname = "/datums/topo/" + ilatdeg + "/" + ilondeg;
-                String name = WairToNow.dbdir + subname;
-                File file = new File (name);
-                if (!file.exists ()) {
-                    try {
-
-                        /*
-                         * File doesn't exist, read data from web server.
-                         */
-                        URL url = new URL (MaintView.dldir + subname);
-                        HttpURLConnection httpCon = (HttpURLConnection) url.openConnection ();
-                        httpCon.setRequestMethod ("GET");
-                        httpCon.connect ();
-                        rc = httpCon.getResponseCode ();
-                        if (rc != HttpURLConnection.HTTP_OK) {
-                            throw new IOException ("http response code " + rc + " on " + subname);
-                        }
-                        InputStream wis = httpCon.getInputStream ();
-                        try {
-                            for (int ofs = 0; ofs < bsize; ofs += rc) {
-                                rc = wis.read (bytes, ofs, bsize - ofs);
-                                if (rc <= 0) throw new IOException ("read web file error");
-                            }
-                        } finally {
-                            wis.close ();
-                        }
-
-                        /*
-                         * Write data to local file.
-                         */
-                        Lib.Ignored (file.getParentFile ().mkdirs ());
-                        FileOutputStream fos = new FileOutputStream (file);
-                        try {
-                            fos.write (bytes);
-                        } finally {
-                            fos.close ();
-                        }
-                    } catch (IOException ioe) {
-                        Log.e (TAG, "error downloading " + name, ioe);
-                    }
-                }
-
-                /*
-                 * File (now) exists, read into memory and put in cache.
-                 */
+            // close currently open zip file
+            if (topoZipFile != null) {
                 try {
-                    FileInputStream fis = new FileInputStream (file);
-                    try {
-                        rc = fis.read (bytes, 0, bsize);
-                        if (rc != bsize) {
-                            throw new IOException ("only read " + rc + " of " + bsize + " bytes");
-                        }
-                        short[] shorts = new short[bsize/2];
-                        int j = 0;
-                        for (int i = 0; i < bsize / 2; i ++) {
-                            int lo = bytes[j++] & 0xFF;
-                            int hi = bytes[j++] & 0xFF;
-                            shorts[i] = (short) ((hi << 8) + lo);
-                        }
-                        synchronized (loadedTopos) {
-                            loadedTopos.put (key, shorts);
-                        }
-                    } finally {
-                        fis.close ();
-                    }
-
+                    topoZipFile.close ();
                 } catch (IOException ioe) {
-                    Log.e (TAG, "error reading " + name, ioe);
+                    Lib.Ignored ();
                 }
             }
+
+            // null files are for areas not covered by air charts
+            // so just return INVALID_ELEV
+            File file = new File (name);
+            if (file.exists () && (file.length () == 0)) return null;
+
+            // otherwise, open the zip file
+            try {
+                RandomAccessFile raf = new RandomAccessFile (name, "r");
+                topoZipFile = new TopoZipFile (raf, ilatdeg);
+                topoZipName = name;
+            } catch (IOException ioe) {
+                Log.e (TAG, "error opening " + name, ioe);
+                topoZipFile = null;
+                topoZipName = null;
+                return null;
+            }
+            Log.i (TAG, "opened " + name);
+        }
+
+        /*
+         * Zip file opened, read requested entry into memory.
+         */
+        try {
+            byte[] bytes = topoZipFile.getBytes (ilondeg);
+            if (bytes == null) throw new FileNotFoundException ();
+            int rc = bytes.length;
+            if (rc != 7200) {
+                throw new IOException ("only read " + rc + " of 7200 bytes");
+            }
+            short[] shorts = new short[3600];
+            int j = 0;
+            for (int i = 0; i < 3600; i ++) {
+                int lo = bytes[j++] & 0xFF;
+                int hi = bytes[j++] & 0xFF;
+                shorts[i] = (short) ((hi << 8) + lo);
+            }
+            return shorts;
+        } catch (Exception e) {
+            Log.e (TAG, "error reading topo " + ilatdeg + "/" + ilondeg, e);
+            return null;
         }
     }
 }

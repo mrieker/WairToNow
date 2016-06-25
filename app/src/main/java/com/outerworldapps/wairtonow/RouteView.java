@@ -20,8 +20,10 @@
 
 package com.outerworldapps.wairtonow;
 
+import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
+import android.content.pm.ActivityInfo;
 import android.graphics.Color;
 import android.text.Editable;
 import android.text.Spannable;
@@ -58,6 +60,7 @@ import java.util.TreeMap;
 /**
  * Enter a route (such as a clearance) and analyze it.
  */
+@SuppressLint("ViewConstructor")
 public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
     private final static String TAG = "WairToNow";
     private final static String datadir = WairToNow.dbdir + "/routes";
@@ -343,6 +346,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
                 ArrayList<Waypoint> selectedWaypoints;
                 if (previx < nextix) {
                     selectedWaypoints = new ArrayList<> (nextix - previx + 1);
+                    //noinspection ManualArrayToCollectionCopy
                     for (int i = previx; i <= nextix; i ++) {
                         Waypoint wp = airway.waypoints[i];
                         selectedWaypoints.add (wp);
@@ -816,7 +820,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
     }
 
     /**
-     * See if the given waypoints are all in a row.
+     * See if the given waypoints are all lined up.
      */
     private static boolean inARow (Waypoint wp1, Waypoint wp2, Waypoint wp3)
     {
@@ -827,7 +831,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
         float tc23 = Lib.LatLonTC (wp2.lat, wp2.lon, wp3.lat, wp3.lon);
         float tcdiff = Math.abs (tc12 - tc23);
         if (tcdiff > 180.0F) tcdiff = 360.0F - tcdiff;
-        return tcdiff < 1.0F;
+        return tcdiff < 1.0F;  // all lined up within a degree
     }
 
     /**
@@ -845,6 +849,18 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
     public String GetTabName ()
     {
         return "Route";
+    }
+
+    @Override  // CanBeMainView
+    public int GetOrientation ()
+    {
+        return ActivityInfo.SCREEN_ORIENTATION_USER;
+    }
+
+    @Override  // CanBeMainView
+    public boolean IsPowerLocked ()
+    {
+        return false;
     }
 
     @Override  // WairToNow.CanBeMainView
@@ -877,6 +893,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
      * Make sure we are no longer tracking progress along the analyzed route,
      * (user is probably changing the route or just wants to stop tracking).
      */
+    @SuppressLint("SetTextI18n")
     public void ShutTrackingOff ()
     {
         trackingOn = false;
@@ -984,6 +1001,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
     /**
      * Load button just clicked, load form values from an XML file.
      */
+    @SuppressLint("SetTextI18n")
     private void LoadButtonClicked ()
     {
         final String ntsep = " (";
@@ -1404,6 +1422,6 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
          * Display resultant string.
          */
         textViewC.setText (sb);
-        textViewC.setTextColor (ChartView.courseColor);
+        textViewC.setTextColor (Color.CYAN);
     }
 }

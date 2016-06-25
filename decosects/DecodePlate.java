@@ -166,6 +166,7 @@ public class DecodePlate {
         ipf.add ("BOI:IAP-ILS OR LOC RWY 10R:SALLA");   // SALLA needs a fence - not to scale
         ipf.add ("DCU:IAP-VOR RWY 18:MASHA");           // MASHA needs a fence - not to scale
         ipf.add ("EWR:IAP-VORDME RWY 22L:PATRN");       // PATRN needs a fence - not to scale
+        ipf.add ("FLD:IAP-RNAV (GPS) RWY 36:TRIAD");    // TRIAD needs a fence - not to scale
         ipf.add ("FOT:IAP-VOR RWY 11:FOT[7");           // FOT[7 not to scale
         ipf.add ("GVT:IAP-RNAV (GPS) RWY 35:ROCKK");    // ROCKK needs a fence - not to scale
         ipf.add ("GVT:IAP-RNAV (GPS) RWY 35:SLR");      // SLR needs a fence - not to scale

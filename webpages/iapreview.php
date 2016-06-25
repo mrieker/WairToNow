@@ -495,8 +495,9 @@ END;
                 $lastcheck = trim (file_get_contents ("$datdir/lastcheck"));
                 $gooddb = OpenGoodDB ();
                 $missed = $gooddb->query ("SELECT icaoid_plate FROM LatLons WHERE lastcheck < $lastcheck");
-                if (!$missed) die ("<P>good.db SELECT error<P>");
+                if (!$missed) die ("<P>good.db SELECT error</P>");
                 $first = TRUE;
+                $lasticaoid = "";
                 while ($row = $missed->fetchArray (SQLITE3_ASSOC)) {
                     $icaoid_plate = $row['icaoid_plate'];
                     $parts  = explode (':', $icaoid_plate);
@@ -510,6 +511,16 @@ END;
                     if ($first) {
                         echo "<P><B>Missing plates:</B></P><UL>\n";
                         $first = FALSE;
+                    }
+                    if ($lasticaoid != $icaoid) {
+                        $lasticaoid = $icaoid;
+                        $whatwehave = $gooddb->query ("SELECT icaoid_plate FROM LatLons WHERE icaoid_plate>'$icaoid:' AND icaoid_plate<'$icaoid;' AND lastcheck >= $lastcheck");
+                        if (!$whatwehave) die ("<P>good.db SELECT error</P>");
+                        echo "<BR>\n";
+                        while ($rowhave = $whatwehave->fetchArray (SQLITE3_ASSOC)) {
+                            $have_icaoid_plate = $rowhave['icaoid_plate'];
+                            echo "have $have_icaoid_plate<BR>\n";
+                        }
                     }
                     echo "<SPAN ID=\"$icaoid_plate\"><LI><INPUT TYPE=BUTTON ONCLICK=\"popUp('$icaoid')\" VALUE=\"$icaoid\">$plate ";
                     echo "<INPUT TYPE=BUTTON VALUE=\"D'LEET\" ONCLICK=\"okToDel ('$icaoid_plate')\"></LI></SPAN>\n";

@@ -20,12 +20,7 @@
 
 package com.outerworldapps.wairtonow;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
-
+import android.annotation.SuppressLint;
 import android.content.pm.ActivityInfo;
 import android.util.Log;
 import android.view.View;
@@ -37,9 +32,16 @@ import android.widget.RadioGroup;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+
 /**
  * Display a menu to download database and charts.
  */
+@SuppressLint("ViewConstructor")
 public class OptionsView
         extends LinearLayout
         implements WairToNow.CanBeMainView {
@@ -49,8 +51,9 @@ public class OptionsView
     public  CheckOption  faaWPOption;
     public  CheckOption  gpsCompassOption;
     public  CheckOption  powerLockOption;
+    public  CheckOption  showNexrad;
+    public  CheckOption  showTraffic;
     public  CheckOption  userWPOption;
-    public  CheckOption  topoOption;
     public  CheckOption  typeBOption;
     public  DefAltOption ktsMphOption;
     public  DefAltOption magTrueOption;
@@ -69,6 +72,7 @@ public class OptionsView
     public final static int CTO_TRACKUP  = 2;
     public final static int CTO_FINGEROT = 3;
 
+    @SuppressLint("SetTextI18n")
     public OptionsView (WairToNow ctx)
     {
         super (ctx);
@@ -80,23 +84,24 @@ public class OptionsView
         wairToNow.SetTextSize (tv1);
         addView (tv1);
 
-        capGridOption     = new CheckOption  ("Show CAP grids",        false);
-        faaWPOption       = new CheckOption  ("Show FAA waypoints",    false);
-        userWPOption      = new CheckOption  ("Show User waypoints",   true);
-        topoOption        = new CheckOption  ("Show Topography",       false);
+        capGridOption     = new CheckOption  ("Show CAP grids",              false);
+        faaWPOption       = new CheckOption  ("Show FAA waypoints",          false);
+        userWPOption      = new CheckOption  ("Show User waypoints",         true);
         typeBOption       = new TypeBOption  ();
-        powerLockOption   = new CheckOption  ("Power Lock",            false);
-        gpsCompassOption  = new CheckOption  ("GPS status compass",    false);
+        powerLockOption   = new CheckOption  ("Power Lock",                  false);
+        gpsCompassOption  = new CheckOption  ("GPS status compass",          false);
+        showNexrad        = new CheckOption  ("Show ADS-B Nexrad (2D only)", false);
+        showTraffic       = new CheckOption  ("Show ADS-B Traffic",          false);
         magTrueOption     = new DefAltOption ("Magnetic", "True");
         listMapOption     = new DefAltOption ("Maint Plates List", "Maint Plates Map");
         ktsMphOption      = new DefAltOption ("Kts", "MPH");
 
         latLonOption      = new IntOption (
             new String[] {
-                "ddd" + (char)0xB0 + "mm.mmmm'",
                 "ddd" + (char)0xB0 + "mm'ss.ss\"",
+                "ddd" + (char)0xB0 + "mm.mmmm'",
                 "ddd.dddddd" + (char)0xB0 },
-            new int[] { LLO_DDMMMM, LLO_DDMMSS, LLO_DDDDDD });
+            new int[] { LLO_DDMMSS, LLO_DDMMMM, LLO_DDDDDD });
 
         chartOrientOption = new IntOption (
             new String[] {
@@ -126,8 +131,9 @@ public class OptionsView
         ll1.addView (capGridOption);
         ll1.addView (faaWPOption);
         ll1.addView (userWPOption);
-        ll1.addView (topoOption);
         ll1.addView (typeBOption);
+        ll1.addView (showNexrad);
+        ll1.addView (showTraffic);
         ll1.addView (powerLockOption);
         ll1.addView (gpsCompassOption);
         ll1.addView (chartOrientOption);
@@ -265,16 +271,17 @@ public class OptionsView
             try {
                 String csvline;
                 while ((csvline = csvreader.readLine ()) != null) {
-                    String[] csvtokens = Lib.QuotedCSVSplit (csvline);
-                    String name = csvtokens[0];
-                    String valu = csvtokens[1];
+                    int i = csvline.indexOf (',');
+                    String name = csvline.substring (0, i);
+                    String valu = csvline.substring (++ i);
                     if (name.equals ("capGrid"))     capGridOption.checkBox.setChecked    (valu.equals (boolTrue));
                     if (name.equals ("faaWPs"))      faaWPOption.checkBox.setChecked      (valu.equals (boolTrue));
                     if (name.equals ("userWPs"))     userWPOption.checkBox.setChecked     (valu.equals (boolTrue));
-                    if (name.equals ("topo"))        topoOption.checkBox.setChecked       (valu.equals (boolTrue));
                     if (name.equals ("typeB"))       typeBOption.checkBox.setChecked      (valu.equals (boolTrue));
                     if (name.equals ("powerLock"))   powerLockOption.checkBox.setChecked  (valu.equals (boolTrue));
                     if (name.equals ("gpsCompass"))  gpsCompassOption.checkBox.setChecked (valu.equals (boolTrue));
+                    if (name.equals ("showNexrad"))  showNexrad.checkBox.setChecked       (valu.equals (boolTrue));
+                    if (name.equals ("showTraffic")) showTraffic.checkBox.setChecked      (valu.equals (boolTrue));
                     if (name.equals ("chartOrient")) chartOrientOption.setKey (valu);
                     if (name.equals ("chartTrack"))  chartTrackOption.setKey  (valu);
                     if (name.equals ("magtrueAlt"))  magTrueOption.setAlt     (valu.equals (boolTrue));
@@ -302,10 +309,11 @@ public class OptionsView
                 csvwriter.write ("capGrid,"     + Boolean.toString (capGridOption.checkBox.isChecked ())    + "\n");
                 csvwriter.write ("faaWPs,"      + Boolean.toString (faaWPOption.checkBox.isChecked ())      + "\n");
                 csvwriter.write ("userWPs,"     + Boolean.toString (userWPOption.checkBox.isChecked ())     + "\n");
-                csvwriter.write ("topo,"        + Boolean.toString (topoOption.checkBox.isChecked ())       + "\n");
                 csvwriter.write ("typeB,"       + Boolean.toString (typeBOption.checkBox.isChecked ())      + "\n");
                 csvwriter.write ("powerLock,"   + Boolean.toString (powerLockOption.checkBox.isChecked ())  + "\n");
                 csvwriter.write ("gpsCompass,"  + Boolean.toString (gpsCompassOption.checkBox.isChecked ()) + "\n");
+                csvwriter.write ("showNexrad,"  + Boolean.toString (showNexrad.checkBox.isChecked ())       + "\n");
+                csvwriter.write ("showTraffic," + Boolean.toString (showTraffic.checkBox.isChecked ())      + "\n");
                 csvwriter.write ("chartOrient," + chartOrientOption.getKey ()                               + "\n");
                 csvwriter.write ("chartTrack,"  + chartTrackOption.getKey ()                                + "\n");
                 csvwriter.write ("magtrueAlt,"  + Boolean.toString (magTrueOption.getAlt ())                + "\n");
@@ -326,6 +334,18 @@ public class OptionsView
         return "Options";
     }
 
+    @Override  // CanBeMainView
+    public int GetOrientation ()
+    {
+        return ActivityInfo.SCREEN_ORIENTATION_USER;
+    }
+
+    @Override  // CanBeMainView
+    public boolean IsPowerLocked ()
+    {
+        return false;
+    }
+
     /**
      * What to show when the back button is pressed
      */
@@ -340,9 +360,7 @@ public class OptionsView
      */
     @Override  // WairToNow.CanBeMainView
     public void OpenDisplay ()
-    {
-        wairToNow.setRequestedOrientation (ActivityInfo.SCREEN_ORIENTATION_USER);
-    }
+    { }
 
     /**
      * This screen is no longer current so close bitmaps to conserve memory.
@@ -418,6 +436,7 @@ public class OptionsView
             RadioButton rbalt = new RadioButton (wairToNow);
             rbalt.setText (alt);
             wairToNow.SetTextSize (rbalt);
+            //noinspection ResourceType
             rbalt.setId (1);
             addView (rbalt);
 
@@ -432,6 +451,7 @@ public class OptionsView
         public void setAlt (boolean isalt)
         {
             selection = isalt ? 1 : 0;
+            //noinspection ResourceType
             check (selection);
         }
 

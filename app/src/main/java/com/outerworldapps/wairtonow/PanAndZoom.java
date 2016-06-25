@@ -51,7 +51,8 @@ public abstract class PanAndZoom implements ScaleGestureDetector.OnScaleGestureL
     public abstract void MouseDown (float x, float y);
 
     // called when mouse released
-    public abstract void MouseUp ();
+    //  x,y = absolute mouse position
+    public abstract void MouseUp (float x, float y);
 
     // called when panning
     //  x,y = absolute mouse position
@@ -112,7 +113,9 @@ public abstract class PanAndZoom implements ScaleGestureDetector.OnScaleGestureL
                 break;
             }
             case MotionEvent.ACTION_UP: {
-                MouseUp ();
+                float x = event.getX ();
+                float y = event.getY ();
+                MouseUp (x, y);
                 break;
             }
         }
