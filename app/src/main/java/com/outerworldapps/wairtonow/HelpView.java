@@ -117,5 +117,24 @@ public class HelpView extends WebView
                 return -1;
             }
         }
+
+        @SuppressWarnings ("unused")
+        public String getGitHashCode ()
+        {
+            return BuildConfig.GitHash.substring (0, 7);
+        }
+
+        @SuppressWarnings ("unused")
+        public boolean getGitDirtyFlag ()
+        {
+            String status = BuildConfig.GitStatus;
+            String[] lines = status.split ("\n");
+            for (String line : lines) {
+                if (line.contains ("modified:") && !line.contains ("app.iml")) {
+                    return true;
+                }
+            }
+            return false;
+        }
     }
 }

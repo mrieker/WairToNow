@@ -39,8 +39,6 @@ int main ()
 
     while (fgets (line, sizeof line, stdin) != NULL) {
         sscanf (line, "%lf %lf %d", &lon, &lat, &elev);
-        ilon = ((int) (lon * 32768 / 180.0)) & 65535;
-        ilat = ((int) (lat * 32768 /  90.0)) & 65535;
         ilon = (int) ((lon + 180.0) * 60.0 + 0.5);
         ilat = (int) ((lat +  90.0) * 60.0 + 0.5);
         if ((ilat >= 0) && (ilat < 180*60)) {
@@ -71,13 +69,8 @@ int main ()
             for (jlatmin = 0; jlatmin < 60; jlatmin ++) {
                 lat  = jlatdeg + jlatmin / 60.0;
                 lon  = jlondeg;
-
-                ilat = ((int) (lat * 32768 /  90.0)) & 65535;
-                ilon = ((int) (lon * 32768 / 180.0)) & 65535;
-
                 ilat = (int) ((lat +  90.0) * 60.0 + 0.5);
                 ilon = (int) ((lon + 180.0) * 60.0 + 0.5);
-
                 fwrite (&elevs[ilat*360*60+ilon], sizeof *elevs, 60, binfile);
             }
             fclose (binfile);

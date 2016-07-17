@@ -402,7 +402,7 @@ END;
                     echo "</FORM>\n";
                 }
                 echo <<<END
-                    <IMG SRC="$pngdir/$pngname">
+                    <IMG SRC="$pngdir/$pngname" WIDTH=1075 HEIGHT=1650>
                     <PRE>$dplog</PRE>
 END;
             } else {

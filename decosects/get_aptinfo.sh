@@ -56,17 +56,6 @@ then
     cc -Wall -O2 -g -o cureffdate cureffdate.c
 fi
 
-if [ ! -f jsoup-1.8.3.jar ]
-then
-    wget http://jsoup.org/packages/jsoup-1.8.3.jar
-fi
-
-if [ ParseAirportHtml.class -ot ParseAirportHtml.java ]
-then
-    rm -f ParseAirportHtml*.class
-    CLASSPATH=.:jsoup-1.8.3.jar javac ParseAirportHtml.java Lib.java
-fi
-
 if [ GetAirportIDs.exe -ot GetAirportIDs.cs ]
 then
     mcs -debug -out:GetAirportIDs.exe GetAirportIDs.cs

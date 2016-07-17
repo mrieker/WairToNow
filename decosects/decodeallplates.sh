@@ -56,6 +56,8 @@ function processdiagrams
             fi
         fi
     done
+    sort $csvoutfile > $csvoutfile.tmp
+    mv -f $csvoutfile.tmp $csvoutfile
 }
 
 #

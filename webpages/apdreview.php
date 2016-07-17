@@ -33,6 +33,10 @@
     </HEAD>
     <BODY>
         <?php
+
+            /*
+             * Check for callback link to display single marked-up diagram.
+             */
             if (!empty ($_GET['icaoid'])) {
                 $icaoid  = $_GET['icaoid'];
                 echo "<H3> Marked up $icaoid Airport Diagram </H3>\n";
@@ -50,7 +54,7 @@
                         @flush (); @ob_flush (); @flush ();
                     }
                     fclose ($cvtfile);
-                    echo "</PRE><P><IMG SRC=\"apdreview/$icaoid.markd.png\"></P>\n";
+                    echo "</PRE><P><IMG SRC=\"apdreview/$icaoid.markd.png\" WIDTH=1075 HEIGHT=1650></P>\n";
                 }
                 exit;
             }
@@ -84,6 +88,7 @@
             ksort ($allstates);
 
             foreach ($allstates as $state) {
+                echo "<P>State $state</P>\n";
                 $difffile = popen ("mono --debug ../decosects/DiffArptDgmCsvs.exe datums/$apdgeorefs_latest/$state datums/$apdgeorefs_older/$state", "r");
                 if (!$difffile) {
                     echo "<P>error starting ../decosects/DiffArptDgmCsvs.exe</P>";

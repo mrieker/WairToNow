@@ -467,6 +467,7 @@ public class ReadArptDgmPng {
          */
         notsquare["KHLR"] = 1.094;
         notsquare["KNYG"] = 0.664;
+        notsquare["PADQ"] = 0.944;
 
         /*
          * Some charts just have one latitude or longitude line.

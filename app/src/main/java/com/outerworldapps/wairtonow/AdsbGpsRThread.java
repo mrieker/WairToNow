@@ -439,7 +439,7 @@ public class AdsbGpsRThread extends Thread implements Reporter {
     private void redrawChart ()
     {
         try {
-            wairToNow.chartView.backing.getView ().postInvalidate ();
+            wairToNow.currentTabButton.postInvalidate ();
         } catch (NullPointerException npe) {
             Lib.Ignored ();
         }

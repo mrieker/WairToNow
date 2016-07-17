@@ -1,4 +1,24 @@
-apply plugin: 'android'
+apply plugin: 'com.android.application'
+
+// http://stackoverflow.com/questions/28498688/gradle-script-to-autoversion-and-include-the-commit-hash-in-android
+def getGitHash = { ->
+    def stdout = new ByteArrayOutputStream()
+    exec {
+        commandLine 'git', 'rev-parse', 'HEAD'
+        standardOutput = stdout
+    }
+    return stdout.toString().trim()
+}
+
+def getGitStatus = { ->
+    def stdout = new ByteArrayOutputStream()
+    exec {
+        commandLine 'git', 'status'
+        standardOutput = stdout
+    }
+    return stdout.toString().trim().replace('\\','\\\\').replace('\n','\\n').replace('"','\\"')
+}
+
 android {
     compileSdkVersion 8
     buildToolsVersion "19.1.0"
@@ -6,6 +26,8 @@ android {
     defaultConfig {
         minSdkVersion 8
         targetSdkVersion 8
+        buildConfigField "String", "GitHash", "\"${getGitHash()}\""
+        buildConfigField "String", "GitStatus", "\"${getGitStatus()}\""
     }
 
     compileOptions {
@@ -17,4 +39,5 @@ android {
 dependencies {
     compile 'com.android.support:support-annotations:22.2.0'
     compile 'com.android.support:support-annotations:24.0.0-alpha1'
+    compile 'ch.acra:acra:4.8.5'
 }

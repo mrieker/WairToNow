@@ -329,7 +329,7 @@ public class GetAirportIDs {
             infofile.WriteLine ("apt = [];");
             foreach (String key in apt.nvp.Keys) {
                 String val = apt.nvp[key];
-                infofile.WriteLine ("apt['" + key + "'] = " + QuotedString (val, '\'') + ";");
+                infofile.WriteLine ("apt[" + QuotedString (key, '\'') + "] = " + QuotedString (val, '\'') + ";");
             }
             infofile.WriteLine ("rwps = [];");
             foreach (String key in apt.rwps.Keys) {

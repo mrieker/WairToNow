@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-
 	<string name="app_name">WairToNow</string>
-
+	<string name="crash_toast_text">Sorry the app is crashing.  Please restart it.</string>
 </resources>

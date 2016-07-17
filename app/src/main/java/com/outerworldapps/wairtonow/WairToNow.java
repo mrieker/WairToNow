@@ -55,8 +55,9 @@ import java.util.Map;
 
 public class WairToNow extends Activity {
     private final static String TAG = "WairToNow";
-    public final static long gpsDownDelay = 4000;
-    public final static float gpsMinSpeedMPS = 3.0F;
+    public final static long agreePeriod = 60 * 24 * 60 * 60 * 1000L;  // agree every this often
+    public final static long gpsDownDelay = 4000;     // gps down this long for blink warning
+    public final static float gpsMinSpeedMPS = 3.0F;  // must be going this fast for heading valid
 
     public static String dbdir;
     public static WTNHandler wtnHandler;
@@ -355,8 +356,6 @@ public class WairToNow extends Activity {
         setContentView (tabViewLayout);
         tabsVisible = prefs.getBoolean ("tabVisibility", true);
 
-        maintView.ExpdateCheck ();
-
         UpdateTabVisibilities ();
 
         chartButton.DisplayNewTab ();
@@ -651,7 +650,7 @@ public class WairToNow extends Activity {
             SharedPreferences prefs = getPreferences (Activity.MODE_PRIVATE);
             long now = System.currentTimeMillis ();
             long agreed = prefs.getLong ("hasAgreed", 0);
-            if (now - agreed < 30 * 24 * 60 * 60 * 1000L) {
+            if (now - agreed < agreePeriod) {
                 HasAgreed ();
             } else {
                 agreeButton.setVisibility (View.VISIBLE);
@@ -684,6 +683,9 @@ public class WairToNow extends Activity {
             adb.setNegativeButton ("Not Now", null);
             adb.show ();
         }
+
+        // maybe show alert box for expired charts
+        maintView.ExpdateCheck ();
     }
 
     /**

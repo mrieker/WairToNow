@@ -101,6 +101,7 @@ public class MaintView
     private Category secCategory;
     private Category tacCategory;
     private Category wacCategory;
+    private CheckExpdateThread checkExpdateThread;
     private DownloadButton downloadButton;
     private DownloadThread downloadThread;
     private Handler maintViewHandler;
@@ -316,8 +317,10 @@ public class MaintView
     public void ExpdateCheck ()
     {
         UpdateAllButtonColors ();
-        CheckExpdateThread th = new CheckExpdateThread ();
-        th.start ();
+        if (checkExpdateThread == null) {
+            checkExpdateThread = new CheckExpdateThread ();
+            checkExpdateThread.start ();
+        }
     }
 
     /**
@@ -402,6 +405,11 @@ public class MaintView
                         }
                     }
                 });
+
+                /*
+                 * Webserver accessible, maybe there are ACRA reports to send on.
+                 */
+                AcraApplication.sendReports (wairToNow);
             } catch (IOException ioe) {
                 Log.i (TAG, "error probing " + dldir, ioe);
             } finally {
@@ -614,6 +622,7 @@ public class MaintView
                 break;
             }
             case MaintViewHandlerWhat_EXPDATECHECK: {
+                checkExpdateThread = null;
                 ExpdateCheck ();
                 break;
             }

@@ -1,6 +1,8 @@
 <HTML>
     <BODY>
-        <H2>WairToNow, version <SCRIPT LANGUAGE=JAVASCRIPT>document.write (hvjso.getVersionName ())</SCRIPT></H2>
+        <H2>WairToNow, version <SCRIPT LANGUAGE=JAVASCRIPT>document.write (hvjso.getVersionName () +
+                ' [' + hvjso.getGitHashCode () + (hvjso.getGitDirtyFlag () ? ' (dirty)' : '') +
+                ']')</SCRIPT></H2>
         <H3>... an aviation oriented map program from <A HREF="http://www.outerworldapps.com">Outer World Apps</A>.</H3>
 
         <P>The buttons at the bottom of the screen select the page to display:</P>
