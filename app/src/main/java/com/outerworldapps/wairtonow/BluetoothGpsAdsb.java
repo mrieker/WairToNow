@@ -21,6 +21,7 @@
 package com.outerworldapps.wairtonow;
 
 import android.annotation.SuppressLint;
+import android.app.AlertDialog;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
@@ -31,7 +32,6 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.os.ParcelUuid;
-import android.os.SystemClock;
 import android.support.annotation.NonNull;
 import android.util.Log;
 import android.view.View;
@@ -44,7 +44,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 
@@ -67,7 +66,6 @@ public class BluetoothGpsAdsb extends GpsAdsbReceiver {
     private BluetoothDevice btDevice;
     private BluetoothDevice[] btDeviceArray;
     private boolean btShowErrorAlerts;
-    private boolean sdpComplete;
     private volatile boolean closing;
     private volatile boolean pktReceivedQueued;
     private boolean displayOpen;
@@ -76,14 +74,15 @@ public class BluetoothGpsAdsb extends GpsAdsbReceiver {
     private CheckBox btAdsbSecure;
     private CheckBox btSendInit;
     private InputStream btIStream;
-    private int btAdsbLastStatus;
     private LinearLayout linearLayout;
-    private final Object waitForSDPLock = new Object ();
     private OutputStream btOStream;
+    private ParcelUuid[] btUUIDArray;
     private SendInitThread sendInitThread;
     private String prefKey;
     private TextArraySpinner btAdsbDevice;
+    private TextArraySpinner btAdsbUUID;
     private TextView btAdsbStatus;
+    private UUID btUUID;
 
     @SuppressLint("SetTextI18n")
     public BluetoothGpsAdsb (SensorsView sv, int n)
@@ -94,6 +93,7 @@ public class BluetoothGpsAdsb extends GpsAdsbReceiver {
 
         btAdsbEnable = new CheckBox (wairToNow);
         btAdsbDevice = new TextArraySpinner (wairToNow);
+        btAdsbUUID   = new TextArraySpinner (wairToNow);
         btAdsbSecure = new CheckBox (wairToNow);
         btSendInit   = new CheckBox (wairToNow);
         btAdsbStatus = new TextView (wairToNow);
@@ -104,6 +104,7 @@ public class BluetoothGpsAdsb extends GpsAdsbReceiver {
 
         wairToNow.SetTextSize (btAdsbEnable);
         wairToNow.SetTextSize (btAdsbDevice);
+        wairToNow.SetTextSize (btAdsbUUID);
         wairToNow.SetTextSize (btAdsbSecure);
         wairToNow.SetTextSize (btSendInit);
         wairToNow.SetTextSize (btAdsbStatus);
@@ -112,6 +113,7 @@ public class BluetoothGpsAdsb extends GpsAdsbReceiver {
         linearLayout.setOrientation (LinearLayout.VERTICAL);
         linearLayout.addView (btAdsbEnable);
         linearLayout.addView (btAdsbDevice);
+        linearLayout.addView (btAdsbUUID);
         linearLayout.addView (btAdsbSecure);
         linearLayout.addView (btSendInit);
         linearLayout.addView (btAdsbStatus);
@@ -170,37 +172,53 @@ public class BluetoothGpsAdsb extends GpsAdsbReceiver {
                 if (btIdentString (dev).equals (devident)) {
 
                     /*
-                     * Set selection/checkboxes just as if user did it manually.
+                     * Set device selection box just as if user did it manually.
                      */
-                    btAdsbSecure.setChecked (secure);
-                    btSendInit.setChecked (sendini);
                     btAdsbDevice.setIndex (i);
-                    btAdsbEnable.setChecked (true);
-                    getButton ().setRingColor (Color.GREEN);
-                    getLogFromPreferences (prefs);
 
                     /*
-                     * Disable changing device name and secure mode while running.
+                     * Look for UUID selected by preferences.
                      */
-                    btAdsbDevice.setEnabled (false);
-                    btAdsbSecure.setEnabled (false);
-                    btSendInit.setEnabled (false);
-                    setLogChangeEnable (false);
+                    String[] uuids = populateBtUUIDArray (dev);
+                    String devuuid = prefs.getString  ("bluetoothRcvrUUID_"   + devident, SPPUUID);
+                    for (int j = uuids.length; -- j >= 0;) {
+                        if (uuids[j].equals (devuuid)) {
 
-                    /*
-                     * Fork a thread to open and read from the connection.
-                     */
-                    btShowErrorAlerts = true;
-                    btAdsbLastStatus = DISCONNECTED;
-                    btDevice = dev;
-                    closing = false;
-                    btIStream = null;
-                    btOStream = null;
-                    adsbContext = new AdsbGpsRThread (receiverStream, wairToNow);
-                    adsbContext.setName (getPrefKey ());
-                    adsbContext.startRecording (createLogFile ());
-                    adsbContext.start ();
-                    return;
+                            /*
+                             * Set remainder of selection/checkboxes just as if user did it manually.
+                             */
+                            btAdsbUUID.setIndex (j);
+                            btAdsbSecure.setChecked (secure);
+                            btSendInit.setChecked (sendini);
+                            btAdsbEnable.setChecked (true);
+                            getButton ().setRingColor (Color.GREEN);
+                            getLogFromPreferences (prefs);
+
+                            /*
+                             * Disable changing device name and secure mode while running.
+                             */
+                            btAdsbDevice.setEnabled (false);
+                            btAdsbUUID.setEnabled (false);
+                            btAdsbSecure.setEnabled (false);
+                            btSendInit.setEnabled (false);
+                            setLogChangeEnable (false);
+
+                            /*
+                             * Fork a thread to open and read from the connection.
+                            */
+                            btShowErrorAlerts = true;
+                            btDevice    = dev;
+                            btUUID      = UUID.fromString (devuuid);
+                            closing     = false;
+                            btIStream   = null;
+                            btOStream   = null;
+                            adsbContext = new AdsbGpsRThread (receiverStream, wairToNow);
+                            adsbContext.setName (getPrefKey ());
+                            adsbContext.startRecording (createLogFile ());
+                            adsbContext.start ();
+                            return;
+                        }
+                    }
                 }
             }
 
@@ -239,7 +257,7 @@ public class BluetoothGpsAdsb extends GpsAdsbReceiver {
     }
 
     /**
-     * Set up spinner that selects which bluetooth device they want.
+     * Set up spinner that selects which bluetooth device and UUID they want.
      */
     private void btAdsbSetup ()
     {
@@ -260,18 +278,64 @@ public class BluetoothGpsAdsb extends GpsAdsbReceiver {
             public boolean onItemSelected (View view, int i) {
                 BluetoothDevice dev = btDeviceArray[i];
                 String devident = btIdentString (dev);
+
+                // set secure and send-gdl-90 checkboxes from preferences for this device
                 SharedPreferences prefs = wairToNow.getPreferences (Context.MODE_PRIVATE);
                 boolean secure = prefs.getBoolean ("bluetoothRcvrSecure_" + devident, false);
                 boolean sendini = prefs.getBoolean ("bluetoothSendGdlIni_" + devident, false);
                 btAdsbSecure.setChecked (secure);
                 btSendInit.setChecked (sendini);
-                return true;  // set new index and change legend on button
+
+                // select UUID from preferences if so defined
+                // if not, select the serial port UUID if the device supports it
+                btAdsbUUID.setIndex (TextArraySpinner.NOTHING);
+                final String uuid = prefs.getString ("bluetoothRcvrUUID_" + devident, SPPUUID);
+                String[] uuids = populateBtUUIDArray (dev);
+                for (i = 0; i < uuids.length; i ++) {
+                    if (uuids[i].equals (uuid)) {
+                        btAdsbUUID.setIndex (i);
+                        break;
+                    }
+                }
+
+                // set new index and change legend on button
+                return true;
             }
 
             @Override
             public boolean onPositiveClicked (View view) {
                 btAdsbDeviceRefresh ();
                 return false;  // leave button alone; btAdsbDeviceRefresh() handled any changes
+            }
+
+            @Override
+            public boolean onNegativeClicked (View view) {
+                return false;  // cancel, don't change the index or the button
+            }
+        });
+
+        btUUIDArray = new ParcelUuid[0];
+        btAdsbUUID.setTitle ("Select Bluetooth UUID to connect to");
+        btAdsbUUID.setLabels (new String[0], "Cancel", "(select)", "Refresh");
+        btAdsbUUID.setIndex (TextArraySpinner.NOTHING);
+
+        btAdsbUUID.setOnClickListener (new View.OnClickListener () {
+            @Override
+            public void onClick (View view) {
+                btAdsbUUIDClicked ();
+            }
+        });
+
+        btAdsbUUID.setOnItemSelectedListener (new TextArraySpinner.OnItemSelectedListener () {
+            @Override
+            public boolean onItemSelected (View view, int i) {
+                return true;  // set new index and change legend on button
+            }
+
+            @Override
+            public boolean onPositiveClicked (View view) {
+                btAdsbUUIDRefresh ();
+                return false;  // leave button alone; btAdsbUUIDRefresh() handled any changes
             }
 
             @Override
@@ -289,16 +353,15 @@ public class BluetoothGpsAdsb extends GpsAdsbReceiver {
     }
 
     /**
-     * Clicked on the GPS/ADS-B bluetooth selection button.
+     * Clicked on the GPS/ADS-B bluetooth device selection button.
      * If the device list is not populated, try to populate it.
      */
     private void btAdsbDeviceClicked ()
     {
         if (btDeviceArray.length == 0) {
-            WairToNow.wtnHandler.runDelayed (0, new Runnable () {
+            wairToNow.runOnUiThread (new Runnable () {
                 @Override
-                public void run ()
-                {
+                public void run () {
                     // clear existing dialog from screen
                     btAdsbDevice.setEnabled (false);
                     btAdsbDevice.setEnabled (true);
@@ -381,6 +444,209 @@ public class BluetoothGpsAdsb extends GpsAdsbReceiver {
     }
 
     /**
+     * Clicked on the GPS/ADS-B bluetooth UUID selection button.
+     * If the UUID list is not populated, try to populate it.
+     */
+    private void btAdsbUUIDClicked ()
+    {
+        if (btUUIDArray.length == 0) {
+            wairToNow.runOnUiThread (new Runnable () {
+                @Override
+                public void run ()
+                {
+                    // clear existing dialog from screen
+                    btAdsbUUID.setEnabled (false);
+                    btAdsbUUID.setEnabled (true);
+                    // populate the list and re-open dialog
+                    btAdsbUUIDRefresh ();
+                }
+            });
+        }
+    }
+
+    /**
+     * Clicked on GPS/ADS-B bluetooth UUID refresh button.
+     * Query device then rebuild list of available bluetooth UUIDs they can pick from.
+     */
+    private void btAdsbUUIDRefresh ()
+    {
+        // set spinner to indicate nothing selected
+        // cuz we are about to rebuild the selection list
+        btAdsbUUID.setIndex (TextArraySpinner.NOTHING);
+
+        // see which device they have selected
+        int devindex = btAdsbDevice.getIndex ();
+        if (devindex < 0) {
+            errorMessage ("no device selected");
+        } else {
+
+            // query that device for UUIDs
+            final BluetoothDevice btdev = btDeviceArray[devindex];
+            new RefreshBtUUIDArray (btdev) {
+                @Override
+                public void finished () {
+                    // write UUID list to button tops
+                    populateBtUUIDArray (btdev);
+
+                    // re-open the spinner so they can pick an UUID
+                    btAdsbUUID.onClick (null);
+                }
+            };
+        }
+    }
+
+    /**
+     * Scan device for all UUIDs it advertises.
+     * Android will remember the list, returnable by BluetoothDevice.getUuids().
+     */
+    private abstract class RefreshBtUUIDArray extends BroadcastReceiver implements Runnable {
+        private AlertDialog pleaseWait;
+        private boolean sdpComplete;
+        private Class<? extends BluetoothDevice> btDevClass;
+        private String btdevname;
+
+        public abstract void finished ();
+
+        public RefreshBtUUIDArray (BluetoothDevice btdev)
+        {
+            /*
+             * Update local cache of UUIDs supported by the device.
+             * It sometimes get stuck with out-of-date information.
+             */
+            btdevname = btIdentString (btdev);
+            btDevClass = btdev.getClass ();
+            try {
+                Method fuws = btDevClass.getMethod ("fetchUuidsWithSdp");
+                wairToNow.registerReceiver (this, new IntentFilter ("android.bluetooth.device.action.UUID"));
+
+                boolean rc = (Boolean) fuws.invoke (btdev);
+                Log.d (TAG, "BluetoothGpsAdsb: fetchUuidsWithSdp " + btdevname + ": " + rc);
+                if (rc) {
+                    AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
+                    adb.setTitle ("Scanning " + btdevname + " for UUIDs");
+                    adb.setMessage ("...please wait");
+                    adb.setCancelable (false);
+                    pleaseWait = adb.show ();
+
+                    // normally takes 2-5 sec so give it 20 sec
+                    WairToNow.wtnHandler.runDelayed (20000, this);
+                    return;
+                }
+            } catch (Exception e) {
+                Log.w (TAG, "error calling fetchUuidsWithSdp() for " + btdevname, e);
+            }
+            continuing ();
+        }
+
+        /**
+         * Receiver that listens for completion of fetchUuidsWithSdp() call,
+         * indicating that we now have an updated list of UUIDs supported
+         * by the device.
+         *
+         * Apparently requires android.permission.BLUETOOTH_ADMIN,
+         * even though fetchUuidsWithSdp() returns true without it.
+         */
+        @Override  // BroadcastReceiver
+        public void onReceive (Context context, Intent intent)
+        {
+            String action = intent.getAction ();
+            Log.d (TAG, "BluetoothGpsAdsb: received action " + action);
+            if (action.equals ("android.bluetooth.device.action.UUID") && !sdpComplete) {
+                BluetoothDevice bd = intent.getParcelableExtra (BluetoothDevice.EXTRA_DEVICE);
+                String bdid = btIdentString (bd);
+                Log.d (TAG, "BluetoothGpsAdsb: device ident " + bdid);
+                if (bdid.equals (btdevname)) {
+                    continuing ();
+                }
+            }
+        }
+
+        // waited too long for list of UUIDs supported by device
+        @Override  // Runnable
+        public void run () {
+            if (!sdpComplete) {
+                Log.d (TAG, "BluetoothGpsAdsb: fetchUuidsWithSdp " + btdevname + " timed out");
+                continuing ();
+            }
+        }
+
+        // received new list of UUIDs or not...
+        private void continuing ()
+        {
+            wairToNow.unregisterReceiver (this);
+            if (pleaseWait != null) {
+                pleaseWait.dismiss ();
+                pleaseWait = null;
+            }
+            Log.d (TAG, "BluetoothGpsAdsb: continuing...");
+
+            sdpComplete = true;
+            finished ();
+        }
+    }
+
+    /**
+     * Set up array of UUIDs that the device supports.
+     */
+    private String[] populateBtUUIDArray (BluetoothDevice btdev)
+    {
+        /*
+         * Get cached list of UUIDs known for the device.
+         * This works if the device is currently paired,
+         * it does not matter if it is in radio range or not.
+         */
+        String btdevname = btIdentString (btdev);
+        Class<? extends BluetoothDevice> btDevClass = btdev.getClass ();
+        btUUIDArray = null;
+        try {
+            Method gum = btDevClass.getMethod ("getUuids");
+            btUUIDArray = (ParcelUuid[]) gum.invoke (btdev);
+        } catch (Exception e) {
+            Log.w (TAG, "exception calling getUuids() for " + btdevname, e);
+        }
+
+        /*
+         * If no cache, use the default SPPUUID.
+         */
+        if ((btUUIDArray == null) || (btUUIDArray.length == 0)) {
+            Log.w (TAG, "bt device " + btdevname + " has no uuids");
+            btUUIDArray = new ParcelUuid[] { ParcelUuid.fromString (SPPUUID) };
+        }
+
+        /*
+         * Set that list up as selections on the spinner button.
+         * Mark the default SPPUUID with brackets.
+         */
+        int nuuids = btUUIDArray.length;
+        String[] uuids = new String[nuuids];
+        String[] uuidsWithDef = new String[nuuids];
+        int i = 0;
+        int defi = TextArraySpinner.NOTHING;
+        for (ParcelUuid uuid : btUUIDArray) {
+            String uuidstr = uuid.toString ();
+            uuids[i] = uuidstr;
+            if (uuidstr.equals (SPPUUID)) {
+                uuidstr = "<" + SPPUUID + ">";
+                defi = i;
+            }
+            uuidsWithDef[i] = uuidstr;
+            i ++;
+        }
+
+        /*
+         * Write the uuids to the buttons including <> around default.
+         */
+        btAdsbUUID.setTitle ("Select UUID for " + btdevname);
+        btAdsbUUID.setLabels (uuidsWithDef, "Cancel", "(select)", "Refresh");
+        btAdsbUUID.setIndex (defi);
+
+        /*
+         * Return strings without <> around default.
+         */
+        return uuids;
+    }
+
+    /**
      * User just clicked GPS/ADS-B bluetooth enable checkbox.
      * Turn bluetooth GPS/ADS-B on and off.
      */
@@ -390,40 +656,49 @@ public class BluetoothGpsAdsb extends GpsAdsbReceiver {
             getButton ().setRingColor (Color.GREEN);
 
             /*
-             * Get selected bluetooth device.
+             * Get selected bluetooth device and UUID.
              */
-            int index = btAdsbDevice.getIndex ();
-            if (index < 0) {
+            int devindex = btAdsbDevice.getIndex ();
+            if (devindex < 0) {
                 btAdsbEnable.setChecked (false);
                 getButton ().setRingColor (Color.TRANSPARENT);
                 errorMessage ("No device selected");
             } else {
+                int uuidindex = btAdsbUUID.getIndex ();
+                if (uuidindex < 0) {
+                    btAdsbEnable.setChecked (false);
+                    getButton ().setRingColor (Color.TRANSPARENT);
+                    errorMessage ("No UUID selected");
+                } else {
 
-                /*
-                 * Block changing device and secure mode.
-                 */
-                btAdsbDevice.setEnabled (false);
-                btAdsbSecure.setEnabled (false);
-                btSendInit.setEnabled (false);
+                    /*
+                     * Block changing device, UUID, send-gdl90-inits and secure mode.
+                     */
+                    btAdsbDevice.setEnabled (false);
+                    btAdsbUUID.setEnabled (false);
+                    btAdsbSecure.setEnabled (false);
+                    btSendInit.setEnabled (false);
 
-                /*
-                 * Write to preferences so we remember it.
-                 */
-                BluetoothDevice dev = btDeviceArray[index];
-                SharedPreferences prefs = wairToNow.getPreferences (Context.MODE_PRIVATE);
-                SharedPreferences.Editor editr = prefs.edit ();
-                editr.putBoolean ("selectedGPSReceiverKey_" + prefKey, true);
-                String devident = btIdentString (dev);
-                editr.putString (prefKey + "ReceiverDev", devident);
-                editr.putBoolean ("bluetoothRcvrSecure_" + devident, btAdsbSecure.isChecked ());
-                editr.putBoolean ("bluetoothSendGdlIni_" + devident, btSendInit.isChecked ());
-                putLogToPreferences (editr);
-                editr.commit ();
+                    /*
+                     * Write to preferences so we remember it.
+                     */
+                    BluetoothDevice dev = btDeviceArray[devindex];
+                    SharedPreferences prefs = wairToNow.getPreferences (Context.MODE_PRIVATE);
+                    SharedPreferences.Editor editr = prefs.edit ();
+                    editr.putBoolean ("selectedGPSReceiverKey_" + prefKey, true);
+                    String devident = btIdentString (dev);
+                    editr.putString  (prefKey + "ReceiverDev", devident);
+                    editr.putString  ("bluetoothRcvrUUID_"   + devident, btUUIDArray[uuidindex].toString ());
+                    editr.putBoolean ("bluetoothRcvrSecure_" + devident, btAdsbSecure.isChecked ());
+                    editr.putBoolean ("bluetoothSendGdlIni_" + devident, btSendInit.isChecked ());
+                    putLogToPreferences (editr);
+                    editr.commit ();
 
-                /*
-                 * Start this one going.
-                 */
-                startSensor ();
+                    /*
+                     * Start this one going.
+                     */
+                    startSensor ();
+                }
             }
         } else {
             getButton ().setRingColor (Color.TRANSPARENT);
@@ -445,6 +720,7 @@ public class BluetoothGpsAdsb extends GpsAdsbReceiver {
              * Allow changing device and secure mode.
              */
             btAdsbDevice.setEnabled (true);
+            btAdsbUUID.setEnabled (true);
             btAdsbSecure.setEnabled (true);
             btSendInit.setEnabled (true);
             setLogChangeEnable (true);
@@ -512,8 +788,7 @@ public class BluetoothGpsAdsb extends GpsAdsbReceiver {
             }
         }
 
-        // save status and display string
-        btAdsbLastStatus = status;
+        // display string
         btAdsbStatus.setText (stmsg);
     }
 
@@ -522,13 +797,16 @@ public class BluetoothGpsAdsb extends GpsAdsbReceiver {
      * Update the on-screen text to show updated byte count.
      */
     private final Runnable adsbPacketReceivedUI = new Runnable () {
+        @SuppressLint("SetTextI18n")
         @Override
         public void run ()
         {
             pktReceivedQueued = false;
-            if (btAdsbLastStatus == CONNECTED) {
+            if (adsbContext != null) {
                 String text = adsbContext.getConnectStatusText ("Connected");
                 btAdsbStatus.setText (text);
+            } else {
+                btAdsbStatus.setText ("Shutdown");
             }
         }
     };
@@ -595,76 +873,8 @@ public class BluetoothGpsAdsb extends GpsAdsbReceiver {
     {
         adsbStatusChangedRT (CONNECTING, "");
 
-        /*
-         * Update local cache of UUIDs supported by the device.
-         * It sometimes get stuck with out-of-date information.
-         */
         String btDevName = btIdentString (btDevice);
-        Class<? extends BluetoothDevice> btDevClass = btDevice.getClass ();
-        try {
-            Method fuws = btDevClass.getMethod ("fetchUuidsWithSdp");
-            ReceiveSDPComplete rsc = new ReceiveSDPComplete ();
-            wairToNow.registerReceiver (rsc, new IntentFilter ("android.bluetooth.device.action.UUID"));
-            try {
-                sdpComplete = false;
-                boolean rc = (Boolean) fuws.invoke (btDevice);
-                Log.d (TAG, "BluetoothGpsAdsb: fetchUuidsWithSdp " + btDevName + ": " + rc);
-                if (rc) {
-                    synchronized (waitForSDPLock) {
-                        long doneby = SystemClock.uptimeMillis () + 20000;  // normally takes 2-5 sec
-                        while (!sdpComplete) {
-                            long delta = doneby - SystemClock.uptimeMillis ();
-                            Log.d (TAG, "BluetoothGpsAdsb: waiting for sdp complete " + delta);
-                            if (delta <= 0) break;
-                            waitForSDPLock.wait (delta);
-                        }
-                    }
-                }
-            } finally {
-                wairToNow.unregisterReceiver (rsc);
-            }
-            Log.d (TAG, "BluetoothGpsAdsb: continuing...");
-        } catch (Exception e) {
-            Log.w (TAG, "error calling fetchUuidsWithSdp() for " + btDevName, e);
-        }
-
-        /*
-         * Try to figure out what UUID to use when connecting.
-         * 1) query device with getUuids() and take first non-zero UUID
-         *    but use SPPUUID instead if device supports SPPUUID
-         * 2) if that fails for whatever reason, use SPPUUID
-         */
-        ParcelUuid[] uuids = null;
-        try {
-            Method gum = btDevClass.getMethod ("getUuids");
-            uuids = (ParcelUuid[]) gum.invoke (btDevice);
-            if (uuids == null) {
-                Log.w (TAG, "bt device " + btDevName + " has no uuids");
-            }
-        } catch (Exception e) {
-            Log.w (TAG, "exception calling getUuids() for " + btDevName, e);
-        }
-        boolean providesSpp = false;
-        UUID useUuid = null;
-        if (uuids != null) {
-            Log.i (TAG, "bt device " + btDevName + " has " + uuids.length + " uuids");
-            for (ParcelUuid uuid : uuids) {
-                Log.i (TAG, " - " + uuid.toString ());
-                if (useUuid == null) {
-                    String uuidstr = uuid.toString ().toLowerCase (Locale.US);
-                    if (!uuidstr.equals ("00000000-0000-0000-0000-000000000000")) {
-                        useUuid = uuid.getUuid ();
-                    }
-                    if (uuidstr.equals (SPPUUID)) {
-                        providesSpp = true;
-                    }
-                }
-            }
-        }
-        if ((useUuid == null) || providesSpp) {
-            useUuid = UUID.fromString (SPPUUID);
-        }
-        Log.i (TAG, "using UUID " + useUuid.toString () + " for " + btDevName);
+        Log.i (TAG, "using UUID " + btUUID.toString () + " for " + btDevName);
 
         try {
 
@@ -685,13 +895,14 @@ public class BluetoothGpsAdsb extends GpsAdsbReceiver {
              */
             BluetoothSocket socket;
             if (btAdsbSecure.isChecked ()) {
-                socket = btDevice.createRfcommSocketToServiceRecord (useUuid);
+                socket = btDevice.createRfcommSocketToServiceRecord (btUUID);
             } else {
+                Class<? extends BluetoothDevice> btDevClass = btDevice.getClass ();
                 try {
                     Method cirstcr = btDevClass.getMethod (
                             "createInsecureRfcommSocketToServiceRecord",
-                            useUuid.getClass ());
-                    socket = (BluetoothSocket) cirstcr.invoke (btDevice, useUuid);
+                            btUUID.getClass ());
+                    socket = (BluetoothSocket) cirstcr.invoke (btDevice, btUUID);
                 } catch (NoSuchMethodException nsme) {
                     throw new IOException ("insecure mode not available - nsme");
                 } catch (IllegalAccessException iae) {
@@ -746,34 +957,6 @@ public class BluetoothGpsAdsb extends GpsAdsbReceiver {
         btIStream = null;
         btOStream = null;
         sendInitThread = null;
-    }
-
-    /**
-     * Receiver that listens for completion of fetchUuidsWithSdp() call,
-     * indicating that we now have an updated list of UUIDs supported
-     * by the device.
-     *
-     * Apparently requires android.permission.BLUETOOTH_ADMIN,
-     * even though fetchUuidsWithSdp() returns true without it.
-     */
-    private class ReceiveSDPComplete extends BroadcastReceiver {
-        @Override
-        public void onReceive (Context context, Intent intent)
-        {
-            String action = intent.getAction ();
-            Log.d (TAG, "BluetoothGpsAdsb: received action " + action);
-            if (action.equals ("android.bluetooth.device.action.UUID")) {
-                BluetoothDevice bd = intent.getParcelableExtra (BluetoothDevice.EXTRA_DEVICE);
-                String bdid = btIdentString (bd);
-                Log.d (TAG, "BluetoothGpsAdsb: device ident " + bdid);
-                if (bdid.equals (btIdentString (btDevice))) {
-                    synchronized (waitForSDPLock) {
-                        sdpComplete = true;
-                        waitForSDPLock.notifyAll ();
-                    }
-                }
-            }
-        }
     }
 
     /**

@@ -11,7 +11,7 @@
 #
 #   mono with libgdiplus.so
 #       $ mono --version
-#       Mono JIT compiler version 4.2.1 (4.2.1.102-mmr/132a070 Sat Jan  9 09:30:22 EST 2016)
+#       Mono JIT compiler version 4.3.2 (4.3.2-mmr/aeae96d Thu Jul  7 18:58:11 EDT 2016)
 #       Copyright (C) 2002-2014 Novell, Inc, Xamarin Inc and Contributors. www.mono-project.com
 #
 #   java
@@ -47,6 +47,9 @@ echo END IFR_CHARTS_DOWNLOAD.SH ; date
 echo END GENALLCHARTCSVS.SH ; date
 ./readalltiffs.sh
 echo END READALLTIFFS.SH ; date
+
+./makedatumstopo.sh
+echo END MAKEDATUMSTOPO.SH ; date
 
 ## ./purgeoldcharts.sh
 

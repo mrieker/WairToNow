@@ -120,7 +120,7 @@ export CLASSPATH=DecodePlate.jar:pdfbox-1.8.10.jar:commons-logging-1.2.jar
 #
 if [ ! -f pdfbox-1.8.10.jar ]
 then
-    wget http://mirrors.ibiblio.org/apache//pdfbox/1.8.10/pdfbox-1.8.10.jar
+    wget http://archive.apache.org/dist/pdfbox/1.8.10/pdfbox-1.8.10.jar
 fi
 
 if [ ! -f commons-logging-1.2.jar ]

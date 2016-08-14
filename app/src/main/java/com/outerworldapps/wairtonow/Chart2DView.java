@@ -100,7 +100,7 @@ public class Chart2DView extends View
     private float[] poly2polyFloats = new float[16];
     private LatLon drawCourseLineISect = new LatLon ();
     private LatLon newCtrLL = new LatLon ();
-    private LinkedList<CapGrid> capgrids = new LinkedList<> ();
+    private LinkedList<CapGrid> capgrids;
     private int mappingCanvasHeight;
     private int mappingCanvasWidth;
     private long waypointOpenAt     = Long.MAX_VALUE;

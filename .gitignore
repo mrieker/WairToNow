@@ -12,9 +12,9 @@
 bin
 build
 captures
-charts
 cureffdate
-datums
+decosects/charts
+decosects/datums
 decosects/ReadArptDgmPng_learnt.png
 .DS_Store
 .gradle

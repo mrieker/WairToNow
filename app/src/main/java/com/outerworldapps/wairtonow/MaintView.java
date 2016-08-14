@@ -64,7 +64,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.PrintWriter;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.AbstractMap;
@@ -2102,16 +2102,22 @@ public class MaintView
                          * Send list of files to fetch as a POST request to bulkdownload.php.
                          * One filename per f0, f1, ... POST variable.
                          */
-                        httpCon.setRequestMethod ("POST");
-                        httpCon.setDoOutput (true);
-                        httpCon.setChunkedStreamingMode (0);
-                        PrintWriter os = new PrintWriter (httpCon.getOutputStream ());
+                        StringBuilder nameBuilder = new StringBuilder ();
                         int n = 0;
                         for (String servername : bulkfilelist.keySet ()) {
-                            if (n > 0) os.print ('&');
-                            os.print ("f" + n + "=" + servername);
+                            if (n > 0) nameBuilder.append ('&');
+                            nameBuilder.append ('f');
+                            nameBuilder.append (n);
+                            nameBuilder.append ('=');
+                            nameBuilder.append (servername);
                             if (++ n > 250) break;
                         }
+                        byte[] nameBytes = nameBuilder.toString ().getBytes ();
+                        httpCon.setRequestMethod ("POST");
+                        httpCon.setDoOutput (true);
+                        httpCon.setFixedLengthStreamingMode (nameBytes.length);
+                        OutputStream os = httpCon.getOutputStream ();
+                        os.write (nameBytes);
                         os.flush ();
 
                         /*

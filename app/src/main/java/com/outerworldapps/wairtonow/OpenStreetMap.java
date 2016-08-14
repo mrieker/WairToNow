@@ -38,7 +38,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.PrintWriter;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.HashMap;
@@ -705,11 +704,12 @@ public class OpenStreetMap {
                     URL url = new URL (MaintView.dldir + "/streets.php");
                     HttpURLConnection httpCon = (HttpURLConnection)url.openConnection ();
                     try {
+                        byte[] qbytes = q.toString ().getBytes ();
                         httpCon.setRequestMethod ("POST");
                         httpCon.setDoOutput (true);
-                        httpCon.setChunkedStreamingMode (0);
-                        PrintWriter os = new PrintWriter (httpCon.getOutputStream ());
-                        os.print (q.toString ());
+                        httpCon.setFixedLengthStreamingMode (qbytes.length);
+                        OutputStream os = httpCon.getOutputStream ();
+                        os.write (qbytes);
                         os.flush ();
 
                         int rc = httpCon.getResponseCode ();
