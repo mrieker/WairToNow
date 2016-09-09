@@ -395,6 +395,8 @@ public class DecodePlate {
                         }
                         long finished = System.nanoTime ();
                         if (verbose) System.out.println ("---------------- " + ((finished - started + 500000) / 1000000) + " ms");
+                    } else {
+                        if (verbose) System.out.println ("---------------- " + key + " already done");
                     }
                 }
                 br7.close ();

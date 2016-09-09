@@ -5,60 +5,9 @@
 #
 #  Takes about 2hrs to run
 #
+cd `dirname $0`
 
-#
-# Process airport diagrams (APD) from a state to get their georef info.
-# Writes to $apdoutdir/$stateid.csv
-#
-function processdiagrams
-{
-    csvoutfile=$apdoutdir/$stateid.csv
-    if [ ! -f $csvoutfile ]
-    then
-        touch $csvoutfile
-    fi
-
-    while read line  # eg, BVY,"APD-AIRPORT DIAGRAM",gif_150/050/39ad.gif
-    do
-        faaid=${line%%,*}
-        gifname=${line##*,}
-        pdfname=${gifname/gif_150/pdftemp}
-        pdfname=datums/aptplates_$cycles28/${pdfname/.gif/.pdf}
-
-        csvname=decodeallplates.apdcsv_$faaid.csv
-        logname=decodeallplates.apdcsv_$faaid.log
-        pngname=decodeallplates.apdcsv_$faaid.png
-
-        icaoid=`grep "^[0-9A-Z]*,$faaid," datums/airports_$cycles56.csv`
-        icaoid=${icaoid%%,*}
-
-        if ! grep -q "^$icaoid," $csvoutfile
-        then
-            rm -f $csvname $logname $pngname
-
-            echo "---------------- $faaid APD-AIRPORT DIAGRAM"
-
-            gs -q -dQuiet -dSAFER -dBATCH -dNOPAUSE -dNOPROMT -dMaxBitmap=500000000 -dAlignToPixels=0 -dGridFitTT=2 \
-                -sDEVICE=pngalpha -dTextAlphaBits=4 -dGraphicsAlphaBits=4 -r300x300 -dFirstPage=1 -dLastPage=1 \
-                -sOutputFile=$pngname $pdfname
-
-            if [ -s $pngname ]
-            then
-                mono --debug ReadArptDgmPng.exe $pngname -verbose -csvoutfile $csvname -csvoutid $icaoid > $logname 2>&1
-            fi
-
-            if [ -s $csvname ]
-            then
-                cat $csvname >> $csvoutfile
-                rm -f $csvname $logname $pngname
-            else
-                echo "APD $faaid failed $pdfname"
-            fi
-        fi
-    done
-    sort $csvoutfile > $csvoutfile.tmp
-    mv -f $csvoutfile.tmp $csvoutfile
-}
+. processdiagrams.si
 
 #
 # Process all the charts in various states
@@ -82,10 +31,7 @@ function processstate
         grep 'APD-AIRPORT DIAGRAM' $statefile | processdiagrams
 
         # process all approach plates in the state
-        grep ',"IAP-' $statefile | grep -v ',"IAP-TACAN' | grep -v ',"IAP-COPTER TACAN' \
-            | grep -v ',"IAP-HI-' | grep -v '(RNP)' | grep -v ' VISUAL ' \
-            | grep -v 'SA CAT I' | grep -v 'CAT II' \
-                > decodeallplates.$stateid.tmp
+        ./filteriapplates.sh $statefile > decodeallplates.$stateid.tmp
         rm -f $iapoutdir/$stateid.csv.tmp
         rm -f $iapoutdir/$stateid.rej.tmp
         java DecodePlate -verbose \
@@ -109,7 +55,6 @@ function processstate
     done
 }
 
-cd `dirname $0`
 date
 unset DISPLAY
 export CLASSPATH=DecodePlate.jar:pdfbox-1.8.10.jar:commons-logging-1.2.jar

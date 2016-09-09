@@ -1,10 +1,5 @@
 #!/bin/bash -v
 #
-# http://aeronav.faa.gov/index.asp?xml=aeronav/applications/VFR/chartlist_sect
-# http://aeronav.faa.gov/index.asp?xml=aeronav/applications/VFR/chartlist_tac
-# http://aeronav.faa.gov/index.asp?xml=aeronav/applications/VFR/chartlist_wac
-# http://aeronav.faa.gov/index.asp?xml=aeronav/applications/VFR/grand_canyon
-#
 # http://aeronav.faa.gov/content/aeronav/sectional_files/New_York_86.zip
 # http://aeronav.faa.gov/content/aeronav/tac_files/Boston_TAC_81.zip
 # http://aeronav.faa.gov/content/aeronav/WAC_files/CF-19_42.zip
@@ -17,9 +12,7 @@ set -e
 
 function downloadgroup
 {
-    grep "http://aeronav.faa.gov/content/aeronav/$1_files/" chartlist_all.htm > charts.tmp1
-    grep -i [.]zip charts.tmp1 | grep -i -v _P[.]zip | downloadfiles
-    rm charts.tmp*
+    java ParseChartList chartlist_all.htm $1 | downloadfiles
 }
 
 function downloadfiles
@@ -60,15 +53,29 @@ function downloadfiles
     done
 }
 
+cd `dirname $0`
+pwd=`pwd`
+
+export CLASSPATH=$pwd:$pwd/jsoup-1.9.2.jar
+
+if [ ! -f jsoup-1.9.2.jar ]
+then
+    wget https://jsoup.org/packages/jsoup-1.9.2.jar
+fi
+
+if [ ParseChartList.class -ot ParseChartList.java ]
+then
+    rm -f ParseChartList.class
+    javac -Xlint:deprecation ParseChartList.java
+fi
+
 mkdir -p charts
 cd charts
 
 wget -q http://www.faa.gov/air_traffic/flight_info/aeronav/digital_products/vfr/ -O chartlist_all.htm
+downloadgroup helicopter
 downloadgroup sectional
-downloadgroup tac
-downloadgroup wac
-downloadgroup heli
-##downloadgroup grand_canyon
-rm -f Grand\ Canyon\ *\ Air\ Tour\ Operators.*
+downloadgroup terminalArea
+ls -l *Planning*
 rm -f New\ York\ TAC\ VFR\ Planning\ Charts\ *.*
 

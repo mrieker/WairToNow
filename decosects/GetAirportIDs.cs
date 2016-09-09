@@ -22,7 +22,7 @@
  * @brief Writes airports.csv and runways.csv summary files
  *        and per-airport information files.
  *
- * gmcs -debug -out:GetAirportIDs.exe GetAirportIDs.cs
+ * mcs -debug -out:GetAirportIDs.exe GetAirportIDs.cs
  * cat APT.txt TWR.txt | mono --debug GetAirportIDs.exe airports.csv runways.csv aptinfo aptinfo.html
  */
 
@@ -88,6 +88,7 @@ public class GetAirportIDs {
                 }
                 apt.faaid  = line.Substring (27, 4).Trim ();
                 apt.icaoid = line.Substring (1210, 4).Trim ();
+                if (apt.faaid == "RGA") apt.icaoid = "KRGA";
                 if (apt.icaoid == "") apt.icaoid = apt.faaid;
 
                 aptsbyfaaid[apt.faaid] = apt;

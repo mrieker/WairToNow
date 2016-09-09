@@ -21,6 +21,12 @@
 
     /**
      * Manually review IAP georeferencing.
+     *
+     * Files:
+     *   ../webdata/iaputil/good_20160915.db : last month's verified iaps
+     *   ../webdata/iaputil/good_20161013.db : this month's iaps
+     *       LatLons.lastgood = date/time that is was last verified as good
+     *   ../decosects/datums/aptplates_20161013/state/<stateid>.csv : plates to verify
      */
 
     session_start ();
@@ -510,6 +516,8 @@ END;
                     }
                     if ($first) {
                         echo "<P><B>Missing plates:</B></P><UL>\n";
+                        echo "<P>(try <TT>./singleiap.php &lt;icao-id&gt;</TT> to re-attempt download ";
+                        echo "of missing plates.)</P>\n";
                         $first = FALSE;
                     }
                     if ($lasticaoid != $icaoid) {

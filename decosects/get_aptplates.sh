@@ -12,6 +12,9 @@
 #  $1 = "" : do all plates of all airports
 #  $1 = icaoid : do all plates of just the one airport
 #
+cd `dirname $0`
+
+. downloadone.si
 
 #
 #  Split stdin into files airportids.tmp.{1..$1}
@@ -28,175 +31,6 @@ function splitairports
             n=0
         fi
     done
-}
-
-# Rename the temp PNG files created by ghostscript to their permanent names
-#  $1 = pngtemp, eg datums/aptplates_20150625/pngtemp/ne1/to.png
-#  $2 = stream, eg 2
-function movepngtempfiles
-{
-    for ((p=1;; p++))
-    do
-        if [ ! -f "$1.$2.p$p" ]
-        then
-            break
-        fi
-        mv -f $1.$2.p$p $1.p$p
-    done
-}
-
-#  $1 = pngtemp, eg datums/aptplates_20150625/pngtemp/ne1/to.png
-#  $2 = gifperm, eg datums/aptplates_20150625/gif_150/ne1/to.gif
-#  $3 = stream, eg 2
-function convertpngtemptogifperm
-{
-    for ((p=1;; p++))
-    do
-        if [ ! -f "$1.p$p" ]
-        then
-            break
-        fi
-        convert -alpha Remove $1.p$p $2.$3.gif
-        mv -f $2.$3.gif $2.p$p
-    done
-}
-
-#
-#  Download one PDF file and convert to GIF
-#    $1 = stream number
-#    $2 = flag
-#    $3 = state
-#    $4 = faaid
-#    $5 = pdfurl
-#    $6 = type
-#    $7 = title
-#
-function downloadone
-{
-    set +e
-
-    stream=$1
-    flag=$2
-    state=$3
-    faaid=$4
-    pdfurl=$5
-    type=$6
-    title="$7"
-    title=${title//\//}
-
-    if [ "$flag" == "D" ]
-    then
-        return
-    fi
-
-    case $type in
-
-        ## Skip these chart types
-        ##  AHS-AFD HOT SPOT
-        ##  HOT-HOT SPOT
-        ##  LAH-LAHSO
-        AHS|HOT|LAH) ;;
-
-        ## Save these chart tyoes
-        ##  APD- airport diagrams
-        ##  [O]DP- departure procedures
-        ##  IAP- instrument approaches
-        ##  MIN- alternate/takeoff minimums
-        ##  STAR- standard approach routes
-        APD|DP|IAP|MIN|ODP|STAR)
-            echo "$faaid $type $title"
-
-            ## Maybe we already have the corresponding PDF file
-            ## If not, fetch from the FAA website
-            pdfbase=`basename $pdfurl`
-            pdfbase=${pdfbase:0:3}/${pdfbase:3}
-            pdftemp=$dir/pdftemp/$pdfbase
-            if [ ! -f $pdftemp ]
-            then
-                mkdir -p `dirname $pdftemp`
-                rm -f $pdftemp.$stream
-                wget -nv $pdfurl -O $pdftemp.$stream
-                if [ ! -s $pdftemp.$stream ]
-                then
-                    rm -f $pdftemp.$stream
-                    wget -nv $pdfurl -O $pdftemp.$stream
-                fi
-                if [ -s $pdftemp.$stream ]
-                then
-                    mv -f $pdftemp.$stream $pdftemp
-                fi
-            fi
-
-            ## Maybe we already have the corresponding PNG file(s)
-            ## If not, convert from PDF file
-            pngtemp=$dir/pngtemp/${pdfbase/.pdf/.png}
-            if [ ! -f $pngtemp.p1 ]
-            then
-                mkdir -p `dirname $pngtemp`
-                gs -q -dQuiet -dSAFER -dBATCH -dNOPAUSE -dNOPROMT -dMaxBitmap=500000000 -dAlignToPixels=0 -dGridFitTT=2 \
-                    -sDEVICE=pngalpha -dTextAlphaBits=4 -dGraphicsAlphaBits=4 -r300x300 \
-                    -sOutputFile=$pngtemp.$stream.p%d $pdftemp
-                movepngtempfiles $pngtemp $stream
-            fi
-
-            ## Some plates are split up into separate pages already
-            ## eg, "DP-BEVERLY EIGHT" and "DP-BEVERLY EIGHT, CONT.1"
-            ## So we make the continuation pages part of the primary plate
-            contpage=0
-            titlenc=${title%, CONT.*}
-            if [ "$titlenc" != "$title" ]
-            then
-
-                ## Continuation page, find primary page
-                primary_gifbase=`grep $faaid,"\"$type-$titlenc\"", aptplates.tmp/$state.$stream`
-                if [ "$primary_gifbase" != "" ]
-                then
-                    contpage=1
-
-                    ## Found primary page GIF file name, eg, gif_150/050/39beverly_c.gif
-                    primary_gifbase=${primary_gifbase##*,}
-
-                    ## Convert the single PNG file to single GIF file
-                    ## PNG file is named as given in URL
-                    ## GIF file is named using the primary page GIF file name
-                    contnum=${title##*, CONT.}
-                    pagenum=$((contnum+1))
-
-                    ## See if we already have corresponding continuation page GIF file
-                    gifbasepn=$primary_gifbase.p$pagenum
-                    gifpermpn=$dir/$gifbasepn
-                    if [ ! -f $gifpermpn ]
-                    then
-                        convert -alpha Remove $pngtemp.p1 $gifpermpn.$stream.gif
-                        mv -f $gifpermpn.$stream.gif $gifpermpn
-                    fi
-                fi
-            fi
-
-            if [ $contpage == 0 ]
-            then
-
-                ## Not a continuation page
-                ## Maybe we already have the corresponding GIF file(s)
-                ## If not, convert from the PNG file(s)
-                gifbase=gif_150/${pdfbase/.pdf/.gif}
-                gifperm=$dir/$gifbase
-                if [ ! -f $gifperm.p1 ]
-                then
-                    mkdir -p `dirname $gifperm`
-                    convertpngtemptogifperm $pngtemp $gifperm $stream
-                fi
-
-                ## Set up the .csv line: FAAID,TYPE-TITLE,GIFFILE
-                if [ -f $gifperm.p1 ]
-                then
-                    echo $faaid,"\"$type-$title\"",$gifbase >> aptplates.tmp/$state.$stream
-                fi
-            fi
-        ;;
-
-        *) echo unknown plate type $type airport $faaid ;;
-    esac
 }
 
 #
@@ -266,7 +100,6 @@ function postprocessonestate
 #
 #  Start of script...
 #
-cd `dirname $0`
 set -e
 
 if [ cureffdate -ot cureffdate.c ]
