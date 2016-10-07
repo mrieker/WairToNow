@@ -48,6 +48,7 @@ function downloadone
             ## Maybe we already have the corresponding PDF file
             ## If not, fetch from the FAA website
             pdfbase=`basename $pdfurl`
+            pdfbase=${pdfbase%#*}
             pdfbase=${pdfbase:0:3}/${pdfbase:3}
             pdftemp=$dir/pdftemp/$pdfbase
             if [ ! -f $pdftemp ]
