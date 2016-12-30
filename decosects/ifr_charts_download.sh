@@ -49,15 +49,6 @@ function scanifrchartshtm
         # chart name, eg, ELUS1
         read chartname
 
-        # we get just 'Area' for both Area 1 and Area 2 zip files
-        # ...so append the area number to it so we get both zip files
-        if [ "$chartname" == "Area" ]
-        then
-            arean=${zipurl##*enr_a}
-            arean=${arean%.zip}         # eg, 01 or 02
-            chartname=$chartname$arean  # eg, Area01 or Area02
-        fi
-
         # make our zip name similar to VFR charts, eg ENR_ELUS1_20150430.zip
         zipname=ENR_${chartname}_$revcode.zip
 
@@ -65,20 +56,6 @@ function scanifrchartshtm
         ##echo "chartname=$chartname"
         ##echo "  revcode=$revcode"
         ##echo "  zipname=$zipname"
-
-        # don't bother with high-altitude charts
-        if [ ${chartname:0:2} == "EH" ]
-        then
-            continue
-        fi
-        if [ $chartname == "AEPHI1" ]
-        then
-            continue
-        fi
-        if [ $chartname == "EPHI1" ]
-        then
-            continue
-        fi
 
         echo $chartname $revcode $zipurl
 

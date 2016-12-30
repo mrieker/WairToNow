@@ -1,4 +1,4 @@
-//    Copyright (C) 2015, Mike Rieker, Beverly, MA USA
+//    Copyright (C) 2015,2016, Mike Rieker, Beverly, MA USA
 //    www.outerworldapps.com
 //
 //    This program is free software; you can redistribute it and/or modify
@@ -21,24 +21,57 @@
 /**
  * Parse out the chart downloading URL and chart name.
  *
- *    gmcs -debug -out:GetIFRChartNames.exe GetIFRChartNames.cs
+ *    mcs -debug -out:GetIFRChartNames.exe GetIFRChartNames.cs
  *    mono --debug GetIFRChartNames.exe 10-15-2015 < ifrcharts.htm
  *
-    <tr>
-      <td>
-        <cfoutput>
-          <a href="http://aeronav.faa.gov/enroute/10-15-2015/enr_l01.zip">
-            ELUS1 Oct 15 2015     << effective date
-          </a>
-          <small>
-            (ZIP)
-          </small>
-        </cfoutput>
-      </td>
-      <td>
-        ELUS1 Dec 10 2015 
-      </td>
-    </tr>
+                    <tr>
+                      <td>
+                        ELUS1
+                      </td>
+                      <td>
+                        Nov 10 2016
+                        <br>
+                        <cfoutput>
+                          <a href="http://aeronav.faa.gov/enroute/11-10-2016/enr_l01.zip">
+                            GEO-TIFF
+                          </a>
+                          <small>
+                            (ZIP)
+                          </small>
+                        </cfoutput>
+                        <br>
+                        <cfoutput>
+                          <a href="http://aeronav.faa.gov/enroute/11-10-2016/delus1.zip">
+                            PDF
+                          </a>
+                          <small>
+                            (ZIP)
+                          </small>
+                        </cfoutput>
+                      </td>
+                      <td>
+                        Jan 05 2017
+                        <br>
+                        <cfoutput>
+                          <a href="http://aeronav.faa.gov/enroute/01-05-2017/enr_l01.zip">
+                            GEO-TIFF
+                          </a>
+                          <small>
+                            (ZIP)
+                          </small>
+                        </cfoutput>
+                        </cfoutput>
+                        <br>
+                        <cfoutput>
+                          <a href="http://aeronav.faa.gov/enroute/01-05-2017/delus1.zip">
+                            PDF
+                          </a>
+                          <small>
+                            (ZIP)
+                          </small>
+                        </cfoutput>
+                      </td>
+                    </tr>
 */
 
 using System;
@@ -51,18 +84,21 @@ public class GetIFRChartNames {
         while ((line = Console.ReadLine ()) != null) htm += line;
 
         string effdate_mm = args[0];
-        string urlbase = "http://aeronav.faa.gov/enroute/";
+        string urlbase = "http://aeronav.faa.gov/enroute/" + effdate_mm + "/";
 
         for (int i = 0; (i = htm.IndexOf ("<a href=\"" + urlbase, i)) > 0;) {
             i = htm.IndexOf (urlbase, i);
             int j = htm.IndexOf ("\">", i);
             string url = htm.Substring (i, j - i);
-            int k = url.IndexOf ("/enr_");
-            if (k >= 0) {
-                Console.WriteLine (urlbase + effdate_mm + url.Substring (k));
-                for (j += 2; htm[j] <= ' '; j ++) { }
-                for (i = j; htm[i] > ' '; i ++) { }
-                Console.WriteLine (htm.Substring (j, i - j));
+            string fnm = url.Substring (urlbase.Length);
+
+            int k = htm.LastIndexOf ("<tr><td>", i) + 8;
+            int m = htm.IndexOf ("</td>", k);
+            string nam = htm.Substring (k, m - k).Replace (" ", "");
+
+            if (fnm.StartsWith ("enr") && (nam.StartsWith ("EL") || nam.StartsWith ("Area") || (nam == "EPHI2"))) {
+                Console.WriteLine (url);  // eg, http://aeronav.faa.gov/enroute/01-05-2017/enr_l01.zip
+                Console.WriteLine (nam);  // eg, ELUS1
             }
         }
     }
