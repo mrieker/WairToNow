@@ -108,6 +108,8 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
     private final static String[] columns_apdgeorefs1 = new String[] { "gr_wfta", "gr_wftb", "gr_wftc", "gr_wftd", "gr_wfte", "gr_wftf" };
     private final static String[] columns_georefs1 = new String[] { "rowid", "gr_icaoid", "gr_plate", "gr_waypt", "gr_bmpixx", "gr_bmpixy", "gr_zpixels" };
     private final static String[] columns_georefs2 = new String[] { "gr_waypt", "gr_bmpixx", "gr_bmpixy", "gr_zpixels" };
+    private final static String[] columns_georefs21 = new String[] { "gr_clat", "gr_clon", "gr_stp1", "gr_stp2", "gr_rada", "gr_radb",
+            "gr_tfwa", "gr_tfwb", "gr_tfwc", "gr_tfwd", "gr_tfwe", "gr_tfwf" };
     private final static String[] columns_iapgeorefs1 = new String[] { "gr_waypt", "gr_bmpixx", "gr_bmpixy" };
 
     public PlateView (WaypointView wv, String fn, Waypoint.Airport aw, String pd, int ex, boolean fu)
@@ -529,7 +531,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
          */
         protected boolean DrawLocationArrow (Canvas canvas, boolean isAptDgm)
         {
-            if ((xfmwfte == 0.0) && (xfmwftf == 0.0)) return false;
+            if (!LatLon2BitmapOK ()) return false;
 
             if (!wairToNow.optionsView.typeBOption.checkBox.isChecked () ||
                     (isAptDgm && (wairToNow.currentGPSSpd < 80.0F * Lib.MPerNM / 3600.0F))) {
@@ -648,13 +650,17 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         /**
          * Lat/Lon => gif pixel
          */
+        protected boolean LatLon2BitmapOK ()
+        {
+            return (xfmwfte != 0.0) || (xfmwftf != 0.0);
+        }
         protected int LatLon2BitmapX (float lat, float lon)
         {
-            return (int) (xfmwfta * lon + xfmwftc * lat + xfmwfte + 0.5);
+            return Math.round (xfmwfta * lon + xfmwftc * lat + xfmwfte);
         }
         protected int LatLon2BitmapY (float lat, float lon)
         {
-            return (int) (xfmwftb * lon + xfmwftd * lat + xfmwftf + 0.5);
+            return Math.round (xfmwftb * lon + xfmwftd * lat + xfmwftf);
         }
 
         /**
@@ -1140,18 +1146,21 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
     public class IAPPlateImage extends GRPlateImage {
         private Bitmap      bitmap;                           // single plate page
         private boolean     showIAPEditButtons;               // show/hide georef editing toolbar row
+        private float       bitmapLat, bitmapLon;
         private GeoRefIdent geoRefIdent;                      // georef identifier name input box
         private GeoRefInput iapGeoRefInput;                   // the whole georef editing toolbar row
         private int         bmHeight;                         // height of one image
         private int         bmWidth;                          // width of one image
         private int         crosshairBMX;                     // where georef crosshairs are in bitmap co-ords
         private int         crosshairBMY;
+        private LambertConicalConformal lccmap;               // non-null: FAA-provided georef data
         private Paint       editButtonPaint  = new Paint ();  // draws IAP georef edit tb hide/show button
         private Paint       geoRefPaint;                      // paints georef stuff on plate image
         private Path        diamond          = new Path  ();  // used to draw waypoint diamond shape
         private Path        editButtonPath   = new Path  ();
         private PlateDME    plateDME;
         private PlateTimer  plateTimer;
+        private Point bitmapPt = new Point ();
         private RectF       editButtonBounds = new RectF ();  // where IAP georef edit tb hide/show button is on canvas
         private String      filename;                         // name of gifs on flash, without ".p<pageno>" suffix
         private TextView    geoRefInteg;                      // georef geometry integrity string
@@ -1179,15 +1188,17 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             GetIAPGeoRefPoints ();
 
             /*
-             * Allow manual entry of waypoints for georeferencing.
+             * if no FAA georefs, allow manual entry of waypoints for georeferencing.
              */
-            DetentHorizontalScrollView hsv = new DetentHorizontalScrollView (wairToNow);
-            wairToNow.SetDetentSize (hsv);
-            hsv.setLayoutParams (new LayoutParams (LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
-            iapGeoRefInput = new GeoRefInput ();
-            iapGeoRefInput.setVisibility (GONE);
-            hsv.addView (iapGeoRefInput);
-            PlateView.this.addView (hsv);
+            if (lccmap == null) {
+                DetentHorizontalScrollView hsv = new DetentHorizontalScrollView (wairToNow);
+                wairToNow.SetDetentSize (hsv);
+                hsv.setLayoutParams (new LayoutParams (LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
+                iapGeoRefInput = new GeoRefInput ();
+                iapGeoRefInput.setVisibility (GONE);
+                hsv.addView (iapGeoRefInput);
+                PlateView.this.addView (hsv);
+            }
         }
 
         // used by PlateDME
@@ -1200,18 +1211,54 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
          * Read previously manually entered georeference points for this plate.
          * Also get any machine-detected points downloaded from the server.
          * Manual points override machine points of same name.
+         * But if there are FAA-supplied georef points, just use those.
          */
         private void GetIAPGeoRefPoints ()
         {
-            boolean manual = false;
+            String[] grkey = new String[] { airport.ident, plateid };
             String machinedbname = "plates_" + expdate + ".db";
+            SQLiteDBs machinedb = SQLiteDBs.create (machinedbname);
+
+            // first check for FAA-provided georef data.
+            // always use that if present
+            if (machinedb.tableExists ("iapgeorefs2")) {
+                Cursor result = machinedb.query ("iapgeorefs2", columns_georefs21,
+                        "gr_icaoid=? AND gr_plate=?", grkey,
+                        null, null, null, null);
+                try {
+                    if (result.moveToFirst ()) {
+                        lccmap = new LambertConicalConformal (
+                                result.getFloat ( 0),
+                                result.getFloat ( 1),
+                                result.getFloat ( 2),
+                                result.getFloat ( 3),
+                                result.getFloat ( 4),
+                                result.getFloat ( 5),
+                                new float[] {
+                                    result.getFloat ( 6),
+                                    result.getFloat ( 7),
+                                    result.getFloat ( 8),
+                                    result.getFloat ( 9),
+                                    result.getFloat (10),
+                                    result.getFloat (11)
+                                }
+                        );
+                        return;
+                    }
+                } finally {
+                    result.close ();
+                }
+            }
+
+            // otherwise check for manually entered and machine detected georef waypoints
+            boolean manual = false;
             do {
                 try {
-                    SQLiteDBs sqldb = manual ? OpenGeoRefDB () : SQLiteDBs.create (machinedbname);
+                    SQLiteDBs sqldb = manual ? OpenGeoRefDB () : machinedb;
                     Cursor result = sqldb.query (
                             manual ? "georefs" : "iapgeorefs",
                             manual ? columns_georefs2 : columns_iapgeorefs1,
-                            "gr_icaoid=? AND gr_plate=?", new String[] { airport.ident, plateid },
+                            "gr_icaoid=? AND gr_plate=?", grkey,
                             null, null, null, null);
                     try {
                         if (result.moveToFirst ()) {
@@ -1362,7 +1409,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
 
         protected void GotMouseDown (float x, float y)
         {
-            if (editButtonBounds.contains (x, y)) {
+            if ((lccmap == null) && editButtonBounds.contains (x, y)) {
                 ShowHideEditToolbar ();
             }
             plateDME.GotMouseDown (x, y);
@@ -1412,37 +1459,40 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                 bmWidth  = bitmap.getWidth  ();
                 bmHeight = bitmap.getHeight ();
 
-                /*
-                 * Make sure any associated manually entered IAP georefs are still valid
-                 * by matching the pixels surrounding the point.
-                 */
-                for (IAPGeoRefMap grm : iapGeoRefMaps.values ()) {
-                    grm.valid = true;
-                    if (grm.manual && (grm.pixels != null)) {
-                        int i = 0;
-                        for (int dy = -GEOREFBOX; dy < GEOREFBOX; dy++) {
-                            int y = grm.pixely + dy;
-                            for (int dx = -GEOREFBOX; dx < GEOREFBOX; dx++) {
-                                int x = grm.pixelx + dx;
-                                byte p = 0;
-                                if ((x >= 0) && (x < bmWidth) && (y >= 0) && (y < bmHeight)) {
-                                    p = Byte666 (bitmap.getPixel (x, y));
-                                }
-                                if (p != grm.pixels[i++]) {
-                                    grm.valid = false;
-                                    dx = GEOREFBOX;
-                                    dy = GEOREFBOX;
+                if (lccmap == null) {
+
+                    /*
+                     * Make sure any associated manually entered IAP georefs are still valid
+                     * by matching the pixels surrounding the point.
+                     */
+                    for (IAPGeoRefMap grm : iapGeoRefMaps.values ()) {
+                        grm.valid = true;
+                        if (grm.manual && (grm.pixels != null)) {
+                            int i = 0;
+                            for (int dy = -GEOREFBOX; dy < GEOREFBOX; dy++) {
+                                int y = grm.pixely + dy;
+                                for (int dx = -GEOREFBOX; dx < GEOREFBOX; dx++) {
+                                    int x = grm.pixelx + dx;
+                                    byte p = 0;
+                                    if ((x >= 0) && (x < bmWidth) && (y >= 0) && (y < bmHeight)) {
+                                        p = Byte666 (bitmap.getPixel (x, y));
+                                    }
+                                    if (p != grm.pixels[i++]) {
+                                        grm.valid = false;
+                                        dx = GEOREFBOX;
+                                        dy = GEOREFBOX;
+                                    }
                                 }
                             }
+                            grm.pixels = null;
                         }
-                        grm.pixels = null;
                     }
-                }
 
-                /*
-                 * Use the valid georefs to map lat/lon -> bitmap pixel.
-                 */
-                UpdateIAPGeoRefs ();
+                    /*
+                     * Use the valid georefs to map lat/lon -> bitmap pixel.
+                     */
+                    UpdateIAPGeoRefs ();
+                }
             }
 
             /*
@@ -1453,7 +1503,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             /*
              * Draw little triangle button at top to hide/show IAP georef edit buttons.
              */
-            if (full && !wairToNow.optionsView.typeBOption.checkBox.isChecked ()) {
+            if ((lccmap == null) && full && !wairToNow.optionsView.typeBOption.checkBox.isChecked ()) {
                 DrawEditButton (canvas);
             }
 
@@ -1466,13 +1516,13 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
              *     CYAN : machine but not being used
              * Also draw box and waypoint name if crosshairs enabled.
              */
-            if (!wairToNow.optionsView.typeBOption.checkBox.isChecked ()) {
+            if ((lccmap == null) && !wairToNow.optionsView.typeBOption.checkBox.isChecked ()) {
                 float dimnddx = GEOREFDIMND / Lib.MMPerIn * wairToNow.dotsPerInchX;
                 float dimnddy = GEOREFDIMND / Lib.MMPerIn * wairToNow.dotsPerInchY;
                 for (IAPGeoRefMap grm : iapGeoRefMaps.values ()) {
                     geoRefPaint.setColor (
-                            !grm.manual ? (grm.used ? Color.BLUE : Color.CYAN) :
-                            !grm.valid ? Color.RED : !grm.used ? Color.YELLOW : Color.GREEN);
+                            ! grm.manual ? (grm.used ? Color.BLUE : Color.CYAN) :
+                                    ! grm.valid ? Color.RED : ! grm.used ? Color.YELLOW : Color.GREEN);
                     float canvasX = BitmapX2CanvasX (grm.pixelx);
                     float canvasY = BitmapY2CanvasY (grm.pixely);
                     diamond.rewind  ();
@@ -1500,8 +1550,9 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
 
             /*
              * Draw runways if editing button enabled for verification.
+             * Also draw if using FAA-provided georef.
              */
-            if (showIAPEditButtons) {
+            if (showIAPEditButtons || (lccmap != null)) {
                 geoRefPaint.setColor (Color.MAGENTA);
                 HashMap<String,Waypoint.Runway> runways = airport.GetRunways ();
                 for (Waypoint.Runway runway : runways.values ()) {
@@ -1549,6 +1600,43 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             if (full && !wairToNow.optionsView.typeBOption.checkBox.isChecked ()) {
                 wairToNow.drawGPSAvailable (canvas, this);
             }
+        }
+
+        /**
+         * Convert lat,lon to bitmap X,Y.
+         * Use LCC conversion if FAA-supplied georef data given.
+         * Otherwise, use two machine or user entered waypoints with linear interpolation.
+         */
+        @Override  // GRPPlateImage
+        protected boolean LatLon2BitmapOK ()
+        {
+            return (lccmap != null) || super.LatLon2BitmapOK ();
+        }
+
+        @Override  // GRPPlateImage
+        protected int LatLon2BitmapX (float lat, float lon)
+        {
+            if (lccmap != null) {
+                bitmapLat = lat;
+                bitmapLon = lon;
+                lccmap.LatLon2ChartPixelExact (lat, lon, bitmapPt);
+                return bitmapPt.x;
+            }
+            return super.LatLon2BitmapX (lat, lon);
+        }
+
+        @Override  // GRPPlateImage
+        protected int LatLon2BitmapY (float lat, float lon)
+        {
+            if (lccmap != null) {
+                if ((bitmapLat != lat) || (bitmapLon != lon)) {
+                    bitmapLat = lat;
+                    bitmapLon = lon;
+                    lccmap.LatLon2ChartPixelExact (lat, lon, bitmapPt);
+                }
+                return bitmapPt.y;
+            }
+            return super.LatLon2BitmapY (lat, lon);
         }
 
         /**

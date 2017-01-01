@@ -31,7 +31,7 @@ static char const *const months[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", 
 
 int main (int argc, char **argv)
 {
-    char const *fmt;
+    char const *env, *fmt;
     int cyclemonth, cyclen, cycleyear, exp, i, next28, nextyear;
     struct tm efftm, thentm;
     time_t cycletime, effbin, effday, nexttime, nowbin, nowcyc, nowday, thenbin, thenday;
@@ -45,7 +45,12 @@ int main (int argc, char **argv)
         if (argv[i][0] != '-') fmt = argv[i];
     }
 
-    next28 = (getenv ("next28") != NULL) && (getenv ("next28")[0] & 1);
+    env = getenv ("next28");
+    if (env == NULL) {
+        fprintf (stderr, "cureffdate: envar next28 not defined\n");
+        abort ();
+    }
+    next28 = *env & 1;
 
     nowbin = time (NULL);
     if (next28) nowbin += 60*60*24*28;

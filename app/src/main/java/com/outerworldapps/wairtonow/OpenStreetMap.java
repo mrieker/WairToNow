@@ -265,7 +265,7 @@ public class OpenStreetMap {
                  * Draw the bitmap to the canvas using that transformation.
                  */
                 if (!matrix.setPolyToPoly (bitmappts, 0, canvaspts, 0, 4)) {
-                    throw new RuntimeException ("setPolyToPoly failed");
+                    return false;  // maybe zoomed in too far so ww or hh is zero
                 }
                 canvas.drawBitmap (tile, matrix, null);
             } finally {

@@ -1606,6 +1606,15 @@ public class MaintView
                             UpdateDownloadProgress ();
                             continue;
                         }
+                        if (newFileName.startsWith ("datums/iapgeorefs2_") && newFileName.endsWith (".csv") &&
+                                ((i = newFileName.indexOf ("/", 19)) >= 0)) {
+                            int expdate = Integer.parseInt (newFileName.substring (19, i));
+                            String statecode = newFileName.substring (i + 1, newFileName.length () - 4);
+                            DownloadMachineIAPGeoRefs2 (newFileName, expdate, statecode);
+                            MaybeDeleteOldPlatesDB ();
+                            UpdateDownloadProgress ();
+                            continue;
+                        }
                         if (newFileName.startsWith ("datums/aptplates_") && newFileName.endsWith (".csv") &&
                                 ((i = newFileName.indexOf ("/state/")) >= 0)) {
                             int expdate = Integer.parseInt (newFileName.substring (17, i));
@@ -1869,6 +1878,14 @@ public class MaintView
             int expdate = Integer.parseInt (filelistline.substring (18, i));
             String statecode = filelistline.substring (i + 1, filelistline.length () - 4);
             DeleteMachineIAPGeoRefs (expdate, statecode);
+            MaybeDeleteOldPlatesDB ();
+            plainfile = false;
+        }
+        if (filelistline.startsWith ("datums/iapgeorefs2_") && filelistline.endsWith (".csv") &&
+                ((i = filelistline.indexOf ("/", 19)) >= 0)) {
+            int expdate = Integer.parseInt (filelistline.substring (19, i));
+            String statecode = filelistline.substring (i + 1, filelistline.length () - 4);
+            DeleteMachineIAPGeoRefs2 (expdate, statecode);
             MaybeDeleteOldPlatesDB ();
             plainfile = false;
         }
@@ -2562,6 +2579,71 @@ public class MaintView
         }
     }
 
+    private void DownloadMachineIAPGeoRefs2 (String servername, int expdate, String statecode)
+            throws IOException
+    {
+        DownloadStuffMachineIAPGeoRefs2 dsmgr2 = new DownloadStuffMachineIAPGeoRefs2 ();
+        dsmgr2.dbname = "plates_" + expdate + ".db";
+        dsmgr2.statecode = statecode;
+        dsmgr2.DownloadWhat (servername);
+    }
+
+    private class DownloadStuffMachineIAPGeoRefs2 extends DownloadStuff {
+        public String dbname;
+        public String statecode;
+
+        @Override
+        public void DownloadContents () throws IOException
+        {
+            SQLiteDBs sqldb = SQLiteDBs.create (dbname);
+            if (! sqldb.tableExists ("iapgeorefs2")) {
+                sqldb.execSQL ("CREATE TABLE iapgeorefs2 (gr_icaoid TEXT NOT NULL, gr_state TEXT NOT NULL, gr_plate TEXT NOT NULL, " +
+                        "gr_clat REAL NOT NULL, gr_clon REAL NOT NULL, gr_stp1 REAL NOT NULL, gr_stp2 REAL NOT NULL, " +
+                        "gr_rada REAL NOT NULL, gr_radb REAL NOT NULL, gr_tfwa REAL NOT NULL, gr_tfwb REAL NOT NULL, " +
+                        "gr_tfwc REAL NOT NULL, gr_tfwd REAL NOT NULL, gr_tfwe REAL NOT NULL, gr_tfwf);");
+                sqldb.execSQL ("CREATE INDEX iapgeorefbyplate2 ON iapgeorefs2 (gr_icaoid,gr_plate);");
+            }
+
+            long time = System.nanoTime ();
+            sqldb.beginTransaction ();
+            try {
+                int numAdded = 0;
+                String csv;
+                while ((csv = ReadLine ()) != null) {
+                    String[] cols = Lib.QuotedCSVSplit (csv);
+                    ContentValues values = new ContentValues (15);
+                    values.put ("gr_icaoid", cols[0]);    // eg, "KBVY"
+                    values.put ("gr_state",  statecode);  // eg, "MA"
+                    values.put ("gr_plate",  cols[1]);    // eg, "IAP-LOC RWY 16"
+                    values.put ("gr_clat",   Float.parseFloat (cols[ 2]));
+                    values.put ("gr_clon",   Float.parseFloat (cols[ 3]));
+                    values.put ("gr_stp1",   Float.parseFloat (cols[ 4]));
+                    values.put ("gr_stp2",   Float.parseFloat (cols[ 5]));
+                    values.put ("gr_rada",   Float.parseFloat (cols[ 6]));
+                    values.put ("gr_radb",   Float.parseFloat (cols[ 7]));
+                    values.put ("gr_tfwa",   Float.parseFloat (cols[ 8]));
+                    values.put ("gr_tfwb",   Float.parseFloat (cols[ 9]));
+                    values.put ("gr_tfwc",   Float.parseFloat (cols[10]));
+                    values.put ("gr_tfwd",   Float.parseFloat (cols[11]));
+                    values.put ("gr_tfwe",   Float.parseFloat (cols[12]));
+                    values.put ("gr_tfwf",   Float.parseFloat (cols[13]));
+                    sqldb.insertWithOnConflict ("iapgeorefs2", null, values, SQLiteDatabase.CONFLICT_IGNORE);
+
+                    // if we have added a handful, flush them out
+                    if (++ numAdded == 256) {
+                        sqldb.yieldIfContendedSafely ();
+                        numAdded = 0;
+                    }
+                }
+                sqldb.setTransactionSuccessful ();
+            } finally {
+                sqldb.endTransaction ();
+            }
+            time = System.nanoTime () - time;
+            Log.i (TAG, "iapgeorefs2 " + statecode + " download time " + (time / 1000000) + " ms");
+        }
+    }
+
     /**
      * Delete all instrument apporach procedure machine-detected georeference records for a given state and expiration date.
      */
@@ -2572,6 +2654,16 @@ public class MaintView
 
         if ((sqldb != null) && sqldb.tableExists ("iapgeorefs")) {
             sqldb.execSQL ("DELETE FROM iapgeorefs WHERE gr_state='" + statecode + "'");
+        }
+    }
+
+    private static void DeleteMachineIAPGeoRefs2 (int expdate, String statecode)
+    {
+        String dbname = "plates_" + expdate + ".db";
+        SQLiteDBs sqldb = SQLiteDBs.open (dbname);
+
+        if ((sqldb != null) && sqldb.tableExists ("iapgeorefs2")) {
+            sqldb.execSQL ("DELETE FROM iapgeorefs2 WHERE gr_state='" + statecode + "'");
         }
     }
 

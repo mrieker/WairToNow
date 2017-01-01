@@ -32,32 +32,61 @@ function processstate
 
         # process all approach plates in the state
         ./filteriapplates.sh $statefile > decodeallplates.$stateid.tmp
+
         rm -f $iapoutdir/$stateid.csv.tmp
         rm -f $iapoutdir/$stateid.rej.tmp
-        java DecodePlate -verbose \
-            -csvout $iapoutdir/$stateid.csv.tmp \
-            -cycles28 $cycles28 -cycles56 $cycles56 \
-            -rejects $iapoutdir/$stateid.rej.tmp \
-                < decodeallplates.$stateid.tmp \
-                > $iapoutdir/$stateid.log
-        if [ -f $iapoutdir/$stateid.csv.tmp ]
+        if [ ! -f $iapoutdir/$stateid.csv ]
         then
-            mv -f $iapoutdir/$stateid.csv.tmp $iapoutdir/$stateid.csv
-        else
-            rm -f $iapoutdir/$stateid.csv
+            java DecodePlate -verbose \
+                -csvout $iapoutdir/$stateid.csv.tmp \
+                -cycles28 $cycles28 -cycles56 $cycles56 \
+                -rejects $iapoutdir/$stateid.rej.tmp \
+                    < decodeallplates.$stateid.tmp \
+                    > $iapoutdir/$stateid.log
+            if [ -f $iapoutdir/$stateid.csv.tmp ]
+            then
+                mv -f $iapoutdir/$stateid.csv.tmp $iapoutdir/$stateid.csv
+            else
+                rm -f $iapoutdir/$stateid.csv
+            fi
+            if [ -f $iapoutdir/$stateid.rej.tmp ]
+            then
+                mv -f $iapoutdir/$stateid.rej.tmp $iapoutdir/$stateid.rej
+            else
+                rm -f $iapoutdir/$stateid.rej
+            fi
         fi
-        if [ -f $iapoutdir/$stateid.rej.tmp ]
+
+        rm -f $iap2outdir/$stateid.csv.tmp
+        rm -f $iap2outdir/$stateid.rej.tmp
+        if [ ! -f $iap2outdir/$stateid.csv ]
         then
-            mv -f $iapoutdir/$stateid.rej.tmp $iapoutdir/$stateid.rej
-        else
-            rm -f $iapoutdir/$stateid.rej
+            java DecodePlate2 -verbose \
+                -csvout $iap2outdir/$stateid.csv.tmp \
+                -cycles28 $cycles28 -cycles56 $cycles56 \
+                -rejects $iap2outdir/$stateid.rej.tmp \
+                    < decodeallplates.$stateid.tmp \
+                    > $iap2outdir/$stateid.log
+            if [ -f $iap2outdir/$stateid.csv.tmp ]
+            then
+                mv -f $iap2outdir/$stateid.csv.tmp $iap2outdir/$stateid.csv
+            else
+                rm -f $iap2outdir/$stateid.csv
+            fi
+            if [ -f $iap2outdir/$stateid.rej.tmp ]
+            then
+                mv -f $iap2outdir/$stateid.rej.tmp $iap2outdir/$stateid.rej
+            else
+                rm -f $iap2outdir/$stateid.rej
+            fi
         fi
     done
 }
 
+set -e
 date
 unset DISPLAY
-export CLASSPATH=DecodePlate.jar:pdfbox-1.8.10.jar:commons-logging-1.2.jar
+export CLASSPATH=DecodePlate.jar:DecodePlate2.jar:pdfbox-1.8.10.jar:commons-logging-1.2.jar
 
 #
 # Make sure we have all the necessary jar files.
@@ -79,10 +108,18 @@ fi
 
 if [ DecodePlate.jar -ot DecodePlate.java ]
 then
-    rm -f DecodePlate.jar
+    rm -f DecodePlate.jar DecodePlate*.class Lib*.class
     javac -Xlint:deprecation DecodePlate.java Lib.java
     jar cf DecodePlate.jar DecodePlate*.class Lib*.class
     rm -f DecodePlate*.class Lib*.class
+fi
+
+if [ DecodePlate2.jar -ot DecodePlate2.java ]
+then
+    rm -f DecodePlate2.jar DecodePlate2*.class Lib*.class
+    javac -Xlint:deprecation DecodePlate2.java Lib.java
+    jar cf DecodePlate2.jar DecodePlate2*.class Lib*.class
+    rm -f DecodePlate2*.class Lib*.class
 fi
 
 if [ readoneline -ot readoneline.c ]
@@ -107,7 +144,8 @@ cycles28=`./cureffdate -28 -x yyyymmdd`
 cycles56=`./cureffdate     -x yyyymmdd`
 apdoutdir=datums/apdgeorefs_$cycles28
 iapoutdir=datums/iapgeorefs_$cycles28
-mkdir -p $apdoutdir $iapoutdir
+iap2outdir=datums/iapgeorefs2_$cycles28
+mkdir -p $apdoutdir $iapoutdir $iap2outdir
 
 #
 # Start threads to process plates.

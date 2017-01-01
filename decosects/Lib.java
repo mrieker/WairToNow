@@ -26,6 +26,7 @@ public class Lib {
     public static final float NMPerDeg  = 60.0F;
     public static final float MMPerIn   = 25.4F;    // millimetres per inch
     public static final double SMPerNM  = 1.15078;
+    public static final int   MPerNM    = 1852;     // metres per naut mile
 
     /**
      * Split a comma-separated value string into its various substrings.
