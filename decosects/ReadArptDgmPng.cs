@@ -449,6 +449,7 @@ public class ReadArptDgmPng {
         badStrings["KPOB:79^^00'W"]   = "79^00'W";
         badStrings["KSAV:2^08'N"]     = "32^08'N";
         badStrings["KSEE:16^58.0'W"]  = "116^58.0'W";
+        badStrings["KSEE:6^58.0'W"]   = "116^58.0'W";
         badStrings["KTVL:8^54.5'N"]   = "38^54.5'N";
         badStrings["KVPS:586^31'W"]   = "86^31'W";
         badStrings["KWRB:83^36'"]     = "83^36'W";
@@ -461,6 +462,7 @@ public class ReadArptDgmPng {
         badStrings["KNSI:33'^14'N"]   = "33^14'N";
         badStrings["KPOB:^10'N"]      = "35^10'N";
         badStrings["KPVD:2112071^26.0'W"] = "71^26.0'W";
+        badStrings["KRND:29^3^'N"]    = "29^32'N";
         badStrings["KRND:^29^31'N"]   = "29^31'N";
 
         /*
@@ -857,7 +859,7 @@ public class ReadArptDgmPng {
                 if (ntrans != 4) goto next;
 
                 /*
-                 * Make the black-to-white transitions to point to the black pixel.
+                 * Make the black-to-white transitions point to the black pixel.
                  * Leave the white-to-black transitions pointing at the black pixel.
                  *
                  * This lets, eg, a single-pixel width horizontal line have a slope
@@ -901,12 +903,10 @@ public class ReadArptDgmPng {
                  *    -   -   -  [-]  *  [*]  wb2
                  *               bw2
                  */
-                int adx = wb2x - bw1x;
-                int ady = wb2y - bw1y;
-                int bdx = bw2x - wb1x;
-                int bdy = bw2y - wb1y;
-                if (adx < 0) { adx = -adx; ady = -ady; }
-                if (bdx < 0) { bdx = -bdx; bdy = -bdy; }
+                int adx = wb2x - bw1x;                      // how much the right edge X changes
+                int ady = wb2y - bw1y;                      // how much the right edge Y changes
+                int bdx = bw2x - wb1x;                      // how much the left edge X changes
+                int bdy = bw2y - wb1y;                      // how much the left edge Y changes
                 int avgdx = (adx + bdx) / 2;
                 int avgdy = (ady + bdy) / 2;
 
@@ -2295,7 +2295,7 @@ public class ReadArptDgmPng {
         llperpixratio /= ratioshouldbe;
         if (llperpixratio > 1.0) llperpixratio = 1.0 / llperpixratio;
         if (llperpixratio < VFYPIXRAT) {
-            Console.WriteLine ("pixels are not square");
+            Console.WriteLine ("pixels are not square " + llperpixratio);
             bad = true;
         }
 

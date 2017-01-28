@@ -21,8 +21,8 @@
             click the button again to start the counter back up.</P>
 
         <H3>DME</H3>
-        <P>The button in the lower-left corner can be used to obtain DME
-            information.  Needless to say, the DME information is calculated
+        <P>The button in the lower-left corner can be used to obtain DME and radial
+            information.  Needless to say, the DME and radial information is calculated
             by using the latest GPS position and the lat/lon of the waypoint
             from the database.  If there is elevation information available
             for the waypoint (such as with a VOR or localizer), the slant range
@@ -32,11 +32,11 @@
         <P>Clicking the button will bring up a dialog box that you can type a
             waypoint name in.  It will accept airport ICAO ids (eg, <TT>KBOS</TT>),
             navaid ids (eg, <TT>BOS</TT>), and localizers beginning with 
-            <TT>I</TT>, (eg, <TT>IBOS</TT> or <TT>I-BOS</TT>), five-letter fix ids,
-            and runway thresholds given by <TT>RW<I>number</I></TT> (eg,
-            <TT>RW04R</TT>).  You can enter them in upper or lower case, it doesn't
+            <TT>I</TT>, (eg, <TT>IBOS</TT> or <TT>I-BOS</TT>), five-letter fix ids
+            (eg, <TT>BOSOX</TT>), and runway thresholds given by <TT>RW<I>number</I></TT>
+            (eg, <TT>RW04R</TT>).  You can enter them in upper or lower case, it doesn't
             matter.</P>
-        <P>There are also 3 checkboxes provided:</P>
+        <P>There are also 3 checkboxes provided for each waypoint selected:</P>
         <UL>
             <LI><B>D</B> - display distance information, always in nautical miles
             <LI><B>T</B> - display time-to-waypoint information, in minutes:seconds
@@ -52,6 +52,80 @@
         <P>To add additional waypoints or modify the list, long-click on the numbers
             or the triangle button.  You may select as many waypoints as you like,
             provided there is sufficient area on the screen to display them.</P>
+
+        <H3>CIFP</H3>
+        <P>The yellow button in the lower right corner displays FAA-provided Coded Instrument
+            Flight Procedure information.  In a nutshell, it steps you through the approach.</P>
+        <P>There are two ways to select the IAF for an approach.  One is using the buttons that
+            appear near the IAF on the plate, giving a graphics-based selection.  The other is via
+            a menu listing the IAFs in alphabetical order.  For a radar-vectored approach, select
+            the <TT>(rv)</TT> entry from the button near the airport or from the menu.</P>
+        <P>The yellow button behaves differently depending on what is happening:</P>
+        <UL>
+            <LI>Nothing showing:
+                <UL>
+                    <LI>short click: show IAF selection buttons</LI>
+                    <LI>long click: show IAF selection menu</LI>
+                </UL>
+            </LI>
+            <LI>Starting waypoint selection buttons showing:
+                <UL>
+                    <LI>short click: clear IAF selection buttons from screen</LI>
+                    <LI>long click: show IAF selection menu instead of buttons</LI>
+                </UL>
+            </LI>
+            <LI>CIFP route showing:
+                <UL>
+                    <LI>short click: hide/show text box describing step</LI>
+                    <LI>long click: discontinue approach, clear route from screen</LI>
+                </UL>
+            </LI>
+        </UL>
+        <P>NOTE:  When an approach has closely spaced IAFs, the buttons may overlap.  Either
+            spread them apart with your fingers before selecting or use the menu.</P>
+        <P>Some plates have more than one approach depicted, such as <TT>ILS or LOC</TT>.  So you
+            will have to select which approach you want as well as which IAF you want.  The buttons
+            will show the <TT>ILS</TT> and <TT>LOC</TT> strings on each button, so click whichever
+            one you want.  The menu will have separate <TT>ILS</TT> and <TT>LOC</TT> sections.</P>
+        <P>When an IAF has been selected, a textual step-by-step description will be shown in
+            the lower right corner of the screen.  Also, dots will be drawn on the plate image
+            showing the corresponding route.  To collapse the text (but leave the dots intact), do
+            a short click on the text box and it will shrink to a small triangle button.  A long
+            click on either the triangle button or text box will clear both the text and the
+            dots.</P>
+        <P>The text and dot colors are as follows:</P>
+        <UL>
+            <LI>Magenta indicates the current leg</LI>
+            <LI>Green indicates future normal legs</LI>
+            <LI>Cyan indicates future missed-approach legs</LI>
+        </UL>
+        <P>When you initially select an approach, it will draw magenta dots from where you are
+            currently positioned to the IAF that you selected from buttons or the menu.  <I>You do
+            not have to fly all the way to that fix.</I>  Just intercept the next segment of the
+            approach and when you get established on that segment, it will become current (magenta)
+            and the old magenta dots and text will be removed.</P>
+        <P>The CIFP text often gives altitudes for the legs.  <I>Especially in the case of
+            descent</I>, verify the altitude given with that on the plate image itself before
+            changing altitude.</P>
+        <P>The altitude displayed in the text box for the runway waypoint (eg, <TT>RW16</TT>)
+            <B>is not the DA, DH, MDA etc</B> so do not treat it as such!  It is the altitude that
+            a normal descent glide path would bring you to over the numbers.  <I>You <B>must</B>
+            use the DA, DH, MDA etc provided in the table on the plate image to determine the
+            correct altitude.</I></P>
+        <P>Hold and Procedure Turn dots will be depicted based on the aircraft's current ground
+            speed as sensed by the GPS, and assuming one minute legs and standard rate turns.  Do
+            not feel obligated to follow what is being depicted by the CIFP dots or text, always
+            operate using best practices.</P>
+        <P>The display will automatically sequence into the missed approach segment upon entering
+            the first leg of the missed approach procedure (shown in cyan), which usually begins at
+            the runway numbers waypoint (no matter what your altitude is).  If you have determined
+            that a missed approach is appropriate prior to that point, you can climb straight ahead
+            until you are approximately over the numbers and let WairToNow assist you, or execute
+            the missed approach unassisted.</P>
+        <P><FONT COLOR=RED>The information on the plate image itself as provided by the FAA takes
+            precedence over the CIFP information.  <I>If there is any discrepancy or confusion,
+            discontinue use of the CIFP information!</I>  A long click on the yellow button or
+            the textual display will remove the dots and text from the display.</FONT></P>
 
         <H3>Georeferencing</H3>
         <P>The FAA is providing georeference information for some approach procedures.

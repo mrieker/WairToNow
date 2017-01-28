@@ -8,50 +8,113 @@
         <P>A sample training would be to use a VOR approach plate as an NDB approach when there are
             no NDB approaches available nearby.  You would select the VOR approach's FAF as the
             beacon and then select ADF mode for the display.</P>
-        <P>To operate:</P>
-        <OL>
-            <LI>Either click the yellow [OFF] and enter the waypoint in the dialog or...</LI>
-            <LI>Select the beacon to be used on either the FAAWP1, FAAWP2 or UserWP pages.</LI>
-            <LI>Select either the VirtNav1 or VirtNav2 page.</LI>
-            <LI>Click the FAAWP1, FAAWP2 or UserWP button at the top.</LI>
-            <LI>To switch between OFF/VOR/ADF display mode, click the OFF/VOR/ADF mode button in
-                the upper-left corner of the display.  The mode does not have to match the beacon
-                type, eg, you can use ADF mode even if a VOR is selected.  This is handy for
-                practicing NDB approaches using a VOR approach plate <I><B>IN VFR CONDITIONS
-                ONLY</B></I>.</LI>
-            <LI>Adjust the OBS setting by dragging finger around the numbers on the dial.  The dial
-                turns at a ratio of 5-to-1, ie, it takes 5 revolutions of the finger to turn the
-                dial a full revolution.</LI>
-        </OL>
-        <P>The page also has LOC/ILS modes if a localizer or ILS is selected.  For these navaids,
-            the OBS setting has no effect as on a real aircraft radio.  ILS mode is selectable only
-            when the database indicates there is a glideslope antenna present for that localizer.</P>
-        <P>There is also a DME display in the lower left quarter of the display.  By default,
-            it is set to the navaid that the needle(s) are using.  To select an alternate
-            navaid, click on the numbers and type in the ident of the waypoint you wish to use.
-            The dialog box will also allow you to turn the DME off if desired.</P>
-        <P>If the Android device is in landscape orientation, the latest selected IAP plate will be
-            displayed on the right-hand side of the screen.  This may only be of practical use on a
-            larger tablet.</P>
         <P><FONT COLOR=RED><I><B>USE ONLY FOR TRAINING IN VFR CONDITIONS</B></I>, especially when
             using the ILS mode, as the altitude in these GPS receivers is notoriously
             inaccurate, leading to inaccurate glideslope indications!</FONT></P>
-        <P>Note:  This page is disabled when <A HREF="p_options.html">Option</A>
+        <P>NOTE:  This page is disabled when <A HREF="p_options.html">Option</A>
             <B>Type B</B> is checked so as to block the GPS from providing false
             or misleading information.</P>
-        <TABLE>
+
+        <H3>Using the page as a basic VOR dial</H3>
+        <CENTER><IMG SRC="virtnav-vor-port.png"></CENTER>
+        <OL>
+            <LI>Select either the VirtNav1 or VirtNav2 page.</LI>
+            <LI>Click on the yellow text at the top.  In the sample, that is where it says
+                <B>VOR/DME LWM: LAWRENCE...</B>.  If the screen isn't 'tuned' to anything,
+                it will say <B>[OFF]</B> here.</LI>
+            <LI>Type the ident of the VOR in the dialog box and click OK.  You can also type the
+                ident of any NDB, localizer, airport (icaoid) or intersection in the box as
+                well.</LI>
+            <LI>The yellow text at the top will indicate what waypoint is being used so you can
+                verify that it is using the one you want.</LI>
+            <LI>Rotate the OBS dial by dragging your finger around the dial numbers.</LI>
+            <LI>By default, the DME window will be tuned to the same waypoint.  To set it to
+                something else, click on the DME numbers and enter the desired waypoint in the
+                dialog box.  If elevation of the beacon is known, the distance will be slant-range
+                indicated by slanted (italic) numbers.  Otherwise, over-the-ground distance will
+                be displayed by normal digits.</LI>
+            <LI>By default, the dial is put in the mode appropriate to the waypoint selected.  If
+                you want to, for example, use an ADF dial to navigate to a VOR navaid, just click
+                the mode button in the upper left corner to select ADF mode.</LI>
+        </OL>
+        <P>Similarly, you can tune in a localizer or ILS.  It will by default set the display to
+            LOC or ILS mode, depending on the beacon type.  When the display is in LOC or ILS mode,
+            the OBS dial will be locked to the localizer heading.  If you set the display to VOR or
+            ADF mode, WairToNow will behave as if there was a VOR or ADF at the same spot as the
+            localizer and you can rotate the dial freely.</P>
+        <P>When in ILS mode, the dial will calculate what your descent rate should be to stay on
+            the glideslope, in feet per minute.  This calculation is based on what the device's GPS
+            is showing for the aircraft's ground speed and the glideslope antenna tilt as provided
+            in the FAA database.  The indication will appear in the upper right corner of the dial
+            window.
+            <I>This is advisory only and you must follow your approved navigation systems glideslope
+                indications as the final authority.</I>
+        </P>
+
+        <CENTER><TABLE>
             <TR>
                 <TH>Using the LWM-VOR-23 approach as an NDB approach</TH>
-                <TH>Doing the MHT-ILS-35 approach with DME enabled</TH>
+                <TH>Doing the MHT-ILS-35 approach with DME enabled and glideslope indication</TH>
             </TR>
             <TR>
                 <TD><IMG SRC="virtnavadfvelan-400.png"></TD>
                 <TD><IMG SRC="virtnavilsimht-400.png"></TD>
             </TR>
-        </TABLE>
-        <TABLE>
+        </TABLE></CENTER>
+
+        <H3>Automatic tuning</H3>
+        <P>The VirtNav pages will attempt to automatically tune a navaid used by an approach so you
+            don't have to type the identifier in a dialog box.</P>
+        <OL>
+            <LI>Use the <A HREF="p_faawp.html">FAAWP1 or FAAWP2 page</A> to select the airport and
+                approach plate by clicking
+                the FAAWP1 or FAAWP2 button at the bottom of the screen and going from there to open
+                the approach plate.</LI>
+            <LI>Open the VirtNav1 or VirtNav2 page and click the FAAWP1 or FAAWP2 button in the
+                upper left corner.  It should tune in the navaid assuming the WairToNow database
+                knows what navaid that approach uses.  Verify it is the correct one by looking at
+                the yellow text at the top of the screen.</LI>
+            <LI>If you rotate the display to landscape mode, the plate will be displayed in the
+                right-hand half of the screen.</LI>
+        </OL>
+        <CENTER><TABLE>
             <TR><TH>Doing the BVY-LOC-16 approach with plate</TH></TR>
             <TR><TD><IMG SRC="virtnavlandplate-400.png"></TD></TR>
-        </TABLE>
+        </TABLE></CENTER>
+
+        <H3>Automatically stepping through an approach procedure</H3>
+        <P>For most approaches, the VirtNav page can step through an approach, automatically turning
+            the OBS dial as appropriate.  This is called Coded Istrument Flight Procedure (CIFP) mode.
+        <OL>
+            <LI>Use the <A HREF="p_faawp.html">FAAWP1 or FAAWP2 page</A> by clicking the FAAWP1 or
+                FAAPW2 button at the bottom of the screen to select the airport and
+                approach procedure you want to use.</LI>
+            <LI>Click the yellow triangle in the lower right corner of the approach plate.  If there
+                is no triangle button there, this feature is not available for that approach.  Select
+                the starting point (IAF) from the menu given.</LI>
+            <LI>Colored dots should appear on the approach plate and a list of steps should appear
+                in the lower right corner of the plate.  To get rid of the text, a short click will
+                collapse it to a yellow triangle.  A long click on the text or triangle will re-open
+                the IAF selection menu.</LI>
+            <LI>Open either the VirtNav1 or VirtNav2 page, then click the FAAWP1 or FAAWP2 button in
+                the upper left corner.</LI>
+        </OL>
+        <P>The dial should track your progress as you go along.  When you are on the final approach
+            course within 3nm of the FAF, it will switch to glideslope mode to guide you down to the
+            runway.  Outside of that, it will be in terminal mode with no glideslope provided.</P>
+        <P>Once you reach the missed approach point, it will automatically step through the published
+            missed approach sequence.  The missed approach sequence is displayed with cyan dots and
+            text.</P>
+        <P>NOTE:  The OBS dial is locked in place while in CIFP mode, indicating the magnetic course
+            for the current segment (depicted in magenta).</P>
+        <P>NOTE:  If you change the IAF or the plate, you will have to re-tune the VirtNav dial to
+            use the new CIFP.  Just re-click the FAAWP1 or FAAPW2 button in the upper left corner and
+            it will start tracking the new steps.</P>
+        <CENTER><TABLE>
+            <TR><TH>Doing CIFP approach with text steps showing</TH></TR>
+            <TR><TD><IMG SRC="virtnav-cifp-land.png"></TD></TR>
+            <TR><TH>Doing CIFP approach with text steps hidden</TH></TR>
+            <TR><TD><IMG SRC="virtnav-cifp-land-notext.png"></TD></TR>
+        </TABLE></CENTER>
     </BODY>
 </HTML>

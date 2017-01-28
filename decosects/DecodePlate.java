@@ -536,7 +536,11 @@ public class DecodePlate {
         private boolean isGray;
         private double appCrsMag;
         private double appCrsTrue;
+        private float fontScale;
+        private float textMatrix_a, textMatrix_b, textMatrix_c;
+        private float textMatrix_d, textMatrix_e, textMatrix_f;
         private Graphics2D g2d;
+        private GraphicsState gscur;
         private HashMap<Integer,SegNode>        segmentNodes     = new HashMap<> ();
         private HashSet<Long>                   bezierSegEdges   = new HashSet<> ();
         private int panelHeight, panelWidth;
@@ -561,6 +565,7 @@ public class DecodePlate {
         private LinkedList<TextString>          appCrsStrings    = new LinkedList<> ();
         private LinkedList<TextString>          textStrings      = new LinkedList<> ();
         private List<Object>                    tokens;
+        private PDFont fontInPDF;
         private String appCrsStr;
 
         public PagePanel (PDPage page) throws IOException
@@ -589,7 +594,7 @@ public class DecodePlate {
             allPlateFixes.clear ();
             Stack<COSBase> objstack = new Stack<> ();
             Stack<GraphicsState> gsstack = new Stack<> ();
-            GraphicsState gscur = new GraphicsState ();
+            gscur = new GraphicsState ();
             gscur.ctm_a =   (float) csvDpi / pdfDpi;
             gscur.ctm_d = - (float) csvDpi / pdfDpi;
             gscur.ctm_f = panelHeight;
@@ -599,7 +604,7 @@ public class DecodePlate {
             Path path = null;
 
             Font originalFont = g2d.getFont ();
-            float fontScale = 0.0F;
+            fontScale = 0.0F;
             float textLeading = 1.0F;
             float textLineMatrix_a = 0;
             float textLineMatrix_b = 0;
@@ -607,14 +612,14 @@ public class DecodePlate {
             float textLineMatrix_d = 0;
             float textLineMatrix_e = 0;
             float textLineMatrix_f = 0;
-            float textMatrix_a = 0;
-            float textMatrix_b = 0;
-            float textMatrix_c = 0;
-            float textMatrix_d = 0;
-            float textMatrix_e = 0;
-            float textMatrix_f = 0;
+            textMatrix_a = 0;
+            textMatrix_b = 0;
+            textMatrix_c = 0;
+            textMatrix_d = 0;
+            textMatrix_e = 0;
+            textMatrix_f = 0;
             int textRenderMode = 0;
-            PDFont fontInPDF = null;
+            fontInPDF = null;
 
             // PDF Reference, Third Edition p.701 has a table of the opcodes
 
@@ -865,115 +870,18 @@ public class DecodePlate {
 
                         case "Tj": {
                             String str = GetStringValue (objstack.pop ());
-                            if (!isGray || str.trim ().equals ("")) break;
+                            GotPDFString (str);
+                            break;
+                        }
 
-                            // save text string for processing later
-                            TextString ts = new TextString ();
-                            ts.rawstr = str;
-
-                            // brain damaged - gets null pointer exception in drawString() in most cases
-                            // in cases where it succeeds, nothing appears on image
-                            if (false) { //// (fontInPDF != null) {
-                                AffineTransform at = gscur.getAffine ();
-                                at.concatenate (new AffineTransform (textMatrix_a, textMatrix_b, textMatrix_c, textMatrix_d, textMatrix_e, textMatrix_f));
-                                try {
-                                    fontInPDF.drawString (str, null, g2d, fontScale, at, 0.0F, 0.0F);
-                                    System.err.println ("Tj drew " + str);
-                                } catch (Exception e) {
-                                    String msg = e.getMessage ();
-                                    if (msg == null) msg = e.getClass ().toString ();
-                                    System.err.println ("error drawing string: " + msg);
-                                    System.err.println ("fontInPDF=" + fontInPDF.getClass ().toString ());
-                                    e.printStackTrace ();
-                                    fontInPDF = null;
+                        case "TJ": {
+                            StringBuilder sb = new StringBuilder ();
+                            for (COSBase elem : (COSArray) objstack.pop ()) {
+                                if (elem instanceof COSString) {
+                                    sb.append (GetStringValue (elem));
                                 }
                             }
-
-                            // this code puts strings in the right place
-                            // although they aren't quite the right size
-
-                            // select and scale the font to be used
-                            GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment ();
-                            Font[] allFonts = ge.getAllFonts ();
-                            Font newFont = allFonts[0];
-                            for (Font f : allFonts) {
-                                if (f.getFontName ().equals ("Dialog.plain")) {
-                                    newFont = f;
-                                    break;
-                                }
-                            }
-                            newFont = newFont.deriveFont (new AffineTransform (fontScale * 0.9F, 0, 0, fontScale * -1.4F, 0, 0));
-                            g2d.setFont (newFont);
-
-                            // set up drawing transformation for the text string
-                            // doing g2d.drawString() with the newFont does pretty good with this transformation
-                            AffineTransform saveat = g2d.getTransform ();
-                            g2d.transform (gscur.getAffine ());
-                            g2d.transform (new AffineTransform (textMatrix_a, textMatrix_b, textMatrix_c, textMatrix_d, textMatrix_e, textMatrix_f));
-                            AffineTransform textat = g2d.getTransform ();
-
-                            // however FontMetrics is brain-dead if the font is rotated, so devise an un-rotated transform
-                            double[] textmat = new double[6];
-                            textat.getMatrix (textmat);
-                            double angle = Math.atan2 (- textmat[2], - textmat[3]);
-                                                // =0: horizontal non-inverted
-                                                // >0: rotated anti-clockwise, eg, "MSA" in "MSA xxx xxx NM"
-                                                // <0: rotated clockwise, eg, "NM" in "MSA xxx xxx NM"
-
-                            textmat[0] = Math.hypot (textmat[0], textmat[1]);
-                            textmat[1] = 0.0;
-                            textmat[3] = Math.hypot (textmat[3], textmat[2]);
-                            textmat[2] = 0.0;
-                            g2d.setTransform (new AffineTransform (textmat));
-
-                            FontMetrics fm   = g2d.getFontMetrics ();
-                            double strWidth  = Math.abs (textmat[0] * fm.stringWidth (str));
-                            double chrHeight = Math.abs (textmat[3] * fm.getAscent ());  // does not work in 1.7, use 1.8.0_25
-
-                            // - lengths along the horizontal and vertical axes of the rotated text
-                            //   comments are for small pos angle, eg, "MSA" in "MSA xxx xxx NM"
-                            //   ...and relative to bottom left corner of the "M"
-                            double horizdx =   strWidth  * Math.cos (angle);  // mostly goes to the right along the bottom
-                            double horizdy = - strWidth  * Math.sin (angle);  // slightly goes up along the bottom
-                            double vertdx  = - chrHeight * Math.sin (angle);  // slightly goes left along the left edge
-                            double vertdy  = - chrHeight * Math.cos (angle);  // mostly goes up along the left adge
-
-                            // - bottom left corner
-                            ts.botleftx = (int) (textmat[4] + 0.5);
-                            ts.botlefty = (int) (textmat[5] + 0.5);
-
-                            // - bottom right corner
-                            ts.botritex = (int) (textmat[4] + horizdx + 0.5);
-                            ts.botritey = (int) (textmat[5] + horizdy + 0.5);
-
-                            // - top left corner
-                            ts.topleftx = (int) (textmat[4] + vertdx + 0.5);
-                            ts.toplefty = (int) (textmat[5] + vertdy + 0.5);
-
-                            // - top right corner
-                            ts.topritex = (int) (textmat[4] + horizdx + vertdx + 0.5);
-                            ts.topritey = (int) (textmat[5] + horizdy + vertdy + 0.5);
-
-                            // - undo unrotate so we are rotated again
-                            g2d.setTransform (textat);
-
-                            // skip the huge morse-code letters
-                            if (chrHeight < csvDpi / 3) {
-
-                                // draw text string
-                                g2d.setColor (isBlack ? Color.BLACK : Color.GRAY);
-                                g2d.drawString (str, 0.0F, 0.0F);
-
-                                // save it
-                                textStrings.addLast (ts);
-                            }
-
-                            // - pop text transformation
-                            g2d.setTransform (saveat);
-
-                            // draw a rotated pink box around the text
-                            ////g2d.setColor (Color.PINK);
-                            ////ts.drawBox (g2d);
+                            GotPDFString (sb.toString ());
                             break;
                         }
 
@@ -1026,7 +934,6 @@ public class DecodePlate {
                         case "g":
                         case "sh":
                         case "Tc":
-                        case "TJ":
                         case "TL":
                         case "Ts":
                         case "Tw":
@@ -1046,7 +953,123 @@ public class DecodePlate {
             }
 
             g2d.setFont (originalFont);
+
+            fontInPDF = null;
             g2d = null;
+            gscur = null;
+        }
+
+        private void GotPDFString (String str)
+        {
+            if (!isGray || str.trim ().equals ("")) return;
+
+            // save text string for processing later
+            TextString ts = new TextString ();
+            ts.rawstr = str;
+
+            // brain damaged - gets null pointer exception in drawString() in most cases
+            // in cases where it succeeds, nothing appears on image
+            if (false) { //// (fontInPDF != null) {
+                AffineTransform at = gscur.getAffine ();
+                at.concatenate (new AffineTransform (textMatrix_a, textMatrix_b, textMatrix_c, textMatrix_d, textMatrix_e, textMatrix_f));
+                try {
+                    fontInPDF.drawString (str, null, g2d, fontScale, at, 0.0F, 0.0F);
+                    System.err.println ("Tj drew " + str);
+                } catch (Exception e) {
+                    String msg = e.getMessage ();
+                    if (msg == null) msg = e.getClass ().toString ();
+                    System.err.println ("error drawing string: " + msg);
+                    System.err.println ("fontInPDF=" + fontInPDF.getClass ().toString ());
+                    e.printStackTrace ();
+                    fontInPDF = null;
+                }
+            }
+
+            // this code puts strings in the right place
+            // although they aren't quite the right size
+
+            // select and scale the font to be used
+            GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment ();
+            Font[] allFonts = ge.getAllFonts ();
+            Font newFont = allFonts[0];
+            for (Font f : allFonts) {
+                if (f.getFontName ().equals ("Dialog.plain")) {
+                    newFont = f;
+                    break;
+                }
+            }
+            newFont = newFont.deriveFont (new AffineTransform (fontScale * 0.9F, 0, 0, fontScale * -1.4F, 0, 0));
+            g2d.setFont (newFont);
+
+            // set up drawing transformation for the text string
+            // doing g2d.drawString() with the newFont does pretty good with this transformation
+            AffineTransform saveat = g2d.getTransform ();
+            g2d.transform (gscur.getAffine ());
+            g2d.transform (new AffineTransform (textMatrix_a, textMatrix_b, textMatrix_c, textMatrix_d, textMatrix_e, textMatrix_f));
+            AffineTransform textat = g2d.getTransform ();
+
+            // however FontMetrics is brain-dead if the font is rotated, so devise an un-rotated transform
+            double[] textmat = new double[6];
+            textat.getMatrix (textmat);
+            double angle = Math.atan2 (- textmat[2], - textmat[3]);
+                                // =0: horizontal non-inverted
+                                // >0: rotated anti-clockwise, eg, "MSA" in "MSA xxx xxx NM"
+                                // <0: rotated clockwise, eg, "NM" in "MSA xxx xxx NM"
+
+            textmat[0] = Math.hypot (textmat[0], textmat[1]);
+            textmat[1] = 0.0;
+            textmat[3] = Math.hypot (textmat[3], textmat[2]);
+            textmat[2] = 0.0;
+            g2d.setTransform (new AffineTransform (textmat));
+
+            FontMetrics fm   = g2d.getFontMetrics ();
+            double strWidth  = Math.abs (textmat[0] * fm.stringWidth (str));
+            double chrHeight = Math.abs (textmat[3] * fm.getAscent ());  // does not work in 1.7, use 1.8.0_25
+
+            // - lengths along the horizontal and vertical axes of the rotated text
+            //   comments are for small pos angle, eg, "MSA" in "MSA xxx xxx NM"
+            //   ...and relative to bottom left corner of the "M"
+            double horizdx =   strWidth  * Math.cos (angle);  // mostly goes to the right along the bottom
+            double horizdy = - strWidth  * Math.sin (angle);  // slightly goes up along the bottom
+            double vertdx  = - chrHeight * Math.sin (angle);  // slightly goes left along the left edge
+            double vertdy  = - chrHeight * Math.cos (angle);  // mostly goes up along the left adge
+
+            // - bottom left corner
+            ts.botleftx = (int) (textmat[4] + 0.5);
+            ts.botlefty = (int) (textmat[5] + 0.5);
+
+            // - bottom right corner
+            ts.botritex = (int) (textmat[4] + horizdx + 0.5);
+            ts.botritey = (int) (textmat[5] + horizdy + 0.5);
+
+            // - top left corner
+            ts.topleftx = (int) (textmat[4] + vertdx + 0.5);
+            ts.toplefty = (int) (textmat[5] + vertdy + 0.5);
+
+            // - top right corner
+            ts.topritex = (int) (textmat[4] + horizdx + vertdx + 0.5);
+            ts.topritey = (int) (textmat[5] + horizdy + vertdy + 0.5);
+
+            // - undo unrotate so we are rotated again
+            g2d.setTransform (textat);
+
+            // skip the huge morse-code letters
+            if (chrHeight < csvDpi / 3) {
+
+                // draw text string
+                g2d.setColor (isBlack ? Color.BLACK : Color.GRAY);
+                g2d.drawString (str, 0.0F, 0.0F);
+
+                // save it
+                textStrings.addLast (ts);
+            }
+
+            // - pop text transformation
+            g2d.setTransform (saveat);
+
+            // draw a rotated pink box around the text
+            ////g2d.setColor (Color.PINK);
+            ////ts.drawBox (g2d);
         }
 
         /**

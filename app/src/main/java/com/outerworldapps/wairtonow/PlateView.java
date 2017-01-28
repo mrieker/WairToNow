@@ -78,7 +78,6 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
     private final static boolean disableWebServer = true;
     private final static int GEOREFBOX = 64;
     private final static float GEOREFDIMND = 1;
-    private final static int GEOREFMAXNM = 50;
     private final static int MAXZOOMIN = 16;
     private final static int MAXZOOMOUT = 8;
     private final static String GeoRefDBName = "georefs.db";
@@ -99,7 +98,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
     private boolean full;
     private int expdate;                // plate expiration date, eg, 20150917
     private Paint exppaint;
-    private PlateImage plateImage;      // displays the plate image bitmap
+    public  PlateImage plateImage;      // displays the plate image bitmap
     private String plateid;             // which plate, eg, "IAP-LOC RWY 16"
     private WairToNow wairToNow;
     private WaypointView waypointView;  // airport waypoint page we are part of
@@ -139,10 +138,6 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         if (plateid.startsWith ("APD-")) {
             plateImage = new APDPlateImage (fn);
         } else if (plateid.startsWith ("IAP-")) {
-            wairToNow.lastPlate_fn = fn;
-            wairToNow.lastPlate_aw = aw;
-            wairToNow.lastPlate_pd = pd;
-            wairToNow.lastPlate_ex = ex;
             plateImage = new IAPPlateImage (fn);
         } else if (plateid.startsWith ("RWY-")) {
             plateImage = new RWYPlateImage ();
@@ -152,6 +147,14 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
 
         plateImage.setLayoutParams (new LayoutParams (LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
         addView (plateImage);
+    }
+
+    /**
+     * New GPS location received, update georef'd plate.
+     */
+    public void SetGPSLocation ()
+    {
+        plateImage.SetGPSLocation ();
     }
 
     @Override  // WairToNow.CanBeMainView
@@ -204,53 +207,8 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
     @Override
     public void ReClicked ()
     {
+        waypointView.selectedPlateView = null;
         wairToNow.SetCurrentTab (waypointView);
-    }
-
-    /**
-     * Find waypoint by name in database.
-     * If more than one found, pick one closest to this airport.
-     */
-    private Waypoint FindWaypoint (String wayptid)
-    {
-        // if it might be a runway, look it up in the current airport
-        Waypoint bestwp = null;
-        if (wayptid.startsWith ("RW")) {
-            Waypoint.RNavParse rnp = new Waypoint.RNavParse (wayptid);
-            String rwno = rnp.baseident.substring (2);
-            HashMap<String,Waypoint.Runway> rws = airport.GetRunways ();
-            bestwp = rws.get (rwno);
-            if (bestwp == null) bestwp = rws.get ("0" + rwno);
-            if (bestwp != null) bestwp = rnp.makeWaypoint (bestwp);
-        }
-
-        if (bestwp == null) {
-
-            // not a runway, look up identifier as given
-            float bestnm = GEOREFMAXNM;
-            LinkedList<Waypoint> wps = Waypoint.GetWaypointsByIdent (wayptid);
-            for (Waypoint wp : wps) {
-                float nm = Lib.LatLonDist (wp.lat, wp.lon, airport.lat, airport.lon);
-                if (bestnm > nm) {
-                    bestnm = nm;
-                    bestwp = wp;
-                }
-            }
-
-            // maybe it is a localizer witout the _ after the I
-            if (wayptid.startsWith ("I") && !wayptid.startsWith ("I-")) {
-                wps = Waypoint.GetWaypointsByIdent ("I-" + wayptid.substring (1));
-                for (Waypoint wp : wps) {
-                    float nm = Lib.LatLonDist (wp.lat, wp.lon, airport.lat, airport.lon);
-                    if (bestnm > nm) {
-                        bestnm = nm;
-                        bestwp = wp;
-                    }
-                }
-            }
-        }
-
-        return bestwp;
     }
 
     /**
@@ -273,6 +231,8 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         public abstract void CloseBitmaps ();
         protected abstract void GotMouseDown (float x, float y);
         protected abstract void GotMouseUp (float x, float y);
+
+        public void SetGPSLocation () { }
 
         /**
          * Callback for mouse events on the image.
@@ -1151,16 +1111,20 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         private GeoRefInput iapGeoRefInput;                   // the whole georef editing toolbar row
         private int         bmHeight;                         // height of one image
         private int         bmWidth;                          // width of one image
+        private int         bmxy2llx = -999999999;
+        private int         bmxy2lly = -999999999;
         private int         crosshairBMX;                     // where georef crosshairs are in bitmap co-ords
         private int         crosshairBMY;
         private LambertConicalConformal lccmap;               // non-null: FAA-provided georef data
+        private LatLon      bmxy2latlon = new LatLon ();
         private Paint       editButtonPaint  = new Paint ();  // draws IAP georef edit tb hide/show button
         private Paint       geoRefPaint;                      // paints georef stuff on plate image
         private Path        diamond          = new Path  ();  // used to draw waypoint diamond shape
         private Path        editButtonPath   = new Path  ();
+        public  PlateCIFP   plateCIFP;
         private PlateDME    plateDME;
         private PlateTimer  plateTimer;
-        private Point bitmapPt = new Point ();
+        private Point       bitmapPt = new Point ();
         private RectF       editButtonBounds = new RectF ();  // where IAP georef edit tb hide/show button is on canvas
         private String      filename;                         // name of gifs on flash, without ".p<pageno>" suffix
         private TextView    geoRefInteg;                      // georef geometry integrity string
@@ -1188,7 +1152,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             GetIAPGeoRefPoints ();
 
             /*
-             * if no FAA georefs, allow manual entry of waypoints for georeferencing.
+             * If no FAA georefs, allow manual entry of waypoints for georeferencing.
              */
             if (lccmap == null) {
                 DetentHorizontalScrollView hsv = new DetentHorizontalScrollView (wairToNow);
@@ -1199,12 +1163,24 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                 hsv.addView (iapGeoRefInput);
                 PlateView.this.addView (hsv);
             }
+
+            /*
+             * Init CIFP class.
+             * Constructor uses lat/lon <=> bitmap pixel mapping.
+             */
+            plateCIFP = new PlateCIFP (wairToNow, this, airport, plateid);
+        }
+
+        @Override  // PlateImage
+        public void SetGPSLocation ()
+        {
+            plateCIFP.SetGPSLocation ();
         }
 
         // used by PlateDME
         public Waypoint FindWaypoint (String wayptid)
         {
-            return PlateView.this.FindWaypoint (wayptid);
+            return airport.GetNearbyWaypoint (wayptid);
         }
 
         /**
@@ -1264,7 +1240,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                         if (result.moveToFirst ()) {
                             do {
                                 String id = result.getString (0);
-                                Waypoint wp = FindWaypoint (id);
+                                Waypoint wp = airport.GetNearbyWaypoint (id);
                                 if (wp != null) {
                                     int pixelx = result.getInt (1);
                                     int pixely = result.getInt (2);
@@ -1412,6 +1388,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             if ((lccmap == null) && editButtonBounds.contains (x, y)) {
                 ShowHideEditToolbar ();
             }
+            plateCIFP.GotMouseDown (x, y);
             plateDME.GotMouseDown (x, y);
             plateTimer.GotMouseDown (x, y);
             wairToNow.currentCloud.MouseDown (Math.round (x), Math.round (y),
@@ -1420,6 +1397,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
 
         protected void GotMouseUp (float x, float y)
         {
+            plateCIFP.GotMouseUp ();
             plateDME.GotMouseUp ();
             if (wairToNow.currentCloud.MouseUp (Math.round (x), Math.round (y),
                     System.currentTimeMillis ())) invalidate ();
@@ -1569,9 +1547,10 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             }
 
             /*
-             * Draw any enabled DMEs and timer.
+             * Draw any CIFP, enabled DMEs and timer.
              */
             if (!wairToNow.optionsView.typeBOption.checkBox.isChecked ()) {
+                plateCIFP.DrawCIFP (canvas);
                 plateDME.DrawDMEs (canvas, wairToNow.currentGPSLat, wairToNow.currentGPSLon,
                         wairToNow.currentGPSAlt, wairToNow.currentGPSTime);
             }
@@ -1614,7 +1593,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         }
 
         @Override  // GRPPlateImage
-        protected int LatLon2BitmapX (float lat, float lon)
+        public int LatLon2BitmapX (float lat, float lon)
         {
             if (lccmap != null) {
                 bitmapLat = lat;
@@ -1626,7 +1605,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         }
 
         @Override  // GRPPlateImage
-        protected int LatLon2BitmapY (float lat, float lon)
+        public int LatLon2BitmapY (float lat, float lon)
         {
             if (lccmap != null) {
                 if ((bitmapLat != lat) || (bitmapLon != lon)) {
@@ -1637,6 +1616,34 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                 return bitmapPt.y;
             }
             return super.LatLon2BitmapY (lat, lon);
+        }
+
+        @Override  // GRPPlateImage
+        public float BitmapXY2Lat (int bmx, int bmy)
+        {
+            if (lccmap != null) {
+                if ((bmx != bmxy2llx) || (bmy != bmxy2lly)) {
+                    bmxy2llx = bmx;
+                    bmxy2lly = bmy;
+                    lccmap.ChartPixel2LatLonExact (bmx, bmy, bmxy2latlon);
+                }
+                return bmxy2latlon.lat;
+            }
+            return super.BitmapXY2Lat (bmx, bmy);
+        }
+
+        @Override  // GRPPlateImage
+        public float BitmapXY2Lon (int bmx, int bmy)
+        {
+            if (lccmap != null) {
+                if ((bmx != bmxy2llx) || (bmy != bmxy2lly)) {
+                    bmxy2llx = bmx;
+                    bmxy2lly = bmy;
+                    lccmap.ChartPixel2LatLonExact (bmx, bmy, bmxy2latlon);
+                }
+                return bmxy2latlon.lon;
+            }
+            return super.BitmapXY2Lon (bmx, bmy);
         }
 
         /**
@@ -1888,7 +1895,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             @Override
             public void onClick (View v)
             {
-                Waypoint wp = FindWaypoint (geoRefIdent.getText ().toString ().toUpperCase (Locale.US));
+                Waypoint wp = airport.GetNearbyWaypoint (geoRefIdent.getText ().toString ().toUpperCase (Locale.US));
                 if (wp != null) {
                     geoRefIdent.setText (wp.ident);
                     PutIAPGeoRefPoint (wp.ident, wp.lat, wp.lon, crosshairBMX, crosshairBMY);

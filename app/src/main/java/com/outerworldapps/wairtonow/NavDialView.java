@@ -35,6 +35,7 @@ public class NavDialView extends View {
     public final static float NOHEADING  = 999999.0F;
 
     private final static int DMETEXTSIZE = 100;
+    private final static int GSFPMTEXTSIZE = 80;
 
     public enum Mode {
         OFF, VOR, ADF, LOC, ILS
@@ -48,22 +49,24 @@ public class NavDialView extends View {
         void obsChanged (float obs);
     }
 
-    private final static float DIALRATIO = 5;
-    private final static float VORDEFLECT = 10;
-    private final static float LOCDEFLECT = 3;
-    private final static float GSDEFLECT = 1;
+    private final static float DIALRATIO  =  5;  // number of times drag finger to drag obs once
+    public  final static float VORDEFLECT = 10;  // degrees each side for VOR mode deflection
+    public  final static float LOCDEFLECT =  3;  // degrees each side for ILS/LOC mode deflection
+    private final static float GSDEFLECT  =  1;  // degrees each side for GS deflection
 
     private boolean dmeSlant;
+    public  boolean hsiEnable;
     public  DMEClickedListener dmeClickedListener;
     private float deflect;
     private float distance;
     private float heading;
-    private float lastHeight, lastScale, lastWidth;
+    private float lastHeight, lastRotate, lastScale, lastWidth;
     public  float obsSetting;
     private float slope;
     private float touchDownOBS;
     private float touchDownX;
     private float touchDownY;
+    public  int  gsfpm;
     private long touchDownTime;
     private Mode mode;
     public  OBSChangedListener obsChangedListener;
@@ -76,6 +79,7 @@ public class NavDialView extends View {
     private Paint dirArrowPaint;
     private Paint dmeDigitPaint;
     private Paint dmeIdentPaint;
+    private Paint gsfpmTextPaint;
     private Paint innerRingPaint;
     private Paint obsArrowPaint;
     private Paint outerRingPaint;
@@ -142,6 +146,13 @@ public class NavDialView extends View {
         dmeIdentPaint.setStrokeWidth (3);
         dmeIdentPaint.setTextSize (DMETEXTSIZE);
 
+        gsfpmTextPaint = new Paint ();
+        gsfpmTextPaint.setColor (Color.rgb (255, 170, 0));
+        gsfpmTextPaint.setStyle (Paint.Style.FILL_AND_STROKE);
+        gsfpmTextPaint.setStrokeWidth (3);
+        gsfpmTextPaint.setTextAlign (Paint.Align.RIGHT);
+        gsfpmTextPaint.setTextSize (GSFPMTEXTSIZE);
+
         innerRingPaint = new Paint ();
         innerRingPaint.setColor (Color.WHITE);
         innerRingPaint.setStrokeWidth (10);
@@ -202,6 +213,14 @@ public class NavDialView extends View {
     public Mode getMode ()
     {
         return mode;
+    }
+
+    /**
+     * See if the current mode supports HSI.
+     */
+    public boolean isHSIAble ()
+    {
+        return (mode == Mode.VOR) || (mode == Mode.LOC) || (mode == Mode.ILS);
     }
 
     /**
@@ -274,36 +293,43 @@ public class NavDialView extends View {
             }
 
             case MotionEvent.ACTION_MOVE: {
-                float moveX    = event.getX ();
-                float moveY    = event.getY ();
-                float centerX  = getWidth ()  / 2.0F;
-                float centerY  = getHeight () / 2.0F;
-                float startHdg = Mathf.atan2 (touchDownX - centerX, touchDownY - centerY);
-                float moveHdg  = Mathf.atan2 (moveX - centerX, moveY - centerY);
+                if ((mode == Mode.ADF) || (mode == Mode.VOR)) {
+                    float moveX    = event.getX ();
+                    float moveY    = event.getY ();
+                    float centerX  = getWidth ()  / 2.0F;
+                    float centerY  = getHeight () / 2.0F;
+                    float startHdg = Mathf.atan2 (touchDownX - centerX, touchDownY - centerY);
+                    float moveHdg  = Mathf.atan2 (moveX - centerX, moveY - centerY);
 
-                // compute how many degrees finger moved since ACTION_DOWN
-                float degsMoved = Mathf.toDegrees (moveHdg - startHdg);
-                while (degsMoved < -180) degsMoved += 360;
-                while (degsMoved >= 180) degsMoved -= 360;
+                    // compute how many degrees finger moved since ACTION_DOWN
+                    float degsMoved = Mathf.toDegrees (moveHdg - startHdg);
+                    while (degsMoved < -180) degsMoved += 360;
+                    while (degsMoved >= 180) degsMoved -= 360;
 
-                // compute how many degrees to turn dial based on that
-                degsMoved /= DIALRATIO;
+                    // compute how many degrees to turn dial based on that
+                    degsMoved /= DIALRATIO;
 
-                // update the dial to the new heading
-                obsSetting = touchDownOBS + degsMoved;
-                invalidate ();
+                    // backward when HSI enabled and active
+                    if (hsiEnable && (heading != NOHEADING) && isHSIAble ()) {
+                        degsMoved = - degsMoved;
+                    }
 
-                // if turned a long way, pretend we just did a new finger down
-                // ...this lets us go round and round
-                if (Math.abs (degsMoved) > 90 / DIALRATIO) {
-                    touchDownX = moveX;
-                    touchDownY = moveY;
-                    touchDownOBS = obsSetting;
-                }
+                    // update the dial to the new heading
+                    obsSetting = touchDownOBS + degsMoved;
+                    invalidate ();
 
-                // tell listener of new heading
-                if (obsChangedListener != null) {
-                    obsChangedListener.obsChanged (obsSetting);
+                    // if turned a long way, pretend we just did a new finger down
+                    // ...this lets us go round and round
+                    if (Math.abs (degsMoved) > 90 / DIALRATIO) {
+                        touchDownX = moveX;
+                        touchDownY = moveY;
+                        touchDownOBS = obsSetting;
+                    }
+
+                    // tell listener of new heading
+                    if (obsChangedListener != null) {
+                        obsChangedListener.obsChanged (obsSetting);
+                    }
                 }
                 break;
             }
@@ -327,10 +353,18 @@ public class NavDialView extends View {
         canvas.translate (lastWidth / 2, lastHeight / 2);
         canvas.scale (lastScale, lastScale);
 
+        // maybe rotate whole mess for HSI mode
+        canvas.save ();
+        lastRotate = 0.0F;
+        if (hsiEnable && (heading != NOHEADING) && isHSIAble ()) {
+            lastRotate = - heading;
+            canvas.rotate (lastRotate);
+        }
+
         // draw outer ring
         canvas.drawCircle (0, 0, 1000, outerRingPaint);
 
-        // draw obs arrow triangle
+        // draw OBS arrow triangle
         canvas.drawPath (obsArrowPath, obsArrowPaint);
 
         // draw DME information if enabled
@@ -368,14 +402,9 @@ public class NavDialView extends View {
             if (degdiff >= pegdeflect) degdiff =  pegdeflect;
             if (degdiff < -pegdeflect) degdiff = -pegdeflect;
             float needleMidX = degdiff / maxdeflect * 412;
-            float needleMidY = 0;
-            float needleTopX = 0;
             float needleTopY = -412 * 1.2F;
-            float needleMidL = Mathf.hypot (needleMidX - needleTopX, needleMidY - needleTopY);
-            float needleBotL = needleTopY * -2;
-            float needleBotX = needleBotL / needleMidL * (needleMidX - needleTopX) + needleTopX;
-            float needleBotY = needleBotL / needleMidL * (needleMidY - needleTopY) + needleTopY;
-            canvas.drawLine (needleTopX, needleTopY, needleBotX, needleBotY, vorNeedlePaint);
+            float needleBotY =  412 * 1.2F;
+            canvas.drawLine (needleMidX, needleTopY, needleMidX, needleBotY, vorNeedlePaint);
         }
 
         // draw glideslope needle
@@ -385,14 +414,9 @@ public class NavDialView extends View {
             if (slope >= pegdeflect) slope =  pegdeflect;
             if (slope < -pegdeflect) slope = -pegdeflect;
             float needleCentY = slope / maxdeflect * -412;
-            float needleCentX = 0;
-            float needleLeftY = 0;
             float needleLeftX = -412 * 1.2F;
-            float needleCentL = Mathf.hypot (needleCentY - needleLeftY, needleCentX - needleLeftX);
-            float needleRiteL = needleLeftX * -2;
-            float needleRiteY = needleRiteL / needleCentL * (needleCentY - needleLeftY) + needleLeftY;
-            float needleRiteX = needleRiteL / needleCentL * (needleCentX - needleLeftX) + needleLeftX;
-            canvas.drawLine (needleLeftX, needleLeftY, needleRiteX, needleRiteY, vorNeedlePaint);
+            float needleRiteX =  412 * 1.2F;
+            canvas.drawLine (needleLeftX, needleCentY, needleRiteX, needleCentY, vorNeedlePaint);
         }
 
         // cover up end of VOR-style needle in case it goes under dial
@@ -448,6 +472,13 @@ public class NavDialView extends View {
             }
         }
 
+        // display glideslope feet-per-minute in upper right corner
+        canvas.restore ();
+        if ((mode == Mode.ILS) && (gsfpm != 0)) {
+            canvas.drawText ("gs fpm", 970, -970 + GSFPMTEXTSIZE, gsfpmTextPaint);
+            canvas.drawText (Integer.toString (gsfpm), 970, -970 + 2 * GSFPMTEXTSIZE, gsfpmTextPaint);
+        }
+
         canvas.restore ();
     }
 
@@ -458,7 +489,11 @@ public class NavDialView extends View {
         y -= lastHeight / 2;
         x /= lastScale;
         y /= lastScale;
-        return (x > -440) && (x < -100) && (y > 80) && (y < 220 + DMETEXTSIZE);
+        float cr = Mathf.cosdeg (lastRotate);
+        float sr = Mathf.sindeg (lastRotate);
+        float xr = cr * x + sr * y;
+        float yr = cr * y - sr * x;
+        return (xr > -440) && (xr < -100) && (yr > 80) && (yr < 220 + DMETEXTSIZE);
     }
 
     // x range: -440..-100

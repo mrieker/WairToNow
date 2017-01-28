@@ -77,6 +77,7 @@ public class WaypointView extends LinearLayout
     private LocationButton locationButton;
     private MetarButton metarButton;
     private OldSearchButtonListener oldSearchLis;
+    public  PlateView selectedPlateView;
     private RNavOffsetButton rnavOffsetButton;
     private SearchTextView searchTextView;
     private String tabName;
@@ -188,6 +189,16 @@ public class WaypointView extends LinearLayout
          * Reset waypoint area search database.
          */
         waypointsWithin = new Waypoint.Within ();
+    }
+
+    /**
+     * New GPS location received, update any georef'd plate.
+     */
+    public void SetGPSLocation ()
+    {
+        if (selectedPlateView != null) {
+            selectedPlateView.SetGPSLocation ();
+        }
     }
 
     /**

@@ -20,6 +20,12 @@
                 android:text="OFF"
                 android:id="@+id/modebuttonport"/>
 
+            <CheckBox
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="HSI"
+                android:id="@+id/hsicheckboxport"/>
+
             <com.outerworldapps.wairtonow.SpacerView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"/>
@@ -69,11 +75,18 @@
 
     </com.outerworldapps.wairtonow.DetentHorizontalScrollView>
 
-    <TextView
+    <com.outerworldapps.wairtonow.DetentHorizontalScrollView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:id="@+id/wpstatusport"
-        android:layout_gravity="center_horizontal"/>
+        android:id="@+id/statusscrollerport"
+        android:layout_gravity="center_horizontal">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:id="@+id/wpstatusport"/>
+
+    </com.outerworldapps.wairtonow.DetentHorizontalScrollView>
 
     <com.outerworldapps.wairtonow.NavDialView
         android:layout_width="wrap_content"

@@ -101,6 +101,9 @@
         if (file_exists ("datums/iapgeorefs2_$cycles28/$stateid.csv")) {
             echo "datums/iapgeorefs2_$cycles28/$stateid.csv\n";
         }
+        if (file_exists ("datums/iapcifps_$cycles28/$stateid.csv")) {
+            echo "datums/iapcifps_$cycles28/$stateid.csv\n";
+        }
 
         // send names of all the airport information .html.gz files
         // for airports in this state

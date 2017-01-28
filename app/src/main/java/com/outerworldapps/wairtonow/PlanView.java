@@ -43,12 +43,14 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
 
     private boolean displayOpen;
     private boolean pretendEnabled;
+    private boolean ptendTimerPend;
     private Button ptendCapCen;
     private CheckBox ptendCheckbox;
     private EditText fromAirport;
     private EditText fromDistEdit;
     private EditText fromHdgEdit;
     private EditText ptendAltitude;
+    private EditText ptendClimbRt;
     private EditText ptendHeading;
     private EditText ptendSpeed;
     private EditText ptendTurnRt;
@@ -59,7 +61,7 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
     private LatLonView ptendLat;
     private LatLonView ptendLon;
     private LinearLayout linearLayout;
-    private LinearLayout lp1, lp2, lp3, lp4, lp5;
+    private LinearLayout lp1, lp2, lp3, lp4, lp5, lp6;
     private LinearLayout lv0, lv1, lv2, lv3;
     private long ptendTime;
     private OnClickListener locateListener;
@@ -108,8 +110,7 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
         wairToNow.SetTextSize (ptendCapCen);
         ptendCapCen.setOnClickListener (new OnClickListener () {
             @Override
-            public void onClick (View view)
-            {
+            public void onClick (View view) {
                 PixelMapper pmap = wairToNow.chartView.pmap;
                 ptendLat.setVal (pmap.centerLat);
                 ptendLon.setVal (pmap.centerLon);
@@ -159,6 +160,17 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
         lp4.addView (TextString ("turn rate "));
         lp4.addView (ptendTurnRt);
         lp4.addView (TextString ("deg per sec"));
+
+        ptendClimbRt = new EditText (ctx);
+        ptendClimbRt.setInputType (InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL | InputType.TYPE_NUMBER_FLAG_SIGNED);
+        ptendClimbRt.setEms (6);
+        wairToNow.SetTextSize (ptendClimbRt);
+
+        lp6 = new LinearLayout (ctx);
+        lp6.setOrientation (LinearLayout.HORIZONTAL);
+        lp6.addView (TextString ("climb rate "));
+        lp6.addView (ptendClimbRt);
+        lp6.addView (TextString ("ft per min"));
 
         // Find ...
 
@@ -247,12 +259,12 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
 
         /*// set up a course for debugging
         ptendCheckbox.setChecked (true);
-        ptendAltitude.setText ("14000");
-        ptendHeading.setText ("270");
-        ptendSpeed.setText ("300");
+        ptendAltitude.setText ("3000");
+        ptendHeading.setText ("212");
+        ptendSpeed.setText ("360");
         ptendTurnRt.setText ("0");
-        lastPtendLat =   38.8F; // 42.5F;
-        lastPtendLon = -104.7F; // -71.0F;
+        lastPtendLat =  41.724F;    //   38.8F; // 42.5F;
+        lastPtendLon = -71.428224F; // -104.7F; // -71.0F;
         ptendLat.setVal (lastPtendLat);
         ptendLon.setVal (lastPtendLon);
         SetPretendEnabled (true);
@@ -295,6 +307,10 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
     public void CloseDisplay ()
     {
         displayOpen = false;
+        if (pretendEnabled && !ptendTimerPend) {
+            ptendTimerPend = true;
+            WairToNow.wtnHandler.runDelayed (pretendInterval, pretendStepper);
+        }
     }
 
     @Override  // WairToNow.CanBeMainView
@@ -324,6 +340,7 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
         linearLayout.addView (lp3, llpwc);
         linearLayout.addView (lp5, llpwc);
         linearLayout.addView (lp4, llpwc);
+        linearLayout.addView (lp6, llpwc);
 
         // Find ...
 
@@ -352,7 +369,10 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
             if (enab) {
                 ptendTime = System.currentTimeMillis ();
                 wairToNow.gpsDisabled ++;
-                WairToNow.wtnHandler.runDelayed (pretendInterval, pretendStepper);
+                if (!ptendTimerPend) {
+                    ptendTimerPend = true;
+                    WairToNow.wtnHandler.runDelayed (pretendInterval, pretendStepper);
+                }
             } else {
                 wairToNow.gpsDisabled --;
             }
@@ -490,7 +510,8 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
     @SuppressLint("SetTextI18n")
     private void PretendStep ()
     {
-        if (pretendEnabled) {
+        ptendTimerPend = false;
+        if (pretendEnabled && !displayOpen) {
 
             /*
              * Get lat/lon and time from previous interval.
@@ -509,46 +530,36 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
             float hdgdeg = 0.0F;
             float altft  = 0.0F;
             float turnrt = 0.0F;
+            float climrt = 0.0F;
             try { spdkts = Float.parseFloat (ptendSpeed.getText ().toString ()); } catch (NumberFormatException nfe) { Lib.Ignored (); }
             try { hdgdeg = Float.parseFloat (ptendHeading.getText ().toString ()); } catch (NumberFormatException nfe) { Lib.Ignored (); }
             try { altft  = Float.parseFloat (ptendAltitude.getText ().toString ()); } catch (NumberFormatException nfe) { Lib.Ignored (); }
             try { turnrt = Float.parseFloat (ptendTurnRt.getText ().toString ()); } catch (NumberFormatException nfe) { Lib.Ignored (); }
-
-            /*
-             * If display is open, user might be editing values.
-             * So just pretend speed and turn rate are zero so we
-             * don't try to update anything based on bogus values.
-             */
-            if (displayOpen) {
-                spdkts = 0.0F;
-                turnrt = 0.0F;
-            }
+            try { climrt = Float.parseFloat (ptendClimbRt.getText ().toString ()); } catch (NumberFormatException nfe) { Lib.Ignored (); }
 
             /*
              * Get updated lat/lon, heading and time.
              */
-            long  newnow = System.currentTimeMillis ();
+            long  newnow = oldnow + pretendInterval;
             float distnm = spdkts * (newnow - oldnow) / 1000.0F / 3600.0F;
             float newhdg = hdgdeg + (newnow - oldnow) / 1000.0F * turnrt;
             float newlat = Lib.LatHdgDist2Lat (oldlat, newhdg, distnm);
             float newlon = Lib.LatLonHdgDist2Lon (oldlat, oldlon, newhdg, distnm);
+            float newalt = altft + (newnow - oldnow) / 60000.0F * climrt;
 
             while (newhdg <=  0.0F) newhdg += 360.0F;
             while (newhdg > 360.0F) newhdg -= 360.0F;
 
             /*
              * Save the new values in the on-screen boxes.
-             * Update the boxes only when screen is closed so we don't change values on user.
-             * Also, update lastPtendLat,Lon only when closed so they stay -99999.0F when open.
              */
             ptendTime = newnow;
-            if (!displayOpen) {
-                ptendLat.setVal (newlat);
-                ptendLon.setVal (newlon);
-                ptendHeading.setText (Float.toString (newhdg));
-                lastPtendLat = newlat;
-                lastPtendLon = newlon;
-            }
+            ptendLat.setVal (newlat);
+            ptendLon.setVal (newlon);
+            ptendHeading.setText (Float.toString (newhdg));
+            ptendAltitude.setText (Float.toString (newalt));
+            lastPtendLat = newlat;
+            lastPtendLon = newlon;
 
             /*
              * Send the values in the form of a GPS reading to the active screen.
@@ -560,6 +571,7 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
             /*
              * Start the timer to do next interval.
              */
+            ptendTimerPend = true;
             WairToNow.wtnHandler.runDelayed (pretendInterval, pretendStepper);
         }
     }

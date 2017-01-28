@@ -38,6 +38,8 @@ echo END GET_APTINFO.SH ; date
 echo END GET_APTPLATES.SH ; date
 ./decodeallplates.sh
 echo END DECODEALLPLATES.SH ; date
+./downloadcifp.sh
+echo END DOWNLOADCIFP.SH ; date
 
 ./vfr_charts_download.sh
 echo END VFR_CHARTS_DOWNLOAD.SH ; date

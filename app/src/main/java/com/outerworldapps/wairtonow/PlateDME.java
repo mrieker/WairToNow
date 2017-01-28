@@ -174,7 +174,7 @@ public class PlateDME {
     {
         int canvasHeight = plateView.getHeight ();
 
-        // see if any checkboxes check (or maybe whole thing is disabled with little triangle button)
+        // see if any checkboxes checked (or maybe whole thing is disabled with little triangle button)
         int allChecked = 0;
         int numchars = 0;
         int dmex = (int) Mathf.ceil (dmeTextHeight / 2);

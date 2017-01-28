@@ -25,6 +25,16 @@ function doairportdiagram
 
 set -e
 
+if [ ReadArptDgmPng.exe -ot ReadArptDgmPng.cs ]
+then
+    mcs -debug -out:ReadArptDgmPng.exe -reference:System.Drawing.dll ReadArptDgmPng.cs
+fi
+
+if [ cureffdate -ot cureffdate.c ]
+then
+    cc -o cureffdate cureffdate.c
+fi
+
 cycles28=`./cureffdate -28 -x yyyymmdd`
 cycles56=`./cureffdate     -x yyyymmdd`
 airac=`./cureffdate airac`
@@ -52,5 +62,5 @@ mv singleapd.tmp $dir/state/$stateid.csv
 # Get georef from diagram
 #
 apdoutdir=datums/apdgeorefs_$cycles28
-processdiagrams < aptplates.tmp/$stfile
+processdiagrams '-stages' < aptplates.tmp/$stfile
 rm -rf aptplates.tmp

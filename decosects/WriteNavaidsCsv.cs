@@ -58,6 +58,10 @@ public class WriteNavaidsCsv {
                 magvar = magbin.ToString ();
             }
             string freq   = line.Substring (533, 6).Trim ();
+
+            // see plate KMLK ILS or LOC RWY 2
+            if ((type == "NDB") && (ident == "MKL")) ident = "MK";
+
             foreach (string acceptable in acceptables) {
                 if (type == acceptable) {
                     if (state != "") city += ", " + state;

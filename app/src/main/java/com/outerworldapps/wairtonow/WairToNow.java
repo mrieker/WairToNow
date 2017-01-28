@@ -40,6 +40,8 @@ import android.util.TypedValue;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.ViewGroup;
+import android.view.ViewParent;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.LinearLayout;
@@ -113,11 +115,6 @@ public class WairToNow extends Activity {
     private VirtNavView virtNav1View, virtNav2View;
     public  WaypointView waypointView1, waypointView2;
     private Waypoint pendingCourseSetWP;
-
-    public String lastPlate_fn;
-    public Waypoint.Airport lastPlate_aw;
-    public String lastPlate_pd;
-    public int lastPlate_ex;
 
     /** Called when the activity is first created. */
     @Override
@@ -542,7 +539,12 @@ public class WairToNow extends Activity {
     {
         tabViewLayout.removeAllViews ();
         if (currentTabButton != null) {
-            tabViewLayout.addView (currentTabButton.view, ctvllp);
+            View v = currentTabButton.view;
+            ViewParent p = v.getParent ();
+            if (p instanceof ViewGroup) {
+                ((ViewGroup) p).removeView (v);
+            }
+            tabViewLayout.addView (v, ctvllp);
         }
         if (tabsVisible) {
             tabViewLayout.addView (tabButtonScroller, tbsllp);
@@ -631,6 +633,8 @@ public class WairToNow extends Activity {
         sensorsView.SetGPSLocation ();
         virtNav1View.SetGPSLocation ();
         virtNav2View.SetGPSLocation ();
+        waypointView1.SetGPSLocation ();
+        waypointView2.SetGPSLocation ();
 
         if (currentTabButton != null) {
             currentTabButton.view.invalidate ();

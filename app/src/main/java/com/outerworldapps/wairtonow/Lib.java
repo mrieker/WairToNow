@@ -666,7 +666,7 @@ public class Lib {
             out.lon = lonb;
         }
 
-        // return wheter point is ahead (true) or behind (false)
+        // return whether point is ahead (true) or behind (false)
         float tc = LatLonTC (lat2, lon2, out.lat, out.lon);
         float tcdiff = Math.abs (tc - hdg2);
         while (tcdiff >= 360.0F) tcdiff -= 360.0F;
@@ -901,6 +901,191 @@ public class Lib {
     }
 
     /**
+     * Distance of a point from an arc
+     * @param centx = center of arc
+     * @param centy = center of arc
+     * @param radius = arc radius
+     * @param start = start of arc (degrees clockwise from due EAST)
+     * @param sweep = length of arc (degrees clockwise from start)
+     * @param ptx = point to get distance of
+     * @param pty = point to get distance of
+     * @return distance of point from the arc
+     */
+    public static float distOfPtFromArc (float centx, float centy, float radius, float start, float sweep, float ptx, float pty)
+    {
+        if (sweep < 0.0F) {
+            start += sweep;
+            sweep = -sweep;
+        }
+        float end = start + sweep;
+
+        // make point relative to arc center
+        ptx -= centx;
+        pty -= centy;
+
+        // see if point is within arc wedge
+        // if so, distance is distance difference along radial
+        float point_radial_from_center = Mathf.toDegrees (Mathf.atan2 (pty, ptx));
+        while (point_radial_from_center < start) point_radial_from_center += 360.0F;
+        while (point_radial_from_center - 360.0F >= start) point_radial_from_center -= 360.0F;
+        if (point_radial_from_center <= end) {
+            float point_dist_from_center = Mathf.hypot (ptx, pty);
+            return Math.abs (point_dist_from_center - radius);
+        }
+
+        // get distance of point from each arc endpoint
+        float start_x =   Mathf.cosdeg (start) * radius;
+        float start_y = - Mathf.sindeg (start) * radius;
+        float point_dist_from_start = Mathf.hypot (ptx - start_x, pty - start_y);
+        float end_x   =   Mathf.cosdeg (end) * radius;
+        float end_y   = - Mathf.sindeg (end) * radius;
+        float point_dist_from_end   = Mathf.hypot (ptx - end_x,   pty - end_y);
+
+        // result is the minimum of those two distances
+        return Math.min (point_dist_from_start, point_dist_from_end);
+    }
+
+    /**
+     * Get distance from given point to given line segment.
+     * @param x0,y0 = point to check for
+     * @param x1,y1/x2,y2 = line segment
+     * @return how far away from line segment point is
+     */
+    public static float distToLineSeg (float x0, float y0, float x1, float y1, float x2, float y2)
+    {
+        float dx = x2 - x1;
+        float dy = y2 - y1;
+
+        float r;
+        if (Math.abs (dx) > Math.abs (dy)) {
+
+            // primarily horizontal
+
+            float mhor = dy / dx;
+
+            // calculate intersection point
+
+            // (y - y1) / (x - x1) = mhor  =>  y - y1 = (x - x1) * mhor  =>  y = (x - x1) * mhor + y1
+            // (x0 - x) / (y - y0) = mhor  =>  y - y0 = (x0 - x) / mhor  =>  y = (x0 - x) / mhor + y0
+
+            // (x - x1) * mhor + y1 = (x0 - x) / mhor + y0
+            // (x - x1) * mhor^2 + y1 * mhor = (x0 - x) + y0 * mhor
+            // x * mhor^2 - x1 * mhor^2 + y1 * mhor = x0 - x + y0 * mhor
+            // x * (mhor^2 + 1) - x1 * mhor^2 + y1 * mhor = x0 + y0 * mhor
+            // x * (mhor^2 + 1) = x0 + y0 * mhor + x1 * mhor^2 - y1 * mhor
+            // x * (mhor^2 + 1) = x1 * mhor^2 + y0 * mhor - y1 * mhor + x0
+            // x * (mhor^2 + 1) = x1 * mhor^2 + (y0 - y1) * mhor + x0
+
+            float x = (x1 * mhor * mhor + (y0 - y1) * mhor + x0) / (mhor * mhor + 1);
+
+            // where intercept is on line relative to P1 and P2
+            // r=0.0: right on P1; r=1.0: right on P2
+
+            r = (x - x1) / dx;
+        } else {
+
+            // primarily vertical
+
+            float mver = dx / dy;
+
+            // calculate intersection point
+
+            // (x - x1) / (y - y1) = mver  =>  x - x1 = (y - y1) * mver  =>  x = (y - y1) * mver + x1
+            // (y0 - y) / (x - x0) = mver  =>  x - x0 = (y0 - y) / mver  =>  x = (y0 - y) / mver + x0
+
+            // (y - y1) * mver + x1 = (y0 - y) / mver + x0
+            // (y - y1) * mver^2 + x1 * mver = (y0 - y) + x0 * mver
+            // y * mver^2 - y1 * mver^2 + x1 * mver = y0 - y + x0 * mver
+            // y * (mver^2 + 1) - y1 * mver^2 + x1 * mver = y0 + x0 * mver
+            // y * (mver^2 + 1) = y0 + x0 * mver + y1 * mver^2 - x1 * mver
+            // y * (mver^2 + 1) = y1 * mver^2 + x0 * mver - x1 * mver + y0
+            // y * (mver^2 + 1) = y1 * mver^2 + (x0 - x1) * mver + y0
+
+            float y = (y1 * mver * mver + (x0 - x1) * mver + y0) / (mver * mver + 1);
+
+            // where intercept is on line relative to P1 and P2
+            // r=0.0: right on P1; r=1.0: right on P2
+
+            r = (y - y1) / dy;
+        }
+
+        if (r <= 0.0) return Mathf.hypot (x0 - x1, y0 - y1);
+        if (r >= 1.0) return Mathf.hypot (x0 - x2, y0 - y2);
+
+        // https://en.wikipedia.org/wiki/Distance_from_a_point_to_a_line
+        return Math.abs (dy * x0 - dx * y0 + x2 * y1 - y2 * x1) / Mathf.hypot (dy, dx);
+    }
+
+    /**
+     * Find where a line intersects a circle.
+     */
+    public static boolean lineIntersectCircle (float x0, float y0, float x1, float y1,
+                                               float xc, float yc, float r, PointF pp, PointF pm)
+    {
+        // make line relative to circle center
+        x0 -= xc;
+        y0 -= yc;
+        x1 -= xc;
+        y1 -= yc;
+
+        // get deltas for line
+        float dx = x1 - x0;
+        float dy = y1 - y0;
+
+        float xp, yp, xm, ym;
+        if (Math.abs (dy) < Math.abs (dx)) {
+            // line primarily horizontal
+
+            float m  = dy / dx;
+
+            // line: (x - x0) * dy = dy * (y - y0)
+            //       y = m * (x - x0) + y0
+
+            // circle: x**2 + y**2 = r**2
+
+            // x**2 + [m * (x - x0) + y0]**2 = r**2
+            // x**2 + [m * (x - x0)]**2 + y0**2 + 2 * m * (x - x0) * y0 = r**2
+            // x**2 + m**2 * (x - x0)**2 + y0**2 + 2 * m * x * y0 - 2 * m * x0 * y0 = r**2
+            // x**2 + m**2 * [x**2 - 2*x*x0 + x0**2] + y0**2 + 2 * m * x * y0 - 2 * m * x0 * y0 = r**2
+            // [m**2 + 1]*x**2 + [-m**2*2*x0 + 2*m*y0]*x + m**2 * x0**2 + y0**2 - 2 * m * x0 * y0 - r**2 = 0
+
+            //  a = m**2 + 1
+            //  b = 2*m*y0 - m**2*2*x0
+            //  c = m**2 * x0**2 + y0**2 - 2*m*x0*y0 - r**2
+
+            float a = m * m + 1;
+            float b = 2 * m * y0 - m * m * 2 * x0;
+            float c = m * m * x0 * x0 + y0 * y0 - 2 * m * x0 * y0 - r * r;
+            float d = b * b - 4 * a * c;
+            if (d < 0.0F) return false;
+            xp = (-b + Mathf.sqrt (d)) / 2 / a;
+            xm = (-b - Mathf.sqrt (d)) / 2 / a;
+            yp = m * (xp - x0) + y0;
+            ym = m * (xm - x0) + y0;
+        } else {
+            // line primarily vertical
+
+            float m = dx / dy;
+            float a = m * m + 1;
+            float b = 2 * m * x0 - m * m * 2 * y0;
+            float c = m * m * y0 * y0 + x0 * x0 - 2 * m * y0 * x0 - r * r;
+            float d = b * b - 4 * a * c;
+            if (d < 0.0F) return false;
+            yp = (-b + Mathf.sqrt (d)) / 2 / a;
+            ym = (-b - Mathf.sqrt (d)) / 2 / a;
+            xp = m * (yp - y0) + x0;
+            xm = m * (ym - y0) + x0;
+        }
+
+        // return values relocated back
+        pp.x = xp + xc;
+        pp.y = yp + yc;
+        pm.x = xm + xc;
+        pm.y = ym + yc;
+        return true;
+    }
+
+    /**
      * Convert a value to corresponding string.
      * @param val = integer version of value
      * @param dpt = number of decimal places it contains
@@ -1028,7 +1213,7 @@ public class Lib {
      */
     public static String FloatNTZ (float f)
     {
-        String s = Float.toString (f);
+        String s = String.format ("%.1f", f);
         if (s.endsWith (".0")) s = s.substring (0, s.length () - 2);
         return s;
     }

@@ -29,7 +29,7 @@
 <!DOCTYPE html>
 <HTML>
     <HEAD>
-        <TITLE>APD Review</TITLE>
+        <TITLE ID="title">APD Review</TITLE>
     </HEAD>
     <BODY>
         <?php
@@ -39,6 +39,7 @@
              */
             if (!empty ($_GET['icaoid'])) {
                 $icaoid  = $_GET['icaoid'];
+                echo "<SCRIPT LANGUAGE=JAVASCRIPT> document.getElementById ('title').innerHTML = 'APD Review $icaoid'</SCRIPT>\n";
                 echo "<H3> Marked up $icaoid Airport Diagram </H3>\n";
                 @flush (); @ob_flush (); @flush ();
                 $cleanname = $_GET['pngname'];

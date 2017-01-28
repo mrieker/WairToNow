@@ -26,15 +26,12 @@
      *   ../webdata/iaputil/good_20160915.db : last month's verified iaps
      *   ../webdata/iaputil/good_20161013.db : this month's iaps
      *       LatLons.lastgood = date/time that is was last verified as good
-     *   ../decosects/datums/aptplates_20161013/state/<stateid>.csv : plates to verify
+     *   ../decosects/datums/iapgeorefs_20161013/<stateid>.csv  : plates to verify
+     *   ../decosects/datums/iapgeorefs2_20161013/<stateid>.csv : plates to verify
      */
 
     session_start ();
     require_once 'iaputil.php';
-
-    // true to check avare mapping of the plates as well as our own
-    // false to just check our previous mapping of plate
-    $checkavare = FALSE; // TRUE;
 
     if (!empty ($_GET['delgood'])) {
         $icaoid_plate = $_GET['delgood'];
@@ -101,6 +98,7 @@
                 $nloops = 0;
                 $toplines = FALSE;
                 $topstuff = 0;
+                $faageorefstate = "";
             openplate:
                 if (++ $nloops > 1000) {
                     endTopStuff ();
@@ -154,11 +152,21 @@ END;
                 // - statecode = two-letter state code
                 // - stateline = first line from state file for plate: icaoid,"plate name",fixid,xcord,ycord
 
-                $j = 0;
-                for ($i = strlen ($stateline); -- $i >= 0;) {
-                    if (($stateline[$i] == ',') && (++ $j == 3)) break;
+                if ($faageorefstate != $statecode) {
+                    $faageorefstate  = $statecode;
+                    $faageorefplates = array ();
+                    if (file_exists ("$iap2dir/$statecode.csv")) {
+                        $iapgeoref2 = fopen ("$iap2dir/$statecode.csv", "r");
+                        while ($faageo = fgets ($iapgeoref2)) {
+                            $faageorefplates[GetIcaoIDPlate($faageo)] = $faageo;
+                        }
+                        fclose ($iapgeoref2);
+                    }
                 }
-                $icaoidplate = substr ($stateline, 0, ++ $i);
+
+                // get plate icaoid and plateid
+
+                $icaoidplate = GetIcaoIDPlate ($stateline);
                 $ipx = htmlspecialchars ($icaoidplate);
 
                 // - statecode   = two-letter state code
@@ -208,6 +216,25 @@ END;
                 } while ($stateline && (strpos ($stateline, $icaoidplate) === 0));
                 fclose ($statefile);
 
+                // see if there is an FAA-provided georef record
+                // if so, assume its mapping is correct
+
+                if (isset ($faageorefplates[$icaoidplate])) {
+                    topStuffLine ("<B>$statecode $ipx</B> has FAA-provided georefs");
+                    //$parts = QuotedCSVSplit ($faageorefplates[$icaoidplate]);
+                    //$tfw_a = floatval ($parts[ 8]);
+                    //$tfw_b = floatval ($parts[ 9]);
+                    //$tfw_c = floatval ($parts[10]);
+                    //$tfw_d = floatval ($parts[11]);
+                    //$tfw_e = floatval ($parts[12]);
+                    //$tfw_f = floatval ($parts[13]);
+                    $xfmwft = array (0, 0, 0, 0, 0, 0);
+                    MarkImageGood ($icaoid, $plate, $xfmwft);
+                    file_put_contents ("$datdir/lastplate", $nextpos);
+                    set_time_limit (30);
+                    goto openplate;
+                }
+
                 // get mapping from lat/lon to pixel as determined by DecodePlate
 
                 $newxfmwft = getLatLonXfm ($aptlat, $fixes);
@@ -231,7 +258,7 @@ END;
 
                 // - gifname = gif_150/whatever.gif
 
-                // if there is an existing good mapping
+                // see if there is an existing good mapping
 
                 $oldgood = 0;
                 $olddifs = '';
@@ -271,61 +298,6 @@ END;
                     goto openplate;
                 }
 
-                // see if there is an avare entry for this plate
-                // if it maps DecodePlate's fixes onto same pixels found by DecodePlate, assume they are correct
-
-                if ($checkavare) {
-                    $wairtonow_faaid_plateid = fixAvareId (str_replace (",\"", "/", $faaidplate));
-                    $avaregood = 0;
-                    $avaredifs = "";
-                    $avaremap  = getAvareMapping ($faaid, $plate);
-                    if ($avaremap) {
-
-                        // get avare transformation parameters
-                        $av_dx  = floatval ($avaremap['dx']);
-                        $av_dy  = floatval ($avaremap['dy']);
-                        $av_lat = floatval ($avaremap['lat']);
-                        $av_lon = floatval ($avaremap['lon']);
-
-                        // transform each of our fixes and see if it matches up
-                        foreach ($fixes as $fixid => $fix) {
-
-                            // get pixel wairtonow thinks the fix is at
-                            $my_pixx = $fix[0];
-                            $my_pixy = $fix[1];
-
-                            // get fix's lat/lon from FAA database
-                            $fix_lat = $fix[2];
-                            $fix_lon = $fix[3];
-
-                            // calculate pixel avare thinks the fix is at
-                            $avare_pixx = ($fix_lon - $av_lon) * $av_dx * $myDpi / $avDpi;
-                            $avare_pixy = ($fix_lat - $av_lat) * $av_dy * $myDpi / $avDpi;
-
-                            // hopefully they match up close enough
-                            $diff_pixx  = $avare_pixx - $my_pixx;
-                            $diff_pixy  = $avare_pixy - $my_pixy;
-                            $diff_pix   = intval (sqrt ($diff_pixx * $diff_pixx + $diff_pixy * $diff_pixy) + 0.5);
-                            $avaredifs .= ($avaredifs == "") ? "(" : "; ";
-                            $avaredifs .= "$fixid $diff_pix";
-                            if ($diff_pix < $avLeewy) $avaregood ++;
-                        }
-                        if ($avaredifs != "") $avaredifs .= ")";
-                    }
-                    if ($avaregood >= 2) {
-                        topStuffLine ("<B>$statecode $ipx</B> verified in avare $avaredifs");
-                        if ($olddifs != "") {
-                            topStuffLine ("<P>previous verification diffs $olddifs</P>");
-                        } else {
-                            topStuffLine ("<P>not previously verified</P>");
-                        }
-                        MarkImageGood ($icaoid, $plate, $newxfmwft);
-                        file_put_contents ("$datdir/lastplate", $nextpos);
-                        set_time_limit (30);
-                        goto openplate;
-                    }
-                }
-
                 // tell user we are working on it
 
                 endTopStuff ();
@@ -334,13 +306,6 @@ END;
                     echo "<P>previous verification diffs $olddifs</P>";
                 } else {
                     echo "<P>not previously verified</P>";
-                }
-                if ($checkavare) {
-                    if ($avaredifs != "") {
-                        echo "<P>avare diffs $avaredifs</P>";
-                    } else {
-                        echo "<P>not found in avare</P>";
-                    }
                 }
                 echo "<P>$percent %</P>";
                 @flush (); @ob_flush (); @flush ();
@@ -470,6 +435,15 @@ END;
             }
 
             /**
+             * Get the icaoid,"plate name", from the beginning of a line.
+             */
+            function GetIcaoIDPlate ($line)
+            {
+                $i = strpos ($line, '",');
+                return substr ($line, 0, $i + 2);
+            }
+
+            /**
              * Flush any lines buffered by topStuffLine(),
              * replacing those before it with '...' so the
              * stuff at end of page can be easily seen.
@@ -516,7 +490,7 @@ END;
                     }
                     if ($first) {
                         echo "<P><B>Missing plates:</B></P><UL>\n";
-                        echo "<P>(try <TT>./singleiap.php &lt;icao-id&gt;</TT> to re-attempt download ";
+                        echo "<P>(try <TT>./singleiap.sh &lt;icao-id&gt;</TT> to re-attempt download ";
                         echo "of missing plates.)</P>\n";
                         $first = FALSE;
                     }

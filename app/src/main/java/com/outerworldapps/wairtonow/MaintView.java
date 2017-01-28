@@ -137,6 +137,7 @@ public class MaintView
     private final static String[] columns_name               = new String[] { "name" };
     private final static String[] columns_gr_bmpixx          = new String[] { "gr_bmpixx" };
     private final static String[] columns_pl_faaid           = new String[] { "pl_faaid" };
+    private final static String[] columns_cp_legs            = new String[] { "cp_legs" };
 
     @SuppressLint("SetTextI18n")
     public MaintView (WairToNow ctx)
@@ -1597,6 +1598,14 @@ public class MaintView
                             UpdateDownloadProgress ();
                             continue;
                         }
+                        if (newFileName.startsWith ("datums/iapcifps_") && newFileName.endsWith (".csv") &&
+                                ((i = newFileName.indexOf ("/", 16)) >= 0)) {
+                            int expdate = Integer.parseInt (newFileName.substring (16, i));
+                            String statecode = newFileName.substring (i + 1, newFileName.length () - 4);
+                            DownloadIAPCifps (newFileName, expdate, statecode);
+                            MaybeDeleteOldPlatesDB ();
+                            UpdateDownloadProgress ();
+                        }
                         if (newFileName.startsWith ("datums/iapgeorefs_") && newFileName.endsWith (".csv") &&
                                 ((i = newFileName.indexOf ("/", 18)) >= 0)) {
                             int expdate = Integer.parseInt (newFileName.substring (18, i));
@@ -1870,6 +1879,14 @@ public class MaintView
             int expdate = Integer.parseInt (filelistline.substring (18, i));
             String statecode = filelistline.substring (i + 1, filelistline.length () - 4);
             DeleteMachineAPDGeoRefs (expdate, statecode);
+            MaybeDeleteOldPlatesDB ();
+            plainfile = false;
+        }
+        if (filelistline.startsWith ("datums/iapcifps_") && filelistline.endsWith (".csv") &&
+                ((i = filelistline.indexOf ("/", 16)) >= 0)) {
+            int expdate = Integer.parseInt (filelistline.substring (16, i));
+            String statecode = filelistline.substring (i + 1, filelistline.length () - 4);
+            DeleteIAPCifps (expdate, statecode);
             MaybeDeleteOldPlatesDB ();
             plainfile = false;
         }
@@ -2506,6 +2523,84 @@ public class MaintView
     }
 
     /**
+     * Download FAA-supplied Coded Instrument Flight Procedures data for the given cycle.
+     */
+    private void DownloadIAPCifps (String servername, int expdate, String statecode)
+            throws IOException
+    {
+        DownloadStuffIAPCifps dsmgr = new DownloadStuffIAPCifps ();
+        dsmgr.dbname = "plates_" + expdate + ".db";
+        dsmgr.statecode = statecode;
+        dsmgr.DownloadWhat (servername);
+    }
+
+    private class DownloadStuffIAPCifps extends DownloadStuff {
+        public String dbname;
+        public String statecode;
+
+        @Override
+        public void DownloadContents () throws IOException
+        {
+            SQLiteDBs sqldb = SQLiteDBs.create (dbname);
+            if (! sqldb.tableExists ("iapcifps")) {
+                sqldb.execSQL ("CREATE TABLE iapcifps (cp_icaoid TEXT NOT NULL, cp_state TEXT NOT NULL, cp_appid TEXT NOT NULL, cp_segid TEXT NOT NULL, cp_legs TEXT NOT NULL);");
+                sqldb.execSQL ("CREATE INDEX iapcifpbyicaoid ON iapcifps (cp_icaoid);");
+            }
+
+            long time = System.nanoTime ();
+            sqldb.beginTransaction ();
+            try {
+                int numAdded = 0;
+                String csv;
+                while ((csv = ReadLine ()) != null) {
+                    int i = csv.indexOf (';');
+                    if (i < 0) throw new IOException ("missing ;");
+                    String[] ids  = csv.substring (0, i).split (",");
+                    if (ids.length != 3) throw new IOException ("bad num ids");
+                    String icaoid = ids[0];
+                    String appid  = ids[1];
+                    String segid  = ids[2];
+                    String legs   = csv.substring (++ i);
+
+                    // see if record already exists with same ICAOID/APPID/SEGID, ignore the incoming record
+                    Cursor result = sqldb.query (
+                            "iapcifps", columns_cp_legs,
+                            "cp_icaoid=? AND cp_appid=? AND cp_segid=?",
+                            new String[] { icaoid, appid, segid },
+                            null, null, null, "1");
+                    boolean dup;
+                    try {
+                        dup = result.moveToFirst ();
+                    } finally {
+                        result.close ();
+                    }
+                    if (dup) continue;
+
+                    // not already there, insert the new record
+                    ContentValues values = new ContentValues (6);
+                    values.put ("cp_icaoid", icaoid);     // eg, "KBVY"
+                    values.put ("cp_state",  statecode);  // eg, "MA"
+                    values.put ("cp_appid",  appid);      // eg, "L16"
+                    values.put ("cp_segid",  segid);      // eg, "~f~"
+                    values.put ("cp_legs",   legs);
+                    sqldb.insertWithOnConflict ("iapcifps", null, values, SQLiteDatabase.CONFLICT_IGNORE);
+
+                    // if we have added a handful, flush them out
+                    if (++ numAdded == 256) {
+                        sqldb.yieldIfContendedSafely ();
+                        numAdded = 0;
+                    }
+                }
+                sqldb.setTransactionSuccessful ();
+            } finally {
+                sqldb.endTransaction ();
+            }
+            time = System.nanoTime () - time;
+            Log.i (TAG, "iapcifps " + statecode + " download time " + (time / 1000000) + " ms");
+        }
+    }
+
+    /**
      * Download machine-generated instrument approach plate georef data for the given cycle.
      */
     private void DownloadMachineIAPGeoRefs (String servername, int expdate, String statecode)
@@ -2645,7 +2740,22 @@ public class MaintView
     }
 
     /**
-     * Delete all instrument apporach procedure machine-detected georeference records for a given state and expiration date.
+     * Delete all instrument approach procedure coded instrument flight procedure records
+     * for a given state and expiration date.
+     */
+    private static void DeleteIAPCifps (int expdate, String statecode)
+    {
+        String dbname = "plates_" + expdate + ".db";
+        SQLiteDBs sqldb = SQLiteDBs.open (dbname);
+
+        if ((sqldb != null) && sqldb.tableExists ("iapcifps")) {
+            sqldb.execSQL ("DELETE FROM iapcifps WHERE cp_state='" + statecode + "'");
+        }
+    }
+
+    /**
+     * Delete all instrument apporach procedure machine-detected georeference records
+     * for a given state and expiration date.
      */
     private static void DeleteMachineIAPGeoRefs (int expdate, String statecode)
     {
