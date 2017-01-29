@@ -130,6 +130,7 @@ public class MaintView
     private static final int MaintViewHandlerWhat_DLERROR      =  8;
     private static final int MaintViewHandlerWhat_UPDRWDGMDLST =  9;
     private static final int MaintViewHandlerWhat_EXPDATECHECK = 10;
+    private static final int MaintViewHandlerWhat_OPENDELPROG  = 11;
 
     private final static String[] columns_apt_faaid_faciluse = new String[] { "apt_faaid", "apt_faciluse" };
     private final static String[] columns_count_rp_faaid     = new String[] { "COUNT(rp_faaid)" };
@@ -625,6 +626,18 @@ public class MaintView
             case MaintViewHandlerWhat_EXPDATECHECK: {
                 checkExpdateThread = null;
                 ExpdateCheck ();
+                break;
+            }
+            case MaintViewHandlerWhat_OPENDELPROG: {
+                updateDLProgSent = false;
+                if (downloadProgress != null) {
+                    downloadProgress.dismiss ();
+                }
+                downloadProgress = new ProgressDialog (wairToNow);
+                downloadProgress.setProgressStyle (ProgressDialog.STYLE_SPINNER);
+                downloadProgress.setCancelable (false);
+                downloadProgress.setTitle (msg.obj.toString ());
+                downloadProgress.show ();
                 break;
             }
         }
@@ -1320,45 +1333,44 @@ public class MaintView
      */
     public static int GetPlatesExpDate (String ss)
     {
-        int lastexpdate = 0;
-        String[] dbnames = SQLiteDBs.Enumerate ();
-        for (String dbname : dbnames) {
-            if (dbname.startsWith ("plates_") && dbname.endsWith (".db")) {
-                int expdate = Integer.parseInt (dbname.substring (7, dbname.length () - 3));
-                if (lastexpdate < expdate) {
-                    SQLiteDBs sqldb = SQLiteDBs.open (dbname);
-                    if ((sqldb != null) && sqldb.tableExists ("plates")) {
-                        Cursor result = sqldb.query (
-                                "plates", columns_pl_state,
-                                "pl_state=?", new String[] { ss },
-                                null, null, null, "1");
-                        try {
-                            if (result.moveToFirst ()) {
-                                lastexpdate = expdate;
-                            }
-                        } finally {
-                            result.close ();
-                        }
+        try {
+            BufferedReader br = new BufferedReader (new FileReader (
+                    WairToNow.dbdir + "/charts/State_" + ss + ".filelist.txt"), 4096);
+            try {
+                String line;
+                while ((line = br.readLine ()) != null) {
+                    if (line.startsWith ("datums/aptplates_")) {
+                        return Integer.parseInt (line.substring (17, 25));
                     }
                 }
+                return 0;
+            } finally {
+                br.close ();
             }
+        } catch (FileNotFoundException fnfe) {
+            return 0;
+        } catch (Exception e) {
+            Log.w (TAG, "error reading charts/State_" + ss + ".filelist.txt", e);
+            return 0;
         }
-        return lastexpdate;
     }
 
     /**
      * This gets the expiration date of the latest 28-day cycle file.
-     * It only has to contain one state's data.
      * @return expiration date (or 0 if no file present)
      */
     public static int GetPlatesExpDate ()
     {
         int lastexpdate = 0;
-        String[] dbnames = SQLiteDBs.Enumerate ();
-        for (String dbname : dbnames) {
-            if (dbname.startsWith ("plates_") && dbname.endsWith (".db")) {
-                int expdate = Integer.parseInt (dbname.substring (7, dbname.length () - 3));
-                if (lastexpdate < expdate) lastexpdate = expdate;
+        File[] charts = new File (WairToNow.dbdir + "/charts").listFiles ();
+        if (charts != null) {
+            for (File chart : charts) {
+                String name = chart.getName ();
+                if (name.startsWith ("State_") && name.endsWith (".filelist.txt")) {
+                    String ss = name.substring (6, 8);
+                    int expdate = GetPlatesExpDate (ss);
+                    if (lastexpdate < expdate) lastexpdate = expdate;
+                }
             }
         }
         return lastexpdate;
@@ -1478,6 +1490,7 @@ public class MaintView
                             AlertDialog.Builder builder = new AlertDialog.Builder (wairToNow);
                             builder.setTitle ("Unloading charts");
                             builder.setMessage ("Please wait...");
+                            builder.setCancelable (false);
                             unloadAlertDialog = builder.create ();
                             unloadAlertDialog.show ();
                             unloadThread = new UnloadThread ();
@@ -1674,7 +1687,7 @@ public class MaintView
                         maintViewHandler.sendEmptyMessage (MaintViewHandlerWhat_CLOSEDLPROG);
                     }
 
-                    dlmsg = maintViewHandler.obtainMessage (MaintViewHandlerWhat_OPENDLPROG, 0, 0, "Deleting old files...");
+                    dlmsg = maintViewHandler.obtainMessage (MaintViewHandlerWhat_OPENDELPROG, 0, 0, "Deleting old " + dcbspacename);
                     maintViewHandler.sendMessage (dlmsg);
                     try {
                         filelistReader = new BufferedReader (new FileReader (permlistname), 4096);

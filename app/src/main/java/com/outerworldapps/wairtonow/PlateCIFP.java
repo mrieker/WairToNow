@@ -975,7 +975,7 @@ public class PlateCIFP {
             // need to initialize first position
             currentStep = -1;
 
-            // remember when seleciton was made
+            // remember when selection was made
             selectedTime = SystemClock.uptimeMillis ();
 
             // fill in initial state with whatever location was last received from GPS
