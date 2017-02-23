@@ -426,6 +426,7 @@ public class ReadArptDgmPng {
         badStrings["KLXT:38^58.0N"]   = "38^58.0'N";
         badStrings["KMBL:44^16.0\"N"] = "44^16.0'N";
         badStrings["KMCN:31^41.5'N"]  = "32^41.5'N";
+        badStrings["KMDW:1^46.5'N"]   = "41^46.5'N";
         badStrings["KMSY:90^16'W"]    = "90^17'W";
         badStrings["KOGS:75^27'N"]    = "75^27'W";
         badStrings["KOGS:75^28'N"]    = "75^28'W";
@@ -436,6 +437,7 @@ public class ReadArptDgmPng {
         badStrings["KPBG:73^27.0'N"]  = "73^27.0'W";
         badStrings["KPBG:73^28.0'N"]  = "73^28.0'W";
         badStrings["KPBG:73^29.0'N"]  = "73^29.0'W";
+        badStrings["KSBN:41^42.0'"]   = "41^42.0'N";
         badStrings["KSJC:121^55'N"]   = "121^55'W";
         badStrings["KSJC:121^56'N"]   = "121^56'W";
 

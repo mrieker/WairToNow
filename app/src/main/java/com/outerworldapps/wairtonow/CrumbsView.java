@@ -27,6 +27,7 @@ import android.content.DialogInterface;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.graphics.Color;
+import android.os.SystemClock;
 import android.text.InputType;
 import android.util.Log;
 import android.util.Xml;
@@ -77,6 +78,7 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
     private final static String[] typeSuffixes = new String[] { null, ".csv.gz", ".gpx.gz" };
 
     private LinearLayout buttonList;
+    private Position     curGPSPos;
     private TrailButton  activeButton;
     private WairToNow    wairToNow;
 
@@ -163,7 +165,7 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
      */
     public LinkedList<Position> GetShownTrail ()
     {
-        return (activeButton == null) ? null : activeButton.trail;
+        return (activeButton == null) ? null : activeButton.displaytrail;
     }
 
     /**
@@ -192,7 +194,8 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
      */
     private abstract class TrailButton extends Button implements OnClickListener {
         public int type;
-        public LinkedList<Position> trail;
+        public LinkedList<Position> displaytrail;
+        public LinkedList<Position> playbacktrail;
         public String name;
 
         public TrailButton ()
@@ -245,7 +248,6 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
         private int rtplayback;
         private Iterator<Position> rtpbiter;
         private long realtime;
-        private long rtpbtime;
         private Position lastposition;
         private Position nextposition;
 
@@ -262,12 +264,14 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
         public boolean OpenClicked ()
         {
             // try to read existing trail file into memory
-            trail = new LinkedList<> ();
-            Exception e = ReadTrailFile (trail, name, type, true);
+            displaytrail = new LinkedList<> ();
+            playbacktrail = new LinkedList<> ();
+            Exception e = ReadTrailFile (displaytrail, playbacktrail, name, type, true);
             if (e != null) {
                 ErrorMsg ("Error reading " + name, e);
-                if (trail.size () <= 0) {
-                    trail = null;
+                if (playbacktrail.size () <= 0) {
+                    displaytrail = null;
+                    playbacktrail = null;
                     return false;
                 }
             }
@@ -336,14 +340,14 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
             setTextColor (Color.BLUE);
 
             // position chart screen to first point in the recording
-            Position firstpos = trail.getFirst ();
+            Position firstpos = playbacktrail.getFirst ();
             wairToNow.chartView.SetCenterLatLon (firstpos.latitude, firstpos.longitude);
 
             // maybe do real-time playback
             if (rtplayback > 0) {
 
                 // set up to step through the points in the file sequentially
-                rtpbiter  = trail.iterator ();
+                rtpbiter = playbacktrail.iterator ();
 
                 // get first two points in the file
                 // if there is just one, nothing to playback
@@ -353,9 +357,8 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
                     lastposition = firstpos;
                     nextposition = rtpbiter.next ();
 
-                    // get time offset
-                    realtime = System.currentTimeMillis ();
-                    rtpbtime = firstpos.time;
+                    // get time the first point is being played back
+                    realtime = SystemClock.uptimeMillis ();
 
                     // allow chart to reposition to keep playback point in the center
                     wairToNow.chartView.ReCenter ();
@@ -366,6 +369,8 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
                     // move chart to first point
                     run ();
                 }
+            } else {
+                playbacktrail = null;
             }
         }
 
@@ -377,52 +382,38 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
         {
             if (rtpbiter != null) {
 
-                // see if we need next point along the trail
-                long now  = System.currentTimeMillis ();
-                long time = (now - realtime) * rtplayback + rtpbtime;
-                Position lpos = lastposition;
-                Position npos = nextposition;
-                while ((time > npos.time) || (lpos.time >= npos.time)) {
-                    if (!rtpbiter.hasNext ()) {
-                        npos = null;
-                        break;
-                    }
-                    lpos = npos;
-                    npos = rtpbiter.next ();
-                }
-                if (npos != null) {
-                    lastposition = lpos;
-                    nextposition = npos;
+                // get next point along the trail
+                if (lastposition != null) {
 
                     // pretend the playback position report just came in from the GPS
                     // notify anyone (such as ChartView) who cares
-                    float f = (float) (time - lpos.time) / (npos.time - lpos.time);
                     wairToNow.SetCurrentLocation (
-                            (npos.speed     - lpos.speed)     * f + lpos.speed,
-                            (npos.altitude  - lpos.altitude)  * f + lpos.altitude,
-                            interpHdgLon (npos.heading,   lpos.heading,   f),
-                            (npos.latitude  - lpos.latitude)  * f + lpos.latitude,
-                            interpHdgLon (npos.longitude, lpos.longitude, f),
-                            time
+                            lastposition.speed,
+                            lastposition.altitude,
+                            lastposition.heading,
+                            lastposition.latitude,
+                            lastposition.longitude,
+                            lastposition.time
                     );
 
-                    // step airplane along at about same rate as GPS does
-                    long diff = (now - realtime) % 1000;
-                    WairToNow.wtnHandler.runDelayed (1000 - diff, this);
+                    // step airplane along at same rate as GPS did * rtplayback factor
+                    if (nextposition != null) {
+                        long realnow  = SystemClock.uptimeMillis ();
+                        long reallate = realnow - realtime;
+                        long delta    = (nextposition.time - lastposition.time) / rtplayback - reallate;
+                        if (delta <= 0) delta = 1;
+                        realtime      = realnow + delta;
+                        WairToNow.wtnHandler.runDelayed (delta, this);
+
+                        lastposition = nextposition;
+                        nextposition = rtpbiter.hasNext () ? rtpbiter.next () : null;
+                    }
                 } else {
 
                     // no more points, playback is complete
                     PlaybackComplete ();
                 }
             }
-        }
-
-        private float interpHdgLon (float next, float last, float f)
-        {
-            float diff = next - last;
-            while (diff >= 180.0F) diff -= 360.0F;
-            while (diff < -180.0F) diff += 360.0F;
-            return Lib.NormalLon (diff * f + last);
         }
 
         private void PlaybackComplete ()
@@ -442,7 +433,8 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
         @Override  // TrailButton
         public void CloseClicked ()
         {
-            trail = null;
+            displaytrail = null;
+            playbacktrail = null;
             if (rtpbiter != null) {
                 PlaybackComplete ();
             }
@@ -544,7 +536,7 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
             // get list of points on trail by reading fike
             LinkedList<Position> trail = new LinkedList<> ();
             //noinspection ThrowableResultOfMethodCallIgnored
-            Exception e = ReadTrailFile (trail, name, type, true);
+            Exception e = ReadTrailFile (trail, null, name, type, true);
             String err = "";
             if (e != null) {
                 String msg = e.getMessage ();
@@ -686,7 +678,6 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
     private class RecordToButton extends ShowExistingButton {
         private boolean closed;
         private BufferedWriter writer;
-        private int lastIntervalsSinceStarted;
 
         public RecordToButton (String name)
         {
@@ -709,8 +700,7 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
                                         new FileOutputStream (GetPath (name, TYPE_GPX_GZ)))));
                 writer.write ("<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n");
                 writer.write ("<gpx xmlns=\"http://www.topografix.com/GPX/1/1\"><trk><trkseg>\n");
-                trail = new LinkedList<> ();
-                lastIntervalsSinceStarted = -1;
+                displaytrail = new LinkedList<> ();
             } catch (IOException ioe) {
                 Log.w (TAG, "error creating " + name, ioe);
                 ErrorMsg ("Error creating " + name, ioe);
@@ -738,7 +728,7 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
                 ErrorMsg ("Error closing " + name, ioe);
             }
             writer = null;
-            trail  = null;
+            displaytrail = null;
 
             // any future calls are shunted to ShowExistingButton
             closed = true;
@@ -758,41 +748,37 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
             // get recording start time from first sample
             if (started == 0) started = wairToNow.currentGPSTime;
 
-            // only record once every INTERVALMS
-            int thisIntervalsSinceStarted = (int) ((wairToNow.currentGPSTime - started) / INTERVALMS);
-            if (thisIntervalsSinceStarted > lastIntervalsSinceStarted) {
-
-                // try to write record to file
-                try {
-                    if (thisIntervalsSinceStarted > lastIntervalsSinceStarted + 2) {
-                        writer.write (" </trkseg><trkseg>\n");
-                    }
-                    writer.write (
-                            "  <trkpt lat=\"" + wairToNow.currentGPSLat +
-                                    "\" lon=\"" + wairToNow.currentGPSLon +
-                                    "\"><ele>" + wairToNow.currentGPSAlt +
-                            "</ele><heading>" + wairToNow.currentGPSHdg +
-                            "</heading><speed>" + wairToNow.currentGPSSpd +
-                            "</speed><time>" + gpxdatefmt.format (wairToNow.currentGPSTime) +
-                            "</time></trkpt>\n");
-                } catch (IOException ioe) {
-                    Log.w (TAG, "error writing " + name, ioe);
-                    ErrorMsg ("Error writing " + name, ioe);
-                    return;
-                }
-
-                // successful, add it to screen
-                Position pos = new Position ();
-                pos.latitude  = wairToNow.currentGPSLat;
-                pos.longitude = wairToNow.currentGPSLon;
-                pos.altitude  = wairToNow.currentGPSAlt;
-                pos.heading   = wairToNow.currentGPSHdg;
-                pos.speed     = wairToNow.currentGPSSpd;
-                pos.time      = wairToNow.currentGPSTime;
-                trail.addLast (pos);
+            // maybe add it to list of points on screen
+            Position pos = curGPSPos;
+            if (pos == null) pos = new Position ();
+            pos.latitude  = wairToNow.currentGPSLat;
+            pos.longitude = wairToNow.currentGPSLon;
+            pos.altitude  = wairToNow.currentGPSAlt;
+            pos.heading   = wairToNow.currentGPSHdg;
+            pos.speed     = wairToNow.currentGPSSpd;
+            pos.time      = wairToNow.currentGPSTime;
+            if (addPointToTrail (displaytrail, pos, INTERVALMS)) {
                 wairToNow.chartView.invalidate ();
+                pos = null;
+            }
+            curGPSPos = pos;
 
-                lastIntervalsSinceStarted = thisIntervalsSinceStarted;
+            // try to write record to file
+            try {
+                if (pos == null) {
+                    writer.write (" </trkseg><trkseg>\n");
+                }
+                writer.write (
+                        "  <trkpt lat=\"" + wairToNow.currentGPSLat +
+                                "\" lon=\"" + wairToNow.currentGPSLon +
+                                "\"><ele>" + wairToNow.currentGPSAlt +
+                                "</ele><heading>" + wairToNow.currentGPSHdg +
+                                "</heading><speed>" + wairToNow.currentGPSSpd +
+                                "</speed><time>" + gpxdatefmt.format (wairToNow.currentGPSTime) +
+                                "</time></trkpt>\n");
+            } catch (IOException ioe) {
+                Log.w (TAG, "error writing " + name, ioe);
+                ErrorMsg ("Error writing " + name, ioe);
             }
         }
     }
@@ -807,21 +793,24 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
     {
         LinkedList<Position> trail = new LinkedList<> ();
         //noinspection ThrowableResultOfMethodCallIgnored
-        Exception e = ReadTrailFile (trail, name, type, false);
+        Exception e = ReadTrailFile (trail, null, name, type, false);
         if (e != null) return 0;
         return trail.getFirst ().time;
     }
 
     /**
      * Read trail file into a linked list.
-     * @param trail = list to put trail points in
+     * @param displaytrail = list to put displayable trail points in (INTERVALMS apart)
+     * @param playbacktrail = list to put playback trail points in (1ms apart) (or null)
      * @param name = name of trail file (without directory or suffix)
      * @param type = TYPE_CSV_GZ or TYPE_GPX_GZ
      * @param all = true: read all records; false: read just first record
      * @return null: success; else: error
      */
     @SuppressWarnings("ConstantConditions")
-    private static Exception ReadTrailFile (LinkedList<Position> trail, String name, int type, boolean all)
+    private static Exception ReadTrailFile (LinkedList<Position> displaytrail,
+                                            LinkedList<Position> playbacktrail,
+                                            String name, int type, boolean all)
     {
         try {
             BufferedReader br = new BufferedReader (
@@ -832,19 +821,21 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
                 switch (type) {
                     case TYPE_CSV_GZ: {
                         String line;
+                        Position pos = null;
                         while ((line = br.readLine ()) != null) {
                             String[] cols = Lib.QuotedCSVSplit (line);
-                            Position pos  = new Position ();
+                            if (pos == null) pos = new Position ();
                             pos.altitude  = Float.parseFloat (cols[0]);
                             pos.heading   = Float.parseFloat (cols[1]);
                             pos.latitude  = Float.parseFloat (cols[2]);
                             pos.longitude = Float.parseFloat (cols[3]);
                             pos.speed     = Float.parseFloat (cols[4]);
                             pos.time      = Long.parseLong   (cols[5]);
-                            trail.addLast (pos);
+                            if (addPointToTrail (displaytrail, pos, INTERVALMS) |
+                                    addPointToTrail (playbacktrail, pos, 1)) pos = null;
                             if (!all) break;
                         }
-                        if (trail.size () <= 0) throw new IOException ("empty file");
+                        if (displaytrail.size () <= 0) throw new IOException ("empty file");
                         break;
                     }
 
@@ -860,7 +851,7 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
                                     text = null;
                                     switch (xpp.getName ()) {
                                         case "trkpt": {
-                                            pos = new Position ();
+                                            if (pos == null) pos = new Position ();
                                             pos.latitude  = Float.parseFloat (xpp.getAttributeValue (null, "lat"));
                                             pos.longitude = Float.parseFloat (xpp.getAttributeValue (null, "lon"));
                                             break;
@@ -903,14 +894,14 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
                                             break;
                                         }
                                         case "trkpt": {
-                                            trail.addLast (pos);
-                                            pos = null;
+                                            if (addPointToTrail (displaytrail, pos, INTERVALMS) |
+                                                    addPointToTrail (playbacktrail, pos, 1)) pos = null;
                                             break;
                                         }
                                     }
                                 }
                             }
-                            if (!all && trail.size () > 0) break;
+                            if (!all && displaytrail.size () > 0) break;
                         }
                         break;
                     }
@@ -925,6 +916,31 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
             return e;
         }
         return null;
+    }
+
+    /**
+     * Add given point to on-screen trail list if INTERVALMS since last one.
+     * @return true iff point was added to trail
+     */
+    private static boolean addPointToTrail (LinkedList<Position> trail, Position pos, int intrvlms)
+    {
+        if (trail == null) return false;
+
+        if (trail.isEmpty ()) {
+            trail.addLast (pos);
+            return true;
+        }
+
+        Position firstpos = trail.getFirst ();
+        Position lastpos  = trail.getLast ();
+        long lastinterval = (lastpos.time - firstpos.time) / intrvlms;
+        long thisinterval = (pos.time - firstpos.time) / intrvlms;
+        if (thisinterval > lastinterval) {
+            trail.addLast (pos);
+            return true;
+        }
+
+        return false;
     }
 
     private static String GetPath (String name, int type)

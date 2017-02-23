@@ -24,7 +24,7 @@
     if (!isset ($skippwcheck) || !$skippwcheck) {
         if (isset ($_POST['password'])) {
             $pw = trim (file_get_contents ("../webdata/password.dat"));
-            $_SESSION['isok'] = ($_POST['password'] == $pw);
+            $_SESSION['isok'] = ($pw != '') && ($_POST['password'] == $pw);
         }
         if (!isset ($argv[1]) && empty ($_SESSION['isok'])) {
             echo <<<END

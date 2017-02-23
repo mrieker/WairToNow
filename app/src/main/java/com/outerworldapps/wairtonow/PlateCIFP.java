@@ -29,7 +29,6 @@ import android.graphics.Color;
 import android.graphics.DashPathEffect;
 import android.graphics.Paint;
 import android.graphics.Path;
-import android.graphics.Point;
 import android.graphics.PointF;
 import android.graphics.Rect;
 import android.graphics.RectF;
@@ -54,7 +53,6 @@ public class PlateCIFP {
     public final static String TAG = "WairToNow";
 
     private final static int CLIMBFT_NM =   200;  // default climb rate
-    private final static int DMEARCSTEPDEG = 10;  // DME arc steps (degrees)
     private final static int MINSPEEDKT =    60;  // minimum speed knots
     private final static int HOLDLEGSEC =    60;  // number of seconds for hold legs
     private final static int STDDEGPERSEC =   3;  // standard turn degrees per second
@@ -63,58 +61,74 @@ public class PlateCIFP {
     private final static int TURNWRNSEC =    10;  // number of seconds to warn for turn
     private final static int SHOWAPPIDSEC =   5;  // show approach id when selected
     private final static float RUNTNM   =  0.5F;  // legs shorter than this are runts
+    private final static float TERMDEFLECT = 1.0F;  // nav dial terminal mode deflection +- nm
 
-    private final static float stdcirdradsec = 180.0F / Mathf.PI / STDDEGPERSEC;
+    private static class NextTurn {
+        public String direction;
+        public float truecourse;
+    }
+
+    private final static float stdturnradsec = 180.0F / Mathf.PI / STDDEGPERSEC;
 
     private final static String CIFPSEG_FINAL = "~f~";
     private final static String CIFPSEG_MISSD = "~m~";
     private final static String CIFPSEG_REFNV = "~r~";
     private final static String CIFPSEG_RADAR = "(rv)";
 
-    private static HashMap<String,Character> circlingcodes = makeCirclingCodes ();
+    private final static char DIRTOARR = '\u2192';      // 'direct to' arrow
+    private final static HashMap<String,Character> circlingcodes = makeCirclingCodes ();
+    private final static String turnleft  = "L\u21B6";  // left curly arrow
+    private final static String turnright = "R\u21B7";  // right curly arrow
 
     private AlertDialog selectMenu;
     private boolean   drawTextEnable;
     public  CIFPSegment cifpSelected;
     private CIFPStep[] cifpSteps;
+    private FilletArc filletArc = new FilletArc ();
+    private float     acraftbmx;    // aircraft bitmap x,y
+    private float     acraftbmy;
     private float     aptmagvar;
     private float     bmpixpernm;
     private float     bmpixpersec;
     private float     cifpTextAscent, cifpTextHeight;
     private float     curposalt;    // altitude feet
+    private float     curposbmx;
+    private float     curposbmy;
     private float     curposhdg;    // heading degrees true
-    private float     filletCenterX;
-    private float     filletCenterY;
-    private float     filletRadius;
-    private float     filletStart;
-    private float     filletSweep;
     private float     runtbmpix;
+    private float     smallestAcraftDist;
+    private float     stdturnradbmp;
+    private float     vnFinalDist;
+    private float     vnFinalTC;
+    private float     vnGSFtPerNM;
+    private float     vnRwyGSElev;
     private float[]   cifpDotBitmapXYs = new float[32];
     private HashMap<String,SelectButton> selectButtons;
-    private int       acraftbmx;
-    private int       acraftbmy;
     private int       cifpDotIndex;
-    private int       curposbmx;
-    private int       curposbmy;
     private int       currentStep;
     private int       mapIndex;     // index of first step of MAP in cifpSteps[]
     private int       selectButtonHeight;
-    private int       smallestAcraftDist;
     private int       startCyans;   // start of cyans in cifpDotBitmapXYs[]
     private int       startGreens;  // start of greens in cifpDotBitmapXYs[]
     private long      cifpButtonDownAt = Long.MAX_VALUE;
     private long      lastGPSUpdateTime;
     private long      selectedTime;
+    private NextTurn  nextTurn = new NextTurn ();
     private Paint     cifpBGPaint = new Paint ();
     private Paint     cifpTxPaint = new Paint ();
     private Paint     dotsPaint   = new Paint ();
     private Paint     selectButtonPaint = new Paint ();
     private Path      cifpButtonPath = new Path ();
     private PlateView.IAPPlateImage plateView;
+    private PointF    dsctidpp = new PointF ();
+    private PointF    dsctidpm = new PointF ();
+    private PointF    vnFafPoint = new PointF ();
+    private PointF    vnRwyPoint = new PointF ();
     private Rect      textBounds = new Rect ();
     private RectF     cifpButtonBounds = new RectF ();  // where CIFP dialog display button is on canvas
     private RectF     drawArcBox = new RectF ();
     private String    plateid;
+    private String    turntoline;
     private String[]  cifpTextLines;
     private TreeMap<String,CIFPApproach> cifpApproaches;
     private WairToNow wairToNow;
@@ -278,92 +292,24 @@ public class PlateCIFP {
     }
 
     /**
-     * Get selected approach/segment FAF waypoint
+     * Fill in NavDialView with current tracking info.
+     * Also get status string saying what the step is doing.
      */
-    public Waypoint getFafWaypt ()
+    public String getVNTracking (NavDialView navDial)
     {
         if (cifpSelected == null) return null;
-        CIFPSegment finalseg = cifpSelected.approach.finalseg;
-        return finalseg.getFafWaypt ();
-    }
 
-    /**
-     * Get glideslope elevation over FAF.
-     */
-    public float getFafGSElev ()
-    {
-        if (cifpSelected == null) return Float.NaN;
-        CIFPSegment finalseg = cifpSelected.approach.finalseg;
-        CIFPLeg fafleg = finalseg.getFafLeg ();
-        if (fafleg == null) return Float.NaN;
-        return fafleg.getAltitude ();
-    }
+        // set nav dial according to the current step
+        // but if in a fillet, set nav dial according to next step
+        cifpSteps[currentStep].getVNTracking (navDial);
 
-    /**
-     * Get selected approach/segment runway waypoint.
-     */
-    public Waypoint getRwyWaypt ()
-    {
-        if (cifpSelected == null) return null;
-        CIFPSegment finalseg = cifpSelected.approach.finalseg;
-        return finalseg.getRwyWaypt ();
-    }
+        // default status string is corresponding text line
+        String status = cifpTextLines[currentStep+1];
 
-    /**
-     * Get glideslope elevation over runway waypoint.
-     */
-    public float getRwyGSElev ()
-    {
-        if (cifpSelected == null) return Float.NaN;
-        CIFPSegment finalseg = cifpSelected.approach.finalseg;
-        CIFPLeg rwyleg = finalseg.legs[finalseg.legs.length-1];
-        return rwyleg.getAltitude ();
-    }
+        // but if there is a 'turn to ... in ... sec', use it as status instead
+        if ((turntoline != null) && turntoline.contains ("\u00B0")) status = turntoline;
 
-    /**
-     * Get current segment info so VirtNavView can maintain a nav dial.
-     */
-    // true course degrees
-    public float getVirtNavOBSTrue ()
-    {
-        if (cifpSteps == null) return Float.NaN;
-
-        // normally use OBS as given by current step
-        int di = currentStep;
-        if (di < 0) di = 0;
-        CIFPStep cs = cifpSteps[di];
-
-        // but if we are in the fillet at the end,
-        // use next step's OBS setting so pilot can see where to turn to
-        // skip over runt steps as they don't generate fillets and they
-        // probably don't know what their heading is either
-        if (cs.numSecToFillet () <= 0) {
-            while (++ di < cifpSteps.length) {
-                CIFPStep ns = cifpSteps[di];
-                if (!ns.isRuntStep ()) {
-                    cs = ns;
-                    break;
-                }
-            }
-        }
-
-        // get the OBS setting for that step
-        return cs.getVNOBSTrue ();
-    }
-
-    // goes in small white text box above dial
-    public String getVirtNavTextLine ()
-    {
-        if (cifpTextLines == null) return null;
-        return cifpTextLines[currentStep+1];
-    }
-
-    // used for needle deflection and DME distance and DME waypoint
-    public String getVirtNavWaypoint (LatLon ll)
-    {
-        if (cifpSteps == null) return null;
-        CIFPStep cs = (currentStep < 0) ? cifpSteps[0] : cifpSteps[currentStep];
-        return cs.getVNWaypoint (ll);
+        return status;
     }
 
     /**
@@ -374,23 +320,15 @@ public class PlateCIFP {
         // make sure we have a segment selected for display
         // also we might get double calls (via WaypointView and VirtNavView),
         // so reject redundant GPS updates
-        if ((cifpSelected != null) && (lastGPSUpdateTime < wairToNow.currentGPSTime)) {
-            try {
-                UpdateState ();
-            } catch (Exception e) {
-                String msg = "error updating CIFP " + airport.ident + "." +
-                        cifpSelected.approach.appid + "." + cifpSelected.segid;
-                Log.e (TAG, msg, e);
-                errorMessage (msg, e);
-                cifpSelected = null;
-            }
+        if ((cifpSelected != null) && (lastGPSUpdateTime != wairToNow.currentGPSTime)) {
+            UpdateState ();
         }
     }
 
     // update state regardless of whether plate is visible or not
     // in case user comes back to plate later or the state is being
     // used by VirtNavView without viewing the plate itself
-    private void UpdateState () throws Exception
+    private void UpdateState ()
     {
         lastGPSUpdateTime = wairToNow.currentGPSTime;
 
@@ -410,6 +348,9 @@ public class PlateCIFP {
 
         // how many bitmap pixels we will cross in a second at our current speed
         bmpixpersec = bmpixpernm / Lib.MPerNM * spd;
+
+        // radius of turns at standard rate
+        stdturnradbmp = stdturnradsec * bmpixpersec;
 
         // if first time through, save current position as starting point
         // this sets the starting position where the initial line is drawn from
@@ -456,12 +397,10 @@ public class PlateCIFP {
                 step.begptbmy = curposbmy;
             }
 
-            // get text string for text box
-            cifpTextLines[i+1] = step.getTextLine ();
-
             // compute dots that make up step and put in array
             // compute alt,hdg,lat,lon at end of this step
-            smallestAcraftDist = Integer.MAX_VALUE;
+            // possibly alter's step's internal state
+            smallestAcraftDist = Float.MAX_VALUE;
             step.drawStepDots ();
             step.acrftdist = smallestAcraftDist;
 
@@ -472,6 +411,9 @@ public class PlateCIFP {
             step.endpthdg = curposhdg;
             step.endptbmx = curposbmx;
             step.endptbmy = curposbmy;
+
+            // get text string for text box
+            cifpTextLines[i+1] = step.getTextLine ();
         }
 
         // draw fillet arc showing turn at end of current step to next step.
@@ -479,12 +421,54 @@ public class PlateCIFP {
         // but the fillet is considered part of the current step so it stays magenta.
         // it's possible that the next step is a runt, in which case we ignore it and
         // use the one after that.
-        filletRadius = 0.0F;
+        filletArc.turndir = 0;
+        filletArc.start   = Float.NaN; //TODO debug
+        filletArc.startc  = Float.NaN;
+        filletArc.stoptc  = Float.NaN;
+        filletArc.sweep   = Float.NaN;
         for (int i = currentStep; ++ i < nsteps;) {
             CIFPStep ns = cifpSteps[i];
             if (!ns.isRuntStep ()) {
                 ns.drawFillet ();
+                if (filletArc.turndir != 0) {
+                    if (Float.isNaN (filletArc.start) || Float.isNaN (filletArc.startc) ||
+                            Float.isNaN (filletArc.stoptc) || Float.isNaN (filletArc.sweep)) {
+                        throw new RuntimeException ("filletArc not filled in");
+                    }
+                    // it drew a fillet arc going from the current step to that next step (ns)
+                    // see how far the airplane is from the fillet arc
+                    float distfromarc = Lib.distOfPtFromArc (filletArc.x, filletArc.y,
+                            stdturnradbmp, filletArc.start, filletArc.sweep, acraftbmx, acraftbmy);
+                    // if the airplane is close to the fillet arc,
+                    // mark airplane as being close to the current step
+                    // in order to keep current step current until airplane
+                    // finishes flying the whole fillet, ie, until airplane
+                    // gets closer to actual next step path than it is to
+                    // this fillet
+                    CIFPStep cs = cifpSteps[currentStep];
+                    if (cs.acrftdist > distfromarc) {
+                        cs.acrftdist = distfromarc;
+                    }
+                }
                 break;
+            }
+        }
+
+        // warn pilot of next turn
+        float bmptoturn = cifpSteps[currentStep].bmpToNextTurn (nextTurn);
+        if (bmptoturn < 0.0F) bmptoturn = 0.0F;
+        int sectoturn = Math.round (bmptoturn / bmpixpersec);
+        if ((sectoturn > TURNWRNSEC) || (nextTurn.direction == null)) {
+            // it will be a while, display distance and time to turn
+            float nm = bmptoturn / bmpixpernm;
+            turntoline = String.format ("%.1fnm  %02d:%02d", nm, sectoturn / 60, sectoturn % 60);
+        } else {
+            // near or in the turn, display message saying to turn
+            int maghdg = ((Math.round (nextTurn.truecourse + aptmagvar) + 719) % 360) + 1;
+            if (sectoturn > 0) {
+                turntoline = String.format ("%s %03d\u00B0 in %d sec", nextTurn.direction, maghdg, sectoturn);
+            } else {
+                turntoline = String.format ("%s %03d\u00B0 now", nextTurn.direction, maghdg);
             }
         }
 
@@ -493,11 +477,11 @@ public class PlateCIFP {
         // but we must also skip any steps that are runts,
         // as we wouldn't be able to see any difference
         // in distance away from them and would get stuck.
-        int csacrftdist = cifpSteps[currentStep].acrftdist;
+        float csacrftdist = cifpSteps[currentStep].acrftdist;
         for (int i = currentStep; ++ i < nsteps;) {
             CIFPStep ns = cifpSteps[i];
             if (!ns.isRuntStep ()) {
-                int nsacrftdist = ns.acrftdist;
+                float nsacrftdist = ns.acrftdist;
                 if (nsacrftdist <= csacrftdist) {
                     currentStep = i;
                     Log.d (TAG, "PlateCIFP*: currentStep=" + i + " <" + ns.getTextLine () + ">");
@@ -627,11 +611,11 @@ public class PlateCIFP {
      * so the pilot can select which waypoint to start the approach at.
      */
     private class SelectButton {
+        public float bmpx, bmpy;  // bitmap pixel where button goes (waypoint location)
         public HashMap<String,RectF> appBounds = new HashMap<> ();  // indexed by app.type
-        public int bmpx, bmpy;  // bitmap pixel where button goes (waypoint location)
-        public int idwidth;     // width of segid string (canvas pixels)
+        public int idwidth;       // width of segid string (canvas pixels)
         public String clicked;
-        public String segid;    // "(rv)", "LADTI", etc
+        public String segid;      // "(rv)", "LADTI", etc
         public TreeMap<String,CIFPSegment> segments = new TreeMap<> ();  // indexed by app.type
 
         /**
@@ -716,19 +700,18 @@ public class PlateCIFP {
             // so current step's dots end up on top
             for (int i = cifpDotIndex; i > 0;) {
                 float x0 = cifpDotBitmapXYs[--i];
-                dotsPaint.setColor (
-                        (i > startCyans) ? Color.CYAN :
-                                (i > startGreens) ? Color.GREEN :
-                                        Color.MAGENTA
-                );
+                int color = (i > startCyans) ? Color.CYAN :
+                        (i > startGreens) ? Color.GREEN :
+                                Color.MAGENTA;
+                dotsPaint.setColor (color);
                 if (!Float.isNaN (x0)) {
                     float y0 = cifpDotBitmapXYs[--i];
                     float x1 = cifpDotBitmapXYs[--i];
                     float y1 = cifpDotBitmapXYs[--i];
-                    x0 = plateView.BitmapX2CanvasX (Math.round (x0));
-                    y0 = plateView.BitmapY2CanvasY (Math.round (y0));
-                    x1 = plateView.BitmapX2CanvasX (Math.round (x1));
-                    y1 = plateView.BitmapY2CanvasY (Math.round (y1));
+                    x0 = plateView.BitmapX2CanvasX (x0);
+                    y0 = plateView.BitmapY2CanvasY (y0);
+                    x1 = plateView.BitmapX2CanvasX (x1);
+                    y1 = plateView.BitmapY2CanvasY (y1);
                     canvas.drawLine (x0, y0, x1, y1, dotsPaint);
                 } else {
                     float radius = cifpDotBitmapXYs[--i];
@@ -737,29 +720,17 @@ public class PlateCIFP {
                     float start  = cifpDotBitmapXYs[--i];
                     float sweep  = cifpDotBitmapXYs[--i];
                     drawArcBox.set (
-                            plateView.BitmapX2CanvasX (Math.round (centx - radius)),
-                            plateView.BitmapY2CanvasY (Math.round (centy - radius)),
-                            plateView.BitmapX2CanvasX (Math.round (centx + radius)),
-                            plateView.BitmapY2CanvasY (Math.round (centy + radius)));
+                            plateView.BitmapX2CanvasX (centx - radius),
+                            plateView.BitmapY2CanvasY (centy - radius),
+                            plateView.BitmapX2CanvasX (centx + radius),
+                            plateView.BitmapY2CanvasY (centy + radius));
                     canvas.drawArc (drawArcBox, start, sweep, false, dotsPaint);
                 }
             }
 
             // draw fillet arc in magenta
-            if (filletRadius > 0.0F) {
-
-                // make bounding box for the circle
-                float r = filletRadius;
-                float x = filletCenterX;
-                float y = filletCenterY;
-                drawArcBox.set (
-                        plateView.BitmapX2CanvasX (Math.round (x - r)),
-                        plateView.BitmapY2CanvasY (Math.round (y - r)),
-                        plateView.BitmapX2CanvasX (Math.round (x + r)),
-                        plateView.BitmapY2CanvasY (Math.round (y + r)));
-
-                // draw the arc
-                canvas.drawArc (drawArcBox, filletStart, filletSweep, false, dotsPaint);
+            if (filletArc.turndir != 0) {
+                filletArc.draw (canvas, dotsPaint);
             }
         }
 
@@ -789,29 +760,13 @@ public class PlateCIFP {
 
             // make up a first line showing distance and time to end of current step
             // or if coming up to a turn, warn of impending turn
-            CIFPStep curstep = cifpSteps[currentStep];
-            int   sectoturn  = curstep.numSecToFillet ();
             String firstline;
-            if ((curstep.filetdir != null) && (sectoturn <= TURNWRNSEC)) {
-                // near or in the turn, display message saying to turn
-                int maghdg = ((Math.round (curstep.filetftc + aptmagvar) + 719) % 360) + 1;
-                if (sectoturn > 0) {
-                    firstline = String.format ("%s %03d\u00B0 in %d sec", curstep.filetdir, maghdg, sectoturn);
-                } else {
-                    firstline = String.format ("%s %03d\u00B0 now", curstep.filetdir, maghdg);
-                }
-            } else if (SystemClock.uptimeMillis () > selectedTime + SHOWAPPIDSEC * 1000) {
-                // it will be a while to the turn, say how far and how long to waypoint
-                float dist = Mathf.hypot (curstep.endptbmx - acraftbmx,
-                        curstep.endptbmy - acraftbmy) / bmpixpernm;
-                firstline = String.format ("%.1f nm", dist);
-                if (wairToNow.currentGPSSpd > WairToNow.gpsMinSpeedMPS) {
-                    int sec = Math.round (dist * Lib.MPerNM / wairToNow.currentGPSSpd);
-                    firstline += String.format ("  %02d:%02d", sec / 60, sec % 60);
-                }
-            } else {
+            if (SystemClock.uptimeMillis () < selectedTime + SHOWAPPIDSEC * 1000) {
                 // just selected approach, show its name for a few seconds
                 firstline = cifpSelected.getName ();
+            } else {
+                // show how long to next turn
+                firstline = turntoline;
             }
             cifpTextLines[currentStep] = firstline;
 
@@ -914,7 +869,7 @@ public class PlateCIFP {
             return;
         }
 
-        // first time through, scan the database
+        // read approaches and segments from database
         if (bmpixpernm == 0.0F) {
             bmpixpernm = plateView.LatLon2BitmapY (airport.lat, airport.lon) -
                     plateView.LatLon2BitmapY (airport.lat + 1.0F / Lib.NMPerDeg, airport.lon);
@@ -924,7 +879,7 @@ public class PlateCIFP {
             }
             runtbmpix = bmpixpernm * RUNTNM;
         }
-        if (cifpApproaches == null) GetCIFPSegments ();
+        GetCIFPSegments ();
         if (cifpApproaches.isEmpty ()) {
             errorMessage ("", "No CIFP information available");
             return;
@@ -959,9 +914,10 @@ public class PlateCIFP {
             drawTextEnable = true;
 
             // get steps from transition, final and missed segments
+            CIFPSegment finalseg = segment.approach.finalseg;
             LinkedList<CIFPStep> steps = new LinkedList<> ();
             CIFPLeg prevleg = cifpSelected.getSteps (steps, null);
-            prevleg = cifpSelected.approach.finalseg.getSteps (steps, prevleg);
+            prevleg = finalseg.getSteps (steps, prevleg);
             mapIndex = steps.size ();
             cifpSelected.approach.missedseg.getSteps (steps, prevleg);
 
@@ -977,6 +933,26 @@ public class PlateCIFP {
 
             // remember when selection was made
             selectedTime = SystemClock.uptimeMillis ();
+
+            // get final approach parameters
+            CIFPLeg fafleg = finalseg.getFafLeg ();
+            if (fafleg == null) throw new Exception ("FAF leg missing");
+            Waypoint vnFafWaypt = fafleg.getFafWaypt ();
+            if (vnFafWaypt == null) throw new Exception ("FAF waypt missing");
+            CIFPLeg rwyleg = finalseg.legs[finalseg.legs.length-1];
+            Waypoint vnRwyWaypt = rwyleg.getRwyWaypt  ();
+            if (vnRwyWaypt == null) throw new Exception ("MAP missing");
+            vnFafPoint.x = plateView.LatLon2BitmapX (vnFafWaypt.lat, vnFafWaypt.lon);
+            vnFafPoint.y = plateView.LatLon2BitmapY (vnFafWaypt.lat, vnFafWaypt.lon);
+            vnRwyPoint.x = plateView.LatLon2BitmapX (vnRwyWaypt.lat, vnRwyWaypt.lon);
+            vnRwyPoint.y = plateView.LatLon2BitmapY (vnRwyWaypt.lat, vnRwyWaypt.lon);
+            vnRwyGSElev = rwyleg.getAltitude ();
+            vnFinalDist = Lib.LatLonDist (vnFafWaypt.lat, vnFafWaypt.lon,
+                    vnRwyWaypt.lat, vnRwyWaypt.lon);
+            vnFinalTC = Lib.LatLonTC (vnFafWaypt.lat, vnFafWaypt.lon,
+                    vnRwyWaypt.lat, vnRwyWaypt.lon);
+            float fafgsel = fafleg.getAltitude ();
+            vnGSFtPerNM = (fafgsel - vnRwyGSElev) / vnFinalDist;
 
             // fill in initial state with whatever location was last received from GPS
             UpdateState ();
@@ -999,6 +975,7 @@ public class PlateCIFP {
      * Output:
      *  cifpApproaches = filled in
      */
+    @SuppressWarnings("ConstantConditions")
     private void GetCIFPSegments ()
     {
         cifpApproaches = new TreeMap<> ();
@@ -1323,36 +1300,14 @@ public class PlateCIFP {
         }
 
         /**
-         * If this is the final approach segment, return the FAF waypoint
-         */
-        public Waypoint getFafWaypt ()
-        {
-            CIFPLeg fafleg = getFafLeg ();
-            if (fafleg == null) return null;
-            return fafleg.getFafWaypt ();
-        }
-
-        /**
-         * If this is the final segment, return the runway waypoint
-         * For circling-only approaches, this is the missed approach point
-         * All final segments end with a CF leg indicating the runway or MAP
-         */
-        public Waypoint getRwyWaypt ()
-        {
-            if (!segid.equals (CIFPSEG_FINAL)) return null;
-            int rwylegno = legs.length - 1;
-            return legs[rwylegno].getRwyWaypt ();
-        }
-
-        /**
          * Get long segment name
          *   "KBVY LOC 16/(rv)"
          */
         public String getName ()
         {
             if (name == null) {
-                name = airport.ident + " " +
-                        approach.name + "/" +
+                name = airport.ident + ' ' +
+                        approach.name + '/' +
                         segid;
             }
             return name;
@@ -1408,46 +1363,64 @@ public class PlateCIFP {
      * It can be described with one short line of text.
      */
     private abstract class CIFPStep {
-        public float begptalt;  // where airplane begins going into step
+        public char arcturndir;  // if step is an arc, arc turn direction ('L' or 'R'), else 0 for line
+        public float arcctrbmx;  // if step is an arc, center of arc
+        public float arcctrbmy;
+        public float arcbegrad;  // if step is an arc, beginning radial from center (true)
+        public float arcendrad;  // if step is an arc, ending radial from center (true)
+        public float arcradbmp;  // if step is an arc, radius of arc
+
+        public float begptalt;   // where airplane begins going into step
         public float begpthdg;
-        public int   begptbmy;
-        public int   begptbmx;
+        public float begptbmx;
+        public float begptbmy;
         public float endptalt;   // where airplane ends up at end of step
         public float endpthdg;
-        public int   endptbmx;
-        public int   endptbmy;
+        public float endptbmx;
+        public float endptbmy;
+
         public int   drawIndex;  // index in cifpSteps[] array
-        public int   acrftdist;  // distance aircraft is from dots
-
-        public String filetdir;  // 'L<-' or 'R->' (null if undefined)
-        public float  filetitc;  // initial true course
-        public float  filetftc;  // finish true course
-        public int    filetbmx;  // starting bitmap x,y
-        public int    filetbmy;
-
-        // get text line describing the step
-        //  input:
-        //   curposalt,curposhdg,curposalt,curposlon
-        public abstract String getTextLine () throws Exception;
+        public float acrftdist;  // distance aircraft is from dots
 
         // draw the step
+        // may alter step's internal state (called only from UpdateState())
         //  input:
-        //   curposalt,curposhdg,curposlat,curposlon
-        //   nmperdot
-        //   dotsPaint
+        //   curposalt,curposhdg,curposbmx,curposbmy
+        //   begptalt,begpthdg,begptbmy,begptbmx
         //  output:
-        //   curposalt,curposhdg,curposlat,curposlon
-        public abstract void drawStepDots () throws Exception;
+        //   curposalt,curposhdg,curposbmx,curposbmy
+        public abstract void drawStepDots ();
+
+        // get text line describing the step
+        // must not alter step's internal state (in case called outside UpdateState())
+        //  input:
+        //   begptalt,begpthdg,begptbmy,begptbmx
+        public abstract String getTextLine ();
 
         // draw fillet from end of previous step to beginning of this step
         // called only when a previous step is current to show pilot how to turn to this step
+        // must not alter step's internal state (for simplicity)
         public void drawFillet ()
         {
-            // for most steps, we can assume they are a straight line of some sort
-            // so assume their initial course is the same as the course from the
-            // beginning to the end of the step
-            defaultDrawFillet (begptbmx, begptbmy,
-                    trueCourse (begptbmx, begptbmy, endptbmx, endptbmy));
+            if (arcturndir == 0) {
+
+                // step being fillet'd to (this step) is a line
+                // ... starting at the given point and on the given heading
+                drawFilletToLine (begptbmx, begptbmy, endpthdg);
+            } else {
+
+                // step being fillet'd to (this step) is an arc
+                CIFPStep curstep = cifpSteps[currentStep];
+                if (curstep.arcturndir == 0) {
+
+                    // previous step is a line, so drawing fillet from line to arc
+                    filletArc.calcFilletLineToArc (curstep.endptbmx, curstep.endptbmy, curstep.endpthdg,
+                            arcctrbmx, arcctrbmy, arcendrad, arcradbmp, arcturndir);
+                } else {
+                    // arc-to-arc: doesn't happen, so don't bother drawing a fillet
+                    Lib.Ignored ();
+                }
+            }
         }
 
         // see if this step is a runt
@@ -1456,24 +1429,44 @@ public class PlateCIFP {
         // runts are too small to reliably detect aircraft positioned on them
         // ...so we don't make them current, and also are hard to calculate a
         // true course entry and exit as they may actually just be a single point
+        // must not alter step's internal state (in case called outside UpdateState())
         public boolean isRuntStep ()
         {
             return Mathf.hypot (endptbmx - begptbmx, endptbmy - begptbmy) < runtbmpix;
         }
 
-        // get OBS setting for VirtNav dial (true degrees)
-        public abstract float getVNOBSTrue ();
-        // get waypoint for VirtNav dial needle deflection and DME
-        public abstract String getVNWaypoint (LatLon ll);
+        // update a NavDialView with what is going on
+        // return status string saying what is going on (or null for same as getTextLine())
+        // must not alter step's internal state (cuz it is called outside UpdateState())
+        public abstract void getVNTracking (NavDialView navDial);
 
-        // get number of seconds until we reach the beginning of the fillet at the end of this step
+        // get number of bitmap pixels until we reach the beginning of the turn at the end of this step
+        // also get the direction and true course of the turn
         // called only when this step is current
-        public int numSecToFillet ()
+        // must not alter step's internal state (in case called outside UpdateState())
+        public float bmpToNextTurn (NextTurn nextTurn)
         {
+            // assume no turn at end of step
+            nextTurn.direction  = null;
+            nextTurn.truecourse = Float.NaN;
+
             // see if fillet info filled in
-            if (filetdir == null) return Integer.MAX_VALUE;
+            if (filletArc.turndir == 0) {
+                // no next turn, just straight ahead to next point, return dist to next point
+                float disttoend = Mathf.hypot (endptbmx - acraftbmx, endptbmy - acraftbmy);
+                // point might be behind us, so project distance onto ideal course
+                float tctoend = trueCourse (acraftbmx, acraftbmy, endptbmx, endptbmy);
+                return disttoend * Mathf.cosdeg (tctoend - endpthdg);
+            }
+
+            // return next turn parameters
+            if (filletArc.turndir == 'L') nextTurn.direction = turnleft;
+            if (filletArc.turndir == 'R') nextTurn.direction = turnright;
+            nextTurn.truecourse = filletArc.getEndTC ();
 
             // get course line from aircraft to beginning of fillet
+            float filetbmx   = filletArc.getBegX ();
+            float filetbmy   = filletArc.getBegY ();
             float tctoturn   = trueCourse (acraftbmx, acraftbmy, filetbmx, filetbmy);
 
             // get distance from aircraft to beginning of fillet
@@ -1481,81 +1474,131 @@ public class PlateCIFP {
 
             // get component of that distance aligned with fillet start heading
             // will be negative if we are past beginning of fillet
-            disttoturn *= Mathf.cosdeg (tctoturn - filetitc);
+            float filletbegtc = filletArc.getBegTC ();
+            disttoturn *= Mathf.cosdeg (tctoturn - filletbegtc);
+            return disttoturn;
+        }
 
-            // return that as number of seconds at current speed
-            return Math.round (disttoturn / bmpixpersec);
+        /**
+         * Fill in NavDialView with what is going on.
+         * Assumes this step is a straight-line course from begptbmx,y -> endptbmx,y
+         * @param navDial = what to fill in
+         * @param wpid = destination waypoint ident (ident of endptbmx,y)
+         */
+        protected void getLinearVNTracking (NavDialView navDial, String wpid)
+        {
+            // maybe we are in fillet at end of the line segment
+            if (inEndFillet (navDial)) return;
+
+            // set obs dial to whatever course they should be flying in this step
+            float obstrue = trueCourse (begptbmx, begptbmy, endptbmx, endptbmy);
+            navDial.obsSetting = obstrue + aptmagvar;
+
+            // see if this segment is on final approach course
+            float obsfinaldiff = angleDiffU (obstrue - vnFinalTC);
+            boolean onfinalapp = obsfinaldiff < 15.0F;
+
+            // see if runway numbers are ahead of us or behind
+            float faf_to_rwy_x = vnRwyPoint.x - vnFafPoint.x;
+            float faf_to_rwy_y = vnRwyPoint.y - vnFafPoint.y;
+            float acf_to_rwy_x = vnRwyPoint.x - acraftbmx;
+            float acf_to_rwy_y = vnRwyPoint.y - acraftbmy;
+            boolean runwayahead = (faf_to_rwy_x * acf_to_rwy_x + faf_to_rwy_y * acf_to_rwy_y) > 0.0F;
+
+            // see how far away from FAF and runway numbers we are
+            float disttofaf = Mathf.hypot (acraftbmx - vnFafPoint.x, acraftbmy - vnFafPoint.y) / bmpixpernm;
+            float disttorwy = Mathf.hypot (acraftbmx - vnRwyPoint.x, acraftbmy - vnRwyPoint.y) / bmpixpernm;
+
+            // get signed distance to FAF by projecting our position onto the final approach course
+            float coursetofaf = trueCourse (acraftbmx, acraftbmy, vnFafPoint.x, vnFafPoint.y);
+            float signeddisttofaf = disttofaf * Mathf.cosdeg (coursetofaf - vnFinalTC);
+
+            // get needle sensitivity (in nm each side)
+            // - FAF more than 2nm ahead: +- 1nm
+            // - FAF less than 2nm ahead: +- 0.3nm to +- 1nm
+            // - inside FAF runway ahead: +- 0.3nm
+            // - runway behind: +- 1nm
+            float locsens;
+            if (!onfinalapp) locsens = 1.0F;  // out doing a PT or something
+            else if (signeddisttofaf > 2.0F) locsens = 1.0F;  // inbound but have a way to go
+            else if (signeddisttofaf > 0.0F) locsens = 0.3F + signeddisttofaf * 0.35F;
+            else if (runwayahead) locsens = 0.3F;  // closing in on runway
+            else locsens = 1.0F;  // gone missed
+
+            // set localizer needle deflection
+            float deflection = lineDeflection (begptbmx, begptbmy, endptbmx, endptbmy);
+            navDial.setDeflect (deflection / locsens);
+
+            // maybe we are in glideslope mode
+            //  * runway numbers must be ahead of us
+            //  * we must be within 2nm of final approach centerline
+            //  * we must be headed within 60deg of final approach course
+            //  * we must be within 3nm of FAF or between FAF and runway
+            if (runwayahead && onfinalapp &&
+                    (Math.abs (deflection) < NavDialView.LOCDEFLECT * 2.0F) &&
+                    ((disttofaf < 3.0F) || (disttorwy < vnFinalDist))) {
+
+                // on final approach, put dial in ILS mode
+                navDial.setMode (NavDialView.Mode.ILS);
+
+                // tell pilot what their descent rate should be to stay on glideslope
+                float nmpermin = wairToNow.currentGPSSpd / Lib.MPerNM * 60.0F;
+                float descrate = vnGSFtPerNM * nmpermin;
+                navDial.gsfpm  = - Math.round (descrate);
+
+                // get glideslope sensitivity
+                // - at FAF: +- 492ft
+                // - at 4.63nm inside FAF: +- 148ft
+                float gssens = 492.0F + signeddisttofaf / 4.63F * (492.0F - 148.0F);
+                if (gssens < 148.0F) gssens = 148.0F;
+
+                // get height below on-glideslope path
+                float ongsalt = disttorwy * vnGSFtPerNM + vnRwyGSElev;
+                float belowongs = ongsalt - wairToNow.currentGPSAlt * Lib.FtPerM;
+
+                // set glideslope needle deflection
+                navDial.setSlope (belowongs / gssens * NavDialView.GSDEFLECT);
+            } else {
+
+                // not on final approach, put dial in LOC mode
+                // use LOC not VOR so dial can't be finger rotated
+                navDial.setMode (NavDialView.Mode.LOC);
+            }
+
+            // set DME distance and identifier
+            float dist = Mathf.hypot (acraftbmx - endptbmx, acraftbmy - endptbmy);
+            navDial.setDistance (dist / bmpixpernm, wpid, false);
+        }
+
+        // if in fillet at end of step, use turn-to heading in obs
+        // so user can see where they are turning to
+        protected boolean inEndFillet (NavDialView navDial)
+        {
+            if ((bmpToNextTurn (nextTurn) <= 0.0F) && !Float.isNaN (nextTurn.truecourse)) {
+                navDial.obsSetting = nextTurn.truecourse + aptmagvar;
+                return true;
+            }
+            return false;
         }
     }
 
     /**
-     * Draw solid fillet from current CIFP step course line to next CIFP step course line
+     * Draw fillet from current CIFP step course to next CIFP step course line
      * @param nextpointx = starting point of next CIFP step course line (currentStep+n)
      * @param nextpointy = starting point of next CIFP step course line (currentStep+n)
      * @param nextrucrs  = true course of next CIFP step course line (currentStep+n)
      */
-    private void defaultDrawFillet (int nextpointx, int nextpointy, float nextrucrs)
+    private void drawFilletToLine (float nextpointx, float nextpointy, float nextrucrs)
     {
-        // see how much we are turning by
-        // normalize to range -180..+180
-        // neg for left; pos for right
         CIFPStep curstep = cifpSteps[currentStep];
-        float curtrucrs  = curstep.endpthdg;
-        float turnbydeg  = nextrucrs - curtrucrs;
-        while (turnbydeg < -180.0F) turnbydeg += 360.0F;
-        while (turnbydeg >= 180.0F) turnbydeg -= 360.0F;
-
-        // only bother if turning more than 15deg or less than 165deg
-        if ((Math.abs (turnbydeg) > MINFILLET) && (Math.abs (turnbydeg) < MAXFILLET)) {
-
-            // compute some point ahead of airplane on its current course
-            float acraftbmx_ahead = curstep.endptbmx + Mathf.sindeg (curtrucrs) * 1024.0F;
-            float acraftbmy_ahead = curstep.endptbmy - Mathf.cosdeg (curtrucrs) * 1024.0F;
-
-            // compute some point ahead of next point along its initial course
-            float nextbmx_ahead = nextpointx + Mathf.sindeg (nextrucrs) * 1024.0F;
-            float nextbmy_ahead = nextpointy - Mathf.cosdeg (nextrucrs) * 1024.0F;
-
-            // find intersection of those two lines, giving us the elbow of the turn
-            float elbow_bmx = Lib.lineIntersectX (
-                    curstep.endptbmx, curstep.endptbmy, acraftbmx_ahead, acraftbmy_ahead,
-                    nextpointx, nextpointy, nextbmx_ahead, nextbmy_ahead);
-            float elbow_bmy = Lib.lineIntersectY (
-                    curstep.endptbmx, curstep.endptbmy, acraftbmx_ahead, acraftbmy_ahead,
-                    nextpointx, nextpointy, nextbmx_ahead, nextbmy_ahead);
-
-            // find true course from elbow to center of circle
-            float elbow2centercrs;
-            if (turnbydeg < 0.0F) {
-                // turning left
-                elbow2centercrs = curtrucrs - 90.0F + turnbydeg / 2.0F;
-            } else {
-                // turning right
-                elbow2centercrs = curtrucrs + 90.0F + turnbydeg / 2.0F;
-            }
-
-            // find center of circle by going from elbow along that course
-            float circleradius_bmp = stdcirdradsec * bmpixpersec;
-            float center2elbow_bmp = circleradius_bmp / Mathf.cosdeg (turnbydeg / 2.0F);
-            float center_bmx = elbow_bmx + Mathf.sindeg (elbow2centercrs) * center2elbow_bmp;
-            float center_bmy = elbow_bmy - Mathf.cosdeg (elbow2centercrs) * center2elbow_bmp;
-
-            // sweep is number of degrees for arc clockwise from start
-            float sweep = Math.abs (turnbydeg);
-
-            // start is angle clockwise from East to start at
-            //  0=E; 90=S; 180=W; 270=N
-            float start;
-            if (turnbydeg < 0.0F) {
-                // turning left
-                start = nextrucrs;
-            } else {
-                // turning right
-                start = curtrucrs + 180.0F;
-            }
-
-            drawFilletArc (center_bmx, center_bmy, circleradius_bmp,
-                    start, sweep, turnbydeg < 0.0F);
+        if (curstep.arcradbmp == 0) {
+            filletArc.calcFilletLineToLine (curstep.endptbmx, curstep.endptbmy, curstep.endpthdg,
+                    nextpointx, nextpointy, nextrucrs);
+        } else {
+            filletArc.calcFilletArcToLine (
+                    curstep.arcctrbmx, curstep.arcctrbmy, curstep.arcbegrad,
+                    curstep.arcradbmp, curstep.arcturndir,
+                    nextpointx, nextpointy, nextrucrs);
         }
     }
 
@@ -1647,14 +1690,14 @@ public class PlateCIFP {
         {
             switch (td) {
                 case 'L': {
-                    sb.append ("L\u21B6");  // curly left arrow
+                    sb.append (turnleft);
                     break;
                 }
                 case 'R': {
-                    sb.append ("R\u21B7");  // curly right arrow
+                    sb.append (turnright);
                     break;
                 }
-                default: throw new RuntimeException ("bad turn dir " + td);
+                default: throw new IllegalArgumentException ("bad turn dir " + td);
             }
         }
 
@@ -1766,28 +1809,28 @@ public class PlateCIFP {
 
                     // cross fix at a1 altitude
                     case '@': {
-                        sb.append (" =");
+                        sb.append ('=');
                         appendAlt (sb, a1);
                         break;
                     }
 
                     // cross fix at or above a1 altitude
                     case '+': {
-                        sb.append (" \u2265");  // >=
+                        sb.append ('\u2265');  // >=
                         appendAlt (sb, a1);
                         break;
                     }
 
                     // cross fix at or below a1 altitude
                     case '-': {
-                        sb.append (" \u2264");  // <=
+                        sb.append ('\u2264');  // <=
                         appendAlt (sb, a1);
                         break;
                     }
 
                     // cross fix between a1 and a2 altitudes (a1 <= a2)
                     case 'B': {
-                        sb.append (" ");
+                        sb.append (' ');
                         sb.append (a1);
                         sb.append ("..");
                         appendAlt (sb, a2);
@@ -1797,12 +1840,12 @@ public class PlateCIFP {
                     // approach fix at a2 and intercept glide slope
                     // when at fix and on glide slope, altitude should be equal to a1
                     case 'G': {  // ORL ILS 25 at CBOYD
-                        sb.append (" =");
+                        sb.append ('=');
                         appendAlt (sb, a2);
                         if (a1.equals (a2)) {
-                            sb.append (" (gs)");
+                            sb.append ("(gs)");
                         } else {
-                            sb.append (" (gs ");
+                            sb.append ("(gs=");
                             appendAlt (sb, a1);
                             sb.append (')');
                         }
@@ -1812,12 +1855,12 @@ public class PlateCIFP {
                     // approach fix at a1 and intercept glide slope
                     // when at fix and on glide slope, altitude should be equal to a2
                     case 'H': {  // MHT ILS 6 at FITZY
-                        sb.append (" =");
+                        sb.append ('=');
                         appendAlt (sb, a1);
                         if (a1.equals (a2)) {
-                            sb.append (" (gs)");
+                            sb.append ("(gs)");
                         } else {
-                            sb.append (" (gs ");
+                            sb.append ("(gs=");
                             appendAlt (sb, a2);
                             sb.append (')');
                         }
@@ -1827,7 +1870,7 @@ public class PlateCIFP {
                     // cross fix at a1 altitude
                     // subsequently descend to a2 (but that is mentioned in next leg anyway)
                     case 'I': {  // ORL ILS 25 at MARYB
-                        sb.append (" =");
+                        sb.append ('=');
                         appendAlt (sb, a1);
                         break;
                     }
@@ -1835,7 +1878,7 @@ public class PlateCIFP {
                     // cross fix at min of a1 altitude
                     // subsequent descent to a2 (but that is mentioned in next leg anyway)
                     case 'J': {  // MHT ILS 6 at JAAZZ; BED ILS 11 at ZELKA
-                        sb.append (" \u2265");  // >=
+                        sb.append ('\u2265');  // >=
                         appendAlt (sb, a1);
                         break;
                     }
@@ -1844,10 +1887,11 @@ public class PlateCIFP {
                     // a1 gives non-precision minimum altitude at this fix
                     // a2 gives on-glideslope exact altitude at this fix
                     case 'V': {  // BVY GPS 27 at MAIOU; altone=non-prec; alttwo=precision
-                        sb.append (" \u2265");   // non-precision descent altitude
+                        sb.append ('\u2265');  // non-precision descent altitude
                         appendAlt (sb, a1);
-                        sb.append (" gs ");     // precision on glidepath
-                        appendAlt (sb, a2);     // (a bit higher than lims[0])
+                        sb.append ("(gs=");    // precision on glidepath
+                        appendAlt (sb, a2);    // (a bit higher than lims[0])
+                        sb.append (')');
                         break;
                     }
 
@@ -1977,15 +2021,458 @@ public class PlateCIFP {
     }
 
     /**
+     * Holds info and methods for computing and drawing a fillet arc between steps.
+     * Fillet arcs are assumed to be flown at standard rate turn.
+     * Pilot will get a 10,9,8,... countdown coming up on a fillet.
+     */
+    private class FilletArc extends PointF {
+        public char turndir;  // which direction the pilot is turning in the arc
+        public float start;   // degrees clockwise from due East where ccwmost part of arc is
+        public float sweep;   // degrees clockwise from start that arc sweeps
+        public float startc;  // tc from center of fillet where the pilot starts
+        public float stoptc;  // tc from center of fillet where the pilot stops
+
+        private FilletArc[] fas;
+
+        /**
+         * Draw fillet arc on canvas.
+         */
+        public void draw (Canvas canvas, Paint paint)
+        {
+            drawArcBox.set (
+                    plateView.BitmapX2CanvasX (x - stdturnradbmp),
+                    plateView.BitmapY2CanvasY (y - stdturnradbmp),
+                    plateView.BitmapX2CanvasX (x + stdturnradbmp),
+                    plateView.BitmapY2CanvasY (y + stdturnradbmp));
+            canvas.drawArc (drawArcBox, start, sweep, false, paint);
+        }
+
+        /**
+         * Get arc starting x,y (where airplane starts on arc)
+         */
+        public float getBegX ()
+        {
+            return x + Mathf.sindeg (startc) * stdturnradbmp;
+        }
+        public float getBegY ()
+        {
+            return y - Mathf.cosdeg (startc) * stdturnradbmp;
+        }
+
+        /**
+         * Get arc starting and ending true course, ie,
+         * what heading a perfectly flown aircraft would be on.
+         */
+        public float getBegTC ()
+        {
+            float tc = Float.NaN;
+            if (turndir == 'L') tc = startc - 90.0F;
+            if (turndir == 'R') tc = startc + 90.0F;
+            return tc;
+        }
+        public float getEndTC ()
+        {
+            float tc = Float.NaN;
+            if (turndir == 'L') tc = stoptc - 90.0F;
+            if (turndir == 'R') tc = stoptc + 90.0F;
+            return tc;
+        }
+
+        /**
+         * Compute fillet from an arc (such as a DME arc) to a line.
+         *  Input:
+         *   arccenterx,y = center of arc
+         *   arcbegradtru = begin radial from arc center
+         *   arcradius    = arc radius
+         *   arcturndir   = 'L' or 'R'
+         *   nextpointx,y = where next course line begins on or near the arc
+         *   nexttrucrs   = true course out of nextpointx,y
+         */
+        public void calcFilletArcToLine (
+                float arccenterx, float arccentery, float arcbegradtru,
+                float arcradius, char arcturndir,
+                float nextpointx, float nextpointy, float nexttrucrs)
+        {
+            calcFilletArcVsLine (
+                    arccenterx, arccentery, arcbegradtru, arcradius, arcturndir,
+                    nextpointx, nextpointy, nexttrucrs, true);
+        }
+
+        /**
+         * Compute fillet from a line to an arc (such as a DME arc).
+         *  Input:
+         *   prevpointx,y = where previous course line ends on or near the arc
+         *   prevtrucrs   = true course into prevpointx,y
+         *   arccenterx,y = center of arc
+         *   arcendradtru = end radial from arc center
+         *   arcradius    = arc radius
+         *   arcturndir   = 'L' or 'R'
+         */
+        public void calcFilletLineToArc (
+                float prevpointx, float prevpointy, float prevtrucrs,
+                float arccenterx, float arccentery, float arcendradtru,
+                float arcradius, char arcturndir)
+        {
+            calcFilletArcVsLine (
+                    arccenterx, arccentery, arcendradtru, arcradius, arcturndir,
+                    prevpointx, prevpointy, prevtrucrs, false);
+        }
+
+        /**
+         * Calculate the fillet between an arc and a line.
+         *  Input:
+         *   arccenterx,y = center of the arc
+         *   arcfarradtru = radial from arc center to the far end of the arc
+         *   arcradius = radius of the arc
+         *   arcturndir = direction the aircraft flies the arc ('L' or 'R')
+         *   linepointx,y = point of the line on or near the arc circle
+         *   linetrucrs = true course of line that the aircraft flies the line
+         *   a2l = true: arc->line; false: line->arc
+         *   stdturnradbmp = fillet turn radius
+         *  Output:
+         *   turndir = 0: line does not intersect circle
+         *             'L' or 'R' = direction aircraft flies fillet arc
+         *   x,y = center of fillet
+         *   start,sweep = start and sweep of the arc
+         *   startc,stoptc = other description of start/stop of arc
+         */
+        private void calcFilletArcVsLine (
+                float arccenterx, float arccentery, float arcfarradtru,
+                float arcradius, char arcturndir,
+                float linepointx, float linepointy, float linetrucrs,
+                boolean a2l)
+        {
+            if ((arcturndir != 'L') && (arcturndir != 'R')) {
+                throw new IllegalArgumentException ("arcturndir");
+            }
+
+            // four possible intersecting fillet circles turn in
+            // direction that matches both the dme arc and the line
+            // comments of left and right of line assume line is pointing northward (linetrucrs = 0)
+            if (fas == null) {
+                fas = new FilletArc[4];
+                for (int i = 0; i < 4; i ++) fas[i] = new FilletArc ();
+            }
+
+            // start out saying none of the fillet circles are valid
+            for (FilletArc fa : fas) fa.turndir = 0;
+
+            // two of those fillets have centers on a circle of radius arcradius+stdturnradbmp (outside)
+            // - they turn in opposite direction as the dme arc
+            calc2FilletArcVsLine (0, arcradius + stdturnradbmp, (char) (arcturndir ^ 'L' ^ 'R'),
+                    linepointx, linepointy, linetrucrs, arccenterx, arccentery);
+
+            // the other two have centers on a circle of radius arcradius-stdturnradbmp (inside)
+            // - they turn in same direction as the dme arc
+            calc2FilletArcVsLine (2, arcradius - stdturnradbmp, arcturndir,
+                    linepointx, linepointy, linetrucrs, arccenterx, arccentery);
+
+            // calculate dme circle intercept for the fillet circles
+            // also find fillet circle that gives shortest total flight distance
+            FilletArc bestavecloop = null;
+            FilletArc bestsansloop = null;
+            float bestdistavecloop = Float.MAX_VALUE;
+            float bestdistsansloop = Float.MAX_VALUE;
+            for (int i = 0; i < 4; i ++) {
+                FilletArc fa = fas[i];
+                if (fa.turndir == 0) continue;
+
+                // true course from fillet center to dme arc intersection point
+                float daitc;
+                if ((i & 2) == 0) {
+                    // - fillet circle is outside the dme arc circle
+                    daitc = trueCourse (fa.x, fa.y, arccenterx, arccentery);
+                } else {
+                    // - fillet circle is inside the dme arc circle
+                    daitc = trueCourse (arccenterx, arccentery, fa.x, fa.y);
+                }
+
+                // if flying from arc to line, it is where aircraft starts flying the fillet arc
+                // if flying from line to arc, it is where aircraft stops flying the fillet arc
+                if (a2l) fa.startc = daitc;
+                else fa.stoptc = daitc;
+
+                // calculate sweep, ie, how many degrees of the fillet arc will be flown
+                if (fa.turndir == 'L') {
+                    // since the fillet is left turns, wrap start to be gt stop
+                    while (fa.startc >= fa.stoptc + 360.0F) fa.startc -= 360.0F;
+                    while (fa.startc < fa.stoptc) fa.startc += 360.0F;
+                    // calculate how many degrees aircraft will turn
+                    fa.sweep = fa.startc - fa.stoptc;
+                }
+                if (fa.turndir == 'R') {
+                    // since the fillet is right turns, wrap stop to be gt start
+                    while (fa.stoptc >= fa.startc + 360.0F) fa.stoptc -= 360.0F;
+                    while (fa.stoptc < fa.startc) fa.stoptc += 360.0F;
+                    // calculate how many degrees aircraft will turn
+                    fa.sweep = fa.stoptc - fa.startc;
+                }
+
+                // see how far dme arc will be flown if we use this fillet
+                float tc_dmecenter_to_intersect = trueCourse (arccenterx, arccentery, fa.x, fa.y);
+                float dmearc_sweep = Float.NaN;
+                if (arcturndir == 'L') {
+                    dmearc_sweep = arcfarradtru - tc_dmecenter_to_intersect;
+                }
+                if (arcturndir == 'R') {
+                    dmearc_sweep = tc_dmecenter_to_intersect - arcfarradtru;
+                }
+                if (!a2l) dmearc_sweep = - dmearc_sweep;
+                while (dmearc_sweep <    0.0F) dmearc_sweep += 360.0F;
+                while (dmearc_sweep >= 360.0F) dmearc_sweep -= 360.0F;
+                float dist_around_dmearc = dmearc_sweep * arcradius;
+
+                // see how far it is around this fillet
+                float dist_around_fillet = fa.sweep * stdturnradbmp;
+
+                // if shortest of all, use it
+                float dist = dist_around_dmearc + dist_around_fillet;
+                if (bestdistavecloop > dist) {
+                    bestdistavecloop = dist;
+                    bestavecloop   = fa;
+                }
+                // same except don't include loops 180deg or more
+                if (fa.sweep < 180.0F) {
+                    if (bestdistsansloop > dist) {
+                        bestdistsansloop = dist;
+                        bestsansloop   = fa;
+                    }
+                }
+            }
+
+            // save fillet that gives shortest total flight distance
+            turndir = 0;
+            if (bestsansloop == null) bestsansloop = bestavecloop;
+            if (bestsansloop != null) {
+                x       = bestsansloop.x;
+                y       = bestsansloop.y;
+                turndir = bestsansloop.turndir;
+                sweep   = bestsansloop.sweep;
+                startc  = bestsansloop.startc;
+                stoptc  = bestsansloop.stoptc;
+                if (turndir == 'L') start = stoptc - 90.0F;
+                if (turndir == 'R') start = startc - 90.0F;
+            }
+        }
+
+        // Compute 2 fillet circles tangent to a line with centers on a given circle.
+        // The fillet circle turn direction matches the original dme arc and the line.
+        //  Input:
+        //   i = where to put the 2 circles in the fas[] array
+        //   circleradius = dme arc radius +- stdturnradbmp
+        //   filturndir = direction the fillet circles will be flown to match dme arc
+        //   linepointx,y = a point on the incoming course line on or near the arc
+        //   linetrucrs = heading along the incoming course line
+        //   arccenterx,y = dme arc centerpoint
+        //  Output:
+        //   fas[i+0],fas[i+1| = filled in
+        //       .turndir = fillet circle turn direction 'L' or 'R'
+        //       .startc = .stoptc = tc fron center of fillet to line intersection point
+        //       .x,y = fillet circle center
+        //  Note:
+        //   the line may not intersect the circle so the 2 fas[] elements won't be filled in
+        private void calc2FilletArcVsLine (int i, float circleradius, char filturndir,
+                                           float linepointx, float linepointy, float linetrucrs,
+                                           float arccenterx, float arccentery)
+        {
+            // displace the line one fillet radius to the line's left or to line's right
+            // that will give us 2 fillet circles tangent to original line centered on the
+            // outer or inner dme arc circle that turn in same direction as line is flown
+            float linedispcrs = Float.NaN;
+            if (filturndir == 'L') {
+                // fillet circles are flown anticlockwise, so they must be to the
+                // left (west) of a line that is being flown northbound
+                linedispcrs = linetrucrs - 90.0F;
+            }
+            if (filturndir == 'R') {
+                // fillet circles are flown clockwise, so they must be to the
+                // right (east) of a line that is being flown northbound
+                linedispcrs = linetrucrs + 90.0F;
+            }
+
+            // displace line point by displacement course one fillet radius perpendicular to line
+            // ...one way or the other
+            float line1pointx = linepointx + Mathf.sindeg (linedispcrs) * stdturnradbmp;
+            float line1pointy = linepointy - Mathf.cosdeg (linedispcrs) * stdturnradbmp;
+
+            // compute another point along that displaced line
+            float line2pointx = line1pointx + Mathf.sindeg (linetrucrs) * 1024.0F;
+            float line2pointy = line1pointy - Mathf.cosdeg (linetrucrs) * 1024.0F;
+
+            // compute where that displaced line intersects the expanded or contracted dme arc circle
+            FilletArc pp = fas[i];
+            FilletArc pm = fas[i+1];
+            if (Lib.lineIntersectCircle (line1pointx, line1pointy, line2pointx, line2pointy,
+                        arccenterx, arccentery, circleradius, pp, pm)) {
+
+                // get distance of fillet circle center from line endpoint on/near dme arc
+                float dist_pp_to_arc = Mathf.hypot (pp.x - linepointx, pp.y - linepointy);
+                float dist_pm_to_arc = Mathf.hypot (pm.x - linepointx, pm.y - linepointy);
+
+                // pick the fillet circle closer to the line endpoint
+                // the other one is on the other side of the dme arc
+                FilletArc pc = (dist_pp_to_arc < dist_pm_to_arc) ? pp : pm;
+
+                // mark the one we pick as being valid
+                pc.turndir = filturndir;
+
+                // calc true course from center of those circles to original line
+                // this will point to where the intersection of the fillet circle and the original line is
+                // it is the opposite heading of displacement
+                linedispcrs += 180.0F;
+                while (linedispcrs < -180.0F) linedispcrs += 360.0F;
+                while (linedispcrs >= 180.0F) linedispcrs -= 360.0F;
+                pc.startc = linedispcrs;
+                pc.stoptc = linedispcrs;
+            }
+        }
+
+        /**
+         * Compute fillet from one line to another line.
+         *  Input:
+         *   prevpointx,y = where previous course line ends
+         *   prevtrucrs   = true course into prevpointx,y
+         *   nextpointx,y = where next course line ends
+         *   nexttrucrs   = true course from nextpointx,y
+         */
+        public void calcFilletLineToLine (
+                float prevpointx, float prevpointy, float prevtrucrs,
+                float nextpointx, float nextpointy, float nexttrucrs)
+        {
+            // see how much we are turning by
+            // normalize to range -180..+180
+            // neg for left; pos for right
+            float turnbydeg = nexttrucrs - prevtrucrs;
+            while (turnbydeg < -180.0F) turnbydeg += 360.0F;
+            while (turnbydeg >= 180.0F) turnbydeg -= 360.0F;
+
+            // if slight turn or hairpin turn, don't bother with fillet
+            if ((Math.abs (turnbydeg) < MINFILLET) || (Math.abs (turnbydeg) > MAXFILLET)) {
+                turndir = 0;
+                return;
+            }
+
+            // compute some point ahead of airplane on its current course
+            float acraftbmx_ahead = prevpointx + Mathf.sindeg (prevtrucrs) * 1024.0F;
+            float acraftbmy_ahead = prevpointy - Mathf.cosdeg (prevtrucrs) * 1024.0F;
+
+            // compute some point ahead of next point along its initial course
+            float nextbmx_ahead = nextpointx + Mathf.sindeg (nexttrucrs) * 1024.0F;
+            float nextbmy_ahead = nextpointy - Mathf.cosdeg (nexttrucrs) * 1024.0F;
+
+            // find intersection of those two lines, giving us the elbow of the turn
+            float elbow_bmx = Lib.lineIntersectX (
+                    prevpointx, prevpointy, acraftbmx_ahead, acraftbmy_ahead,
+                    nextpointx, nextpointy, nextbmx_ahead, nextbmy_ahead);
+            float elbow_bmy = Lib.lineIntersectY (
+                    prevpointx, prevpointy, acraftbmx_ahead, acraftbmy_ahead,
+                    nextpointx, nextpointy, nextbmx_ahead, nextbmy_ahead);
+
+            // find true course from elbow to center of circle
+            float elbow2centercrs;
+            if (turnbydeg < 0.0F) {
+                // turning left
+                elbow2centercrs = prevtrucrs - 90.0F + turnbydeg / 2.0F;
+            } else {
+                // turning right
+                elbow2centercrs = prevtrucrs + 90.0F + turnbydeg / 2.0F;
+            }
+
+            // find center of circle by going from elbow along that course
+            float center2elbow_bmp = stdturnradbmp / Mathf.cosdeg (turnbydeg / 2.0F);
+            x = elbow_bmx + Mathf.sindeg (elbow2centercrs) * center2elbow_bmp;
+            y = elbow_bmy - Mathf.cosdeg (elbow2centercrs) * center2elbow_bmp;
+
+            // sweep is number of degrees for arc clockwise from start
+            sweep = Math.abs (turnbydeg);
+
+            // start is angle clockwise from East to start at
+            //  0=E; 90=S; 180=W; 270=N
+            if (turnbydeg < 0.0F) {
+                // turning left
+                start   = nexttrucrs;
+                startc  = prevtrucrs + 90.0F;
+                stoptc  = nexttrucrs + 90.0F;
+                turndir = 'L';
+            } else {
+                // turning right
+                start   = prevtrucrs + 180.0F;
+                startc  = prevtrucrs - 90.0F;
+                stoptc  = nexttrucrs - 90.0F;
+                turndir = 'R';
+            }
+        }
+    }
+
+    /**
+     * Compute OBS and deflection values for NavDialView.
+     */
+    // tc = true course of line segment headed in same direction as correctly-flown aircraft
+    private float lineObsSetting (float tc)
+    {
+        return aptmagvar + tc;
+    }
+    // begbmx,y = beginning of line (behind correctly-flown aircraft)
+    // endbmx,y = end of line (ahead of correctly-flown aircraft)
+    private float lineDeflection (float begbmx, float begbmy, float endbmx, float endbmy)
+    {
+        float tcline = trueCourse (begbmx, begbmy, endbmx, endbmy);
+        return lineDeflection (begbmx, begbmy, tcline);
+    }
+    // begbmx,y = beginning of line (behind correctly-flown aircraft)
+    // tcline = true course of line segment headed in same direction as correctly-flown aircraft
+    private float lineDeflection (float begbmx, float begbmy, float tcline)
+    {
+        // translate aircraft to put begbmx,y at 0,0
+        float acbmx = acraftbmx - begbmx;
+        float acbmy = acraftbmy - begbmy;
+
+        // get true course from origin to aircraft
+        float tcacft = trueCourse (0.0F, 0.0F, acbmx, acbmy);
+
+        // get aircraft point with courseline rotated to 360deg (ie, up, north)
+        float acftlen  = Mathf.hypot (acbmx, acbmy);
+        float acrotbmx = Mathf.sindeg (tcacft - tcline) * acftlen;
+
+        // acrotbmx < 0 : aircraft left of course by that many pixels, so deflect needle right
+        // acrotbmx > 0 : aircraft right of course by that many pixels, so deflect needle left
+        return - acrotbmx / bmpixpernm * NavDialView.LOCDEFLECT / TERMDEFLECT;
+    }
+    // ctrbmx,y = center of arc
+    // turndir = turn direction of correctly-flown aircraft
+    private float arcObsSetting (float ctrbmx, float ctrbmy, char turndir)
+    {
+        float obs = aptmagvar + trueCourse (ctrbmx, ctrbmy, acraftbmx, acraftbmy);
+        if (turndir == 'L') obs -= 90.0F;
+        if (turndir == 'R') obs += 90.0F;
+        return obs;
+    }
+    // ctrbmx,y = center of arc
+    // radius = radius of arc
+    // turndir = turn direction of correctly-flown aircraft
+    // returns = 0: flying on arc
+    //         < 0: need to turn a little left to get on arc
+    //         > 0: need to turn a little right to get on arc
+    private float arcDeflection (float ctrbmx, float ctrbmy, float radius, char turndir)
+    {
+        // dist > 0: aircraft is a little outside the arc
+        //      < 0: aircraft is a little inside the arc
+        float dist = Mathf.hypot (acraftbmx - ctrbmx, acraftbmy - ctrbmy) - radius;
+
+        if (turndir == 'L') dist = - dist;
+
+        return dist / bmpixpernm * NavDialView.LOCDEFLECT / TERMDEFLECT;
+    }
+
+    /**
      * DME Arc
      */
     private class CIFPLeg_AF extends CIFPLeg {
-        public float arcradius, begradtru, endradtru;
+        public float endingbmx, endingbmy;
         public float endinghdg;
-        public int   endingbmx, endingbmy;
         public Waypoint navwp;
 
-        private Point navpt = new Point ();
+        private PointF navpt = new PointF ();
 
         private final CIFPStep afstep = new CIFPStep () {
             @Override
@@ -1997,7 +2484,7 @@ public class PlateCIFP {
                 sb.append (navwp.ident);
                 sb.append (' ');
                 appCourse (sb, "beg");
-                sb.append ('\u2192');
+                sb.append (DIRTOARR);
                 appCourse (sb, "end");
                 appendAlt (sb);
                 return sb.toString ();
@@ -2007,9 +2494,9 @@ public class PlateCIFP {
             public void drawStepDots ()
             {
                 // draw dots around the radius
-                drawStepDotArc (navpt.x, navpt.y, arcradius,
-                        Math.min (begradtru, endradtru) - 90.0F,
-                        Math.abs (endradtru - begradtru));
+                drawStepDotArc (navpt.x, navpt.y, arcradbmp,
+                        Math.min (arcbegrad, arcendrad) - 90.0F,
+                        Math.abs (arcendrad - arcbegrad), true);
 
                 // return ending alt,hdg,bmx,bmy
                 updateAlt ();
@@ -2018,39 +2505,25 @@ public class PlateCIFP {
                 curposbmy = endingbmy;
             }
 
-            // draw fillet showing where/how to turn to enter the DME arc.
-            // called when this DME arc is next-to-be-current (ignoring runts).
+            // update nav dial with current state
             @Override
-            public void drawFillet ()
+            public void getVNTracking (NavDialView navDial)
             {
-                //TODO account for little bit of curve entering the arc
-                int bmx = navpt.x + Math.round (Mathf.sindeg (begradtru) * arcradius);
-                int bmy = navpt.y - Math.round (Mathf.cosdeg (begradtru) * arcradius);
-                float hdg = endinghdg - endradtru + begradtru;
-                defaultDrawFillet (bmx, bmy, hdg);
-            }
+                // check for being in fillet at end of DME arc
+                if (inEndFillet (navDial)) return;
 
-            // return what the OBS should be at this point (true)
-            // just use inbound radial from aircraft to navwp
-            // step it by DMEARCSTEPDEG degrees relative to end-of-arc radial
-            @Override
-            public float getVNOBSTrue ()
-            {
-                float tc = Lib.LatLonTC (wairToNow.currentGPSLat, wairToNow.currentGPSLon,
-                        navwp.lat, navwp.lon);
-                tc -= endradtru;
-                while (tc < 0.0F) tc += 360.0F;
-                int tcstep = Math.round (tc / DMEARCSTEPDEG);
-                return tcstep * DMEARCSTEPDEG + endradtru;
-            }
+                // never in glideslope mode for DME arc
+                navDial.setMode (NavDialView.Mode.LOC);
 
-            // return waypoint at center of arc
-            @Override
-            public String getVNWaypoint (LatLon ll)
-            {
-                ll.lat = navwp.lat;
-                ll.lon = navwp.lon;
-                return navwp.ident;
+                // set OBS based on position from center of arc
+                navDial.obsSetting = arcObsSetting (navpt.x, navpt.y, arcturndir);
+
+                // set deflection based on distance from arc
+                navDial.setDeflect (arcDeflection (navpt.x, navpt.y, arcradbmp, arcturndir));
+
+                // put navwp in DME window
+                float distnav = Mathf.hypot (acraftbmx - navpt.x, acraftbmy - navpt.y);
+                navDial.setDistance (distnav / bmpixpernm, navwp.ident, false);
             }
         };
 
@@ -2058,24 +2531,32 @@ public class PlateCIFP {
         {
             // get parameters
             navwp = findWaypoint (parms.get ("nav"), navpt);
-            begradtru = getTCDeg ("beg", navwp);
-            endradtru = getTCDeg ("end", navwp);
+            afstep.arcctrbmx = navpt.x;
+            afstep.arcctrbmy = navpt.y;
+            afstep.arcbegrad = getTCDeg ("beg", navwp);
+            afstep.arcendrad = getTCDeg ("end", navwp);
             float rnm = Integer.parseInt (parms.get ("nm")) / 10.0F;
-            arcradius = rnm * bmpixpernm;
+            afstep.arcradbmp = rnm * bmpixpernm;
 
             // adjust radials to be within 180.0 of each other
-            while (endradtru < begradtru - 180) endradtru += 360;
-            while (endradtru > begradtru + 180) begradtru += 360;
+            while (afstep.arcendrad < afstep.arcbegrad - 180) afstep.arcendrad += 360;
+            while (afstep.arcendrad > afstep.arcbegrad + 180) afstep.arcbegrad += 360;
+
+            // figure out which direction we are turning
+            float diff = afstep.arcendrad - afstep.arcbegrad;
+            while (diff < -180.0F) diff += 360.0F;
+            while (diff >= 180.0F) diff -= 360.0F;
+            afstep.arcturndir = (diff < 0.0F) ? 'L' : 'R';
 
             // compute what heading will be at end of arc
-            endinghdg = endradtru;
-            if (begradtru < endradtru) endinghdg +=  90;
-            if (begradtru > endradtru) endinghdg += 270;
+            endinghdg = afstep.arcendrad;
+            if (afstep.arcturndir == 'L') endinghdg += 270;
+            if (afstep.arcturndir == 'R') endinghdg +=  90;
             while (endinghdg >= 360) endinghdg -= 360;
 
             // compute the endpoint of the dme arc
-            endingbmx = navpt.x + Math.round (Mathf.sindeg (endradtru) * arcradius);
-            endingbmy = navpt.y - Math.round (Mathf.cosdeg (endradtru) * arcradius);
+            endingbmx = navpt.x + Mathf.sindeg (afstep.arcendrad) * afstep.arcradbmp;
+            endingbmy = navpt.y - Mathf.cosdeg (afstep.arcendrad) * afstep.arcradbmp;
         }
 
         public void init2 ()
@@ -2089,13 +2570,14 @@ public class PlateCIFP {
 
     /**
      * Fly given course to altitude.
+     * Usually used at beginning of missed approach to climb on runway heading before turning.
      */
     private class CIFPLeg_CA extends CIFPLeg {
         private float altitude, maxdist;
         private float ochdgtru;
         private float climbegalt;
-        private int climbegbmx, climbegbmy;
-        private int endbmx, endbmy;
+        private float climbegbmx, climbegbmy;
+        private float endbmx, endbmy;
 
         private final CIFPStep castep = new CIFPStep () {
             @Override
@@ -2122,8 +2604,8 @@ public class PlateCIFP {
                         }
                         if (maxdist < 1.0F) maxdist = 1.0F;
                         maxdist *= bmpixpernm;
-                        endbmx = curposbmx + Math.round (Mathf.sindeg (ochdgtru) * maxdist);
-                        endbmy = curposbmy - Math.round (Mathf.cosdeg (ochdgtru) * maxdist);
+                        endbmx = curposbmx + Mathf.sindeg (ochdgtru) * maxdist;
+                        endbmy = curposbmy - Mathf.cosdeg (ochdgtru) * maxdist;
                     }
                 } else {
 
@@ -2148,11 +2630,18 @@ public class PlateCIFP {
                         if (totaldist < bmpixpernm) totaldist = bmpixpernm;
                         if (totaldist > maxdist)    totaldist = maxdist;
 
+                        // extend that distance to put beginning of the fillet at that distance
+                        // so they don't slam into tower
+                        if (filletArc.turndir != 0) {
+                            float filetbmx = filletArc.getBegX ();
+                            float filetbmy = filletArc.getBegY ();
+                            totaldist += Mathf.hypot (endbmx - filetbmx, endbmy - filetbmy);
+                        }
+
                         // calculate end point that distance on target heading
                         // from proper starting point so it is aligned with chart drawing
-                        // so they don't slam into tower
-                        endbmx = curposbmx + Math.round (Mathf.sindeg (ochdgtru) * totaldist);
-                        endbmy = curposbmy - Math.round (Mathf.cosdeg (ochdgtru) * totaldist);
+                        endbmx = curposbmx + Mathf.sindeg (ochdgtru) * totaldist;
+                        endbmy = curposbmy - Mathf.cosdeg (ochdgtru) * totaldist;
                     }
                 }
 
@@ -2160,20 +2649,11 @@ public class PlateCIFP {
                 drawStepCourseToPoint (endbmx, endbmy);
             }
 
-            // set VirtNav OBS to what heading they should be holding in climb
+            // update nav dial with current state
             @Override
-            public float getVNOBSTrue ()
+            public void getVNTracking (NavDialView navDial)
             {
-                return ochdgtru;
-            }
-
-            // return waypoint at end of climb for VirtNav dial
-            @Override
-            public String getVNWaypoint (LatLon ll)
-            {
-                ll.lat = plateView.BitmapXY2Lat (endbmx, endbmy);
-                ll.lon = plateView.BitmapXY2Lon (endbmx, endbmy);
-                return "climb";
+                getLinearVNTracking (navDial, "climb");
             }
         };
 
@@ -2198,17 +2678,18 @@ public class PlateCIFP {
      */
     private class CIFPLeg_CD extends CIFPLeg {
         private float dmebmp, dmenm, ochdg;
-        private Point navpt = new Point ();
-        private String vnwpid;
+        private PointF navpt = new PointF ();
         private Waypoint navwp;
 
         private final CIFPStep cdstep = new CIFPStep () {
+            private String vnwpid;
+
             @Override
             public String getTextLine ()
             {
                 StringBuilder sb = new StringBuilder ();
                 appCourse (sb, "mc");
-                sb.append ('\u2192');
+                sb.append (DIRTOARR);
                 appTenth (sb, "nm");
                 sb.append ("nm ");
                 sb.append (parms.get ("nav"));
@@ -2224,19 +2705,12 @@ public class PlateCIFP {
                 updateAlt ();
             }
 
+            // update nav dial with current state
             @Override
-            public float getVNOBSTrue ()
+            public void getVNTracking (NavDialView navDial)
             {
-                return ochdg;
-            }
-
-            @Override
-            public String getVNWaypoint (LatLon ll)
-            {
-                ll.lat = plateView.BitmapXY2Lat (endptbmx, endptbmy);
-                ll.lon = plateView.BitmapXY2Lon (endptbmx, endptbmy);
                 if (vnwpid == null) vnwpid = navwp.ident + "[" + Lib.FloatNTZ (dmenm);
-                return vnwpid;
+                getLinearVNTracking (navDial, vnwpid);
             }
         };
 
@@ -2263,18 +2737,18 @@ public class PlateCIFP {
     private class CIFPLeg_CF extends CIFPLeg {
         public float trucrs;
         public Waypoint navwp;
-        private Point navpt = new Point ();
+        private PointF navpt = new PointF ();
 
         private final CIFPStep cfstep = new CIFPStep () {
             @Override
             public String getTextLine ()
             {
                 StringBuilder sb = new StringBuilder ();
-                float nm = Mathf.hypot (curposbmx - navpt.x, curposbmy - navpt.y) / bmpixpernm;
+                float nm = Mathf.hypot (begptbmx - navpt.x, begptbmy - navpt.y) / bmpixpernm;
                 if (nm >= RUNTNM) {
-                    float tc = trueCourse (curposbmx, curposbmy, navpt.x, navpt.y);
+                    float tc = trueCourse (begptbmx, begptbmy, navpt.x, navpt.y);
                     appTrueAsMag (sb, tc);
-                    sb.append ('\u2192');
+                    sb.append (DIRTOARR);
                 }
                 sb.append (navwp.ident);
                 appendAlt (sb);
@@ -2288,18 +2762,11 @@ public class PlateCIFP {
                 updateAlt ();
             }
 
+            // update nav dial with current state
             @Override
-            public float getVNOBSTrue ()
+            public void getVNTracking (NavDialView navDial)
             {
-                return trueCourse (begptbmx, begptbmy, navpt.x, navpt.y);
-            }
-
-            @Override
-            public String getVNWaypoint (LatLon ll)
-            {
-                ll.lat = navwp.lat;
-                ll.lon = navwp.lon;
-                return navwp.ident;
+                getLinearVNTracking (navDial, navwp.ident);
             }
         };
 
@@ -2432,7 +2899,7 @@ public class PlateCIFP {
                 if (nextleg instanceof CIFPLeg_AF) {
                     CIFPLeg_AF nextaf = (CIFPLeg_AF) nextleg;
                     curposhdg = trucrs;
-                    drawStepCourseToInterceptDist (nextaf.navpt, nextaf.arcradius);
+                    drawStepCourseToInterceptDist (nextaf.navpt, nextaf.afstep.arcradbmp);
                 }
 
                 // if next leg is CF, it has a navaid and a radial that we intercept.
@@ -2441,26 +2908,18 @@ public class PlateCIFP {
                 if (nextleg instanceof CIFPLeg_CF) {
                     CIFPLeg_CF nextcf = (CIFPLeg_CF) nextleg;
                     if (!Float.isNaN (nextcf.trucrs)) {
-                        curposhdg = trucrs;
-                        drawStepCourseToInterceptRadial (nextcf.navpt, nextcf.trucrs);
+                        drawStepCourseToInterceptRadial (trucrs, nextcf.navpt, nextcf.trucrs);
                     }
                 }
 
                 updateAlt ();
             }
 
+            // update nav dial with current state
             @Override
-            public float getVNOBSTrue ()
+            public void getVNTracking (NavDialView navDial)
             {
-                return trucrs;
-            }
-
-            @Override
-            public String getVNWaypoint (LatLon ll)
-            {
-                ll.lat = plateView.BitmapXY2Lat (endptbmx, endptbmy);
-                ll.lon = plateView.BitmapXY2Lon (endptbmx, endptbmy);
-                return "intcp";
+                getLinearVNTracking (navDial, "intcp");
             }
         };
 
@@ -2486,16 +2945,18 @@ public class PlateCIFP {
     private class CIFPLeg_CR extends CIFPLeg {
         private float ochdg;
         private float radial;
-        private Point navpt = new Point ();
+        private PointF navpt = new PointF ();
         private Waypoint navwp;
 
         private final CIFPStep crstep = new CIFPStep () {
+            private String vnwpid;
+
             @Override
             public String getTextLine ()
             {
                 StringBuilder sb = new StringBuilder ();
                 appCourse (sb, "mc");
-                sb.append ('\u2192');
+                sb.append (DIRTOARR);
                 appCourse (sb, "rad");
                 sb.append (" ");
                 sb.append (parms.get ("nav"));
@@ -2506,23 +2967,16 @@ public class PlateCIFP {
             @Override
             public void drawStepDots ()
             {
-                curposhdg = ochdg;
-                drawStepCourseToInterceptRadial (navpt, radial);
+                drawStepCourseToInterceptRadial (ochdg, navpt, radial);
                 updateAlt ();
             }
 
+            // update nav dial with current state
             @Override
-            public float getVNOBSTrue ()
+            public void getVNTracking (NavDialView navDial)
             {
-                return ochdg;
-            }
-
-            @Override
-            public String getVNWaypoint (LatLon ll)
-            {
-                ll.lat = plateView.BitmapXY2Lat (endptbmx, endptbmy);
-                ll.lon = plateView.BitmapXY2Lon (endptbmx, endptbmy);
-                return navwp.ident + "/" + Lib.FloatNTZ (radial);
+                if (vnwpid == null) vnwpid = navwp.ident + '/' + Lib.FloatNTZ (radial) + '\u00B0';
+                getLinearVNTracking (navDial, vnwpid);
             }
         };
 
@@ -2549,8 +3003,8 @@ public class PlateCIFP {
     private class CIFPLeg_FC extends CIFPLeg {
         private boolean calcd;
         private float distbmp;
+        private float endbmx, endbmy;
         private float ochdg;
-        private int endbmx, endbmy;
 
         private final CIFPStep fcstep = new CIFPStep () {
             @Override
@@ -2569,27 +3023,18 @@ public class PlateCIFP {
             public void drawStepDots ()
             {
                 if (!calcd) {
-                    endbmx = curposbmx + Math.round (Mathf.sindeg (ochdg) * distbmp);
-                    endbmy = curposbmy - Math.round (Mathf.cosdeg (ochdg) * distbmp);
+                    endbmx = curposbmx + Mathf.sindeg (ochdg) * distbmp;
+                    endbmy = curposbmy - Mathf.cosdeg (ochdg) * distbmp;
                     calcd  = true;
                 }
                 drawStepCourseToPoint (endbmx, endbmy);
             }
 
-            // get what the VirtNav OBS dial should be set to
+            // update nav dial with current state
             @Override
-            public float getVNOBSTrue ()
+            public void getVNTracking (NavDialView navDial)
             {
-                return ochdg;
-            }
-
-            // get what the VirtNav needle and DME are set to
-            @Override
-            public String getVNWaypoint (LatLon ll)
-            {
-                ll.lat = plateView.BitmapXY2Lat (endptbmx, endptbmy);
-                ll.lon = plateView.BitmapXY2Lon (endptbmx, endptbmy);
-                return "ahead";
+                getLinearVNTracking (navDial, "ahead");
             }
         };
 
@@ -2614,58 +3059,128 @@ public class PlateCIFP {
     // hold until at fix
     // - just once around until reach the fix
     private class CIFPLeg_HF extends CIFPLeg_Hold {
-        public CIFPLeg_HF ()
+        public void getSteps (LinkedList<CIFPStep> steps)
         {
-            msg = "hold ";
+            steps.addLast (hstep1);
+            steps.addLast (hstep2);
         }
     }
     // hold indefinitely
     // - currently only used at end of missed segment, ie, end of approach
     //   so we can assume there is no next step
     private class CIFPLeg_HM extends CIFPLeg_Hold {
-        public CIFPLeg_HM ()
+        public void getSteps (LinkedList<CIFPStep> steps)
         {
-            msg = "hold ";
+            steps.addLast (hstep1);
+            steps.addLast (hstep2);
+            steps.addLast (hstep3);
         }
     }
 
+    // starts right at fix and is tangential to circle at far end of hold
     // should be approx 35.3 degrees for one-minute legs and 3deg/sec turns
-    private final static float holddiagdegs =
-            Mathf.toDegrees (Mathf.atan2 (stdcirdradsec, HOLDLEGSEC)) * 2.0F;
+    private final static float teardropdiag =
+            Mathf.toDegrees (Mathf.atan (stdturnradsec / HOLDLEGSEC)) * 2.0F;
 
-    private class CIFPLeg_Hold extends CIFPLeg {
-        protected String msg;
+    // tangential to both circles of hold
+    // should be approx 39.6 degrees for one-minute legs and 3deg/sec turns
+    private final static float paralleldiag =
+            Mathf.toDegrees (Mathf.asin (stdturnradsec / HOLDLEGSEC * 2.0F));
+
+    private abstract class CIFPLeg_Hold extends CIFPLeg {
         private char turndir;
-        private float diaghdg;  // heading along diagonal away from navwp
-        private float exithdg;  // heading when exiting hold from over navwp
-        private float inbound;
-        private Point navpt = new Point ();
+        private float inbound, inboundsin, inboundcos; // heading inbound to navwp
+        private float parahdg;    // heading along parallel diagonal toward navwp (two curls)
+        private float tearhdg;    // heading along teardrop diagonal away from navwp (one curl)
+        private PointF navpt = new PointF ();
+        private String samedir, oppodir;
         private Waypoint navwp;
 
-        private final CIFPStep holdstep = new CIFPStep () {
-            private float tc_acraft_to_navwp = Float.NaN;
-                                               // incoming (entry) aircraft heading relative to inbound
-                                               //  -180..-70 : parallel entry
-                                               //  -70..+110 : direct entry
-                                               // +110..+180 : teardrop entry
-            private float directctrbmx;        // for direct entry, center of displaced near-end turn
-            private float directctrbmy;
-            private float directinboundintersectbmx;
-            private float directinboundintersectbmy;
-            private int directoutboundintersectbmx;
-            private int directoutboundintersectbmy;
+        private float tc_acraft_to_navwp = Float.NaN;
+                                            // incoming (entry) aircraft heading relative to inbound
+                                            //  -180..-70 : parallel entry
+                                            //  -70..+110 : direct entry
+                                            // +110..+180 : teardrop entry
+        private float holdleglen;
+        private float farctrbmx;
+        private float farctrbmy;
+        private float nearctrbmx;
+        private float nearctrbmy;
+        private float inboundfarbmx;
+        private float inboundfarbmy;
+        private float outboundfarbmx;
+        private float outboundfarbmy;
+        private float outboundnearbmx;
+        private float outboundnearbmy;
+
+        private float parallelfarstart;
+        private float paralleldiagfarx;
+        private float paralleldiagfary;
+        private float paralleldiagnearx;
+        private float paralleldiagneary;
+        private boolean parallelhitfararc;
+
+        private float teardropfarstart;
+        private float teardropdiagfarx;
+        private float teardropdiagfary;
+        private boolean teardrophitfararc;
+
+        private float directctrbmx;         // for direct entry, center of displaced near-end turn
+        private float directctrbmy;
+        private float directinboundintersectbmx;
+        private float directinboundintersectbmy;
+        private float directoutboundintersectbmx;
+        private float directoutboundintersectbmy;
+        private float directstart;
+        private float directsweep;
+        private float directstartc;
+        private float directstoptc;
+        private float directbegarcx;
+        private float directbegarcy;
+
+        private boolean step3neararcenab;
+        private boolean step3outboundenab;
+        private boolean step3fararcenab;
+        private boolean step3inboundenab;
+
+        /**
+         * Start at the navwp, go outbound then turn inbound.
+         * - parallel: inbound radial, far-end turn to diagonal
+         * - teardrop: diagonal radial, far-end turn to inbound
+         * - direct: near-end turn to outbound line, outbound line, far-end turn to inbound
+         */
+        protected final CIFPStep hstep1 = new CIFPStep () {
+            private float dist0, dist1, dist2, dist3;
+            private long starttime;
 
             // get text line describing the hold
             @Override
             public String getTextLine ()
             {
                 StringBuilder sb = new StringBuilder ();
-                sb.append (msg);
-                appCourse (sb, "rad");
-                sb.append ('\u2192');
-                sb.append (parms.get ("wp"));
-                sb.append (' ');
-                appendTurn (sb, parms.get ("td").charAt (0));
+                if (tc_acraft_to_navwp < -70.0F) {
+                    // parallel: from navwp -> reverse inbound -> reverse turn
+                    sb.append ("par hold ");
+                    sb.append (navwp.ident);
+                    sb.append (' ');
+                    appTrueAsMag (sb, inbound + 180.0F);
+                    sb.append (DIRTOARR);
+                    appendTurn (sb, (char) ('L' ^ 'R' ^ turndir));
+                } else if (tc_acraft_to_navwp > 110.0F) {
+                    // teardrop: from navwp -> diagonal -> turn inbound
+                    sb.append ("tear hold ");
+                    sb.append (navwp.ident);
+                    sb.append (' ');
+                    appTrueAsMag (sb, tearhdg);
+                    sb.append (DIRTOARR);
+                    appendTurn (sb, turndir);
+                } else {
+                    // direct: from navwp -> near-end turn -> outbound line -> turn inbound
+                    sb.append ("dir hold ");
+                    sb.append (navwp.ident);
+                    sb.append (DIRTOARR);
+                    appendTurn (sb, turndir);
+                }
                 appendAlt (sb);
                 return sb.toString ();
             }
@@ -2680,139 +3195,177 @@ public class PlateCIFP {
             @Override
             public void drawStepDots ()
             {
-                if (currentStep >= drawIndex) {
-                    drawCurrentDots ();
-                } else if (!Float.isNaN (tc_acraft_to_navwp)) {
-                    drawEntryDots ();
-                } else {
-                    drawInsensitiveOvalDots ();
+                // if this step is in the future, compute entry type
+                // entry type can change up to the point where the hold becomes current
+                if ((currentStep < drawIndex) || Float.isNaN (tc_acraft_to_navwp)) {
+
+                    // see which direction the aircraft is heading coming into this step
+                    // that gets it to navwp, relative to hold's inbound leg
+                    tc_acraft_to_navwp = curposhdg - inbound;
+                    while (tc_acraft_to_navwp < -180.0F) tc_acraft_to_navwp += 360.0F;
+                    while (tc_acraft_to_navwp >= 180.0F) tc_acraft_to_navwp -= 360.0F;
+
+                    // negative means we are on the side of the hold
+                    // positive means we are outside the hold side
+                    //    0 = direct entry
+                    // +179 = teardrop entry
+                    // -179 = parallel entry
+                    if (turndir == 'L') tc_acraft_to_navwp = -tc_acraft_to_navwp;
                 }
 
-                // we exit the hold over the navwp
-                // and either on inbound heading or diagonal
-                curposbmx = navpt.x;
-                curposbmy = navpt.y;
-                curposhdg = exithdg;
+                // assume step 3 should draw the whole oval for now
+                // disable whatever is drawn in step 1 and step 2
+                step3neararcenab  = true;
+                step3outboundenab = true;
+                step3fararcenab   = true;
+                step3inboundenab  = true;
+
+                // see if this is current step or next-to-be-current step
+                boolean curr = (drawIndex == currentStep);
+                boolean next = (drawIndex == currentStep + 1);
+
+                // if teardrop or parallel and we have flown partway down the initial leg,
+                // and aircraft is much closer to the wrong leg, switch to the other entry type
+                if (curr && ((tc_acraft_to_navwp < -70.0F) || (tc_acraft_to_navwp > 110.0F))) {
+                    if (starttime == 0) starttime = wairToNow.currentGPSTime;
+                    if (wairToNow.currentGPSTime - starttime > HOLDLEGSEC * 250) {
+                        starttime = Long.MAX_VALUE;
+                        computeTeardrop ();
+                        float dist_inradial = Lib.distToLineSeg (acraftbmx, acraftbmy,
+                                navpt.x, navpt.y, inboundfarbmx, inboundfarbmy);
+                        float dist_teardiag = Lib.distToLineSeg (acraftbmx, acraftbmy,
+                                navpt.x, navpt.y, teardropdiagfarx, teardropdiagfary);
+                        if (tc_acraft_to_navwp < 0.0F) {
+                            if (dist_teardiag * 2.0F < dist_inradial) {
+                                tc_acraft_to_navwp =  200.0F;
+                                Log.d ("WairToNow", "PlateCIFP*: switch to teardrop");
+                            } else {
+                                Log.d ("WairToNow", "PlateCIFP*: parallel confirmed");
+                            }
+                        } else {
+                            if (dist_inradial * 2.0F < dist_teardiag) {
+                                tc_acraft_to_navwp = -200.0F;
+                                Log.d ("WairToNow", "PlateCIFP*: switch to parallel");
+                            } else {
+                                Log.d ("WairToNow", "PlateCIFP*: teardrop confirmed");
+                            }
+                        }
+                    }
+                }
+
+                // draw differently depending on how hold is entered
+                computeCommon ();
+                if (tc_acraft_to_navwp < -70.0F) {
+                    computeParallel ();
+
+                    // draw inbound radial dots
+                    // sensitive only when next so as to start the hold
+                    // ...or when current to stay in the hold when on the line
+                    dist1 = drawStepDotLine (navpt.x, navpt.y, inboundfarbmx, inboundfarbmy, next | curr);
+
+                    // draw parallel far turn dots
+                    // sensitive only when step is current to keep step current when on the far turn
+                    dist2 = drawStepDotArc (farctrbmx, farctrbmy, stdturnradbmp, parallelfarstart, paralleldiag + 180.0F, curr);
+
+                    // end up at far end of diagonal headed along diagonal
+                    curposbmx = paralleldiagfarx;
+                    curposbmy = paralleldiagfary;
+                    curposhdg = parahdg;
+
+                    // if we are settled in as to which way we are going, see if we have tagged up with far arc
+                    parallelhitfararc |= (dist2 < dist1) && (starttime == Long.MAX_VALUE);
+
+                    // tell step 3 not to bother drawing inbound radial or far arc
+                    step3inboundenab = false;
+                    step3fararcenab  = false;
+                } else if (tc_acraft_to_navwp > 110.0F) {
+                    computeTeardrop ();
+
+                    // draw teardrop diagonal dots
+                    // sensitive only when next so as to start the hold
+                    // ...or when current to stay in the hold when on the line
+                    dist1 = drawStepDotLine (navpt.x, navpt.y, teardropdiagfarx, teardropdiagfary, next | curr);
+
+                    // draw teardrop far-end turn dots
+                    // sensitive only when step is current to keep step current when on the far turn
+                    dist2 = drawStepDotArc (farctrbmx, farctrbmy, stdturnradbmp, teardropfarstart, teardropdiag + 180.0F, curr);
+
+                    // end up at far end of inbound radial headed toward navwp
+                    curposbmx = inboundfarbmx;
+                    curposbmy = inboundfarbmy;
+                    curposhdg = inbound;
+
+                    // if we are settled in as to which way we are going, see if we have tagged up with far arc
+                    teardrophitfararc |= (dist2 < dist1) && (starttime == Long.MAX_VALUE);
+
+                    // tell step 3 not to bother drawing far arc
+                    step3fararcenab = false;
+                } else {
+                    computeDirect ();
+
+                    // draw little segment from fix to beginning of arc
+                    // ...for those entries coming from outside the hold
+                    dist0 = Float.MAX_VALUE;
+                    if (tc_acraft_to_navwp > 0.0F) {
+                        dist0 = drawStepDotLine (navpt.x, navpt.y, directbegarcx, directbegarcy, next | curr);
+                    }
+
+                    // draw direct displaced near turn dots
+                    // sensitive only when next so as to start the hold
+                    // ...or when current to stay in the hold when on the line
+                    dist1 = drawStepDotArc (directctrbmx, directctrbmy, stdturnradbmp, directstart, directsweep, next | curr);
+
+                    // draw direct outbound line dots
+                    // sensitive only when step is current to keep step current when on the outbound line
+                    // must not be sensitive earlier or it will trip on a cross-over direct entry
+                    dist2 = drawStepDotLine (directoutboundintersectbmx, directoutboundintersectbmy,
+                            outboundfarbmx, outboundfarbmy, curr);
+
+                    // draw normal far turn dots
+                    // sensitive only when step is current to keep step current when on the far turn
+                    dist3 = drawStepDotArc (farctrbmx, farctrbmy, stdturnradbmp, inbound, 180.0F, curr);
+
+                    // end up at far end of inbound radial headed toward navwp
+                    curposbmx = inboundfarbmx;
+                    curposbmy = inboundfarbmy;
+                    curposhdg = inbound;
+
+                    step3neararcenab  = false;
+                    step3outboundenab = false;
+                    step3fararcenab   = false;
+                }
 
                 // update what altitude they should be at when at navwp
                 updateAlt ();
             }
 
-            // draw fillet showing where/how to turn to enter the hold.
-            // called when this hold is next-to-be-current (ignoring runts).
+            // draw fillet showing where/how to turn to enter this step.
+            // called when this step is next-to-be-current (ignoring runts).
             @Override
             public void drawFillet ()
             {
-                // get description of step leading into the hold
-                CIFPStep curstep = cifpSteps[currentStep];
-
-                // see which direction the aircraft is heading at the end of that step
-                // that gets it to navwp
-                tc_acraft_to_navwp = curstep.endpthdg;
-
-                // make it relative to inbound leg
-                tc_acraft_to_navwp -= inbound;
-                while (tc_acraft_to_navwp < -180.0F) tc_acraft_to_navwp += 360.0F;
-                while (tc_acraft_to_navwp >= 180.0F) tc_acraft_to_navwp -= 360.0F;
-
-                // negative means we are on the side of the hold
-                // positive means we are outside the hold side
-                //    0 = direct entry
-                // +180 = teardrop entry
-                // -180 = parallel entry
-                if (turndir == 'L') tc_acraft_to_navwp = - tc_acraft_to_navwp;
-
                 // check for parallel entry
                 // supply a normal fillet to transition onto the inbound but in outbound direction
                 if (tc_acraft_to_navwp < -70.0F) {
-                    defaultDrawFillet (navpt.x, navpt.y, inbound + 180.0F);
+                    drawFilletToLine (navpt.x, navpt.y, inbound + 180.0F);
                     return;
                 }
 
                 // check for teardrop entry
                 // supply a normal fillet to transition onto the diagonal going away from navpt
                 if (tc_acraft_to_navwp > 110.0F) {
-                    defaultDrawFillet (navpt.x, navpt.y, diaghdg);
+                    drawFilletToLine (navpt.x, navpt.y, tearhdg);
                     return;
                 }
 
-                // tc_acraft_to_navwp is between -70 and +110
-                // comments assume range is -90 to +90 but otherwise work ok
-
-                // direct entry
-                // move the center of the outbound turn circle so the circle is tangential to aircraft course line
-                // test case KBED GPS 23 JENDI starting near KBVY
-                //  JENDI (iaf) is direct entry coming from outside
-                //  WHYBE (map) is direct entry crossing over
-
-                // the radius is always the same, ie, 60/PI * bmpixpersec for standard rate turn
-
-                float radius = stdcirdradsec * bmpixpersec;
-
-                // the circle is always tangential to:
-                // * the aircraft course line
-                // * the inbound and outbound course lines
-
-                // for the case where tc_acraft_to_navwp == 0, ie, directly aligned with inbound course,
-                // we want the circle center to be where it normally should be
-
-                // for the case where tc_acraft_to_navwp == 90, ie, perpendicular coming from outside,
-                // we want the circle pushed into the hold one radius toward the far end of the hold,
-                // effectively shrinking the hold a little
-                //  KBED GPS 23 starting near KBVY going to JENDI
-
-                // for the case where tc_acraft_to_navwp = -90, ie, perpendicular crossing over the hold,
-                // we want the circle pushed outof the hold one radius away from the far end of the hold,
-                // effectively stretching the hold a little
-                //  KBED GPS 23 missed approach at WHYBE
-
-                float dist_to_push_out = - Mathf.tan (Mathf.toRadians (tc_acraft_to_navwp / 2.0F)) * radius;
-
-                // compute where the displaced turn circle intersects the inbound course line
-                // if tc_acraft_to_navwp =   0, it would be right at navpt.
-                // if tc_acraft_to_navwp =  90, it is one radius inward, shrinking the hold
-                // if tc_acraft_to_navwp = -90, it is one radius outward, stretching the hold
-                directinboundintersectbmx = navpt.x + Mathf.sindeg (inbound) * dist_to_push_out;
-                directinboundintersectbmy = navpt.y - Mathf.cosdeg (inbound) * dist_to_push_out;
-
-                // compute number of degrees for arc
-                // if tc_acraft_to_navwp =   0, ie, coming directly along inbound line, a 180 turn is required
-                // if tc_acraft_to_navwp =  90, ie, coming from outside the hold, a 90 deg turn is required
-                // if tc_acraft_to_navwp = -90, ie, crossing over the hold, a 270 deg turn is required
-                float sweep = 180.0F - tc_acraft_to_navwp;
-
-                // compute center of circle
-                // also compute counter-clockwise-most point of the arc (degrees clockwise of due East)
-                directctrbmx = Float.NaN;
-                directctrbmy = Float.NaN;
-                float start = Float.NaN;
-
-                if (turndir == 'L') {
-                    // turning left, go left from inboundline to find where center goes
-                    directctrbmx = directinboundintersectbmx + Mathf.sindeg (inbound - 90.0F) * radius;
-                    directctrbmy = directinboundintersectbmy - Mathf.cosdeg (inbound - 90.0F) * radius;
-
-                    // if inbound is due north, start arc due west of center
-                    start = inbound + 180.0F;
-                }
-
-                if (turndir == 'R') {
-                    // turning right, go right from inboundline to find where center goes
-                    directctrbmx = directinboundintersectbmx + Mathf.sindeg (inbound + 90.0F) * radius;
-                    directctrbmy = directinboundintersectbmy - Mathf.cosdeg (inbound + 90.0F) * radius;
-
-                    // if inbound is due north, end arc due east of center
-                    // then back up by sweep amount to see where to start
-                    start = inbound - sweep;
-                }
-
-                // point where fillet arc intersects the extended outbound course line
-                directoutboundintersectbmx = Math.round (directctrbmx * 2.0F - directinboundintersectbmx);
-                directoutboundintersectbmy = Math.round (directctrbmy * 2.0F - directinboundintersectbmy);
-
-                // draw the arc
-                drawFilletArc (directctrbmx, directctrbmy, radius,
-                        start, sweep, turndir == 'L');
+                // must be direct entry, the displaced near-end turn is the fillet
+                filletArc.x = directctrbmx;
+                filletArc.y = directctrbmy;
+                filletArc.start = directstart;
+                filletArc.sweep = directsweep;
+                filletArc.startc = directstartc;
+                filletArc.stoptc = directstoptc;
+                filletArc.turndir = turndir;
             }
 
             // holds are never runts even though they start and end on the same spot
@@ -2822,173 +3375,457 @@ public class PlateCIFP {
                 return false;
             }
 
-            // course line shown on VirtNavDial should always be
-            // the inbound course to the navaid
+            // get number of bitmap pixels to next turn
+            // called only when this step is current
             @Override
-            public float getVNOBSTrue ()
-            {
-                //TODO vary this to show what heading should actually be
-                //TODO depending on where aircraft is in the hold
-                return inbound;
-            }
-
-            // show navigation to the hold's fix in VirtNavDial
-            @Override
-            public String getVNWaypoint (LatLon ll)
-            {
-                //TODO vary this to show displacement from ideal position
-                //TODO depending on where aircraft is in the hold
-                ll.lat = navwp.lat;
-                ll.lon = navwp.lon;
-                return navwp.ident;
-            }
-
-            /**
-             * Our entry fillet hasn't been determined yet, so just draw
-             * as a simple oval.  We are probably several steps along down
-             * the road from where aircraft is currently located.  But it
-             * is possible that we are the next-to-be-current step for one
-             * drawing cycle as drawFillet() won't have been called the
-             * first time.
-             */
-            private void drawInsensitiveOvalDots ()
-            {
-                // draw dots for complete hold pattern
-                drawOvalDots ();
-
-                // those dots must not trigger the hold to become current
-                // (so say the aircraft is very far from the hold so stepper
-                //  will think the aircraft is closer to the previous step)
-                smallestAcraftDist = Integer.MAX_VALUE;
-            }
-
-            /**
-             * Haven't entered the hold yet, draw dots showing hold entry.
-             * Our drawFillet() has been called at least once before so we know lead-in fillet params.
-             */
-            private void drawEntryDots ()
+            public float bmpToNextTurn (NextTurn nextTurn)
             {
                 // check for parallel entry
                 if (tc_acraft_to_navwp < -70.0F) {
 
-                    // draw the two turns and the outbound line
-                    drawOvalExceptInbound ();
+                    // only turn we do is to the diagonal inbound to navwp
+                    nextTurn.direction  = oppodir;
+                    nextTurn.truecourse = parahdg;
 
-                    // those dots must not trigger hold to become current
-                    smallestAcraftDist = Integer.MAX_VALUE;
+                    // if along inbound line, num sec to turn is how long to far end of inbound line
+                    if (dist1 < dist2) {
+                        return Mathf.hypot (acraftbmx - inboundfarbmx, acraftbmy - inboundfarbmy);
+                    }
 
-                    // draw the inbound line, allow it to trigger hold to become current
-                    curposhdg = inbound;
-                    drawStepCourseToPoint (navpt.x, navpt.y);
-
-                    // we exit the hold on the diagonal heading toward navpt
-                    exithdg = diaghdg + 180.0F;
-                    return;
+                    // otherwise, we're already in the turn
+                    return 0.0F;
                 }
-
-                // draw complete oval but don't let it trigger making hold current
-                drawInsensitiveOvalDots ();
 
                 // check for teardrop entry
                 if (tc_acraft_to_navwp > 110.0F) {
 
-                    // draw diagonal dots that can make hold current
-                    drawDiagonalDots ();
+                    // only turn we do is to inbound radial to navwp
+                    nextTurn.direction  = samedir;
+                    nextTurn.truecourse = inbound;
+
+                    // if along teardrop diagonal, num sec to turn is how long to far end of diagonal
+                    if (dist1 < dist2) {
+                        return Mathf.hypot (acraftbmx - teardropdiagfarx, acraftbmy - teardropdiagfary);
+                    }
+
+                    // otherwise, we're already in the turn
+                    return 0.0F;
+                }
+
+                // direct entry
+
+                nextTurn.direction  = samedir;
+                nextTurn.truecourse = inbound + 180.0F;
+
+                // - see if between navwp and near-end arc
+                //   if so, return distance to reach the beginning of the arc
+                if ((dist0 < dist1) && (dist0 < dist2) && (dist0 < dist3)) {
+                    // how many pixels to go...
+                    return Mathf.hypot (acraftbmx - directbegarcx, acraftbmy - directbegarcy);
+                }
+
+                // - see if on the near-end arc
+                //   if so, we're already in the turn
+                if ((dist1 < dist2) && (dist1 < dist3)) {
+                    return 0.0F;
+                }
+
+                nextTurn.truecourse = inbound;
+
+                // - see if on the outbound line
+                //   if so, return distance to reach the end of outbound line
+                if (dist2 < dist3) {
+                    return Mathf.hypot (acraftbmx - outboundfarbmx, acraftbmy - outboundfarbmy);
+                }
+
+                // - must be on the far end arc somewhere already turning inbound
+                return 0.0F;
+            }
+
+            // update nav dial with current state
+            @Override
+            public void getVNTracking (NavDialView navDial)
+            {
+                // never on glideslope in hold
+                navDial.setMode (NavDialView.Mode.LOC);
+
+                // DME dist and fix is always navwp
+                float distnav = Mathf.hypot (acraftbmx - navpt.x, acraftbmy - navpt.y);
+                navDial.setDistance (distnav / bmpixpernm, navwp.ident, false);
+
+                // check for parallel entry
+                if (tc_acraft_to_navwp < -70.0F) {
+
+                    // if along inbound line, obs is outbound course
+                    if (dist1 < dist2) {
+                        navDial.obsSetting = lineObsSetting (inbound + 180.0F);
+                        navDial.setDeflect (lineDeflection (navpt.x, navpt.y, inbound + 180.0F));
+                        return;
+                    }
+
+                    // somewhere in far-end turn, obs is right-angle to course from turn center
+                    char oppdir = (char) ('L' ^ 'R' ^ turndir);  // going the opposite way
+                    navDial.obsSetting = arcObsSetting (farctrbmx, farctrbmy, oppdir);
+                    navDial.setDeflect (arcDeflection (farctrbmx, farctrbmy, stdturnradbmp, oppdir));
+                    return;
+                }
+
+                // check for teardrop entry
+                if (tc_acraft_to_navwp > 110.0F) {
+
+                    // if along teardrop diagonal, heading is outbound along diagonal
+                    if (dist1 < dist2) {
+                        navDial.obsSetting = lineObsSetting (tearhdg);
+                        navDial.setDeflect (lineDeflection (navpt.x, navpt.y, tearhdg));
+                        return;
+                    }
+
+                    // somewhere in far-end turn, obs is right-angle to course from turn center
+                    navDial.obsSetting = arcObsSetting (farctrbmx, farctrbmy, turndir);
+                    navDial.setDeflect (arcDeflection (farctrbmx, farctrbmy, stdturnradbmp, turndir));
                     return;
                 }
 
                 // direct entry
 
-                // see how far the airplane is from the end of
-                // the fillet arc that is on the outbound leg
-                // (-4 in case of rounding errors, we want to take precedence over end
-                // of fillet arc, ie, pretend airplane is 2 pixels closer to our point
-                // than the actual end of the fillet arc)
-                int dx = acraftbmx - directoutboundintersectbmx;
-                int dy = acraftbmy - directoutboundintersectbmy;
-                smallestAcraftDist = dx * dx + dy * dy - 4;
+                // - see if between navwp and near-end arc
+                //   if so, return heading to reach the beginning of the arc
+                if ((dist0 < dist1) && (dist0 < dist2) && (dist0 < dist3)) {
+                    navDial.obsSetting = lineObsSetting (trueCourse (navpt.x, navpt.y, directbegarcx, directbegarcy));
+                    navDial.setDeflect (lineDeflection (navpt.x, navpt.y, directbegarcx, directbegarcy));
+                    return;
+                }
 
-                // the only things that are sensitive at this point:
-                //  1) dotted path from previous step (keeps that step current while aircraft is on it)
-                //  2) fillet from previous step to this one (keeps previous step current while aircraft is on it)
-                //  3) that one point we just measured above (makes this hold current as soon as aircraft passes by it)
+                // - see if on the displaced near-end arc
+                //   if so, give heading to continue on displaced near-end arc
+                if ((dist1 < dist2) && (dist1 < dist3)) {
+                    navDial.obsSetting = arcObsSetting (directctrbmx, directctrbmy, turndir);
+                    navDial.setDeflect (arcDeflection (directctrbmx, directctrbmy, stdturnradbmp, turndir));
+                    return;
+                }
+
+                // - see if on the outbound line
+                //   if so, give heading to stay on outbound line
+                if (dist2 < dist3) {
+                    navDial.obsSetting = lineObsSetting (inbound + 180.0F);
+                    navDial.setDeflect (lineDeflection (outboundnearbmx, outboundnearbmy,
+                            outboundfarbmx, outboundfarbmy));
+                    return;
+                }
+
+                // somewhere in far-end turn, obs is right-angle to course from turn center
+                navDial.obsSetting = arcObsSetting (farctrbmx, farctrbmy, turndir);
+                navDial.setDeflect (arcDeflection (farctrbmx, farctrbmy, stdturnradbmp, turndir));
+            }
+        };
+
+        /**
+         * Start where hstep1 left off and get to navwp.
+         * - parallel: head inbound along diagonal, make little turn at end to inbound heading over navwp
+         * - teardrop and direct: head along inbound radial to over navwp
+         */
+        protected final CIFPStep hstep2 = new CIFPStep () {
+
+            // get text line describing the hold
+            @Override
+            public String getTextLine ()
+            {
+                StringBuilder sb = new StringBuilder ();
+                if (tc_acraft_to_navwp < -70.0F) {
+                    // parallel: inbound on diagonal
+                    appTrueAsMag (sb, parahdg);
+                    sb.append (DIRTOARR);
+                    appendTurn (sb, turndir);
+                }
+                // all: inbound heading to navwp
+                appTrueAsMag (sb, inbound);
+                sb.append (DIRTOARR);
+                sb.append (navwp.ident);
+                appendAlt (sb);
+                return sb.toString ();
             }
 
-            /**
-             * The hold is current.
-             * Draw the oval and for teardrop/parallel, draw the diagonal.
-             */
-            private void drawCurrentDots ()
+            // draw dots for the hold
+            @Override
+            public void drawStepDots ()
             {
-                // draw sensitive oval to keep the hold current
-                drawOvalDots ();
+                boolean curr = (drawIndex == currentStep);
+                boolean next = (drawIndex == currentStep + 1);
 
-                // for parallel and teardrop entries, draw diagonal
-                // they are sensitive as well to keep the hold current
-                if ((tc_acraft_to_navwp < -70.0F) || (tc_acraft_to_navwp > 110.0F)) {
-                    drawDiagonalDots ();
+                if (curr) {
+                    step3neararcenab  = true;
+                    step3outboundenab = true;
+                    step3fararcenab   = true;
+                    step3inboundenab  = true;
+                }
+
+                computeCommon ();
+                if (tc_acraft_to_navwp < -70.0F) {
+                    computeParallel ();
+                    // draw diagonal line dots
+                    next &= parallelhitfararc;  // don't become current unless they got near the far arc
+                                                // just in case entry was poorly flown
+                    drawStepDotLine (paralleldiagfarx, paralleldiagfary, paralleldiagnearx, paralleldiagneary, next | curr);
+
+                    // end up just inside navwp on parallel diag heading
+                    // depend on fillet to next step to round it out to go over navwp
+                    curposbmx = paralleldiagnearx;
+                    curposbmy = paralleldiagneary;
+                    curposhdg = parahdg;
+                } else if (tc_acraft_to_navwp > 110.0F) {
+                    // teardrop, draw inbound line dots
+                    next &= teardrophitfararc;  // don't become current unless they got near the far arc
+                                                // just in case entry was poorly flown
+                    drawStepDotLine (inboundfarbmx, inboundfarbmy, navpt.x, navpt.y, next | curr);
+
+                    step3inboundenab = false;
+
+                    // end up at navwp on inbound radial heading
+                    curposbmx = navpt.x;
+                    curposbmy = navpt.y;
+                    curposhdg = inbound;
+                } else {
+                    // direct, draw inbound line dots
+                    drawStepDotLine (inboundfarbmx, inboundfarbmy, navpt.x, navpt.y, next | curr);
+
+                    step3inboundenab = false;
+
+                    // end up at navwp on inbound radial heading
+                    curposbmx = navpt.x;
+                    curposbmy = navpt.y;
+                    curposhdg = inbound;
+                }
+
+                // update what altitude they should be at when at navwp
+                updateAlt ();
+            }
+
+            // draw fillet showing where/how to turn to enter this step.
+            // hstep1 drew the fillet as part of its step
+            @Override
+            public void drawFillet ()
+            { }
+
+            // holds are never runts even though they start and end on the same spot
+            @Override
+            public boolean isRuntStep ()
+            {
+                return false;
+            }
+
+            // update nav dial with current state
+            @Override
+            public void getVNTracking (NavDialView navDial)
+            {
+                // check for fillet at end of step
+                // if there is a step 3, it filled this in to lead into step 3
+                if (inEndFillet (navDial)) return;
+
+                // DME dist and fix is always navwp
+                float distnav = Mathf.hypot (acraftbmx - navpt.x, acraftbmy - navpt.y);
+                navDial.setDistance (distnav / bmpixpernm, navwp.ident, false);
+
+                // parallel entry, give heading along diagonal
+                if (tc_acraft_to_navwp < -70.0F) {
+                    navDial.obsSetting = lineObsSetting (parahdg);
+                    navDial.setDeflect (lineDeflection (paralleldiagfarx, paralleldiagfary, parahdg));
+                    return;
+                }
+
+                // teardrop or direct entry, give inbound radial heading
+                navDial.obsSetting = lineObsSetting (inbound);
+                navDial.setDeflect (lineDeflection (inboundfarbmx, inboundfarbmy, navpt.x, navpt.y));
+            }
+        };
+
+        /**
+         * Draw entire oval for final part of an indefinite hold (HM).
+         * Start at the navwp, go around normal oval pattern back to navwp.
+         * Used only for indefinite hold (HM) at the end.
+         */
+        protected final CIFPStep hstep3 = new CIFPStep () {
+            private float dist1, dist2, dist3, dist4;
+
+            // get text line describing the hold
+            @Override
+            public String getTextLine ()
+            {
+                StringBuilder sb = new StringBuilder ();
+                sb.append ("hold ");
+                appTrueAsMag (sb, inbound);
+                sb.append (DIRTOARR);
+                sb.append (navwp.ident);
+                sb.append (' ');
+                appendTurn (sb, turndir);
+                appendAlt (sb);
+                return sb.toString ();
+            }
+
+            // draw dots for the hold
+            @Override
+            public void drawStepDots ()
+            {
+                boolean curr = (drawIndex == currentStep);
+                boolean next = (drawIndex == currentStep + 1);
+
+                if (curr) {
+                    step3neararcenab  = true;
+                    step3outboundenab = true;
+                    step3fararcenab   = true;
+                    step3inboundenab  = true;
+                }
+
+                computeCommon ();
+
+                // draw near-end arc
+                // but not if hstep2 drew it as a direct entry displaced near-end arc
+                if (step3neararcenab) {
+                    dist1 = drawStepDotArc (nearctrbmx, nearctrbmy, stdturnradbmp, inbound + 180.0F, 180.0F, next | curr);
+                } else {
+                    dist1 = Lib.distOfPtFromArc (nearctrbmx, nearctrbmy, stdturnradbmp, inbound + 180.0F, 180.0F, acraftbmx, acraftbmy);
+                    if (next && (smallestAcraftDist > dist1)) smallestAcraftDist = dist1;
+                }
+                // draw outbound line
+                if (step3outboundenab) {
+                    dist2 = drawStepDotLine (outboundnearbmx, outboundnearbmy, outboundfarbmx, outboundfarbmy, curr);
+                } else {
+                    dist2 = Float.MAX_VALUE;
+                }
+                // draw far-end arc
+                if (step3fararcenab) {
+                    dist3 = drawStepDotArc (farctrbmx, farctrbmy, stdturnradbmp, inbound, 180.0F, curr);
+                } else {
+                    dist3 = Float.MAX_VALUE;
+                }
+                // draw inbound radial
+                if (step3inboundenab) {
+                    dist4 = drawStepDotLine (inboundfarbmx, inboundfarbmy, navpt.x, navpt.y, curr);
+                } else {
+                    dist4 = Float.MAX_VALUE;
+                }
+
+                // end up over navwp on inbound heading
+                curposbmx = inboundfarbmx;
+                curposbmy = inboundfarbmy;
+                curposhdg = inbound;
+
+                // update what altitude they should be at when at navwp
+                updateAlt ();
+            }
+
+            // draw fillet showing where/how to turn to enter this step.
+            @Override
+            public void drawFillet ()
+            {
+                filletArc.turndir = turndir;  // the fillet turns same direction as hold
+                filletArc.x = nearctrbmx;     // center of fillet is near arc's center
+                filletArc.y = nearctrbmy;
+
+                // if parallel entry, step 2 does not have a fillet leading to this step
+                // so we must draw one
+                if (tc_acraft_to_navwp < -70.0F) {
+                    // draw just the little piece going from the diagonal to navwp
+                    // the rest of it (180deg turn to outbound) is drawn as part of our oval
+                    // but we want the message to say the fillet goes all the way around the 180deg turn as well
+                    // ...so the pilot doesn't see two 'turn to ...' one right after the other
+                    filletArc.sweep = paralleldiag;
+                    if (turndir == 'L') {
+                        filletArc.start  = inbound;
+                        filletArc.startc = inbound + 90.0F + paralleldiag;
+                        filletArc.stoptc = inbound - 90.0F;
+                    }
+                    if (turndir == 'R') {
+                        filletArc.start  = inbound + 180.0F - paralleldiag;
+                        filletArc.startc = inbound -  90.0F - paralleldiag;
+                        filletArc.stoptc = inbound +  90.0F;
+                    }
+                } else {
+                    // teardrop or direct, step 2 last drew the inbound radial to the fix
+                    // and the airplane is on the inbound heading ready to start 180deg turn
+                    filletArc.sweep = 0.0F;  // nothing to draw
+                    if (turndir == 'L') {
+                        filletArc.start  = inbound;
+                        filletArc.startc = inbound + 90.0F;
+                        filletArc.stoptc = inbound - 90.0F;
+                    }
+                    if (turndir == 'R') {
+                        filletArc.start  = inbound + 180.0F;
+                        filletArc.startc = inbound -  90.0F;
+                        filletArc.stoptc = inbound +  90.0F;
+                    }
                 }
             }
 
-            // draw dots for the whole oval, assume they will be sensitive to making/keeping
-            // the hold current
-            private void drawOvalDots ()
+            // holds are never runts even though they start and end on the same spot
+            @Override
+            public boolean isRuntStep ()
             {
-                drawOvalExceptInbound ();
-
-                // fly inbound to the navwp
-                curposhdg = inbound;
-                drawStepCourseToPoint (navpt.x, navpt.y);
+                return false;
             }
 
-            // draw near-by turn, outbound line and far-away turn back to inbound
-            private void drawOvalExceptInbound ()
+            // get number of bitmap pixels to next turn
+            // called only when this step is current
+            @Override
+            public float bmpToNextTurn (NextTurn nextTurn)
             {
-                // assume we are at navaid on the inbound heading as given in 'radial'
-                // draw the standard rate turn away from the navaid to the recip heading
-                curposhdg = inbound;
-                curposbmx = navpt.x;
-                curposbmy = navpt.y;
-                drawStepUTurn (turndir);
+                nextTurn.direction = samedir;
 
-                // now fly outbound for a minute
-                curposhdg = inbound + 180.0F;
-                drawStepOneMinLine ();
-
-                // draw the standard rate turn toward the navaid to the inbound heading
-                drawStepUTurn (turndir);
-            }
-
-            // draw diagonal dots used by teardrop or parallel entry
-            private void drawDiagonalDots ()
-            {
-                curposbmx = navpt.x;
-                curposbmy = navpt.y;
-                curposhdg = diaghdg;
-                drawStepOneMinLine ();
-
-                float cbmx = navpt.x;
-                float cbmy = navpt.y;
-                cbmx += Mathf.sindeg (inbound + 180.0F) * HOLDLEGSEC * bmpixpersec;
-                cbmy -= Mathf.cosdeg (inbound + 180.0F) * HOLDLEGSEC * bmpixpersec;
-                float radius = stdcirdradsec * bmpixpersec;
-                float start;
-                switch (turndir) {
-                    case 'L': {
-                        cbmx += Mathf.sindeg (inbound - 90.0F) * radius;
-                        cbmy -= Mathf.cosdeg (inbound - 90.0F) * radius;
-                        start = inbound + 180.0F;
-                        break;
-                    }
-                    case 'R': {
-                        cbmx += Mathf.sindeg (inbound + 90.0F) * radius;
-                        cbmy -= Mathf.cosdeg (inbound + 90.0F) * radius;
-                        start = inbound - holddiagdegs;
-                        break;
-                    }
-                    default: throw new RuntimeException ();
+                // if on near arc, we are already in the turn
+                if ((dist1 < dist2) && (dist1 < dist3) && (dist1 < dist4)) {
+                    nextTurn.truecourse = inbound + 180.0F;
+                    return 0.0F;
                 }
-                drawStepDotArc (cbmx, cbmy, radius, start, holddiagdegs);
+
+                // if on outbound line, next turn is the far arc
+                if ((dist2 < dist3) && (dist2 < dist4)) {
+                    nextTurn.truecourse = inbound;
+                    return Mathf.hypot (outboundfarbmx - acraftbmx, outboundfarbmy - acraftbmy);
+                }
+
+                // if on far arc, we are already in the turn
+                if (dist3 < dist4) {
+                    nextTurn.truecourse = inbound;
+                    return 0.0F;
+                }
+
+                // on inbound radial, next turn is the near arc
+                nextTurn.truecourse = inbound + 180.0F;
+                return Mathf.hypot (navpt.x - acraftbmx, navpt.y - acraftbmy);
+            }
+
+            // update nav dial with current state
+            @Override
+            public void getVNTracking (NavDialView navDial)
+            {
+                // DME dist and fix is always navwp
+                float distnav = Mathf.hypot (acraftbmx - navpt.x, acraftbmy - navpt.y);
+                navDial.setDistance (distnav / bmpixpernm, navwp.ident, false);
+
+                // see if on near arc
+                if ((dist1 < dist2) && (dist1 < dist3) && (dist1 < dist4)) {
+                    navDial.obsSetting = arcObsSetting (nearctrbmx, nearctrbmy, turndir);
+                    navDial.setDeflect (arcDeflection (nearctrbmx, nearctrbmy, stdturnradbmp, turndir));
+                    return;
+                }
+
+                // see if on outbound line
+                if ((dist2 < dist3) && (dist2 < dist4)) {
+                    navDial.obsSetting = lineObsSetting (inbound + 180.0F);
+                    navDial.setDeflect (lineDeflection (outboundnearbmx, outboundnearbmy,
+                            outboundfarbmx, outboundfarbmy));
+                    return;
+                }
+
+                // see if on far arc
+                if (dist3 < dist4) {
+                    navDial.obsSetting = arcObsSetting (farctrbmx, farctrbmy, turndir);
+                    navDial.setDeflect (arcDeflection (farctrbmx, farctrbmy, stdturnradbmp, turndir));
+                    return;
+                }
+
+                // on inbound radial
+                navDial.obsSetting = lineObsSetting (inbound);
+                navDial.setDeflect (lineDeflection (inboundfarbmx, inboundfarbmy, navpt.x, navpt.y));
             }
         };
 
@@ -2997,18 +3834,187 @@ public class PlateCIFP {
             navwp   = findWaypoint (parms.get ("wp"), navpt);
             inbound = getTCDeg ("rad", navwp);
             turndir = parms.get ("td").charAt (0);
-            exithdg = inbound;
-
-            if (turndir == 'L') diaghdg = inbound + 180.0F + holddiagdegs;
-            if (turndir == 'R') diaghdg = inbound + 180.0F - holddiagdegs;
+            if ((turndir != 'L') && (turndir != 'R')) throw new Exception ("bad turn dir " + turndir);
+            if (turndir == 'L') {
+                parahdg = inbound + paralleldiag;
+                tearhdg = inbound + 180.0F + teardropdiag;
+                samedir = turnleft;
+                oppodir = turnright;
+            }
+            if (turndir == 'R') {
+                parahdg = inbound - paralleldiag;
+                tearhdg = inbound + 180.0F - teardropdiag;
+                samedir = turnright;
+                oppodir = turnleft;
+            }
+            inboundsin = Mathf.sindeg (inbound);
+            inboundcos = Mathf.cosdeg (inbound);
         }
 
         public void init2 ()
         { }
 
-        public void getSteps (LinkedList<CIFPStep> steps)
+        // Compute parameters common to all entry types
+        private void computeCommon ()
         {
-            steps.addLast (holdstep);
+            // length of normal inbound/outbound lines
+            holdleglen = HOLDLEGSEC * bmpixpersec;
+
+            // far end of inbound radial
+            inboundfarbmx = navpt.x + Mathf.sindeg (inbound + 180.0F) * holdleglen;
+            inboundfarbmy = navpt.y - Mathf.cosdeg (inbound + 180.0F) * holdleglen;
+
+            // center of near-end arc circle
+            float dx = Float.NaN;
+            float dy = Float.NaN;
+            if (turndir == 'L') {
+                dx = Mathf.sindeg (inbound - 90.0F) * stdturnradbmp;
+                dy = Mathf.cosdeg (inbound - 90.0F) * stdturnradbmp;
+            }
+            if (turndir == 'R') {
+                dx = Mathf.sindeg (inbound + 90.0F) * stdturnradbmp;
+                dy = Mathf.cosdeg (inbound + 90.0F) * stdturnradbmp;
+            }
+            nearctrbmx = navpt.x + dx;
+            nearctrbmy = navpt.y - dy;
+
+            // center of far-end arc circle
+            farctrbmx = inboundfarbmx + dx;
+            farctrbmy = inboundfarbmy - dy;
+
+            // endpoints of outbound line
+            outboundnearbmx = navpt.x + dx * 2.0F;
+            outboundnearbmy = navpt.y - dy * 2.0F;
+            outboundfarbmx  = inboundfarbmx + dx * 2.0F;
+            outboundfarbmy  = inboundfarbmy - dy * 2.0F;
+        }
+
+        // Compute parallel-entry parameters
+        private void computeParallel ()
+        {
+            // short distance from navwp along inbound radial where parallel diagonal intersects inbound radial
+            float nearlen = Mathf.tan (Math.toRadians (paralleldiag / 2.0F)) * stdturnradbmp;
+
+            // where parallel diagonal intersects inbound radial
+            paralleldiagnearx = navpt.x + Mathf.sindeg (inbound + 180.0F) * nearlen;
+            paralleldiagneary = navpt.y - Mathf.cosdeg (inbound + 180.0F) * nearlen;
+
+            if (turndir == 'L') {
+                paralleldiagfarx = farctrbmx + Mathf.sindeg (inbound - 90.0F + paralleldiag) * stdturnradbmp;
+                paralleldiagfary = farctrbmy - Mathf.cosdeg (inbound - 90.0F + paralleldiag) * stdturnradbmp;
+                parallelfarstart = inbound;  // long arc, far end of inbound to far end of diagonal
+            }
+            if (turndir == 'R') {
+                paralleldiagfarx = farctrbmx + Mathf.sindeg (inbound + 90.0F - paralleldiag) * stdturnradbmp;
+                paralleldiagfary = farctrbmy - Mathf.cosdeg (inbound + 90.0F - paralleldiag) * stdturnradbmp;
+                parallelfarstart = inbound - paralleldiag;  // long arc, far end of diagonal to far end of inbound
+            }
+        }
+
+        // Compute teardrop-entry parameters
+        private void computeTeardrop ()
+        {
+            if (turndir == 'L') {
+                teardropdiagfarx = farctrbmx + Mathf.sindeg (inbound - 90.0F + teardropdiag) * stdturnradbmp;
+                teardropdiagfary = farctrbmy - Mathf.cosdeg (inbound - 90.0F + teardropdiag) * stdturnradbmp;
+                teardropfarstart = inbound;
+            }
+            if (turndir == 'R') {
+                teardropdiagfarx = farctrbmx + Mathf.sindeg (inbound + 90.0F - teardropdiag) * stdturnradbmp;
+                teardropdiagfary = farctrbmy - Mathf.cosdeg (inbound + 90.0F - teardropdiag) * stdturnradbmp;
+                teardropfarstart = inbound - teardropdiag;
+            }
+        }
+
+        // Compute direct-entry parameters
+        private void computeDirect ()
+        {
+            // direct entry - tc_acraft_to_navwp is between -70 and +110
+            // comments assume range is -90 to +90 but otherwise work ok
+
+            // move the center of the outbound turn circle so the circle is tangential to aircraft course line
+            // test case KBED GPS 23 JENDI starting near KBVY
+            //  JENDI (iaf) is direct entry coming from outside
+            //  WHYBE (map) is direct entry crossing over
+
+            // the circle is always tangential to:
+            // * the aircraft course line
+            // * the inbound and outbound course lines
+
+            // for the case where tc_acraft_to_navwp == 0, ie, directly aligned with inbound course,
+            // we want the circle center to be where it normally should be
+
+            // for the case where tc_acraft_to_navwp == 90, ie, perpendicular coming from outside,
+            // we want the circle pushed into the hold one radius toward the far end of the hold,
+            // effectively shrinking the hold a little
+            //  KBED GPS 23 starting near KBVY going to JENDI
+
+            // for the case where tc_acraft_to_navwp = -90, ie, perpendicular crossing over the hold,
+            // we want the circle pushed outof the hold one radius away from the far end of the hold,
+            // effectively stretching the hold a little
+            //  KBED GPS 23 missed approach at WHYBE
+
+            float dist_to_push_out = - Mathf.tan (Mathf.toRadians (tc_acraft_to_navwp / 2.0F)) * stdturnradbmp;
+
+            // compute where the displaced turn circle intersects the inbound course line
+            // if tc_acraft_to_navwp =   0, it would be right at navpt.
+            // if tc_acraft_to_navwp =  90, it is one radius inward, shrinking the hold
+            // if tc_acraft_to_navwp = -90, it is one radius outward, stretching the hold
+            directinboundintersectbmx = navpt.x + inboundsin * dist_to_push_out;
+            directinboundintersectbmy = navpt.y - inboundcos * dist_to_push_out;
+
+            // compute number of degrees for arc
+            // if tc_acraft_to_navwp =   0, ie, coming directly along inbound line, a 180 turn is required
+            // if tc_acraft_to_navwp =  90, ie, coming from outside the hold, a 90 deg turn is required
+            // if tc_acraft_to_navwp = -90, ie, crossing over the hold, a 270 deg turn is required
+            directsweep = 180.0F - tc_acraft_to_navwp;
+
+            // compute center of circle
+            // also compute counter-clockwise-most point of the arc (degrees clockwise of due East)
+            directctrbmx = Float.NaN;
+            directctrbmy = Float.NaN;
+            directstart = Float.NaN;
+
+            if (turndir == 'L') {
+                // turning left, go left from inboundline to find where center goes
+                directctrbmx = directinboundintersectbmx - inboundcos * stdturnradbmp;
+                directctrbmy = directinboundintersectbmy - inboundsin * stdturnradbmp;
+
+                // if inbound is due north, start arc due west of center
+                directstart = inbound + 180.0F;
+
+                // tc from center of arc to where aircraft starts and stops flying arc
+                directstartc = inbound + tc_acraft_to_navwp + 90.0F;
+                directstoptc = inbound - 90.0F;
+            }
+
+            if (turndir == 'R') {
+                // turning right, go right from inboundline to find where center goes
+                directctrbmx = directinboundintersectbmx + inboundcos * stdturnradbmp;
+                directctrbmy = directinboundintersectbmy + inboundsin * stdturnradbmp;
+
+                // if inbound is due north, end arc due east of center
+                // then back up by sweep amount to see where to start
+                directstart = inbound - directsweep;
+
+                // tc from center of arc to where aircraft starts and stops flying arc
+                directstartc = inbound + tc_acraft_to_navwp - 90.0F;
+                directstoptc = inbound + 90.0F;
+            }
+
+            // point where fillet arc intersects the extended outbound course line
+            directoutboundintersectbmx = directctrbmx * 2.0F - directinboundintersectbmx;
+            directoutboundintersectbmy = directctrbmy * 2.0F - directinboundintersectbmy;
+
+            // compute start of near arc where airplane first intercepts it
+            if (turndir == 'L') {
+                directbegarcx = directctrbmx + Mathf.sindeg (inbound - tc_acraft_to_navwp + 90.0F) * stdturnradbmp;
+                directbegarcy = directctrbmy - Mathf.cosdeg (inbound - tc_acraft_to_navwp + 90.0F) * stdturnradbmp;
+            }
+            if (turndir == 'R') {
+                directbegarcx = directctrbmx + Mathf.sindeg (inbound + tc_acraft_to_navwp - 90.0F) * stdturnradbmp;
+                directbegarcy = directctrbmy - Mathf.cosdeg (inbound + tc_acraft_to_navwp - 90.0F) * stdturnradbmp;
+            }
         }
     }
 
@@ -3020,32 +4026,37 @@ public class PlateCIFP {
      *   3) go straight ahead until intercept beacon's radial inbound
      */
     private class CIFPLeg_PI extends CIFPLeg {
-        private char dt;         // turn direction from "B" to "C" and from "C" to "D"
-        private char td;         // turn direction from "A" to "B"
-        private float a_tru, b_tru;
+        private char td;         // 180deg and last 45deg turn direction
+        private float a_tru, b_tru, c_tru;
         private float extendnm;  // extend outbound leg from navwp this far beyond HOLDLEGSEC
-        private int uturnbegbmx, uturnbegbmy;
-        private int uturnendbmx, uturnendbmy;
+        public  float inbound;   // true course when turned inbound headed directly to fix
         private int a_dir;       // outbound from navaid (magnetic)
         private int b_dir;       // turned 45deg from outbound course
         private int c_dir;       // turned 180deg to inbound 45deg leg
         private int d_dir;       // inboud course to navaid (after 45deg turn)
-        private Point navpt = new Point ();
-        public  float inbound;   // true course when turned inbound headed directly to fix
+        private PointF extpt = new PointF ();
+        private PointF navpt = new PointF ();
+        private String turndir;  // 180deg and last 45deg turn direction
+        private Waypoint extwp;  // either navwp or FAF waypoint, whichever is farther from airport
         public  Waypoint navwp;  // navigating using this beacon
 
-        // line going outbound from beacon and for one minute past the timwp
+        // line going outbound from beacon and for one minute past the extended navwp
         private final CIFPStep pistep1 = new CIFPStep () {
+            private String textline;
+
             @Override
             public String getTextLine ()
             {
-                StringBuilder sb = new StringBuilder ();
-                sb.append ("pt on ");
-                sb.append (parms.get ("wp"));
-                sb.append (' ');
-                appCourse (sb, a_dir);
-                appendAlt (sb);
-                return sb.toString ();
+                if (textline == null) {
+                    StringBuilder sb = new StringBuilder ();
+                    sb.append ("pt ");
+                    sb.append (navwp.ident);
+                    sb.append (DIRTOARR);
+                    appCourse (sb, a_dir);
+                    appendAlt (sb);
+                    textline = sb.toString ();
+                }
+                return textline;
             }
 
             @Override
@@ -3056,132 +4067,171 @@ public class PlateCIFP {
                 curposbmy = navpt.y;
 
                 float dist = extendnm * bmpixpernm + HOLDLEGSEC * bmpixpersec;
-                int endbmx = curposbmx + Math.round (Mathf.sindeg (curposhdg) * dist);
-                int endbmy = curposbmy - Math.round (Mathf.cosdeg (curposhdg) * dist);
+                float endbmx = curposbmx + Mathf.sindeg (curposhdg) * dist;
+                float endbmy = curposbmy - Mathf.cosdeg (curposhdg) * dist;
                 drawStepCourseToPoint (endbmx, endbmy);
 
                 updateAlt ();
             }
 
-            // VirtNav dial OBS should show outbound course
+            // update nav dial with current state
             @Override
-            public float getVNOBSTrue ()
+            public void getVNTracking (NavDialView navDial)
             {
-                return a_tru;
-            }
+                // maybe it is time to start turning 45deg outbound
+                if (inEndFillet (navDial)) return;
 
-            // VirtNav waypoint should be point at end of outbound leg
-            @Override
-            public String getVNWaypoint (LatLon ll)
-            {
-                float distnm = HOLDLEGSEC * bmpixpersec / bmpixpernm + extendnm;
-                ll.lat = Lib.LatHdgDist2Lat (navwp.lat, a_tru, distnm);
-                ll.lon = Lib.LatLonHdgDist2Lon (navwp.lat, navwp.lon, a_tru, distnm);
-                return "pt.ob";
+                // fly on outbound heading
+                navDial.setMode (NavDialView.Mode.LOC);
+                navDial.obsSetting = lineObsSetting (a_tru);
+                navDial.setDeflect (lineDeflection (navpt.x, navpt.y, a_tru));
+
+                // give DME from navwp
+                float dist = Mathf.hypot (acraftbmx - navpt.x, acraftbmy - navpt.y);
+                navDial.setDistance (dist / bmpixpernm, navwp.ident, false);
             }
         };
 
-        // outbound line on 45deg angle followed by 180deg turn
+        // outbound line on 45deg angle
         private final CIFPStep pistep2 = new CIFPStep () {
+            private String textline;
+
             @Override
             public String getTextLine ()
             {
-                StringBuilder sb = new StringBuilder ();
-                appendTurn (sb, dt);
-                appCourse (sb, b_dir);
-                return sb.toString ();
+                if (textline == null) {
+                    StringBuilder sb = new StringBuilder ();
+                    sb.append ("pt 45out ");
+                    appCourse (sb, b_dir);
+                    appendAlt (sb);
+                    textline = sb.toString ();
+                }
+                return textline;
             }
 
-            // draw fillet from pistep1 to pistep2
-            // ...so user will get the 'turn in 10 9 8 7 6...' countdown message
-            // called when pistep1 is current
+            // no fillet cuz pistep3 is the fillet
             @Override
             public void drawFillet ()
+            { }
+
+            // number of bitmap pixels to pistep3 turn
+            @Override
+            public float bmpToNextTurn (NextTurn nextTurn)
             {
-                // tell it where the step2 line starts and what its true course is
-                defaultDrawFillet (begptbmx, begptbmy, b_tru);
+                nextTurn.direction = turndir;  // what direction to turn in pistep3
+                nextTurn.truecourse = c_tru;   // what heading to turn to in pistep3
+                return Mathf.hypot (acraftbmx - endptbmx, acraftbmy - endptbmy);
             }
 
             @Override
             public void drawStepDots ()
             {
-                // draw the one-minute outbound leg
+                // draw the one-minute 45deg outbound leg
                 curposhdg = b_tru;
                 drawStepOneMinLine ();
+            }
 
-                // draw U-turn
-                // save beginning and end points so pistep3 can overdraw it as a fillet
-                uturnbegbmx = curposbmx;
-                uturnbegbmy = curposbmy;
+            // update nav dial with current state
+            @Override
+            public void getVNTracking (NavDialView navDial)
+            {
+                // never on glideslope flying outbound
+                navDial.setMode (NavDialView.Mode.LOC);
+
+                // distance from extended waypoint
+                float dist = Mathf.hypot (acraftbmx - extpt.x, acraftbmy - extpt.y);
+                navDial.setDistance (dist / bmpixpernm, extwp.ident, false);
+
+                // OBS set to 45deg outbound heading
+                navDial.obsSetting = lineObsSetting (b_tru);
+                navDial.setDeflect (lineDeflection (begptbmx, begptbmy, b_tru));
+            }
+        };
+
+        // 180deg turn
+        private final CIFPStep pistep3 = new CIFPStep () {
+            private String textline;
+
+            @Override
+            public String getTextLine ()
+            {
+                if (textline == null) {
+                    StringBuilder sb = new StringBuilder ();
+                    sb.append ("pt 180 ");
+                    appendTurn (sb, td);
+                    appCourse (sb, c_dir);
+                    appendAlt (sb);
+                    textline = sb.toString ();
+                }
+                return textline;
+            }
+
+            // no fillet at end of this step cuz this step is the fillet
+            @Override
+            public void drawFillet ()
+            { }
+
+            @Override
+            public void drawStepDots ()
+            {
                 drawStepUTurn (td);
-                uturnendbmx = curposbmx;
-                uturnendbmy = curposbmy;
             }
 
-            // VirtNav dial OBS should show outbound 45deg course
+            // update nav dial with current state
             @Override
-            public float getVNOBSTrue ()
+            public void getVNTracking (NavDialView navDial)
             {
-                return b_tru;
-            }
+                // never in glideslope mode during 180deg turn
+                navDial.setMode (NavDialView.Mode.LOC);
 
-            // VirtNav waypoint should be point at end of outbound 45deg leg
-            @Override
-            public String getVNWaypoint (LatLon ll)
-            {
-                ll.lat = plateView.BitmapXY2Lat (uturnbegbmx, uturnbegbmy);
-                ll.lon = plateView.BitmapXY2Lon (uturnbegbmx, uturnbegbmy);
-                return "ob.45";
+                // distance to extended waypoint
+                float dist = Mathf.hypot (acraftbmx - extpt.x, acraftbmy - extpt.y);
+                navDial.setDistance (dist / bmpixpernm, extwp.ident, false);
+
+                // heading aircraft should be on at this point in the turn
+                float uturnctrbmx = (begptbmx + endptbmx) / 2.0F;
+                float uturnctrbmy = (begptbmy + endptbmy) / 2.0F;
+                navDial.obsSetting = arcObsSetting (uturnctrbmx, uturnctrbmy, td);
+                navDial.setDeflect (arcDeflection (uturnctrbmx, uturnctrbmy, stdturnradbmp, td));
             }
         };
 
         // line on 45-deg offset inbound
-        private final CIFPStep pistep3 = new CIFPStep () {
+        private final CIFPStep pistep4 = new CIFPStep () {
+            private String textline;
+
             @Override
             public String getTextLine ()
             {
-                StringBuilder sb = new StringBuilder ();
-                appendTurn (sb, td);
-                appCourse (sb, c_dir);
-                sb.append (" toward ");
-                sb.append (parms.get ("wp"));
-                return sb.toString ();
-            }
-
-            // draw 180-deg turn leading into this step as a fillet
-            // ...so user will get the 'turn in 10 9 8 7 6...' countdown message
-            // called when pistep2 is current
-            @Override
-            public void drawFillet ()
-            {
-                int cbmx = (uturnbegbmx + uturnendbmx) / 2;
-                int cbmy = (uturnbegbmy + uturnendbmy) / 2;
-                float radius = Mathf.hypot (uturnbegbmx - uturnendbmx, uturnbegbmy - uturnendbmy) / 2.0F;
-                boolean left = td == 'L';
-                float start = left ? (a_tru - 135.0F) : (a_tru + 135.0F);
-                drawFilletArc (cbmx, cbmy, radius, start, 180.0F, left);
+                if (textline == null) {
+                    StringBuilder sb = new StringBuilder ();
+                    sb.append ("pt 45in ");
+                    appCourse (sb, c_dir);
+                    appendAlt (sb);
+                    textline = sb.toString ();
+                }
+                return textline;
             }
 
             @Override
             public void drawStepDots ()
             {
-                drawStepCourseToInterceptRadial (navpt, a_tru);
+                drawStepCourseToInterceptRadial (curposhdg, navpt, a_tru);
             }
 
-            // VirtNav dial OBS should show inbound 45deg course
+            // update nav dial with current state
             @Override
-            public float getVNOBSTrue ()
+            public void getVNTracking (NavDialView navDial)
             {
-                return b_tru + 180.0F;
-            }
+                // maybe have entered fillet at end of 45deg inbound line
+                if (inEndFillet (navDial)) return;
 
-            // VirtNav waypoint should be point at end of inbound 45deg leg
-            @Override
-            public String getVNWaypoint (LatLon ll)
-            {
-                ll.lat = plateView.BitmapXY2Lat (endptbmx, endptbmy);
-                ll.lon = plateView.BitmapXY2Lon (endptbmx, endptbmy);
-                return "ib.45";
+                // flying the inbound 45deg line
+                navDial.setMode (NavDialView.Mode.LOC);
+                float dist = Mathf.hypot (acraftbmx - extpt.x, acraftbmy - extpt.y);
+                navDial.setDistance (dist / bmpixpernm, extwp.ident, false);
+                navDial.obsSetting = lineObsSetting (c_tru);
+                navDial.setDeflect (lineDeflection (begptbmx, begptbmy, c_tru));
             }
         };
 
@@ -3193,16 +4243,16 @@ public class PlateCIFP {
             b_dir = toc;  // after 45deg turn outbound
             switch (td) {
                 case 'L': {
-                    dt = 'R';
+                    turndir = turnleft;
                     a_dir = (b_dir + 3150) % 3600;
                     break;
                 }
                 case 'R': {
-                    dt = 'L';
+                    turndir = turnright;
                     a_dir = (b_dir +  450) % 3600;
                     break;
                 }
-                default: throw new RuntimeException ("bad PI turn dir " + td);
+                default: throw new IllegalArgumentException ("bad PI turn dir " + td);
             }
             c_dir = (b_dir + 1800) % 3600;  // after 180deg turn
             d_dir = (a_dir + 1800) % 3600;  // after 45deg turn inbound
@@ -3214,6 +4264,7 @@ public class PlateCIFP {
             // and for the first 45deg turn outbound
             a_tru = getTCDeg (a_dir, navwp);  // outbound from beacon
             b_tru = getTCDeg (b_dir, navwp);  // after 45deg turn outbound
+            c_tru = getTCDeg (c_dir, navwp);  // after 180deg turn
 
             // also let anyone who cares what the inbound heading to beacon is
             // this is the TC after the final 45deg turn inbound
@@ -3231,7 +4282,15 @@ public class PlateCIFP {
                 float dist_nav_to_apt = Lib.LatLonDist (navwp.lat, navwp.lon, airport.lat, airport.lon);
                 float dist_faf_to_apt = Lib.LatLonDist (fafwp.lat, fafwp.lon, airport.lat, airport.lon);
                 extendnm = dist_faf_to_apt - dist_nav_to_apt;
-                if (extendnm < 0.0F) extendnm = 0.0F;
+                if (extendnm < 0.0F) {
+                    extendnm = 0.0F;
+                    extwp = navwp;
+                    extpt = navpt;
+                } else {
+                    extwp = fafwp;
+                    extpt.x = plateView.LatLon2BitmapX (fafwp.lat, fafwp.lon);
+                    extpt.y = plateView.LatLon2BitmapY (fafwp.lat, fafwp.lon);
+                }
             }
         }
 
@@ -3240,6 +4299,7 @@ public class PlateCIFP {
             steps.addLast (pistep1);
             steps.addLast (pistep2);
             steps.addLast (pistep3);
+            steps.addLast (pistep4);
         }
     }
 
@@ -3249,10 +4309,10 @@ public class PlateCIFP {
      */
     private class CIFPLeg_RF extends CIFPLeg {
         private char turndir;
-        private float arcradbmp, arcradnm, endradtru;
-        private Point ctrpt = new Point ();
-        private Point endpt = new Point ();
-        private Waypoint ctrwp, endwp;
+        private float arcradius, endradtru;
+        private PointF ctrpt = new PointF ();
+        private PointF endpt = new PointF ();
+        private Waypoint endwp;
 
         private final CIFPStep rfstep = new CIFPStep () {
             @Override
@@ -3261,8 +4321,7 @@ public class PlateCIFP {
                 StringBuilder sb = new StringBuilder ();
                 sb.append ("arc ");
                 sb.append (turndir);
-                float stdradbmp = stdcirdradsec * bmpixpersec;
-                String turnrt = Lib.FloatNTZ (stdradbmp / arcradbmp);
+                String turnrt = Lib.FloatNTZ (stdturnradbmp / arcradius);
                 if (!turnrt.equals ("0")) {
                     sb.append (' ');
                     if (!turnrt.equals ("1")) {
@@ -3271,33 +4330,28 @@ public class PlateCIFP {
                     }
                     sb.append ("std");
                 }
-                sb.append ('\u2192');
+                sb.append (DIRTOARR);
                 sb.append (endwp.ident);
                 appendAlt (sb);
                 return sb.toString ();
             }
 
             @Override
-            public void drawStepDots () throws Exception
+            public void drawStepDots ()
             {
                 // calc what radial from centerpoint we are currently on
                 float begradtru = trueCourse (ctrpt.x, ctrpt.y, curposbmx, curposbmy);
 
                 // draw dots along arc
-                switch (turndir) {
-                    case 'L': {
-                        if (begradtru < endradtru) begradtru += 360.0F;
-                        drawStepDotArc (ctrpt.x, ctrpt.y, arcradbmp, endradtru - 90.0F, begradtru - endradtru);
-                        curposhdg = endradtru - 90.0F;
-                        break;
-                    }
-                    case 'R': {
-                        if (begradtru > endradtru) begradtru -= 360.0F;
-                        drawStepDotArc (ctrpt.x, ctrpt.y, arcradbmp, begradtru - 90.0F, endradtru - begradtru);
-                        curposhdg = endradtru + 90.0F;
-                        break;
-                    }
-                    default: throw new Exception ("bad turn dir " + turndir);
+                if (turndir == 'L') {
+                    if (begradtru < endradtru) begradtru += 360.0F;
+                    drawStepDotArc (ctrpt.x, ctrpt.y, arcradius, endradtru - 90.0F, begradtru - endradtru, true);
+                    curposhdg = endradtru - 90.0F;
+                }
+                if (turndir == 'R') {
+                    if (begradtru > endradtru) begradtru -= 360.0F;
+                    drawStepDotArc (ctrpt.x, ctrpt.y, arcradius, begradtru - 90.0F, endradtru - begradtru, true);
+                    curposhdg = endradtru + 90.0F;
                 }
 
                 // return ending alt,hdg,lat,lon
@@ -3315,61 +4369,36 @@ public class PlateCIFP {
                 // also, this arc probably isn't standard rate, so don't overwrite as a fillet
             }
 
-            // have VirtNav dial show pilot what heading they should be on now
-            // ...assuming they are right on the arc
+            // update nav dial with current state
             @Override
-            public float getVNOBSTrue ()
+            public void getVNTracking (NavDialView navDial)
             {
-                float tc_from_ctr_to_acrft = Lib.LatLonTC (ctrwp.lat, ctrwp.lon,
-                        wairToNow.currentGPSLat, wairToNow.currentGPSLon);
-                return (turndir == 'L') ?
-                        tc_from_ctr_to_acrft - 90.0F :
-                        tc_from_ctr_to_acrft + 90.0F;
-            }
+                // never a glideslope on the arc
+                navDial.setMode (NavDialView.Mode.LOC);
 
-            // make up a lat/lon so that VirtNav needle and DME works out
-            @Override
-            public String getVNWaypoint (LatLon ll)
-            {
-                // get true course from center of arc to where aircraft currently is
-                float tc_from_ctr_to_acrft = Lib.LatLonTC (ctrwp.lat, ctrwp.lon,
-                        wairToNow.currentGPSLat, wairToNow.currentGPSLon);
+                // get distance from aircraft to end point for the DME
+                float enddist = Mathf.hypot (endpt.x - acraftbmx, endpt.y - acraftbmy);
+                navDial.setDistance (enddist / bmpixpernm, endwp.ident, false);
 
-                // find out where on arc that line intersects
-                float arc_lat = Lib.LatHdgDist2Lat (ctrwp.lat, tc_from_ctr_to_acrft, arcradnm);
-                float arc_lon = Lib.LatLonHdgDist2Lon (ctrwp.lat, ctrwp.lon, tc_from_ctr_to_acrft, arcradnm);
-
-                // find out how far the aircraft has to go to get to the desired end point
-                float dist_to_go = Lib.LatLonDist (endwp.lat, endwp.lon,
-                        wairToNow.currentGPSLat, wairToNow.currentGPSLon);
-
-                // get where the nose would be pointed ideally if aircraft was on the arc
-                float ideal_tc_ahead = (turndir == 'L') ?
-                        tc_from_ctr_to_acrft - 90.0F :
-                        tc_from_ctr_to_acrft + 90.0F;
-
-                // make up a lat,lon ahead by the corresponding distance so that
-                // needle will deflect to indicate where arc is and DME will show
-                // how far airplane actually is from the end point
-                ll.lat = Lib.LatHdgDist2Lat (arc_lat, ideal_tc_ahead, dist_to_go);
-                ll.lon = Lib.LatLonHdgDist2Lon (arc_lat, arc_lon, ideal_tc_ahead, dist_to_go);
-
-                // return name of end point in DME window
-                return endwp.ident;
+                // set obs and deflection depending on where we are along the arc
+                navDial.obsSetting = arcObsSetting (ctrpt.x, ctrpt.y, turndir);
+                navDial.setDeflect (arcDeflection (ctrpt.x, ctrpt.y, arcradius, turndir));
             }
         };
 
         public void init1 () throws Exception
         {
-            ctrwp   = findWaypoint (parms.get ("cp"), ctrpt);
+            findWaypoint (parms.get ("cp"), ctrpt);
             endwp   = findWaypoint (parms.get ("ep"), endpt);
             turndir = parms.get ("td").charAt (0);
+            if ((turndir != 'L') && (turndir != 'R')) {
+                throw new IllegalArgumentException ("bad turn direction " + turndir);
+            }
 
             // calc what radial from centerpoint we will end up on
             // and the corresponding distance
             endradtru = trueCourse (ctrpt.x, ctrpt.y, endpt.x, endpt.y);
-            arcradbmp = Mathf.hypot (ctrpt.x - endpt.x, ctrpt.y - endpt.y);
-            arcradnm  = Lib.LatLonDist (ctrwp.lat, ctrwp.lon, endwp.lat, endwp.lon);
+            arcradius = Mathf.hypot (ctrpt.x - endpt.x, ctrpt.y - endpt.y);
         }
 
         public void init2 ()
@@ -3385,7 +4414,7 @@ public class PlateCIFP {
      * Look for waypoint in database.
      * Throw exception if not found.
      */
-    private Waypoint findWaypoint (String wayptid, Point bmxy) throws Exception
+    private Waypoint findWaypoint (String wayptid, PointF bmxy) throws Exception
     {
         Waypoint waypt = plateView.FindWaypoint (wayptid);
         if (waypt == null) throw new Exception ("waypoint <" + wayptid + "> not found");
@@ -3403,9 +4432,9 @@ public class PlateCIFP {
      *   curposbmx,y = updated to endbmx,endbmy
      *   curposhdg = true course from starting point to end point
      */
-    private void drawStepCourseToPoint (int endbmx, int endbmy)
+    private void drawStepCourseToPoint (float endbmx, float endbmy)
     {
-        drawStepDotLine (curposbmx, curposbmy, endbmx, endbmy);
+        drawStepDotLine (curposbmx, curposbmy, endbmx, endbmy, true);
         curposhdg = trueCourse (curposbmx, curposbmy, endbmx, endbmy);
         curposbmx = endbmx;
         curposbmy = endbmy;
@@ -3420,9 +4449,7 @@ public class PlateCIFP {
      *   curposbmx,y = starting point
      *   curposhdg = current heading
      */
-    private PointF dsctidpp = new PointF ();
-    private PointF dsctidpm = new PointF ();
-    private void drawStepCourseToInterceptDist (Point navpt, float radius)
+    private void drawStepCourseToInterceptDist (PointF navpt, float radius)
     {
         // find possibly two points along course line
         float farendbmx = curposbmx + Mathf.sindeg (curposhdg) * 1024.0F;
@@ -3435,23 +4462,23 @@ public class PlateCIFP {
         // pick the one that is closest ahead
         float start_to_pp = trueCourse (curposbmx, curposbmy, dsctidpp.x, dsctidpp.y);
         float start_to_pm = trueCourse (curposbmx, curposbmy, dsctidpm.x, dsctidpm.y);
-        int aheadx = 0;
-        int aheady = 0;
+        float aheadx = Float.NaN;
+        float aheady = Float.NaN;
         float bestdist = Float.MAX_VALUE;
         if ((angleDiffU (start_to_pp - curposhdg) < 90.0F) && (bestdist > start_to_pp)) {
             bestdist = start_to_pp;
-            aheadx   = Math.round (dsctidpp.x);
-            aheady   = Math.round (dsctidpp.y);
+            aheadx   = dsctidpp.x;
+            aheady   = dsctidpp.y;
         }
         if ((angleDiffU (start_to_pm - curposhdg) < 90.0F) && (bestdist > start_to_pm)) {
             bestdist = start_to_pm;
-            aheadx   = Math.round (dsctidpm.x);
-            aheady   = Math.round (dsctidpm.y);
+            aheadx   = dsctidpm.x;
+            aheady   = dsctidpm.y;
         }
         if (bestdist == Float.MAX_VALUE) throw new IllegalArgumentException ();
 
         // draw step dots to the closest one ahead
-        drawStepDotLine (curposbmx, curposbmy, aheadx, aheady);
+        drawStepDotLine (curposbmx, curposbmy, aheadx, aheady, true);
         curposbmx = aheadx;
         curposbmy = aheady;
     }
@@ -3460,77 +4487,86 @@ public class PlateCIFP {
      * Draw step dots from current position and heading until intercepts
      * the given radial from the navaid waypoint.
      *  Input:
+     *   icepthdg = flying this heading to intercept the radial
      *   navpt = navaid the radial is from
      *   radial = radial from that navaid to intercept (true degrees)
      *   curposbmx,y = current position
-     *   curboxhdg = current heading
+     *   curposhdg = current heading
      *  Output:
      *   dots drawn
      *   curposbmx,y = updated to intersection point
      */
-    private void drawStepCourseToInterceptRadial (Point navpt, float radial)
+    private void drawStepCourseToInterceptRadial (float icepthdg, PointF navpt, float radial)
     {
         // compute some point way ahead of us
-        float aheadbmx = curposbmx + Mathf.sindeg (curposhdg) * 1024.0F;
-        float aheadbmy = curposbmy - Mathf.cosdeg (curposhdg) * 1024.0F;
+        float aheadbmx = curposbmx + Mathf.sindeg (icepthdg) * 1024.0F;
+        float aheadbmy = curposbmy - Mathf.cosdeg (icepthdg) * 1024.0F;
 
         // compute some point way out on radial from navaid
         float nextbmx  = navpt.x + Mathf.sindeg (radial) * 1024.0F;
         float nextbmy  = navpt.y - Mathf.cosdeg (radial) * 1024.0F;
 
         // find where the two lines intersect
-        float interx = Lib.lineIntersectX (curposbmx, curposbmy, aheadbmx, aheadbmy,
+        float iceptx = Lib.lineIntersectX (curposbmx, curposbmy, aheadbmx, aheadbmy,
                 navpt.x, navpt.y, nextbmx, nextbmy);
-        float intery = Lib.lineIntersectY (curposbmx, curposbmy, aheadbmx, aheadbmy,
+        float icepty = Lib.lineIntersectY (curposbmx, curposbmy, aheadbmx, aheadbmy,
                 navpt.x, navpt.y, nextbmx, nextbmy);
 
+        // if the intercept is behind aircraft after it turns on intercept course,
+        // re-calculate intercept by flying straight ahead instead of turning on intercept.
+        // eg, KDAW VOR-A intercepting course to CON on missed approach
+        //   ;CA,mc=3564,a=+722           curposhdg=356.4-aptmagvar
+        //   ;CI,mc=2700                  icepthdg=270.0-aptmagvar << trying to draw westbound line
+        //   ;CF,wp=CON,mc=2750,a=+3500   radial=275.0-aptmagvar
+        // iceptx,y ends up east of curposbmx,y instead of west cuz the CA line doesn't
+        // go far enough, so just stay on CA's heading to intercept the CF line
+        if (icepthdg != curposhdg) {
+            float hdg_cur_to_icept = trueCourse (curposbmx, curposbmy, iceptx, icepty);
+            if (angleDiffU (hdg_cur_to_icept - icepthdg) >= 90.0F) {
+                drawStepCourseToInterceptRadial (curposhdg, navpt, radial);
+                return;
+            }
+        }
+
         // draw dots to that intersection and set new end point
-        drawStepCourseToPoint (Math.round (interx), Math.round (intery));
+        drawStepCourseToPoint (iceptx, icepty);
     }
 
     /**
      * Draw a U-turn at standard rate starting at current position and heading.
+     * @return proximity of aircraft to the arc
      */
-    private void drawStepUTurn (char td)
+    private float drawStepUTurn (char td)
     {
-        // get turn radius
-        float radiusbmp = stdcirdradsec * bmpixpersec;
+        float hdgtoctr = Float.NaN;
+        if (td == 'L') hdgtoctr = curposhdg - 90.0F;
+        if (td == 'R') hdgtoctr = curposhdg + 90.0F;
 
-        // draw dots around the arc
-        float hdgtoctr;
-        switch (td) {
-            case 'L': {
-                hdgtoctr = curposhdg - 90.0F;
-                break;
-            }
-            case 'R': {
-                hdgtoctr = curposhdg + 90.0F;
-                break;
-            }
-            default: throw new IllegalArgumentException ("td");
-        }
+        float ctrbmx = curposbmx + Mathf.sindeg (hdgtoctr) * stdturnradbmp;
+        float ctrbmy = curposbmy - Mathf.cosdeg (hdgtoctr) * stdturnradbmp;
+        float dist = drawStepDotArc (ctrbmx, ctrbmy, stdturnradbmp, curposhdg + 180.0F, 180.0F, true);
 
-        float ctrbmx = curposbmx + Mathf.sindeg (hdgtoctr) * radiusbmp;
-        float ctrbmy = curposbmy - Mathf.cosdeg (hdgtoctr) * radiusbmp;
-        drawStepDotArc (ctrbmx, ctrbmy, radiusbmp, curposhdg + 180.0F, 180.0F);
-
-        curposbmx  = Math.round (ctrbmx * 2.0F) - curposbmx;
-        curposbmy  = Math.round (ctrbmy * 2.0F) - curposbmy;
+        curposbmx  = ctrbmx * 2.0F - curposbmx;
+        curposbmy  = ctrbmy * 2.0F - curposbmy;
         curposhdg += 180.0F;
         if (curposhdg >= 360.0F) curposhdg -= 360.0F;
+
+        return dist;
     }
 
     /**
      * Draw a straight-ahead path for one minute starting at current position.
+     * @return proximity of aircraft to the line
      */
-    private void drawStepOneMinLine ()
+    private float drawStepOneMinLine ()
     {
-        float dist = HOLDLEGSEC * bmpixpersec;
-        int endbmx = curposbmx + Math.round (Mathf.sindeg (curposhdg) * dist);
-        int endbmy = curposbmy - Math.round (Mathf.cosdeg (curposhdg) * dist);
-        drawStepDotLine (curposbmx, curposbmy, endbmx, endbmy);
-        curposbmx  = endbmx;
-        curposbmy  = endbmy;
+        float dist   = HOLDLEGSEC * bmpixpersec;
+        float endbmx = curposbmx + Mathf.sindeg (curposhdg) * dist;
+        float endbmy = curposbmy - Mathf.cosdeg (curposhdg) * dist;
+        dist = drawStepDotLine (curposbmx, curposbmy, endbmx, endbmy, true);
+        curposbmx    = endbmx;
+        curposbmy    = endbmy;
+        return dist;
     }
 
     /**
@@ -3539,9 +4575,14 @@ public class PlateCIFP {
      * @param sy = start bitmap y
      * @param ex = end bitmap x
      * @param ey = end bitmap y
+     * @param sens = sense aircraft proximity to line segment, update smallestAcraftDist
      */
-    private void drawStepDotLine (int sx, int sy, int ex, int ey)
+    private float drawStepDotLine (float sx, float sy, float ex, float ey, boolean sens)
     {
+        if (Float.isNaN (sx) || Float.isNaN (sy) || Float.isNaN (ex) || Float.isNaN (ey)) {
+            throw new IllegalArgumentException ("isNaN");
+        }
+
         // draw dots
         int i = drawStepDotIndex (4);
         cifpDotBitmapXYs[i++] = ey;
@@ -3550,8 +4591,9 @@ public class PlateCIFP {
         cifpDotBitmapXYs[i]   = sx;
 
         // see how close aircraft is to the line and save if closest in step so far
-        int dist = Math.round (Lib.distToLineSeg (acraftbmx, acraftbmy, sx, sy, ex, ey));
-        if (smallestAcraftDist > dist) smallestAcraftDist = dist;
+        float dist = Lib.distToLineSeg (acraftbmx, acraftbmy, sx, sy, ex, ey);
+        if (sens && (smallestAcraftDist > dist)) smallestAcraftDist = dist;
+        return dist;
     }
 
     /**
@@ -3561,10 +4603,16 @@ public class PlateCIFP {
      * @param radius = arc radius (bitmap pixels)
      * @param start = start radial (degrees clockwise from due EAST)
      * @param sweep = length of arc (degrees clockwise from start)
+     * @param sens = sense aircraft proximity to arc, update smallestAcraftDist
      */
-    private void drawStepDotArc (float cbmx, float cbmy, float radius,
-                                 float start, float sweep)
+    private float drawStepDotArc (float cbmx, float cbmy, float radius,
+                                  float start, float sweep, boolean sens)
     {
+        if (Float.isNaN (cbmx) || Float.isNaN (cbmy) || Float.isNaN (radius) ||
+                Float.isNaN (start) || Float.isNaN (sweep)) {
+            throw new IllegalArgumentException ("isNaN");
+        }
+
         // draw dots
         int i = drawStepDotIndex (6);
         cifpDotBitmapXYs[i++] = sweep;
@@ -3576,8 +4624,9 @@ public class PlateCIFP {
 
         // see if aircraft is close to the fillet arc
         // this keeps the arc's step current while flying it
-        int dist = Math.round (Lib.distOfPtFromArc (cbmx, cbmy, radius, start, sweep, acraftbmx, acraftbmy));
-        if (smallestAcraftDist > dist) smallestAcraftDist = dist;
+        float dist = Lib.distOfPtFromArc (cbmx, cbmy, radius, start, sweep, acraftbmx, acraftbmy);
+        if (sens && (smallestAcraftDist > dist)) smallestAcraftDist = dist;
+        return dist;
     }
 
     /**
@@ -3598,41 +4647,6 @@ public class PlateCIFP {
         // return index where the stuff goes
         cifpDotIndex = i + n;
         return i;
-    }
-
-    /**
-     * Draw fillet arc as part of the current step,
-     * although it was computed by the next-to-current step
-     */
-    private void drawFilletArc (float cbmx, float cbmy, float radius,
-                                float start, float sweep, boolean left)
-    {
-        filletCenterX = cbmx;
-        filletCenterY = cbmy;
-        filletRadius  = radius;
-        filletStart   = start;
-        filletSweep   = sweep;
-
-        // see if aircraft is close to the fillet arc
-        // this keeps the arc's step current while flying it
-        int dist = Math.round (Lib.distOfPtFromArc (cbmx, cbmy, radius, start, sweep, acraftbmx, acraftbmy));
-        CIFPStep step = cifpSteps[currentStep];
-        if (step.acrftdist > dist) step.acrftdist = dist;
-
-        // save start and end point information
-        if (left) {
-            step.filetdir = "L\u21B6";  // left curly arrow
-            step.filetbmx = Math.round (cbmx + Mathf.cosdeg (start + sweep) * radius);
-            step.filetbmy = Math.round (cbmy + Mathf.sindeg (start + sweep) * radius);
-            step.filetitc = start + sweep;
-            step.filetftc = start;
-        } else {
-            step.filetdir = "R\u21B7";  // right curly arrow
-            step.filetbmx = Math.round (cbmx + Mathf.cosdeg (start) * radius);
-            step.filetbmy = Math.round (cbmy + Mathf.sindeg (start) * radius);
-            step.filetitc = start + 180.0F;
-            step.filetftc = start + 180.0F + sweep;
-        }
     }
 
     /**

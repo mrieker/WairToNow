@@ -35,20 +35,21 @@
     <BODY>
         <?php
             if (!empty ($_GET['faaid'])) {
-                $exetime = filemtime ("../decosects/ReadArptDgmPng.exe");
+                $mydir   = __DIR__;
+                $exetime = filemtime ("$mydir/../decosects/ReadArptDgmPng.exe");
                 $icaoid  = getIcaoId ($_GET['faaid']);
                 echo "<H3> Marked up $icaoid Airport Diagram </H3>\n";
                 @flush (); @ob_flush (); @flush ();
                 $cleanname = $_GET['gifname'];
                 $cleanname = str_replace ("gif_150", "pngtemp", $cleanname);
                 $cleanname = str_replace (".gif",    ".png.p1", $cleanname);
-                $cleanname = "datums/aptplates_$cycles28/$cleanname";
+                $cleanname = "$mydir/datums/aptplates_$cycles28/$cleanname";
                 $cleantime = filemtime ($cleanname);
-                $markdname = "../webpages/apdreview/$icaoid.markd.png";
+                $markdname = "$mydir/apdreview/$icaoid.markd.png";
                 $markdtime = 0 + @filemtime ($markdname);
                 if (($markdtime < $cleantime) || ($markdtime < $exetime)) {
-                    $csvname = "../webpages/apdreview/$icaoid.csv";
-                    $cvtfile = popen ("cd ../decosects ; mono --debug ReadArptDgmPng.exe $cleanname -markedpng $markdname -csvoutfile $csvname -csvoutid $icaoid 2>&1", "r");
+                    $csvname = "$mydir/apdreview/$icaoid.csv";
+                    $cvtfile = popen ("cd ../decosects ; umask 0002 ; mono --debug ReadArptDgmPng.exe $cleanname -markedpng $markdname -csvoutfile $csvname -csvoutid $icaoid 2>&1", "r");
                     if (!$cvtfile) {
                         echo "<P>error starting ReadArptDgmPng.exe</P>\n";
                     } else {

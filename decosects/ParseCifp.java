@@ -153,7 +153,7 @@ public class ParseCifp {
         public String icaoid;  // eg 'KBVY'
         public TreeMap<String,Approach> approaches = new TreeMap<> ();
 
-        private HashMap<String,Waypts.DBFix> localfixes = new HashMap<> ();
+        private HashMap<String,Waypts.DBFix> localfixes;
 
         public Airport (String icaoid)
         {
@@ -164,27 +164,7 @@ public class ParseCifp {
             // - its runways (RWnnl)
             // - nearby navaids, fixes etc
             Waypts.Airport wpapt = Waypts.allIcaoApts.get (icaoid);
-            localfixes.put (wpapt.name, wpapt);
-            for (Waypts.Runway rwy : wpapt.runways.values ()) {
-                localfixes.put (rwy.name, rwy);
-            }
-
-            for (Waypts.DBFix dbfix : Waypts.allDBFixes) {
-
-                // points must be within 200nm of the airport
-                // and if duplicate, must be closer of the two
-                double oldist = 200.0;
-                Waypts.DBFix oldbfix = localfixes.get (dbfix.name);
-                if (oldbfix != null) {
-                    oldist = Lib.LatLonDist (wpapt.lat, wpapt.lon, oldbfix.lat, oldbfix.lon);
-                }
-
-                // add point if it meets those criteria
-                double dist = Lib.LatLonDist (wpapt.lat, wpapt.lon, dbfix.lat, dbfix.lon);
-                if (dist < oldist) {
-                    localfixes.put (dbfix.name, dbfix);
-                }
-            }
+            localfixes = wpapt.getNearbyDBFixes (200.0);
         }
 
         // add local waypoints to list of waypoints valid for this airport
@@ -276,7 +256,7 @@ public class ParseCifp {
             if ((dbfix == null) && (name.length () == 4) && (name.charAt (0) == 'I')) {
                 dbfix = localfixes.get ("I-" + name.substring (1));
             }
-            if (dbfix == null) throw new BadWayptException (name);
+            if (dbfix == null) throw new BadWayptException (name, this);
 
             // we might have a local fix that didn't have any reference waypoint
             // so try to use the approach's runway waypoint if defined, and use
@@ -751,6 +731,16 @@ public class ParseCifp {
                         line = line.substring (0, 43) + 'L' + line.substring (44);
                     }
 
+                    if (icaoid.equals ("KFPK") && appid.equals ("R20")) {
+                        appid = "R21";
+                        line = line.substring (0, 13) + "R21" + line.substring (16).replace ("RW20 ", "RW21 ");
+                    }
+
+                    if (icaoid.equals ("KGRK")) {
+                        if (line.contains ("MAGCS")) continue;
+                        if (line.contains ("ZOVON")) continue;
+                    }
+
                     if (icaoid.equals ("S59") && appid.equals ("GPSA")) appid = "GPS-A";
 
                     // catalog the leg
@@ -961,9 +951,9 @@ public class ParseCifp {
     public static class BadWayptException extends RuntimeException {
         public String wp;
 
-        public BadWayptException (String wp)
+        public BadWayptException (String wp, Airport apt)
         {
-            super ("bad wp " + wp);
+            super ("bad wp " + wp + ", airport " + apt.icaoid);
             this.wp = wp;
         }
     }

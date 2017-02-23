@@ -375,8 +375,10 @@
                 fclose ($csvfile);
                 if (!$pdfname) die ("approach not found");
 
+                $oldmask = umask (0022);
                 @mkdir ("$tmpdir/$state");
                 @mkdir ("$tmpdir/$state/$faaid");
+                umask ($oldmask);
                 $tmpnam = "$tmpdir/$state/$faaid/" . fixid ($iapid);
 
                 if (!file_exists ("$tmpnam.log") ||
@@ -386,7 +388,7 @@
                     @unlink ("$tmpnam.log");
                     @unlink ("$tmpnam.png");
                     $cpaths = "../decosects/DecodePlate.jar:../decosects/pdfbox-1.8.10.jar:../decosects/commons-logging-1.2.jar";
-                    $dpcmnd = "java DecodePlate -cycles28 $cycles28 -cycles56 $cycles56 $faaid $iapid_esa -markedpng $tmpnam.png -verbose";
+                    $dpcmnd = "java DecodePlate -basedir " . __DIR__ . " -cycles28 $cycles28 -cycles56 $cycles56 $faaid $iapid_esa -markedpng $tmpnam.png -verbose";
                     $dpfile = popen ("CLASSPATH=$cpaths $dpcmnd 2>&1", "r");
                     if (!$dpfile) die ("error starting DecodePlate");
 
@@ -396,6 +398,9 @@
                     }
                     pclose ($dpfile);
                     file_put_contents ("$tmpnam.log", $dplog);
+
+                    @chmod ("$tmpnam.log", 0644);
+                    @chmod ("$tmpnam.png", 0644);
                 } else {
                     $dplog = file_get_contents ("$tmpnam.log");
                 }

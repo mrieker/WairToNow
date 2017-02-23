@@ -52,7 +52,7 @@ public class NavDialView extends View {
     private final static float DIALRATIO  =  5;  // number of times drag finger to drag obs once
     public  final static float VORDEFLECT = 10;  // degrees each side for VOR mode deflection
     public  final static float LOCDEFLECT =  3;  // degrees each side for ILS/LOC mode deflection
-    private final static float GSDEFLECT  =  1;  // degrees each side for GS deflection
+    public  final static float GSDEFLECT  =  1;  // degrees each side for GS deflection
 
     private boolean dmeSlant;
     public  boolean hsiEnable;
@@ -228,6 +228,8 @@ public class NavDialView extends View {
      * @param d = VOR: deflection degrees
      *            ADF: relative bearing degrees
      *            LOC: deflection degrees
+     *    < 0: deflect needle to left of center
+     *    > 0: deflect needle to right of center
      */
     public void setDeflect (float d)
     {

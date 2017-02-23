@@ -144,6 +144,44 @@ public class Waypts {
             rwy.endlon = endlon;
             runways.put (number, rwy);
         }
+
+        /**
+         * Get list of DBFixes near the airport.
+         */
+        public HashMap<String,DBFix> getNearbyDBFixes (double maxnm)
+        {
+            HashMap<String,DBFix> localfixes = new HashMap<> ();
+
+            // make list of waypoints near the airport
+            // - the airport itself (by icaoid)
+            // - its runways (RWnnl)
+            // - nearby navaids, fixes etc
+            localfixes.put (name, this);
+            for (Runway rwy : runways.values ()) {
+                localfixes.put (rwy.name, rwy);
+            }
+
+            for (DBFix dbfix : allDBFixes) {
+
+                // points must be within maxnm of the airport
+                // and if duplicate, must be closer of the two
+                double oldist = maxnm;
+                DBFix oldbfix = localfixes.get (dbfix.name);
+                if (oldbfix != null) {
+                    oldist = Lib.LatLonDist ((float)lat, (float)lon,
+                            (float)oldbfix.lat, (float)oldbfix.lon);
+                }
+
+                // add point if it meets those criteria
+                double dist = Lib.LatLonDist ((float)lat, (float)lon,
+                        (float)dbfix.lat, (float)dbfix.lon);
+                if (dist < oldist) {
+                    localfixes.put (dbfix.name, dbfix);
+                }
+            }
+
+            return localfixes;
+        }
     }
 
     /**

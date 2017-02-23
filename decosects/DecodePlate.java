@@ -26,6 +26,7 @@
  *  javac -Xlint:deprecation DecodePlate.java Lib.java
  *
  *  exec java DecodePlate [ BVY 'IAP-RNAV (GPS) RWY 27' ]
+ *      [ -basedir <thatwhichcontainsdatums> ]
  *      [ -cycles28 expdate_yyyymmdd ]
  *      [ -cycles56 expdate_yyyymmdd ]
  *      [ -csvout bvygps27.csv ]
@@ -199,6 +200,10 @@ public class DecodePlate {
             for (int i = 0; i < args.length;) {
                 String arg = args[i++];
                 if (arg.startsWith ("-")) {
+                    if (arg.equals ("-basedir") && (i < args.length)) {
+                        basedir = args[i++];
+                        continue;
+                    }
                     if (arg.equals ("-csvout") && (i < args.length)) {
                         csvoutname = args[i++];
                         continue;

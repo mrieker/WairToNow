@@ -21,7 +21,6 @@
 package com.outerworldapps.wairtonow;
 
 import android.annotation.SuppressLint;
-import android.app.AlertDialog;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
@@ -47,22 +46,14 @@ import android.widget.TextView;
 public class VirtNavView extends LinearLayout
         implements NavDialView.DMEClickedListener, NavDialView.OBSChangedListener, WairToNow.CanBeMainView {
 
-    // how far beyond runway numbers the CIFP virtual ILS antennae are
-    private final static float CIFPVANTDISTNM = 1.0F;
-
     private boolean oldLandscape;
     private boolean open;
     private boolean orientLocked;
     private Button modeButton;
     private Button orientButton;
     private CheckBox hsiCheckBox;
-    private float cifpVAntElev, cifpVAntLat, cifpVAntLon;
-    private float cifpFinalDist;   // distance from FAF to runway numbers
-    private float cifpFinalTC;     // true course from FAF to runway numbers
-    private float cifpRwyGSTilt;   // tilt of glideslope (degrees)
     private float locObsSetting;   // for ILS/LOC waypoint, corresponding OBS setting
     private float wpmagvar;
-    private LatLon wpll = new LatLon ();
     private NavDialView navDial;
     private PlateCIFP selectedPlateCIFP;  // non-null: CIFP tracking mode
     private PlateView selectedPlateView;  // plate to display in right-hand half of landscape mode
@@ -70,8 +61,6 @@ public class VirtNavView extends LinearLayout
     private TextView wpIdent;
     private TextView wpStatus;
     private WairToNow wairToNow;
-    private Waypoint cifpFafWaypt;  // right at faf
-    private Waypoint cifpRwyWaypt;  // runway numbers
     private Waypoint dmeWaypoint;   // what waypoint to display in DME window
     private Waypoint waypoint;      // what waypoint we are navigating to
 
@@ -241,49 +230,20 @@ public class VirtNavView extends LinearLayout
             // if CIFP selected, track the CIFP route
             if (plateCIFP.cifpSelected != null) {
 
-                // get final approach parameters
-                cifpFafWaypt  = plateCIFP.getFafWaypt ();
-                cifpRwyWaypt  = plateCIFP.getRwyWaypt  ();
-                float fafgsel = plateCIFP.getFafGSElev ();
-                float rwygsel = plateCIFP.getRwyGSElev ();
+                // ok, put us in CIFP tracking mode
+                selectedPlateCIFP = plateCIFP;
 
-                // see if we were able to get all that
-                String err = "";
-                if (cifpFafWaypt == null) err += "\nno FAF found";
-                else if (Float.isNaN (fafgsel)) err += "\nFAF glideslope unknown";
-                if (cifpRwyWaypt == null) err += "\nno runway waypoint found";
-                else if (Float.isNaN (rwygsel)) err += "\nrunway glideslope unknown";
-                if (!err.equals ("")) {
-                    errorMessage ("Error selecting CIFP", err.substring (1));
-                } else {
+                // set waypoint title string
+                wpIdent.setText ("CIFP: " + plateCIFP.getApproachName ());
 
-                    // ok, put us in CIFP tracking mode
-                    selectedPlateCIFP = plateCIFP;
+                // get magnetic variation in the neighborhood
+                Waypoint.Airport apt = (Waypoint.Airport) wp;
+                wpmagvar = Lib.MagVariation (apt.lat, apt.lon, apt.elev);
 
-                    // set waypoint title string
-                    wpIdent.setText ("CIFP: " + plateCIFP.getApproachName ());
-
-                    // get magnetic variation in the neighborhood
-                    Waypoint.Airport apt = (Waypoint.Airport) wp;
-                    wpmagvar = Lib.MagVariation (apt.lat, apt.lon, apt.elev);
-
-                    // calculate some more final approach parameters
-                    cifpFinalDist = Lib.LatLonDist (cifpFafWaypt.lat, cifpFafWaypt.lon,
-                            cifpRwyWaypt.lat, cifpRwyWaypt.lon);
-                    cifpFinalTC   = Lib.LatLonTC (cifpFafWaypt.lat, cifpFafWaypt.lon,
-                            cifpRwyWaypt.lat, cifpRwyWaypt.lon);
-                    cifpRwyGSTilt = Mathf.toDegrees (Mathf.atan2 (fafgsel - rwygsel,
-                            cifpFinalDist * Lib.MPerNM * Lib.FtPerM));
-
-                    // locate our virtual ILS antennae CIFPVANTDISTNM beyond the runway numbers
-                    cifpVAntLat  = Lib.LatHdgDist2Lat (cifpRwyWaypt.lat, cifpFinalTC, CIFPVANTDISTNM);
-                    cifpVAntLon  = Lib.LatLonHdgDist2Lon (cifpRwyWaypt.lat, cifpRwyWaypt.lon, cifpFinalTC, CIFPVANTDISTNM);
-                    cifpVAntElev = rwygsel - (fafgsel - rwygsel) / cifpFinalDist * CIFPVANTDISTNM;
-
-                    // set dial initial values
-                    setNavDialMode (NavDialView.Mode.LOC);
-                    return;
-                }
+                // set dial initial values
+                navDial.setMode (NavDialView.Mode.LOC);
+                computeRadial ();
+                return;
             }
 
             // if CIFP knows the reference navaid of the approach, select that navaid
@@ -688,101 +648,21 @@ public class VirtNavView extends LinearLayout
         if ((selectedPlateCIFP != null) && (navDial.getMode () != NavDialView.Mode.OFF)) {
 
             // see where we are at on the course
-            float   obstrue = selectedPlateCIFP.getVirtNavOBSTrue  ();
-            String textline = selectedPlateCIFP.getVirtNavTextLine ();
-            String     wpid = selectedPlateCIFP.getVirtNavWaypoint (wpll);
+            String status = selectedPlateCIFP.getVNTracking (navDial);
 
             // maybe CIFP has been disabled
-            if (Float.isNaN (obstrue) || (textline == null) || (wpid == null)) {
+            if (status == null) {
                 wpStatus.setText ("[OFF]");
+                navDial.setMode (NavDialView.Mode.OFF);
+                hsiCheckBox.setVisibility (GONE);
                 return;
             }
 
             // update status text at top to say what we are doing
-            wpStatus.setText (textline);
-
-            // set obs dial to whatever course they should be flying
-            navDial.obsSetting = obstrue + wpmagvar;
-
-            // get aircraft current position
-            float curlat = wairToNow.currentGPSLat;
-            float curlon = wairToNow.currentGPSLon;
-
-            // see how far off approach centerline we are (in nautical miles)
-            float offcenterline = Math.abs (Lib.GCOffCourseDist (cifpFafWaypt.lat, cifpFafWaypt.lon,
-                    cifpRwyWaypt.lat, cifpRwyWaypt.lon, curlat, curlon));
-
-            // see if runway numbers are ahead of us or behind
-            float coursetorwy = Lib.LatLonTC (curlat, curlon, cifpRwyWaypt.lat, cifpRwyWaypt.lon);
-            float coursediff = Math.abs (coursetorwy - cifpFinalTC);
-            while (coursediff >= 360.0F) coursediff -= 360.0F;
-            if (coursediff >= 180.0F) coursediff = 360.0F - coursediff;
-
-            // see how far off approach heading our heading is (in degrees)
-            float headingdiff = Math.abs (wairToNow.currentGPSHdg - cifpFinalTC);
-            while (headingdiff >= 360.0F) headingdiff -= 360.0F;
-            if (headingdiff >= 180.0F) headingdiff = 360.0F - headingdiff;
-
-            // see how far away from FAF and runway numbers we are
-            float disttofaf = Lib.LatLonDist (curlat, curlon, cifpFafWaypt.lat, cifpFafWaypt.lon);
-            float disttorwy = Lib.LatLonDist (curlat, curlon, cifpRwyWaypt.lat, cifpRwyWaypt.lon);
-
-            // maybe we are in glideslope mode
-            //  * runway numbers must be ahead of us
-            //  * we must be within 2nm of final approach centerline
-            //  * we must be headed within 60deg of final approach course
-            //  * we must be within 3nm of FAF or between FAF and runway
-            // if not, use localizer mode so obs can't be finger rotated
-            if ((coursediff < 90.0F) &&
-                    (offcenterline < 2.0F) &&
-                    (headingdiff < 60.0F) &&
-                    ((disttofaf < 3.0F) || (disttorwy < cifpFinalDist))) {
-
-                // on final approach, put dial in ILS mode
-                navDial.setMode (NavDialView.Mode.ILS);
-
-                // tell pilot what their descent rate should be to stay on glideslope
-                float descrate = Mathf.tan (Mathf.toRadians (cifpRwyGSTilt)) *
-                        wairToNow.currentGPSSpd * Lib.FtPerM * 60.0F;
-                navDial.gsfpm = - Math.round (descrate);
-
-                // set localizer needle deflection
-                float coursetoant = Lib.LatLonTC (curlat, curlon, cifpVAntLat, cifpVAntLon);
-                coursediff = coursetoant - cifpFinalTC;
-                while (coursediff < -180.0F) coursediff += 360.0F;
-                while (coursediff >= 180.0F) coursediff -= 360.0F;
-                navDial.setDeflect (coursediff);
-
-                // set glideslope needle deflection
-                float disttoant       = Lib.LatLonDist (curlat, curlon, cifpVAntLat, cifpVAntLon);
-                float factor          = Mathf.cos (Mathf.toRadians (coursediff));
-                float horizfromant_nm = disttoant * factor;
-                float aboveantenna_ft = wairToNow.currentGPSAlt * Lib.FtPerM - cifpVAntElev;
-                float degaboveantenna = Mathf.toDegrees (Mathf.atan2 (aboveantenna_ft, horizfromant_nm * Lib.MPerNM * Lib.FtPerM));
-                navDial.setSlope (cifpRwyGSTilt - degaboveantenna);
-            } else {
-
-                // not on final approach, put dial in LOC mode
-                navDial.setMode (NavDialView.Mode.LOC);
-
-                // set localizer needle deflection
-                // but modify it to VOR sensitivity
-                float actualcourse = Lib.LatLonTC (wairToNow.currentGPSLat, wairToNow.currentGPSLon,
-                        wpll.lat, wpll.lon);
-                float deflect = actualcourse - obstrue;
-                while (deflect < -180.0F) deflect += 360.0F;
-                while (deflect >= 180.0F) deflect -= 360.0F;
-                deflect *= NavDialView.LOCDEFLECT / NavDialView.VORDEFLECT;
-                // -: deflect to left; +: deflect to right
-                navDial.setDeflect (deflect);
-            }
+            wpStatus.setText (status);
 
             // hide or show the HSI checkbox based on nav dial capability
             hsiCheckBox.setVisibility (navDial.isHSIAble () ? VISIBLE : GONE);
-
-            // set DME distance and identifier
-            float dist = Lib.LatLonDist (wairToNow.currentGPSLat, wairToNow.currentGPSLon, wpll.lat, wpll.lon);
-            navDial.setDistance (dist, wpid, false);
 
             // draw airplane symbol showing where we are currently headed
             currentHeading ();
@@ -928,17 +808,5 @@ public class VirtNavView extends LinearLayout
             }
             navDial.setDistance (dist, dmeWaypoint.ident, slant);
         }
-    }
-
-    /**
-     * Display error message pop-up
-     */
-    private void errorMessage (String title, String message)
-    {
-        AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
-        adb.setTitle (title);
-        adb.setMessage (message);
-        adb.setPositiveButton ("OK", null);
-        adb.show ();
     }
 }

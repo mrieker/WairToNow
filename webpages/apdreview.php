@@ -55,7 +55,9 @@
                         @flush (); @ob_flush (); @flush ();
                     }
                     fclose ($cvtfile);
-                    echo "</PRE><P><IMG SRC=\"apdreview/$icaoid.markd.png\" WIDTH=1075 HEIGHT=1650></P>\n";
+                    $w = 1075 / 2.5;
+                    $h = 1650 / 2.5;
+                    echo "</PRE><P><IMG SRC=\"apdreview/$icaoid.markd.png\" WIDTH=$w HEIGHT=$h></P>\n";
                 }
                 exit;
             }
