@@ -264,7 +264,7 @@ public class DecodePlate2 {
             pages.getAllKids (kids);
             if (kids.size () != 1) throw new Exception ("pdf not a single Page");
             pdPage = (PDPage) kids.get (0);
-            if (verbose) printCOSObject ("", "pdPage", pdPage.getCOSObject ());
+            ////if (verbose) printCOSObject ("", "pdPage", pdPage.getCOSObject ());
 
             // Analyze PDF to locate waypoints depicted thereon.
 

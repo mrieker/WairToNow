@@ -97,10 +97,18 @@
 
         // send names of machine-detected georef info files
         echo "datums/apdgeorefs_$cycles28/$stateid.csv\n";
-        echo "datums/iapgeorefs_$cycles28/$stateid.csv\n";
+
+        // IAP machine-generated georef info
+        if (file_exists ("datums/iapgeorefs_$cycles28/$stateid.csv")) {
+            echo "datums/iapgeorefs_$cycles28/$stateid.csv\n";
+        }
+
+        // faa-provided georef info
         if (file_exists ("datums/iapgeorefs2_$cycles28/$stateid.csv")) {
             echo "datums/iapgeorefs2_$cycles28/$stateid.csv\n";
         }
+
+        // faa-provided CIFP info
         if (file_exists ("datums/iapcifps_$cycles28/$stateid.csv")) {
             echo "datums/iapcifps_$cycles28/$stateid.csv\n";
         }

@@ -29,6 +29,7 @@
  *      [ -basedir <thatwhichcontainsdatums> ]
  *      [ -cycles28 expdate_yyyymmdd ]
  *      [ -cycles56 expdate_yyyymmdd ]
+ *      [ -csv2in datums/iapgeorefs2_20170330/MA.csv ]
  *      [ -csvout bvygps27.csv ]
  *      [ -markedpng bvygps27.png ]
  *      [ -rejects bvygps27.rej ]
@@ -197,11 +198,16 @@ public class DecodePlate {
 
             // Decode command line
 
+            String csv2inname = null;
             for (int i = 0; i < args.length;) {
                 String arg = args[i++];
                 if (arg.startsWith ("-")) {
                     if (arg.equals ("-basedir") && (i < args.length)) {
                         basedir = args[i++];
+                        continue;
+                    }
+                    if (arg.equals ("-csv2in") && (i < args.length)) {
+                        csv2inname = args[i++];
                         continue;
                     }
                     if (arg.equals ("-csvout") && (i < args.length)) {
@@ -376,8 +382,19 @@ public class DecodePlate {
                     rejectsfile = new PrintWriter (new FileOutputStream (rejectsname, true));
                 } catch (FileNotFoundException fnfe) {
                 }
+                if (csv2inname != null) try {
+                    BufferedReader br9 = new BufferedReader (new FileReader (csv2inname), 4096);
+                    while ((line = br9.readLine ()) != null) {
+                        String[] csvs = Lib.QuotedCSVSplit (line);
+                        String key = csvs[0] + ":" + csvs[1];
+                        existingDecodes.put (key, true);
+                    }
+                    br9.close ();
+                } catch (FileNotFoundException fnfe) {
+                }
 
                 // process plates given in stdin that aren't already in the csvoutfile
+                // ...or aren't in csv2in (ie, aren't faa provided)
                 BufferedReader br7 = new BufferedReader (new InputStreamReader (System.in), 4096);
                 while ((line = br7.readLine ()) != null) {
                     String[] csvs = Lib.QuotedCSVSplit (line);

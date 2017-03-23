@@ -33,30 +33,7 @@ function processstate
         # process all approach plates in the state
         ./filteriapplates.sh $statefile > decodeallplates.$stateid.tmp
 
-        rm -f $iapoutdir/$stateid.csv.tmp
-        rm -f $iapoutdir/$stateid.rej.tmp
-        if [ ! -f $iapoutdir/$stateid.csv ]
-        then
-            java DecodePlate -verbose \
-                -csvout $iapoutdir/$stateid.csv.tmp \
-                -cycles28 $cycles28 -cycles56 $cycles56 \
-                -rejects $iapoutdir/$stateid.rej.tmp \
-                    < decodeallplates.$stateid.tmp \
-                    > $iapoutdir/$stateid.log
-            if [ -f $iapoutdir/$stateid.csv.tmp ]
-            then
-                mv -f $iapoutdir/$stateid.csv.tmp $iapoutdir/$stateid.csv
-            else
-                rm -f $iapoutdir/$stateid.csv
-            fi
-            if [ -f $iapoutdir/$stateid.rej.tmp ]
-            then
-                mv -f $iapoutdir/$stateid.rej.tmp $iapoutdir/$stateid.rej
-            else
-                rm -f $iapoutdir/$stateid.rej
-            fi
-        fi
-
+        # process FAA-provided IAP georeferencing data
         rm -f $iap2outdir/$stateid.csv.tmp
         rm -f $iap2outdir/$stateid.rej.tmp
         if [ ! -f $iap2outdir/$stateid.csv ]
@@ -78,6 +55,32 @@ function processstate
                 mv -f $iap2outdir/$stateid.rej.tmp $iap2outdir/$stateid.rej
             else
                 rm -f $iap2outdir/$stateid.rej
+            fi
+        fi
+
+        # generate IAP georeferencing data for those that FAA doesn't do
+        rm -f $iapoutdir/$stateid.csv.tmp
+        rm -f $iapoutdir/$stateid.rej.tmp
+        if [ ! -f $iapoutdir/$stateid.csv ]
+        then
+            java DecodePlate -verbose \
+                -csv2in $iap2outdir/$stateid.csv \
+                -csvout $iapoutdir/$stateid.csv.tmp \
+                -cycles28 $cycles28 -cycles56 $cycles56 \
+                -rejects $iapoutdir/$stateid.rej.tmp \
+                    < decodeallplates.$stateid.tmp \
+                    > $iapoutdir/$stateid.log
+            if [ -f $iapoutdir/$stateid.csv.tmp ]
+            then
+                mv -f $iapoutdir/$stateid.csv.tmp $iapoutdir/$stateid.csv
+            else
+                rm -f $iapoutdir/$stateid.csv
+            fi
+            if [ -f $iapoutdir/$stateid.rej.tmp ]
+            then
+                mv -f $iapoutdir/$stateid.rej.tmp $iapoutdir/$stateid.rej
+            else
+                rm -f $iapoutdir/$stateid.rej
             fi
         fi
     done

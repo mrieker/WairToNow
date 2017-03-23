@@ -87,18 +87,38 @@
             echo "<P>$iapdir</P>";
             echo "<P ID=\"count\"></P>";
 
-            if (isset ($_POST['func']) && ($_POST['func'] == 'reset')) {
+            if (isset ($_REQUEST['func']) && ($_REQUEST['func'] == 'reset')) {
                 unlink ("$datdir/laststate");
                 unlink ("$datdir/lastplate");
                 unlink ("$datdir/lastcheck");
                 unlink ("$datdir/bad.txt");
+
+                // delete any FAA-provided records from machine-generated verified database
+                // ...so the plates don't show up as missing at the end
+                echo "<P>purging FAA-provided records from good list</P>\n";
+                @flush (); @ob_flush (); @flush ();
+                $gooddb = OpenGoodDB ();
+                $states = scandir ($iap2dir);
+                foreach ($states as $state) {
+                    if ((strlen ($state) == 6) && (substr ($state, 2) == ".csv")) {
+                        $iapgeoref2 = fopen ("$iap2dir/$state", "r");
+                        while ($faageo = fgets ($iapgeoref2)) {
+                            // APS:IAP-RNAV (GPS) RWY 17
+                            $parts = QuotedCSVSplit ($faageo);
+                            $icaoid_plate = $parts[0] . ":" . $parts[1];
+                            $gooddb->query ("DELETE FROM LatLons WHERE icaoid_plate='$icaoid_plate'");
+                        }
+                        fclose ($iapgeoref2);
+                    }
+                }
+                echo "<P>FAA-provided records purged</P>\n";
+                @flush (); @ob_flush (); @flush ();
             }
 
-            if (!isset ($_POST['disp'])) {
+            if (!isset ($_REQUEST['disp'])) {
                 $nloops = 0;
                 $toplines = FALSE;
                 $topstuff = 0;
-                $faageorefstate = "";
             openplate:
                 if (++ $nloops > 1000) {
                     endTopStuff ();
@@ -152,18 +172,6 @@ END;
                 // - statecode = two-letter state code
                 // - stateline = first line from state file for plate: icaoid,"plate name",fixid,xcord,ycord
 
-                if ($faageorefstate != $statecode) {
-                    $faageorefstate  = $statecode;
-                    $faageorefplates = array ();
-                    if (file_exists ("$iap2dir/$statecode.csv")) {
-                        $iapgeoref2 = fopen ("$iap2dir/$statecode.csv", "r");
-                        while ($faageo = fgets ($iapgeoref2)) {
-                            $faageorefplates[GetIcaoIDPlate($faageo)] = $faageo;
-                        }
-                        fclose ($iapgeoref2);
-                    }
-                }
-
                 // get plate icaoid and plateid
 
                 $icaoidplate = GetIcaoIDPlate ($stateline);
@@ -215,25 +223,6 @@ END;
                     $stateline = fgets ($statefile);
                 } while ($stateline && (strpos ($stateline, $icaoidplate) === 0));
                 fclose ($statefile);
-
-                // see if there is an FAA-provided georef record
-                // if so, assume its mapping is correct
-
-                if (isset ($faageorefplates[$icaoidplate])) {
-                    topStuffLine ("<B>$statecode $ipx</B> has FAA-provided georefs");
-                    //$parts = QuotedCSVSplit ($faageorefplates[$icaoidplate]);
-                    //$tfw_a = floatval ($parts[ 8]);
-                    //$tfw_b = floatval ($parts[ 9]);
-                    //$tfw_c = floatval ($parts[10]);
-                    //$tfw_d = floatval ($parts[11]);
-                    //$tfw_e = floatval ($parts[12]);
-                    //$tfw_f = floatval ($parts[13]);
-                    $xfmwft = array (0, 0, 0, 0, 0, 0);
-                    MarkImageGood ($icaoid, $plate, $xfmwft);
-                    file_put_contents ("$datdir/lastplate", $nextpos);
-                    set_time_limit (30);
-                    goto openplate;
-                }
 
                 // get mapping from lat/lon to pixel as determined by DecodePlate
 
@@ -377,26 +366,26 @@ END;
                     <PRE>$dplog</PRE>
 END;
             } else {
-                $disp = $_POST['disp'];
-                $pngname = $_POST['pngname'];
+                $disp = $_REQUEST['disp'];
+                $pngname = $_REQUEST['pngname'];
 
                 unlink ("$pngdir/$pngname");
 
                 // user said the image is bad, save DecodePlate command line for the bad plate
                 if ($disp == "bad") {
-                    $dpcmnd = $_POST['dpcmnd'];
+                    $dpcmnd = $_REQUEST['dpcmnd'];
                     file_put_contents ("$datdir/bad.txt", "$dpcmnd\n", FILE_APPEND);
                 }
 
                 // user said the image is good, write lat/lon=>pixel mapping to local database
                 if ($disp == "good") {
                     $newxfmwft = array ();
-                    for ($i = 0; $i < 6; $i ++) $newxfmwft[$i] = $_POST["xfmwft_$i"];
-                    MarkImageGood ($_POST['icaoid'], $_POST['plate'], $newxfmwft);
+                    for ($i = 0; $i < 6; $i ++) $newxfmwft[$i] = $_REQUEST["xfmwft_$i"];
+                    MarkImageGood ($_REQUEST['icaoid'], $_REQUEST['plate'], $newxfmwft);
                 }
 
                 // either way, mark this image completed and show next
-                $nextpos = $_POST['nextpos'];
+                $nextpos = $_REQUEST['nextpos'];
                 file_put_contents ("$datdir/lastplate", $nextpos);
                 echo "<SCRIPT> window.location.assign ('$thisscript') </SCRIPT>";
             }
@@ -474,7 +463,8 @@ END;
 
                 $lastcheck = trim (file_get_contents ("$datdir/lastcheck"));
                 $gooddb = OpenGoodDB ();
-                $missed = $gooddb->query ("SELECT icaoid_plate FROM LatLons WHERE lastcheck < $lastcheck");
+                echo "<P>SELECT icaoid_plate FROM LatLons WHERE lastcheck < $lastcheck ORDER BY icaoid_plate</P>\n";
+                $missed = $gooddb->query ("SELECT icaoid_plate FROM LatLons WHERE lastcheck < $lastcheck ORDER BY icaoid_plate");
                 if (!$missed) die ("<P>good.db SELECT error</P>");
                 $first = TRUE;
                 $lasticaoid = "";
