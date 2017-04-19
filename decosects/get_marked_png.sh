@@ -12,9 +12,8 @@ fi
 
 faaid=$1
 cycles28=`./cureffdate -28 -x yyyymmdd`
-cycles56=`./cureffdate     -x yyyymmdd`
 
-icaoid=`grep ",$faaid," datums/airports_$cycles56.csv`
+icaoid=`grep ",$faaid," datums/airports_$cycles28.csv`
 icaoid=${icaoid%%,*}
 echo icaoid=$icaoid
 

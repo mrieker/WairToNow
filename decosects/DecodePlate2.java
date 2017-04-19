@@ -27,7 +27,6 @@
  *
  *  java DecodePlate2 [ BVY 'IAP-RNAV (GPS) RWY 27' ]
  *      [ -cycles28 expdate_yyyymmdd ]
- *      [ -cycles56 expdate_yyyymmdd ]
  *      [ -csvout bvygps27.csv ]
  *      [ -rejects bvygps27.rej ]
  *      [ -verbose ]
@@ -75,7 +74,6 @@ public class DecodePlate2 {
     private static String basedir;
     private static String csvoutname;
     private static String cycles28expdate;
-    private static String cycles56expdate;
     private static String faaid;
     private static String pdfName;
     private static String plateid;
@@ -97,10 +95,6 @@ public class DecodePlate2 {
                     }
                     if (arg.equals ("-cycles28") && (i < args.length)) {
                         cycles28expdate = args[i++];
-                        continue;
-                    }
-                    if (arg.equals ("-cycles56") && (i < args.length)) {
-                        cycles56expdate = args[i++];
                         continue;
                     }
                     if (arg.equals ("-rejects") && (i < args.length)) {
@@ -130,7 +124,7 @@ public class DecodePlate2 {
             // 2B2,2B2,...
             // KBVY,BVY,...
 
-            BufferedReader br4 = new BufferedReader (new FileReader (basedir + "/datums/airports_" + cycles56expdate + ".csv"), 4096);
+            BufferedReader br4 = new BufferedReader (new FileReader (basedir + "/datums/airports_" + cycles28expdate + ".csv"), 4096);
             String line;
             while ((line = br4.readLine ()) != null) {
                 String[] csvs = Lib.QuotedCSVSplit (line);

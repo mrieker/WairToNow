@@ -26,7 +26,7 @@ function getzip
     if [ ! -f datums/$1_$expdate.zip ]
     then
         rm -f $1.zip
-        wget --no-check-certificate https://nfdc.faa.gov/webContent/56DaySub/$effdate/$1.zip
+        wget --no-check-certificate https://nfdc.faa.gov/webContent/28DaySub/$effdate/$1.zip
         mv -f $1.zip datums/$1_$expdate.zip
     fi
 }
@@ -53,7 +53,7 @@ set -e
 #
 if [ cureffdate -ot cureffdate.c ]
 then
-    cc -Wall -O2 -g -o cureffdate cureffdate.c
+    cc -o cureffdate cureffdate.c
 fi
 
 if [ GetAirportIDs.exe -ot GetAirportIDs.cs ]
@@ -87,9 +87,9 @@ then
 fi
 
 #
-#  See if we already have this 56-day cycle done
+#  See if we already have this 28-day cycle done
 #
-expdate=`./cureffdate -x yyyymmdd`
+expdate=`./cureffdate -28 -x yyyymmdd`
 if [ -f datums/waypoints_$expdate.db.gz ]
 then
     exit
@@ -101,7 +101,7 @@ fi
 rm -rf APT.txt AWY.txt FIX.txt ILS.txt NAV.txt TWR.txt aptinfo.tmp
 mkdir -p datums
 
-effdate=`./cureffdate`
+effdate=`./cureffdate -28`
 getzip APT
 getzip AWY
 getzip FIX

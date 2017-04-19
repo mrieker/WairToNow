@@ -19,6 +19,7 @@
 //
 //    http://www.gnu.org/licenses/gpl-2.0.html
 
+    session_name ("PHPSESSID_WairToNow");
     session_start ();
     require_once 'iaputil.php';
 ?>

@@ -23,6 +23,7 @@
      * Manually review APD georeferencing.
      */
 
+    session_name ("PHPSESSID_WairToNow");
     session_start ();
     require_once 'iaputil.php';
 ?>
@@ -45,7 +46,7 @@
                 $cleanname = $_GET['pngname'];
                 $markdname = "../webpages/apdreview/$icaoid.markd.png";
                 $csvname   = "../webpages/apdreview/$icaoid.csv";
-                $cvtfile = popen ("cd ../decosects ; mono --debug ReadArptDgmPng.exe $cleanname -markedpng $markdname -csvoutfile $csvname -csvoutid $icaoid 2>&1", "r");
+                $cvtfile = popen ("cd ../decosects ; umask 002 ; mono --debug ReadArptDgmPng.exe $cleanname -markedpng $markdname -csvoutfile $csvname -csvoutid $icaoid 2>&1", "r");
                 if (!$cvtfile) {
                     echo "<P>error starting ReadArptDgmPng.exe</P>\n";
                 } else {

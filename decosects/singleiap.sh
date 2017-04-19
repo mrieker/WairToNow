@@ -8,7 +8,7 @@
 #  to re-scan and validate these plates
 #
 #  Input:
-#    datums/airports_$cycles56.csv
+#    datums/airports_$cycles28.csv
 #
 #  Output:
 #    recreate datums/getaptplates_$airac/$faaid.dat
@@ -38,17 +38,24 @@ set -e
 
 export CLASSPATH=DecodePlate.jar:pdfbox-1.8.10.jar:commons-logging-1.2.jar
 
+if [ DecodePlate.jar -ot DecodePlate.java ]
+then
+    rm -f DecodePlate.jar DecodePlate*.class Lib*.class
+    javac -Xlint:deprecation DecodePlate.java Lib.java
+    jar cf DecodePlate.jar DecodePlate*.class Lib*.class
+    rm -f DecodePlate*.class Lib*.class
+fi
+
 cycles28=`./cureffdate -28 -x yyyymmdd`
-cycles56=`./cureffdate     -x yyyymmdd`
-airac=`./cureffdate airac`
+airac=`./cureffdate -28 airac`
 dir=datums/aptplates_$cycles28
 
-stateid=`grep "^$1," datums/airports_$cycles56.csv`
+stateid=`grep "^$1," datums/airports_$cycles28.csv`
 stateid=${stateid%,*}
 stateid=${stateid##*,}
 echo STATEID $stateid
 
-faaid=`grep "^$1," datums/airports_$cycles56.csv`
+faaid=`grep "^$1," datums/airports_$cycles28.csv`
 faaid=${faaid#$1,}
 faaid=${faaid%%,*}
 echo FAAID $faaid
@@ -66,7 +73,7 @@ rm -f datums/getaptplates_$airac/$faaid.dat
 #
 rm -rf aptplates.tmp
 mkdir aptplates.tmp
-grep "^$1," datums/airports_$cycles56.csv | \
+grep "^$1," datums/airports_$cycles28.csv | \
     mono --debug GetAptPlates.exe $airac | doinstrapproaches
 
 #
@@ -100,7 +107,7 @@ fi
     grep "^$faaid," | \
     java DecodePlate -verbose \
         -csvout $iapoutdir/$stateid.csv.tmp \
-        -cycles28 $cycles28 -cycles56 $cycles56 \
+        -cycles28 $cycles28 -cycles28 $cycles28 \
         -rejects $iapoutdir/$stateid.rej.tmp
 set -x
 sort -u $iapoutdir/$stateid.csv.tmp > singleapd.tmp

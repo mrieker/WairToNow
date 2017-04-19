@@ -10,7 +10,6 @@ cd `dirname $0`
 
 airac28=`./cureffdate -28 airac`
 cycles28=`./cureffdate -x -28 yyyymmdd`
-cycles56=`./cureffdate -x yyyymmdd`
 
 if [ ParseCifp.jar -ot ParseCifp.java ]
 then
@@ -34,6 +33,6 @@ then
     export CLASSPATH=ParseCifp.jar
     rm -rf datums/iapcifps_$cycles28.tmp
     mkdir -p datums/iapcifps_$cycles28.tmp
-    zcat datums/iapcifps_$cycles28.gz | java ParseCifp $cycles56 datums/iapcifps_$cycles28.tmp
+    zcat datums/iapcifps_$cycles28.gz | java ParseCifp $cycles28 datums/iapcifps_$cycles28.tmp
     mv datums/iapcifps_$cycles28.tmp datums/iapcifps_$cycles28
 fi

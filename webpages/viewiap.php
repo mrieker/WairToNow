@@ -48,6 +48,9 @@
     </HEAD>
     <BODY>
         <?php
+            $iapdirs = array ("WTN" => "datums/iapgeorefs_$cycles28",   // WairToNow generated (DecodePlate.java)
+                              "FAA" => "datums/iapgeorefs2_$cycles28"); // FAA generated (DecodePlate2.java)
+
             $tmpdir = "viewiap";
 
             if (isset ($_GET['iapid'])) {
@@ -67,19 +70,23 @@
              */
             function gotNothing ()
             {
-                global $cycles28, $tmpdir;
+                global $cycles28, $iapdirs, $tmpdir;
 
                 echo "<P><A HREF=\"viewiap.php\">Top</A></P>";
 
-                $statex = scandir ("datums/iapgeorefs_$cycles28");
                 $states = array ();
-                foreach ($statex as $state) {
-                    if (strpos ($state, ".csv") == 2) {
-                        $state = substr ($state, 0, 2);
-                        $states[] = $state;
+                foreach ($iapdirs as $iapdir) {
+                    $statex = scandir ($iapdir);
+                    foreach ($statex as $state) {
+                        if (strpos ($state, ".csv") == 2) {
+                            $state = substr ($state, 0, 2);
+                            $states[] = $state;
+                        }
                     }
                 }
+                sort ($states);
                 outputLinkTable ("state", $states, 8);
+
                 $firstx = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
                 $firsts = array ();
                 for ($i = 0; $i < strlen ($firstx); $i ++) $firsts[] = $firstx[$i];
@@ -105,49 +112,61 @@
              */
             function gotState ()
             {
-                global $cycles28, $cycles56, $tmpdir;
+                global $cycles28, $iapdirs, $tmpdir;
 
-                $state = $_GET['state'];
-                if (strlen ($state) != 2) die ("bad state code");
-                if (!file_exists ("datums/iapgeorefs_$cycles28/$state.csv")) die ("unknown state");
+                $state = getStateCode ();
 
                 echo "<P><A HREF=\"viewiap.php\">Top</A> $state</P>";
                 echo "<SCRIPT> document.getElementById ('title').innerHTML += ': $state' </SCRIPT>\n";
 
-                echo "<UL><LI><A HREF=\"datums/iapgeorefs_$cycles28/$state.csv\">CSV file</A></UL>";
+                echo "<UL>";
+                foreach ($iapdirs as $type => $iapdir) {
+                    if (file_exists ("$iapdir/$state.csv")) {
+                        echo "<LI><A HREF=\"$iapdir/$state.csv\">$type CSV file</A>";
+                    }
+                }
+                echo "</UL>\n";
 
                 // get FAA ids of all airports in this state that have approaches
                 $refdicaoids = array ();
                 $refdfaaids  = array ();
 
                 $goodiaps = array ();   // indexed via icaoid
-                $csvfile  = fopen ("datums/iapgeorefs_$cycles28/$state.csv", "r");
-                while ($csvline = fgets ($csvfile)) {
-                    $columns = explode (",", $csvline);
-                    $icaoid  = $columns[0];
-                    $iapid   = $columns[1];
-                    $refdicaoids[$icaoid] = TRUE;
-                    if (!isset ($goodiaps[$icaoid])) $goodiaps[$icaoid] = array ();
-                    $goodiaps[$icaoid][$iapid] = TRUE;
+                foreach ($iapdirs as $iapdir) {
+                    $csvfile  = @fopen ("$iapdir/$state.csv", "r");
+                    if ($csvfile) {
+                        while ($csvline = fgets ($csvfile)) {
+                            $columns = explode (",", $csvline);
+                            $icaoid  = $columns[0];
+                            $iapid   = $columns[1];
+                            $refdicaoids[$icaoid] = TRUE;
+                            if (!isset ($goodiaps[$icaoid])) $goodiaps[$icaoid] = array ();
+                            $goodiaps[$icaoid][$iapid] = TRUE;
+                        }
+                        fclose ($csvfile);
+                    }
                 }
-                fclose ($csvfile);
 
                 $badiaps = array ();    // indexed via faaid
-                $rejfile = fopen ("datums/iapgeorefs_$cycles28/$state.rej", "r");
-                while ($rejline = fgets ($rejfile)) {
-                    $columns = explode (",", $rejline);
-                    $faaid   = $columns[0];
-                    $iapid   = $columns[1];
-                    $refdfaaids[$faaid] = TRUE;
-                    if (!isset ($badiaps[$faaid])) $badiaps[$faaid] = array ();
-                    $badiaps[$faaid][$iapid] = TRUE;
+                foreach ($iapdirs as $iapdir) {
+                    $rejfile = @fopen ("$iapdir/$state.rej", "r");
+                    if ($rejfile) {
+                        while ($rejline = fgets ($rejfile)) {
+                            $columns = explode (",", $rejline);
+                            $faaid   = $columns[0];
+                            $iapid   = $columns[1];
+                            $refdfaaids[$faaid] = TRUE;
+                            if (!isset ($badiaps[$faaid])) $badiaps[$faaid] = array ();
+                            $badiaps[$faaid][$iapid] = TRUE;
+                        }
+                        fclose ($rejfile);
+                    }
                 }
-                fclose ($rejfile);
 
                 // get ICAO <-> FAA id translation array for airports referenced by the approaches
                 $faaids  = array ();
                 $icaoids = array ();
-                $aptfile = fopen ("datums/airports_$cycles56.csv", "r");
+                $aptfile = fopen ("datums/airports_$cycles28.csv", "r");
                 while ($aptline = fgets ($aptfile)) {
                     $columns = explode (",", $aptline);
                     $icaoid  = $columns[0];
@@ -163,6 +182,17 @@
                 foreach ($refdicaoids as $refdicaoid => $dummy) {
                     $faaid = $faaids[$refdicaoid];
                     $refdfaaids[$faaid] = TRUE;
+                }
+
+                // approaches get listed as rejected by FAA generated georef when accepted by WTN generated georef
+                // so remove entries from $badiaps[][] what are listed in $goodiaps[][]
+                foreach ($badiaps as $faaid => $iapids) {
+                    $icaoid = $icaoids[$faaid];
+                    foreach ($iapids as $iapid => $dummy) {
+                        if (isset ($goodiaps[$icaoid][$iapid])) {
+                            unset ($badiaps[$faaid][$iapid]);
+                        }
+                    }
                 }
 
                 // output a link for each such airport
@@ -182,7 +212,7 @@
              */
             function gotFirst ()
             {
-                global $cycles28, $cycles56, $tmpdir;
+                global $cycles28, $iapdirs, $tmpdir;
 
                 $first = $_GET['first'];
 
@@ -192,7 +222,7 @@
                 // get ICAO <-> FAA id translation arrays for airports beginning with $first
                 $icaoids = array ();
                 $faaids  = array ();
-                $aptfile = fopen ("datums/airports_$cycles56.csv", "r");
+                $aptfile = fopen ("datums/airports_$cycles28.csv", "r");
                 while ($aptline = fgets ($aptfile)) {
                     $columns = explode (",", $aptline);
                     $icaoid  = $columns[0];
@@ -208,41 +238,48 @@
                 $gotfaaids = array ();
 
                 $goodiaps = array ();
-                $badiaps = array ();
-                $allfnames = scandir ("datums/iapgeorefs_$cycles28");
-                foreach ($allfnames as $fname) {
-                    if (substr ($fname, 2) == ".csv") {
-                        $state = substr ($fname, 0, 2);
-                        $csvfile = fopen ("datums/iapgeorefs_$cycles28/$fname", "r");
-                        while ($csvline = fgets ($csvfile)) {
-                            $columns = explode (",", $csvline);
-                            $icaoid  = $columns[0];
-                            $iapid   = $columns[1];
-                            if (isset ($faaids[$icaoid])) {
-                                $faaid = $faaids[$icaoid];
-                                $gotfaaids[$faaid] = $state;
-                                if (!isset ($goodiaps[$faaid])) $goodiaps[$faaid] = array ();
-                                $goodiaps[$faaid][$iapid] = TRUE;
+                foreach ($iapdirs as $iapdir) {
+                    $allfnames = scandir ($iapdir);
+                    foreach ($allfnames as $fname) {
+                        if (substr ($fname, 2) == ".csv") {
+                            $state = substr ($fname, 0, 2);
+                            $csvfile = fopen ("$iapdir/$fname", "r");
+                            while ($csvline = fgets ($csvfile)) {
+                                $columns = explode (",", $csvline);
+                                $icaoid  = $columns[0];
+                                $iapid   = $columns[1];
+                                if (isset ($faaids[$icaoid])) {
+                                    $faaid = $faaids[$icaoid];
+                                    $gotfaaids[$faaid] = $state;
+                                    if (!isset ($goodiaps[$faaid])) $goodiaps[$faaid] = array ();
+                                    $goodiaps[$faaid][$iapid] = TRUE;
+                                }
                             }
+                            fclose ($csvfile);
                         }
-                        fclose ($csvfile);
                     }
+                }
 
-                    if (substr ($fname, 2) == ".rej") {
-                        $state = substr ($fname, 0, 2);
-                        $rejfile = fopen ("datums/iapgeorefs_$cycles28/$fname", "r");
-                        while ($rejline = fgets ($rejfile)) {
-                            $columns = explode (",", $rejline);
-                            $faaid   = $columns[0];
-                            $iapid   = $columns[1];
-                            if (isset ($icaoids[$faaid])) {
-                                $icaoid = $icaoids[$faaid];
-                                $gotfaaids[$faaid] = $state;
-                                if (!isset ($badiaps[$faaid])) $badiaps[$faaid] = array ();
-                                $badiaps[$faaid][$iapid] = TRUE;
+                $badiaps = array ();
+                foreach ($iapdirs as $iapdir) {
+                    $allfnames = scandir ($iapdir);
+                    foreach ($allfnames as $fname) {
+                        if (substr ($fname, 2) == ".rej") {
+                            $state = substr ($fname, 0, 2);
+                            $rejfile = fopen ("$iapdir/$fname", "r");
+                            while ($rejline = fgets ($rejfile)) {
+                                $columns = explode (",", $rejline);
+                                $faaid   = $columns[0];
+                                $iapid   = $columns[1];
+                                if (isset ($icaoids[$faaid]) && !isset ($goodiaps[$faaid][$iapid])) {
+                                    $icaoid = $icaoids[$faaid];
+                                    $gotfaaids[$faaid] = $state;
+                                    if (!isset ($badiaps[$faaid])) $badiaps[$faaid] = array ();
+                                    $badiaps[$faaid][$iapid] = TRUE;
+                                }
                             }
+                            fclose ($rejfile);
                         }
-                        fclose ($rejfile);
                     }
                 }
 
@@ -263,12 +300,9 @@
              */
             function gotAirport ()
             {
-                global $cycles28, $tmpdir;
+                global $cycles28, $iapdirs, $tmpdir;
 
-                $state = $_GET['state'];
-                if (strlen ($state) != 2) die ("bad state code");
-                if (!file_exists ("datums/iapgeorefs_$cycles28/$state.csv")) die ("unknown state");
-
+                $state  = getStateCode ();
                 $icaoid = $_GET['icaoid'];
                 $faaid  = $_GET['faaid'];
 
@@ -284,38 +318,52 @@
 
                 echo "<UL>";
                 $gotiaps = array ();
-                $csvfile = fopen ("datums/iapgeorefs_$cycles28/$state.csv", "r");
-                while ($csvline = fgets ($csvfile)) {
-                    $columns = explode (",", $csvline);
-                    if ($columns[0] == $icaoid) {
-                        $iapid = $columns[1];
-                        $iapid = str_replace ("\"", "", $iapid);
-                        if (!isset ($gotiaps[$iapid])) {
-                            $iap_x = urlencode ($iapid);
-                            $iap_y = htmlspecialchars ($iapid);
-                            echo "<LI><A HREF=\"viewiap.php?$sl&icaoid=$icaoid&faaid=$faaid&iapid=$iap_x\">$iap_y</A>\n";
-                            echoIAPGifLink ($state, $faaid, $iapid);
-                            $gotiaps[$iapid] = TRUE;
+                foreach ($iapdirs as $type => $iapdir) {
+                    $csvfile = @fopen ("$iapdir/$state.csv", "r");
+                    if ($csvfile) {
+                        while ($csvline = fgets ($csvfile)) {
+                            $columns = explode (",", $csvline);
+                            if ($columns[0] == $icaoid) {
+                                $iapid = $columns[1];
+                                $iapid = str_replace ("\"", "", $iapid);
+                                if (!isset ($gotiaps[$iapid])) {
+                                    $iap_x = urlencode ($iapid);
+                                    $iap_y = htmlspecialchars ($iapid);
+                                    echo "<LI>";
+                                    if ($type == "WTN") echo "<A HREF=\"viewiap.php?$sl&icaoid=$icaoid&faaid=$faaid&iapid=$iap_x\">";
+                                    echo $iap_y;
+                                    if ($type == "WTN") echo "</A>\n";
+                                    echoIAPGifLink ($state, $faaid, $iapid);
+                                    $gotiaps[$iapid] = TRUE;
+                                }
+                            }
                         }
                     }
                 }
                 echo "</UL>\n";
 
                 $first = TRUE;
-                $rejfile = fopen ("datums/iapgeorefs_$cycles28/$state.rej", "r");
-                while ($rejline = fgets ($rejfile)) {
-                    $columns = explode (",", $rejline);
-                    if ($columns[0] == $faaid) {
-                        $iapid = $columns[1];
-                        $iapid = str_replace ("\"", "", $iapid);
-                        if ($first) {
-                            echo "<P>Rejects:</P><UL>";
-                            $first = FALSE;
+                foreach ($iapdirs as $iapdir) {
+                    $rejfile = @fopen ("$iapdir/$state.rej", "r");
+                    if ($rejfile) {
+                        while ($rejline = fgets ($rejfile)) {
+                            $columns = explode (",", $rejline);
+                            if ($columns[0] == $faaid) {
+                                $iapid = $columns[1];
+                                $iapid = str_replace ("\"", "", $iapid);
+                                if (!isset ($gotiaps[$iapid])) {
+                                    if ($first) {
+                                        echo "<P>Rejects:</P><UL>";
+                                        $first = FALSE;
+                                    }
+                                    $iap_x = urlencode ($iapid);
+                                    $iap_y = htmlspecialchars ($iapid);
+                                    echo "<LI><A HREF=\"viewiap.php?$sl&icaoid=$icaoid&faaid=$faaid&iapid=$iap_x\">$iap_y</A>\n";
+                                    echoIAPGifLink ($state, $faaid, $iapid);
+                                    $gotiaps[$iapid] = TRUE;
+                                }
+                            }
                         }
-                        $iap_x = urlencode ($iapid);
-                        $iap_y = htmlspecialchars ($iapid);
-                        echo "<LI><A HREF=\"viewiap.php?$sl&icaoid=$icaoid&faaid=$faaid&iapid=$iap_x\">$iap_y</A>\n";
-                        echoIAPGifLink ($state, $faaid, $iapid);
                     }
                 }
                 if (!$first) echo "</UL>\n";
@@ -344,12 +392,9 @@
              */
             function gotIapId ()
             {
-                global $cycles28, $cycles56, $tmpdir;
+                global $cycles28, $iapdirs, $tmpdir;
 
-                $state = $_GET['state'];
-                if (strlen ($state) != 2) die ("bad state code");
-                if (!file_exists ("datums/iapgeorefs_$cycles28/$state.csv")) die ("unknown state");
-
+                $state  = getStateCode ();
                 $icaoid = $_GET['icaoid'];
                 $faaid  = $_GET['faaid'];
                 $iapid  = $_GET['iapid'];
@@ -388,7 +433,7 @@
                     @unlink ("$tmpnam.log");
                     @unlink ("$tmpnam.png");
                     $cpaths = "../decosects/DecodePlate.jar:../decosects/pdfbox-1.8.10.jar:../decosects/commons-logging-1.2.jar";
-                    $dpcmnd = "java DecodePlate -basedir " . __DIR__ . " -cycles28 $cycles28 -cycles56 $cycles56 $faaid $iapid_esa -markedpng $tmpnam.png -verbose";
+                    $dpcmnd = "java DecodePlate -basedir " . __DIR__ . " -cycles28 $cycles28 $faaid $iapid_esa -markedpng $tmpnam.png -verbose";
                     $dpfile = popen ("CLASSPATH=$cpaths $dpcmnd 2>&1", "r");
                     if (!$dpfile) die ("error starting DecodePlate");
 
@@ -484,6 +529,21 @@
             function file_older_than ($aname, $bname)
             {
                 return filectime ($aname) < filectime ($btime);
+            }
+
+            /**
+             * Get and validate state code URL parameter.
+             */
+            function getStateCode ()
+            {
+                global $iapdirs;
+
+                $state = $_GET['state'];
+                if (strlen ($state) != 2) die ("bad state code");
+                foreach ($iapdirs as $iapdir) {
+                    if (file_exists ("$iapdir/$state.csv")) return $state;
+                }
+                die ("unknown state");
             }
         ?>
     </BODY>

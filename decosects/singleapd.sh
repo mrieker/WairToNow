@@ -36,8 +36,7 @@ then
 fi
 
 cycles28=`./cureffdate -28 -x yyyymmdd`
-cycles56=`./cureffdate     -x yyyymmdd`
-airac=`./cureffdate airac`
+airac=`./cureffdate -28 airac`
 dir=datums/aptplates_$cycles28
 
 #
@@ -46,7 +45,7 @@ dir=datums/aptplates_$cycles28
 #
 rm -rf aptplates.tmp
 mkdir aptplates.tmp
-grep "^$1," datums/airports_$cycles56.csv | \
+grep "^$1," datums/airports_$cycles28.csv | \
     mono --debug GetAptPlates.exe $airac | doairportdiagram
 
 #

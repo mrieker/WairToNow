@@ -28,7 +28,6 @@
  *  exec java DecodePlate [ BVY 'IAP-RNAV (GPS) RWY 27' ]
  *      [ -basedir <thatwhichcontainsdatums> ]
  *      [ -cycles28 expdate_yyyymmdd ]
- *      [ -cycles56 expdate_yyyymmdd ]
  *      [ -csv2in datums/iapgeorefs2_20170330/MA.csv ]
  *      [ -csvout bvygps27.csv ]
  *      [ -markedpng bvygps27.png ]
@@ -127,7 +126,6 @@ public class DecodePlate {
     private static String basedir;
     private static String csvoutname;
     private static String cycles28expdate;
-    private static String cycles56expdate;
     private static String faaid;
     private static String markedpngname;
     private static String pdfName;
@@ -173,6 +171,7 @@ public class DecodePlate {
         ipf.add ("GVT:IAP-RNAV (GPS) RWY 35:ROCKK");    // ROCKK needs a fence - not to scale
         ipf.add ("GVT:IAP-RNAV (GPS) RWY 35:SLR");      // SLR needs a fence - not to scale
         ipf.add ("GYI:IAP-NDB RWY 17L:ADM");            // ADM needs a fence - not to scale
+        ipf.add ("IDL:IAP-RNAV (GPS) RWY 18:WOPKI");
         ipf.add ("INW:IAP-VOR OR GPS RWY 11:RW11");     // RW11 pointer/marker confusing
         ipf.add ("LAX:IAP-ILS OR LOC RWY 25R:SEAVU");   // RIIVR fix misread as SEAVU; text sizing problem
         ipf.add ("PHX:IAP-ILS OR LOC RWY 07R:ALLIS");   // ALLIS fenced off crooked
@@ -218,10 +217,6 @@ public class DecodePlate {
                         cycles28expdate = args[i++];
                         continue;
                     }
-                    if (arg.equals ("-cycles56") && (i < args.length)) {
-                        cycles56expdate = args[i++];
-                        continue;
-                    }
                     if (arg.equals ("-markedpng") && (i < args.length)) {
                         markedpngname = args[i++];
                         continue;
@@ -252,7 +247,7 @@ public class DecodePlate {
             // Read in airports to get their lat/lons.
             // KBVY,BVY,107.3,"BEVERLY MUNI",42.5841410277778,-70.9161444166667,16,...
 
-            BufferedReader br4 = new BufferedReader (new FileReader (basedir + "/datums/airports_" + cycles56expdate + ".csv"), 4096);
+            BufferedReader br4 = new BufferedReader (new FileReader (basedir + "/datums/airports_" + cycles28expdate + ".csv"), 4096);
             String line;
             while ((line = br4.readLine ()) != null) {
                 String[] csvs = Lib.QuotedCSVSplit (line);
@@ -269,7 +264,7 @@ public class DecodePlate {
 
             // Read in fixes to get their lat/lons.
 
-            BufferedReader br5 = new BufferedReader (new FileReader (basedir + "/datums/fixes_" + cycles56expdate + ".csv"), 4096);
+            BufferedReader br5 = new BufferedReader (new FileReader (basedir + "/datums/fixes_" + cycles28expdate + ".csv"), 4096);
             while ((line = br5.readLine ()) != null) {
                 String[] csvs = Lib.QuotedCSVSplit (line);
                 DBFix dbfix = new DBFix ();
@@ -283,7 +278,7 @@ public class DecodePlate {
 
             // Read in localizers to get their lat/lons.
 
-            BufferedReader br10 = new BufferedReader (new FileReader (basedir + "/datums/localizers_" + cycles56expdate + ".csv"), 4096);
+            BufferedReader br10 = new BufferedReader (new FileReader (basedir + "/datums/localizers_" + cycles28expdate + ".csv"), 4096);
             while ((line = br10.readLine ()) != null) {
                 String[] csvs = Lib.QuotedCSVSplit (line);
                 DBFix dbfix = new DBFix ();
@@ -297,7 +292,7 @@ public class DecodePlate {
 
             // Read in navaids to get their lat/lons.
 
-            BufferedReader br6 = new BufferedReader (new FileReader (basedir + "/datums/navaids_" + cycles56expdate + ".csv"), 4096);
+            BufferedReader br6 = new BufferedReader (new FileReader (basedir + "/datums/navaids_" + cycles28expdate + ".csv"), 4096);
             while ((line = br6.readLine ()) != null) {
                 String[] csvs = Lib.QuotedCSVSplit (line);
                 DBFix dbfix = new DBFix ();
@@ -313,7 +308,7 @@ public class DecodePlate {
 
             // Read in runways to get their lat/lons.
 
-            BufferedReader br8 = new BufferedReader (new FileReader (basedir + "/datums/runways_" + cycles56expdate + ".csv"), 4096);
+            BufferedReader br8 = new BufferedReader (new FileReader (basedir + "/datums/runways_" + cycles28expdate + ".csv"), 4096);
             while ((line = br8.readLine ()) != null) {
                 String[] csvs = Lib.QuotedCSVSplit (line);
                 String faaid  = csvs[0];

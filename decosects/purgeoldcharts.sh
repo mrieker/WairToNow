@@ -70,9 +70,19 @@ function purgedatum
             mv "$file" "purged-$file"
             continue
         fi
+        if [ "${file:0:16}" == "datums/iapcifps_" ]
+        then
+            mv "$file" "purged-$file"
+            continue
+        fi
         if [ "${file:0:18}" == "datums/iapgeorefs_" ]
         then
             mv "$file" "purged-$file"
+            continue
+        fi
+        if [ "${file:0:19}" == "datums/iapgeorefs2_" ]
+        then
+            rm -rf "$file"
             continue
         fi
         if [ "${file:0:20}" == "datums/intersections" ]

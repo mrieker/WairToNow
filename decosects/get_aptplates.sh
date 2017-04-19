@@ -114,8 +114,8 @@ fi
 
 rm -rf airportids.tmp.* aptplates.tmp
 mkdir aptplates.tmp
-airac=`./cureffdate airac`
-aixd=`./cureffdate -x yyyymmdd`
+airac=`./cureffdate -28 airac`
+aixd=`./cureffdate -28 -x yyyymmdd`
 expdate=`./cureffdate -28 -x yyyymmdd`
 if [ "$expdate" == "" ]
 then

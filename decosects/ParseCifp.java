@@ -23,9 +23,8 @@
  * IAP waypoint sequence info.
  *
  * cycles28=20170202
- * cycles56=20170302
  * javac ParseCifp.java
- * java ParseCifp $cycles56 datums/iapcifps_$cycles28 < FAACIFP18
+ * java ParseCifp $cycles28 datums/iapcifps_$cycles28 < FAACIFP18
  *
  * outputs one .csv file per state
  * one line per segment:

@@ -31,12 +31,12 @@ public class Waypts {
     public static HashMap<String,Airport> allIcaoApts = new HashMap<> ();
     public static LinkedList<DBFix> allDBFixes = new LinkedList<> ();
 
-    public static void locknload (String basedir, String cycles56expdate) throws IOException
+    public static void locknload (String basedir, String cycles28expdate) throws IOException
     {
         // Read in airports to get their lat/lons.
         // KBVY,BVY,107.3,"BEVERLY MUNI",42.5841410277778,-70.9161444166667,16,...
 
-        BufferedReader br4 = new BufferedReader (new FileReader (basedir + "/datums/airports_" + cycles56expdate + ".csv"), 4096);
+        BufferedReader br4 = new BufferedReader (new FileReader (basedir + "/datums/airports_" + cycles28expdate + ".csv"), 4096);
         String line;
         while ((line = br4.readLine ()) != null) {
             String[] csvs = Lib.QuotedCSVSplit (line);
@@ -55,7 +55,7 @@ public class Waypts {
 
         // Read in fixes to get their lat/lons.
 
-        BufferedReader br5 = new BufferedReader (new FileReader (basedir + "/datums/fixes_" + cycles56expdate + ".csv"), 4096);
+        BufferedReader br5 = new BufferedReader (new FileReader (basedir + "/datums/fixes_" + cycles28expdate + ".csv"), 4096);
         while ((line = br5.readLine ()) != null) {
             String[] csvs = Lib.QuotedCSVSplit (line);
             DBFix dbfix = new DBFix ();
@@ -69,7 +69,7 @@ public class Waypts {
 
         // Read in localizers to get their lat/lons.
 
-        BufferedReader br10 = new BufferedReader (new FileReader (basedir + "/datums/localizers_" + cycles56expdate + ".csv"), 4096);
+        BufferedReader br10 = new BufferedReader (new FileReader (basedir + "/datums/localizers_" + cycles28expdate + ".csv"), 4096);
         while ((line = br10.readLine ()) != null) {
             String[] csvs = Lib.QuotedCSVSplit (line);
             DBFix dbfix = new DBFix ();
@@ -83,7 +83,7 @@ public class Waypts {
 
         // Read in navaids to get their lat/lons.
 
-        BufferedReader br6 = new BufferedReader (new FileReader (basedir + "/datums/navaids_" + cycles56expdate + ".csv"), 4096);
+        BufferedReader br6 = new BufferedReader (new FileReader (basedir + "/datums/navaids_" + cycles28expdate + ".csv"), 4096);
         while ((line = br6.readLine ()) != null) {
             String[] csvs = Lib.QuotedCSVSplit (line);
             DBFix dbfix = new DBFix ();
@@ -99,7 +99,7 @@ public class Waypts {
 
         // Read in runways to get their lat/lons.
 
-        BufferedReader br8 = new BufferedReader (new FileReader (basedir + "/datums/runways_" + cycles56expdate + ".csv"), 4096);
+        BufferedReader br8 = new BufferedReader (new FileReader (basedir + "/datums/runways_" + cycles28expdate + ".csv"), 4096);
         while ((line = br8.readLine ()) != null) {
             String[] csvs = Lib.QuotedCSVSplit (line);
             String faaid  = csvs[0];

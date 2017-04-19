@@ -6,7 +6,6 @@
 #  $1 = any additional (debug) flags for ReadArptDgmPng.exe
 #  $apdoutdir = datums/apdgeorefs_$cycles28
 #  $cycles28 =
-#  $cycles56 =
 #  $stateid =
 #  stdin = diagram to process
 #
@@ -29,7 +28,7 @@ function processdiagrams
         logname=decodeallplates.apdcsv_$faaid.log
         pngname=decodeallplates.apdcsv_$faaid.png
 
-        icaoid=`grep "^[0-9A-Z]*,$faaid," datums/airports_$cycles56.csv`
+        icaoid=`grep "^[0-9A-Z]*,$faaid," datums/airports_$cycles28.csv`
         icaoid=${icaoid%%,*}
 
         if ! grep -q "^$icaoid," $csvoutfile

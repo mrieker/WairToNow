@@ -669,7 +669,7 @@ public class MaintView
         }
 
         /*
-         * Count the records in the rwyprealoads table, as it is updated as tiles are downloaded.
+         * Count the records in the rwypreloads table, as it is updated as tiles are downloaded.
          */
         int expdate = MaintView.GetPlatesExpDate ();
         String dbname = "plates_" + expdate + ".db";

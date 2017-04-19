@@ -30,8 +30,7 @@
  *  export CLASSPATH=CmpFAAIAPGeoRef.jar
  *  export next28=0 or 1
  *  cycles28=`./cureffdate -28 -x yyyymmdd`
- *  cycles56=`./cureffdate     -x yyyymmdd`
- *  cat datums/iapgeorefs*_$cycles28/*.csv | java CmpFAAIAPGeoRef -cycles28 $cycles28 -cycles56 $cycles56 | sort
+ *  cat datums/iapgeorefs*_$cycles28/*.csv | java CmpFAAIAPGeoRef -cycles28 $cycles28 | sort
  */
 
 import java.io.BufferedReader;
@@ -64,7 +63,6 @@ public class CmpFAAIAPGeoRef {
     private static HashMap<String,DBFix> nearDBFixes = new HashMap<> ();
     private static String basedir;
     private static String cycles28expdate;
-    private static String cycles56expdate;
 
     public static void main (String[] args)
     {
@@ -80,10 +78,6 @@ public class CmpFAAIAPGeoRef {
                         cycles28expdate = args[i++];
                         continue;
                     }
-                    if (arg.equals ("-cycles56") && (i < args.length)) {
-                        cycles56expdate = args[i++];
-                        continue;
-                    }
                     System.err.println ("unknown option " + arg);
                     System.exit (1);
                 }
@@ -94,7 +88,7 @@ public class CmpFAAIAPGeoRef {
             // Read in airports to get their lat/lons.
             // KBVY,BVY,107.3,"BEVERLY MUNI",42.5841410277778,-70.9161444166667,16,...
 
-            BufferedReader br4 = new BufferedReader (new FileReader (basedir + "/datums/airports_" + cycles56expdate + ".csv"), 4096);
+            BufferedReader br4 = new BufferedReader (new FileReader (basedir + "/datums/airports_" + cycles28expdate + ".csv"), 4096);
             String line;
             while ((line = br4.readLine ()) != null) {
                 String[] csvs = Lib.QuotedCSVSplit (line);
@@ -112,7 +106,7 @@ public class CmpFAAIAPGeoRef {
 
             // Read in fixes to get their lat/lons.
 
-            BufferedReader br5 = new BufferedReader (new FileReader (basedir + "/datums/fixes_" + cycles56expdate + ".csv"), 4096);
+            BufferedReader br5 = new BufferedReader (new FileReader (basedir + "/datums/fixes_" + cycles28expdate + ".csv"), 4096);
             while ((line = br5.readLine ()) != null) {
                 String[] csvs = Lib.QuotedCSVSplit (line);
                 DBFix dbfix = new DBFix ();
@@ -126,7 +120,7 @@ public class CmpFAAIAPGeoRef {
 
             // Read in localizers to get their lat/lons.
 
-            BufferedReader br10 = new BufferedReader (new FileReader (basedir + "/datums/localizers_" + cycles56expdate + ".csv"), 4096);
+            BufferedReader br10 = new BufferedReader (new FileReader (basedir + "/datums/localizers_" + cycles28expdate + ".csv"), 4096);
             while ((line = br10.readLine ()) != null) {
                 String[] csvs = Lib.QuotedCSVSplit (line);
                 DBFix dbfix = new DBFix ();
@@ -140,7 +134,7 @@ public class CmpFAAIAPGeoRef {
 
             // Read in navaids to get their lat/lons.
 
-            BufferedReader br6 = new BufferedReader (new FileReader (basedir + "/datums/navaids_" + cycles56expdate + ".csv"), 4096);
+            BufferedReader br6 = new BufferedReader (new FileReader (basedir + "/datums/navaids_" + cycles28expdate + ".csv"), 4096);
             while ((line = br6.readLine ()) != null) {
                 String[] csvs = Lib.QuotedCSVSplit (line);
                 DBFix dbfix = new DBFix ();
@@ -156,7 +150,7 @@ public class CmpFAAIAPGeoRef {
 
             // Read in runways to get their lat/lons.
 
-            BufferedReader br8 = new BufferedReader (new FileReader (basedir + "/datums/runways_" + cycles56expdate + ".csv"), 4096);
+            BufferedReader br8 = new BufferedReader (new FileReader (basedir + "/datums/runways_" + cycles28expdate + ".csv"), 4096);
             while ((line = br8.readLine ()) != null) {
                 String[] csvs = Lib.QuotedCSVSplit (line);
                 String faaid  = csvs[0];

@@ -138,9 +138,9 @@ then
     mcs -debug -out:GetIFRChartNames.exe GetIFRChartNames.cs
 fi
 
-effdate_mm=`./cureffdate 'mm-dd-yyyy'`
-effdate_mmm=`./cureffdate 'mmm dd yyyy'`
-expdate_mmm=`./cureffdate -x 'mmm dd yyyy'`
+effdate_mm=`./cureffdate -28 'mm-dd-yyyy'`
+effdate_mmm=`./cureffdate -28 'mmm dd yyyy'`
+expdate_mmm=`./cureffdate -28 -x 'mmm dd yyyy'`
 
 echo effdate_mm $effdate_mm
 echo effdate_mmm $effdate_mmm

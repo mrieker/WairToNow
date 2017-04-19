@@ -47,19 +47,14 @@ END;
     $pngdir  = "iaputil";
 
     $cycles28 = 0;
-    $cycles56 = 0;
     foreach (scandir ("datums") as $fn) {
         if (strpos ($fn, "aptplates_") === 0) {
             $i = intval (substr ($fn, 10, 8));
             if ($cycles28 < $i) $cycles28 = $i;
         }
-        if (strpos ($fn, "airports_") === 0) {
-            $i = intval (substr ($fn, 9, 8));
-            if ($cycles56 < $i) $cycles56 = $i;
-        }
     }
 
-    $aptname = "datums/airports_$cycles56.csv";
+    $aptname = "datums/airports_$cycles28.csv";
     $gifdir  = "datums/aptplates_$cycles28";
     $iapdir  = "datums/iapgeorefs_$cycles28";
     $iap2dir = "datums/iapgeorefs2_$cycles28";
@@ -267,14 +262,14 @@ END;
      */
     function openLatLonDatabase ()
     {
-        global $cycles56, $datdir;
+        global $cycles28, $datdir;
 
-        if (!file_exists ("$datdir/latlon_$cycles56.db")) {
+        if (!file_exists ("$datdir/latlon_$cycles28.db")) {
             echo "<P>generating lat/lon sqlite file</P>\n";
             @flush (); @ob_flush (); @flush ();
 
-            @unlink ("$datdir/latlon_$cycles56.db.tmp");
-            $sqldb = new SQLite3 ("$datdir/latlon_$cycles56.db.tmp");
+            @unlink ("$datdir/latlon_$cycles28.db.tmp");
+            $sqldb = new SQLite3 ("$datdir/latlon_$cycles28.db.tmp");
             checkSQLiteError ($sqldb, __LINE__);
 
             $sqldb->exec ("CREATE TABLE LatLons (fixid TEXT, lat REAL NOT NULL, lon REAL NOT NULL)");
@@ -294,7 +289,7 @@ END;
 
             echo "<P> - airports</P>\n";
             @flush (); @ob_flush (); @flush ();
-            $aptfile = fopen ("datums/airports_$cycles56.csv", "r");
+            $aptfile = fopen ("datums/airports_$cycles28.csv", "r");
             while ($aptline = fgets ($aptfile)) {
                 $cols   = QuotedCSVSplit ($aptline);
                 $icaoid = $cols[0];  // eg, KBVY
@@ -316,7 +311,7 @@ END;
 
             echo "<P> - fixes</P>\n";
             @flush (); @ob_flush (); @flush ();
-            $fixfile = fopen ("datums/fixes_$cycles56.csv", "r");
+            $fixfile = fopen ("datums/fixes_$cycles28.csv", "r");
             while ($fixline = fgets ($fixfile)) {
                 $cols  = QuotedCSVSplit ($fixline);
                 $fixid = $cols[0];  // eg, BOSOX
@@ -335,7 +330,7 @@ END;
 
             echo "<P> - localizers</P>\n";
             @flush (); @ob_flush (); @flush ();
-            $locfile = fopen ("datums/localizers_$cycles56.csv", "r");
+            $locfile = fopen ("datums/localizers_$cycles28.csv", "r");
             while ($locline = fgets ($locfile)) {
                 $cols  = QuotedCSVSplit ($locline);
                 $fixid = $cols[1];  // eg, I-BVY
@@ -355,7 +350,7 @@ END;
 
             echo "<P> - navaids</P>\n";
             @flush (); @ob_flush (); @flush ();
-            $navfile = fopen ("datums/navaids_$cycles56.csv", "r");
+            $navfile = fopen ("datums/navaids_$cycles28.csv", "r");
             while ($navline = fgets ($navfile)) {
                 $cols  = QuotedCSVSplit ($navline);
                 $fixid = $cols[1];  // eg, LWM
@@ -374,7 +369,7 @@ END;
 
             echo "<P> - runways</P>\n";
             @flush (); @ob_flush (); @flush ();
-            $rwyfile = fopen ("datums/runways_$cycles56.csv", "r");
+            $rwyfile = fopen ("datums/runways_$cycles28.csv", "r");
             while ($rwyline = fgets ($rwyfile)) {
                 $cols     = QuotedCSVSplit ($rwyline);
                 $rwyfaaid = $cols[0];  // eg, BVY
@@ -397,10 +392,10 @@ END;
             $sqldb->exec ("COMMIT");
             $sqldb->close ();
 
-            rename ("$datdir/latlon_$cycles56.db.tmp", "$datdir/latlon_$cycles56.db");
+            rename ("$datdir/latlon_$cycles28.db.tmp", "$datdir/latlon_$cycles28.db");
         }
 
-        $sqldb = new SQLite3 ("$datdir/latlon_$cycles56.db", SQLITE3_OPEN_READONLY);
+        $sqldb = new SQLite3 ("$datdir/latlon_$cycles28.db", SQLITE3_OPEN_READONLY);
         checkSQLiteError ($sqldb, __LINE__);
         return $sqldb;
     }

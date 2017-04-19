@@ -37,14 +37,14 @@
          */
 
         $dir_entries = scandir ('datums');
-        $cycles56 = 0;
+        $cycles28 = 0;
         foreach ($dir_entries as $dir_entry) {
             if (strpos ($dir_entry, 'waypoints_') === 0) {
                 $xd = intval (substr ($dir_entry, 10, 8));
-                if ($cycles56 < $xd) $cycles56 = $xd;
+                if ($cycles28 < $xd) $cycles28 = $xd;
             }
         }
-        echo "datums/waypoints_$cycles56.db.gz\n";
+        echo "datums/waypoints_$cycles28.db.gz\n";
     } else if ($undername == 'Topography') {
 
         /*
@@ -64,15 +64,10 @@
         // find latest aptinfo_<expdate> directory (56-day cycle)
         $dir_entries = scandir ('datums');
         $cycles28 = 0;
-        $cycles56 = 0;
         foreach ($dir_entries as $dir_entry) {
             if (strpos ($dir_entry, 'aptplates_') === 0) {
                 $xd = intval (substr ($dir_entry, 10));
                 if ($cycles28 < $xd) $cycles28 = $xd;
-            }
-            if (strpos ($dir_entry, 'aptinfo_') === 0) {
-                $xd = intval (substr ($dir_entry, 8));
-                if ($cycles56 < $xd) $cycles56 = $xd;
             }
         }
 
@@ -115,7 +110,7 @@
 
         // send names of all the airport information .html.gz files
         // for airports in this state
-        $airportscsvname = "datums/airports_$cycles56.csv";
+        $airportscsvname = "datums/airports_$cycles28.csv";
         $airportscsvfile = fopen ($airportscsvname, 'r');
         while ($csvline = fgets ($airportscsvfile)) {
             $csvparts = explode (',', trim ($csvline));
@@ -124,7 +119,7 @@
                 $faaid  = $csvparts[1];
                 $faaid0 = $faaid[0];
                 $faaid1 = substr ($faaid, 1);
-                echo "datums/aptinfo_$cycles56/$faaid0/$faaid1.html.gz\n";
+                echo "datums/aptinfo_$cycles28/$faaid0/$faaid1.html.gz\n";
             }
         }
         fclose ($airportscsvfile);

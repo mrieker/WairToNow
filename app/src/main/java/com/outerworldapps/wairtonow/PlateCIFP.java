@@ -851,6 +851,13 @@ public class PlateCIFP {
                         currentStep    = -1;
                     }
                 });
+                adb.setNeutralButton ("RESTART", new DialogInterface.OnClickListener () {
+                    @Override
+                    public void onClick (DialogInterface dialogInterface, int i)
+                    {
+                        CIFPSegmentSelected (cifpSelected);
+                    }
+                });
                 adb.setNegativeButton ("KEEP IT", null);
                 adb.show ();
             }

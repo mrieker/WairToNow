@@ -52,6 +52,11 @@ int main (int argc, char **argv)
     }
     next28 = *env & 1;
 
+    if (!next28) {
+        fprintf (stderr, "curreffdate: must be 28-day cycle\n");
+        abort ();
+    }
+
     nowbin = time (NULL);
     if (next28) nowbin += 60*60*24*28;
 

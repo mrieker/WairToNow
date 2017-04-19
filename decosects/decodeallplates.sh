@@ -40,7 +40,7 @@ function processstate
         then
             java DecodePlate2 -verbose \
                 -csvout $iap2outdir/$stateid.csv.tmp \
-                -cycles28 $cycles28 -cycles56 $cycles56 \
+                -cycles28 $cycles28 \
                 -rejects $iap2outdir/$stateid.rej.tmp \
                     < decodeallplates.$stateid.tmp \
                     > $iap2outdir/$stateid.log
@@ -66,7 +66,7 @@ function processstate
             java DecodePlate -verbose \
                 -csv2in $iap2outdir/$stateid.csv \
                 -csvout $iapoutdir/$stateid.csv.tmp \
-                -cycles28 $cycles28 -cycles56 $cycles56 \
+                -cycles28 $cycles28 \
                 -rejects $iapoutdir/$stateid.rej.tmp \
                     < decodeallplates.$stateid.tmp \
                     > $iapoutdir/$stateid.log
@@ -144,7 +144,6 @@ fi
 # Create output directories
 #
 cycles28=`./cureffdate -28 -x yyyymmdd`
-cycles56=`./cureffdate     -x yyyymmdd`
 apdoutdir=datums/apdgeorefs_$cycles28
 iapoutdir=datums/iapgeorefs_$cycles28
 iap2outdir=datums/iapgeorefs2_$cycles28

@@ -30,6 +30,7 @@
      *   ../decosects/datums/iapgeorefs2_20161013/<stateid>.csv : plates to verify
      */
 
+    session_name ("PHPSESSID_WairToNow");
     session_start ();
     require_once 'iaputil.php';
 
@@ -307,7 +308,7 @@ END;
                 $pngname = "$faaid-$plateid.png";
                 @unlink ("$pngdir/$pngname");
                 $clpath  = "../decosects/DecodePlate.jar:../decosects/pdfbox-1.8.10.jar:../decosects/commons-logging-1.2.jar";
-                $dpcmnd  = "java DecodePlate -cycles28 $cycles28 -cycles56 $cycles56 $faaid '$plate' -markedpng $pngdir/$pngname -verbose";
+                $dpcmnd  = "java DecodePlate -cycles28 $cycles28 $faaid '$plate' -markedpng $pngdir/$pngname -verbose";
                 $dpfile  = popen ("umask 0002 ; CLASSPATH=$clpath $dpcmnd 2>&1", "r");
                 if (!$dpfile) die ("<P>error spawning DecodePlate</P>");
                 $dplog   = "$dpcmnd\n";
