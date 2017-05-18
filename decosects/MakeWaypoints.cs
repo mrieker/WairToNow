@@ -329,6 +329,7 @@ public class MakeWaypoints {
                 }
             }
             csvrdr.Close ();
+            DoCommand (dbcon, "COMMIT;");
 
             /*
              * Load airway info into database.
@@ -345,13 +346,17 @@ public class MakeWaypoints {
                 string[] cols = QuotedCSVSplit (csv);
 
                 if (cols[0] != "") {
+                    if (awyid != "") DoCommand (dbcon, "COMMIT;");
                     awyid     = cols[0];
                     awyregion = cols[1];
                     awysegfmt = "D" + cols[2].Length;
                     if (awyregion == "") awyregion = "-";
                     awyseg = 0;
+                    DoCommand (dbcon, "BEGIN;");
                     continue;
                 }
+
+                if (awyid == "") continue;
 
                 // get info about the waypoint along the airway
                 string wpident = cols[1];
@@ -361,14 +366,19 @@ public class MakeWaypoints {
                 // make sure we have that waypoint defined in the above tables and that its lat/lon matches
                 LinkedList<Waypoint> waypoints;
                 if (!waypointss.TryGetValue (wpident, out waypoints)) {
-                    throw new Exception ("airway " + awyid + " " + awyregion + " contains undefined waypoint " + wpident);
+                    Console.Error.WriteLine ("airway " + awyid + " " + awyregion + " contains undefined waypoint " + wpident);
+                    goto bad;
                 }
                 foreach (Waypoint wp in waypoints) {
                     double latdiff = wp.lat - wplat;
                     double londiff = wp.lon - wplon;
                     if (Math.Sqrt (latdiff * latdiff + londiff * londiff) < 1.0/60.0) goto good;
                 }
-                throw new Exception ("airway " + awyid + " " + awyregion + " contains far away waypoint " + wpident);
+                Console.Error.WriteLine ("airway " + awyid + " " + awyregion + " contains far away waypoint " + wpident);
+            bad:
+                DoCommand (dbcon, "ROLLBACK;");
+                awyid = "";
+                continue;
             good:
 
                 // write airway point to database
@@ -387,16 +397,10 @@ public class MakeWaypoints {
                 } finally {
                     dbcmd1.Dispose ();
                 }
-
-                if (++ i == 1024) {
-                    Console.WriteLine (csv);
-                    DoCommand (dbcon, "COMMIT; BEGIN;");
-                    i = 0;
-                }
             }
             csvrdr.Close ();
 
-            DoCommand (dbcon, "COMMIT;");
+            if (awyid != "") DoCommand (dbcon, "COMMIT;");
         } finally {
             dbcon.Close ();
         }

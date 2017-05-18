@@ -18,7 +18,7 @@
 #    datums/runways_$expdate.csv
 #    datums/waypoints_$expdate.db.gz
 #
-#  Takes about 2 mins to run.
+#  Takes about 3 mins to run.
 #
 
 function getzip

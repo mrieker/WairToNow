@@ -57,6 +57,7 @@ import java.util.TreeMap;
 public abstract class Waypoint {
     public interface Selected {
         void wpSeld (Waypoint wp);
+        void noWPSeld ();
     }
 
     public final static String TAG = "WairToNow";
@@ -232,22 +233,25 @@ public abstract class Waypoint {
         adb.setView (sv);
         adb.setPositiveButton ("OK", new DialogInterface.OnClickListener () {
             @Override
-            public void onClick (DialogInterface dialogInterface, int i)
-            {
+            public void onClick (DialogInterface dialogInterface, int i) {
                 waypointEntered (wtn, title, wpsel, nearlat, nearlon,
                         ident, rnavradl, magTrue, rnavdist);
             }
         });
         adb.setNeutralButton ("OFF", new DialogInterface.OnClickListener () {
             @Override
-            public void onClick (DialogInterface dialogInterface, int i)
-            {
+            public void onClick (DialogInterface dialogInterface, int i) {
                 ident.setText ("");
                 waypointEntered (wtn, title, wpsel, nearlat, nearlon,
                         ident, rnavradl, magTrue, rnavdist);
             }
         });
-        adb.setNegativeButton ("Cancel", null);
+        adb.setNegativeButton ("Cancel", new DialogInterface.OnClickListener () {
+            @Override
+            public void onClick (DialogInterface dialogInterface, int i) {
+                wpsel.noWPSeld ();
+            }
+        });
         final AlertDialog ad = adb.show ();
 
         // set up listener for the DONE keyboard key

@@ -51,6 +51,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
@@ -72,7 +73,8 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
     private final static int TYPE_UNKNOWN = 0;
     private final static int TYPE_CSV_GZ  = 1;
     private final static int TYPE_GPX_GZ  = 2;
-    private final static SimpleDateFormat gpxdatefmt = new SimpleDateFormat ("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US);
+    private final static SimpleDateFormat gpxdatefmtms = new SimpleDateFormat ("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US);
+    private final static SimpleDateFormat gpxdatefmtsec = new SimpleDateFormat ("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US);
     private final static String TAG = "WairToNow";
     private final static String crumbsdir = WairToNow.dbdir + "/crumbs";
     private final static String[] typeSuffixes = new String[] { null, ".csv.gz", ".gpx.gz" };
@@ -86,7 +88,9 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
     {
         super (wtn);
         wairToNow = wtn;
-        gpxdatefmt.setTimeZone (TimeZone.getTimeZone ("UTC"));
+        TimeZone tzutc = TimeZone.getTimeZone ("UTC");
+        gpxdatefmtms.setTimeZone (tzutc);
+        gpxdatefmtsec.setTimeZone (tzutc);
     }
 
     @Override  // CanBeMainView
@@ -774,7 +778,7 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
                                 "\"><ele>" + wairToNow.currentGPSAlt +
                                 "</ele><heading>" + wairToNow.currentGPSHdg +
                                 "</heading><speed>" + wairToNow.currentGPSSpd +
-                                "</speed><time>" + gpxdatefmt.format (wairToNow.currentGPSTime) +
+                                "</speed><time>" + gpxdatefmtms.format (wairToNow.currentGPSTime) +
                                 "</time></trkpt>\n");
             } catch (IOException ioe) {
                 Log.w (TAG, "error writing " + name, ioe);
@@ -864,40 +868,52 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
                                     break;
                                 }
                                 case XmlPullParser.END_TAG: {
-                                    switch (xpp.getName ()) {
-                                        case "ele": {
-                                            if (pos == null) throw new NullPointerException ("<ele> outside of <trkpt>");
-                                            if (text == null) throw new NullPointerException ("no text for <ele>");
-                                            pos.altitude = Float.parseFloat (text);
-                                            text = null;
-                                            break;
+                                    String endtag = xpp.getName ();
+                                    try {
+                                        switch (endtag) {
+                                            case "ele": {
+                                                if (pos == null) throw new NullPointerException ("<ele> outside of <trkpt>");
+                                                if (text == null) throw new NullPointerException ("no text for <ele>");
+                                                pos.altitude = Float.parseFloat (text);
+                                                text = null;
+                                                break;
+                                            }
+                                            case "heading": {
+                                                if (pos == null) throw new NullPointerException ("<heading> outside of <trkpt>");
+                                                if (text == null) throw new NullPointerException ("no text for <heading>");
+                                                pos.heading = Float.parseFloat (text);
+                                                text = null;
+                                                break;
+                                            }
+                                            case "speed": {
+                                                if (pos == null) throw new NullPointerException ("<speed> outside of <trkpt>");
+                                                if (text == null) throw new NullPointerException ("no text for <speed>");
+                                                pos.speed = Float.parseFloat (text);
+                                                text = null;
+                                                break;
+                                            }
+                                            case "time": {
+                                                if (pos == null) throw new NullPointerException ("<time> outside of <trkpt>");
+                                                Date date;
+                                                try {
+                                                    date = gpxdatefmtms.parse (text);
+                                                } catch (ParseException pe) {
+                                                    date = gpxdatefmtsec.parse (text);
+                                                }
+                                                pos.time = date.getTime ();
+                                                text = null;
+                                                break;
+                                            }
+                                            case "trkpt": {
+                                                if (addPointToTrail (displaytrail, pos, INTERVALMS) |
+                                                        addPointToTrail (playbacktrail, pos, 1)) pos = null;
+                                                break;
+                                            }
                                         }
-                                        case "heading": {
-                                            if (pos == null) throw new NullPointerException ("<heading> outside of <trkpt>");
-                                            if (text == null) throw new NullPointerException ("no text for <heading>");
-                                            pos.heading = Float.parseFloat (text);
-                                            text = null;
-                                            break;
-                                        }
-                                        case "speed": {
-                                            if (pos == null) throw new NullPointerException ("<speed> outside of <trkpt>");
-                                            if (text == null) throw new NullPointerException ("no text for <speed>");
-                                            pos.speed = Float.parseFloat (text);
-                                            text = null;
-                                            break;
-                                        }
-                                        case "time": {
-                                            if (pos == null) throw new NullPointerException ("<time> outside of <trkpt>");
-                                            Date date = gpxdatefmt.parse (text);
-                                            pos.time = date.getTime ();
-                                            text = null;
-                                            break;
-                                        }
-                                        case "trkpt": {
-                                            if (addPointToTrail (displaytrail, pos, INTERVALMS) |
-                                                    addPointToTrail (playbacktrail, pos, 1)) pos = null;
-                                            break;
-                                        }
+                                    } catch (Exception e) {
+                                        String m = e.getMessage ();
+                                        if (m == null) m = e.getClass ().toString ();
+                                        Log.w (TAG, "error parsing " + name + " </" + endtag + ">: " + m);
                                     }
                                 }
                             }

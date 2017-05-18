@@ -24,6 +24,7 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
+import android.content.res.Configuration;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.text.SpannableStringBuilder;
@@ -339,7 +340,9 @@ public class VirtNavView extends LinearLayout
                             dmeWaypoint = wp;
                             dmeDisplay ();
                         }
-                }
+                        @Override
+                        public void noWPSeld () { }
+                    }
             );
         }
     }
@@ -347,7 +350,9 @@ public class VirtNavView extends LinearLayout
     @Override  // ViewGroup
     protected void dispatchDraw (Canvas canvas)
     {
-        boolean landscape = getWidth () > getHeight ();
+        // see if in landscape mode or not
+        // re-draw screen if it has changed
+        boolean landscape = (getResources().getConfiguration().orientation ==  Configuration.ORIENTATION_LANDSCAPE);
         if (oldLandscape != landscape) {
             oldLandscape = landscape;
             post (new Runnable () {
@@ -358,6 +363,8 @@ public class VirtNavView extends LinearLayout
                 }
             });
         }
+
+        // update screen contents with current position
         super.dispatchDraw (canvas);
         wairToNow.drawGPSAvailable (canvas, this);
     }
@@ -606,6 +613,8 @@ public class VirtNavView extends LinearLayout
                     public void wpSeld (Waypoint wp) {
                         useWaypointButtonClicked (wp);
                     }
+                    @Override
+                    public void noWPSeld () { }
                 }
         );
     }

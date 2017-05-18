@@ -118,11 +118,8 @@
 
             if (!isset ($_REQUEST['disp'])) {
                 $nloops = 0;
-                $toplines = FALSE;
-                $topstuff = 0;
             openplate:
                 if (++ $nloops > 1000) {
-                    endTopStuff ();
                     $nonce = time ();
                     echo <<<END
                         <FORM METHOD=POST ACTION="$thisscript">
@@ -160,7 +157,6 @@ END;
                             }
                         }
                     }
-                    endTopStuff ();
 
                     MissedPlates ();
 
@@ -225,6 +221,13 @@ END;
                 } while ($stateline && (strpos ($stateline, $icaoidplate) === 0));
                 fclose ($statefile);
 
+                // skip if it has FAA georef info
+                if (hasFAAGeoRef ($statecode, $icaoidplate)) {
+                    file_put_contents ("$datdir/lastplate", $nextpos);
+                    set_time_limit (30);
+                    goto openplate;
+                }
+
                 // get mapping from lat/lon to pixel as determined by DecodePlate
 
                 $newxfmwft = getLatLonXfm ($aptlat, $fixes);
@@ -281,7 +284,7 @@ END;
                     if ($olddifs != "") $olddifs .= ")";
                 }
                 if ($oldgood >= 2) {
-                    topStuffLine ("<B>$statecode $ipx</B> already verified $olddifs");
+                    echo "<P><B>$statecode $ipx</B> already verified $olddifs</P>";
                     MarkImageGood ($icaoid, $plate, $newxfmwft);
                     file_put_contents ("$datdir/lastplate", $nextpos);
                     set_time_limit (30);
@@ -290,7 +293,6 @@ END;
 
                 // tell user we are working on it
 
-                endTopStuff ();
                 echo "<H3>$statecode $ipx</H3>";
                 if ($olddifs != "") {
                     echo "<P>previous verification diffs $olddifs</P>";
@@ -392,66 +394,12 @@ END;
             }
 
             /**
-             * Output the first 3 lines directly.
-             * Buffer subsequent lines, outputting any over 3 beyond that.
-             */
-            function topStuffLine ($line)
-            {
-                global $toplines, $topstuff;
-
-                $line = "<P>$line</P>\n";
-
-                if ($topstuff == 0) {
-                    $toplines = array ();
-                }
-
-                if ($topstuff < 3) {
-                    echo $line;
-                } else {
-                    if ($topstuff == 3) {
-                        echo "<DIV ID=\"topstuff\">";
-                    }
-                    $toplines[$topstuff] = $line;
-                    while (count ($toplines) > 3) {
-                        foreach ($toplines as $n => $line) {
-                            echo $line;
-                            unset ($toplines[$n]);
-                            break;
-                        }
-                    }
-                }
-                $topstuff ++;
-                @flush (); @ob_flush (); @flush ();
-            }
-
-            /**
              * Get the icaoid,"plate name", from the beginning of a line.
              */
             function GetIcaoIDPlate ($line)
             {
                 $i = strpos ($line, '",');
                 return substr ($line, 0, $i + 2);
-            }
-
-            /**
-             * Flush any lines buffered by topStuffLine(),
-             * replacing those before it with '...' so the
-             * stuff at end of page can be easily seen.
-             */
-            function endTopStuff ()
-            {
-                global $toplines, $topstuff;
-
-                if ($topstuff > 3) {
-                    echo "</DIV>";
-                    if ($topstuff > 8) {
-                        echo "<SCRIPT> document.getElementById ('topstuff').innerHTML = '...' </SCRIPT>\n";
-                    }
-                    foreach ($toplines as $line) {
-                        echo $line;
-                    }
-                    $topstuff = 0;
-                }
             }
 
             /**
@@ -475,7 +423,8 @@ END;
                     $icaoid = $parts[0];
                     $plate  = substr ($icaoid_plate, strlen ($icaoid) + 1);
                     $delerr = '';
-                    if (PlateMarkedWithD ($icaoid, $plate)) {
+                    if (hasFAAGeoRef (FALSE, "$icaoid,\"$plate\",") ||
+                            PlateMarkedWithD ($icaoid, $plate)) {
                         if ($gooddb->exec ("DELETE FROM LatLons WHERE icaoid_plate='$icaoid_plate'")) continue;
                         $delerr = "<BR>error deleting $icaoid_plate: " . $gooddb->lastErrorMsg ();
                     }
@@ -504,6 +453,37 @@ END;
                 } else {
                     echo "</UL>";
                 }
+            }
+
+            /**
+             * See if the given plate has FAA-provided georef data.
+             *  statecode = two-letter state code if known
+             *  icaoidplate = KAPS,"IAP-RNAV (GPS) RWY 17",
+             */
+            function hasFAAGeoRef ($statecode, $icaoidplate)
+            {
+                global $iap2dir;
+
+                if ($statecode) {
+                    $iapgeoref2 = @fopen ("$iap2dir/$statecode.csv", "r");
+                    if ($iapgeoref2) while ($faageo = fgets ($iapgeoref2)) {
+                        // KAPS,"IAP-RNAV (GPS) RWY 17",...
+                        if (strpos ($faageo, $icaoidplate) === 0) {
+                            fclose ($iapgeoref2);
+                            return TRUE;
+                        }
+                    }
+                    fclose ($iapgeoref2);
+                } else {
+                    $states = scandir ($iap2dir);
+                    foreach ($states as $state) {
+                        if ((strlen ($state) == 6) && (substr ($state, 2) == ".csv")) {
+                            $statecode = substr ($state, 0, 2);
+                            if (hasFAAGeoRef ($statecode, $icaoidplate)) return TRUE;
+                        }
+                    }
+                }
+                return FALSE;
             }
 
             /**

@@ -35,7 +35,7 @@ using System.IO;
 
 public class WriteNavaidsCsv {
 
-    public static string[] acceptables = new string[] { "DME", "NDB", "NDB/DME", "VOR", "VOR/DME", "VORTAC" };
+    public static string[] acceptables = new string[] { "DME", "NDB", "NDB/DME", "TACAN", "VOR", "VOR/DME", "VORTAC" };
 
     public static void Main ()
     {
