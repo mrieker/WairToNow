@@ -207,6 +207,13 @@ public class VirtNavView extends LinearLayout
         // assume we don't want a plate displayed in the right-hand part of landscape mode
         selectedPlateView = null;
 
+        // turn dial OFF so it doesn't have an incorrect mode selected for new waypoint
+        // eg, old was in LOC mode when navving to a new VOR
+        // whilst in landscape:
+        //  FAAWP1 -> KSFM -> VOR-25 -> VirtNav1 -> FAAWP1 -> CIFP -> ENE -> FAAWP1
+        //    CIFP(long click) -> DISCONTINUE -> FAAWP1 (used to crash here)
+        useWaypointButtonClicked (null);
+
         // if FAAWP1,2 doesn't have an airport waypoint selected,
         // just select whatever waypoint it has selected (VOR, NDB, etc)
         Waypoint wp = wpv.selectedWaypoint;
@@ -216,9 +223,8 @@ public class VirtNavView extends LinearLayout
             return;
         }
 
-        // FAAWP1 has an airport selected, see if it is displaying an IAP plate
+        // FAAWP1,2 has an airport selected, see if it is displaying an IAP plate
         // update this screen (right-hand part of landscape mode) with plate if so
-        selectedPlateCIFP = null;
         selectedPlateView = wpv.selectedPlateView;
         orientationChanged ();  // update right-hand part of landscape mode
 
@@ -278,6 +284,7 @@ public class VirtNavView extends LinearLayout
 
             // null waypoint turns the thing off
             wpIdent.setText ("[OFF]");
+            wpStatus.setText ("");
             navDial.setMode (NavDialView.Mode.OFF);
             navDial.obsSetting = 0.0F;
         } else {
