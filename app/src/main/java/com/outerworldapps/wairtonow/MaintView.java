@@ -422,7 +422,7 @@ public class MaintView
                  */
                 long msperday = 24 * 60 * 60 * 1000L;
                 long now = System.currentTimeMillis ();
-                long delay = msperday - now * msperday;
+                long delay = msperday - now % msperday;
                 Message msg = maintViewHandler.obtainMessage (MaintViewHandlerWhat_EXPDATECHECK);
                 maintViewHandler.sendMessageDelayed (msg, delay);
             }
