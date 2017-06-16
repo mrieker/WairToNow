@@ -28,7 +28,7 @@ import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Path;
-import android.graphics.Point;
+import android.graphics.PointF;
 import android.support.annotation.NonNull;
 import android.util.Log;
 
@@ -293,10 +293,10 @@ public class OpenStreetMap {
     private static abstract class TileDrawer {
         protected float[] canvaspts = new float[8];
         protected int tileX, tileY, zoom;
-        protected Point northwestcanpix = new Point ();
-        protected Point northeastcanpix = new Point ();
-        protected Point southwestcanpix = new Point ();
-        protected Point southeastcanpix = new Point ();
+        protected PointF northwestcanpix = new PointF ();
+        protected PointF northeastcanpix = new PointF ();
+        protected PointF southwestcanpix = new PointF ();
+        protected PointF southeastcanpix = new PointF ();
 
         // draw tile zoom/tileX/tileY.png
         public abstract boolean DrawTile ();

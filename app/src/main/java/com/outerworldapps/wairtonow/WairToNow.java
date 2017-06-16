@@ -29,7 +29,7 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
-import android.graphics.Point;
+import android.graphics.PointF;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
@@ -85,6 +85,7 @@ public class WairToNow extends Activity {
     public  int displayWidth;
     public  int displayHeight;
     public  int gpsDisabled;
+    private int gpsLastInterval;
     private LinearLayout tabButtonLayout;
     private LinearLayout tabViewLayout;
     private LinearLayout.LayoutParams ctvllp = new LinearLayout.LayoutParams (
@@ -92,6 +93,7 @@ public class WairToNow extends Activity {
     private LinearLayout.LayoutParams tbsllp = new LinearLayout.LayoutParams (
             LinearLayout.LayoutParams.FILL_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
     public  long currentGPSTime;    // milliseconds since Jan 1, 1970 UTC
+    private long gpsThrottleStart;
     private long lastLocUpdate;
     public  MaintView maintView;
     public  final NexradRepo nexradRepo = new NexradRepo ();
@@ -589,8 +591,18 @@ public class WairToNow extends Activity {
     public void LocationReceived (float speed, float altitude, float heading,
                                   float latitude, float longitude, long time)
     {
-        // say GPS is available cuz we just got a point
-        gpsAvailable = true;
+        if (gpsAvailable) {
+            int thisInterval = Math.round ((float) (time - gpsThrottleStart) *
+                    (float) optionsView.gpsUpdateOption.getVal () / 1000.0F);
+            if (thisInterval <= gpsLastInterval) return;
+            gpsLastInterval = thisInterval;
+        } else {
+            gpsThrottleStart = time;
+            gpsLastInterval = 0;
+
+            // say GPS is available cuz we just got a point
+            gpsAvailable = true;
+        }
 
         // reset GPS timeout timer
         lastLocUpdate = SystemClock.uptimeMillis ();
@@ -797,7 +809,7 @@ public class WairToNow extends Activity {
      *   lastGPSTimestamp = time of previous gps sample
      *   lastGPSHeading = true heading for the arrow symbol (previous gps sample)
      */
-    public void DrawLocationArrow (Canvas canvas, Point pt, float canHdgRads)
+    public void DrawLocationArrow (Canvas canvas, PointF pt, float canHdgRads)
     {
         /*
          * If not receiving GPS signal, blink the icon.

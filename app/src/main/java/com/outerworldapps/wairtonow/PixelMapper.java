@@ -20,7 +20,7 @@
 
 package com.outerworldapps.wairtonow;
 
-import android.graphics.Point;
+import android.graphics.PointF;
 
 /**
  * Map lat/lon to canvax pixel x,y.
@@ -248,12 +248,12 @@ public class PixelMapper {
      * @param canpix = where to return resultant canvas x,y
      * @return true iff lat/lon is on display
      */
-    public boolean LatLon2CanPixAprox (float lat, float lon, Point canpix)
+    public boolean LatLon2CanPixAprox (float lat, float lon, PointF canpix)
     {
         lon = Lib.NormalLon (lon);
-        float  w =              ll2pix_2_0 * lat + ll2pix_2_1 * lon + ll2pix_2_2;
-        canpix.x = Math.round ((ll2pix_0_0 * lat + ll2pix_0_1 * lon + ll2pix_0_2) / w);
-        canpix.y = Math.round ((ll2pix_1_0 * lat + ll2pix_1_1 * lon + ll2pix_1_2) / w);
+        float  w =  ll2pix_2_0 * lat + ll2pix_2_1 * lon + ll2pix_2_2;
+        canpix.x = (ll2pix_0_0 * lat + ll2pix_0_1 * lon + ll2pix_0_2) / w;
+        canpix.y = (ll2pix_1_0 * lat + ll2pix_1_1 * lon + ll2pix_1_2) / w;
         return (canpix.x >= 0) && (canpix.x < canvasWidth) && (canpix.y >= 0) && (canpix.y < canvasHeight);
     }
 }

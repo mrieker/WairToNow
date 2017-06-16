@@ -20,7 +20,7 @@
 
 package com.outerworldapps.wairtonow;
 
-import android.graphics.Point;
+import android.graphics.PointF;
 
 /**
  * Traffic report received from ADS-B.
@@ -50,7 +50,7 @@ public class Traffic {
     public int seqno;           // reception sequence number
 
     public float distaway;
-    public Point canpix;
+    public PointF canpix;
 
     private float lastDistNM = -1.0F;
     private int lastHdgIdx = -1;

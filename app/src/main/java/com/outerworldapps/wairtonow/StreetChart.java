@@ -23,7 +23,7 @@ package com.outerworldapps.wairtonow;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
-import android.graphics.Point;
+import android.graphics.PointF;
 import android.graphics.Rect;
 import android.support.annotation.NonNull;
 import android.util.TypedValue;
@@ -78,7 +78,7 @@ public class StreetChart implements DisplayableChart {
     { }
 
     @Override  // DisplayableChart
-    public boolean LatLon2CanPixExact (float lat, float lon, @NonNull Point canpix)
+    public boolean LatLon2CanPixExact (float lat, float lon, @NonNull PointF canpix)
     {
         return false;
     }
@@ -255,16 +255,13 @@ public class StreetChart implements DisplayableChart {
      * @param mbmpix = macro bitmap pixel number (might be out of range)
      */
     @Override  // DisplayableChart
-    public void LatLon2MacroBitmap (float lat, float lon, @NonNull Point mbmpix)
+    public void LatLon2MacroBitmap (float lat, float lon, @NonNull PointF mbmpix)
     {
         float tileX = lon2MacroTileX (lon) - macroLeftTileX;  // how many tiles east of left edge of macro bitmap
         float tileY = lat2MacroTileY (lat) - macroTopTileY;   // how many tiles south of top edge of macro bitmap
 
-        tileX *= TILEWIDTH;   // how many macro bitmap pixels east of left edge
-        tileY *= TILEHEIGHT;  // how many macro bitmap pixels south of top edge
-
-        mbmpix.x = Math.round (tileX);
-        mbmpix.y = Math.round (tileY);
+        mbmpix.x = tileX * TILEWIDTH;   // how many macro bitmap pixels east of left edge
+        mbmpix.y = tileY * TILEHEIGHT;  // how many macro bitmap pixels south of top edge
     }
 
     /**

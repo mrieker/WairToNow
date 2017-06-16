@@ -1,6 +1,6 @@
 package com.outerworldapps.wairtonow;
 
-import android.graphics.Point;
+import android.graphics.PointF;
 
 public class PnPoly {
 
@@ -19,7 +19,7 @@ public class PnPoly {
     //            =0 for P2  on the line
     //            <0 for P2  right of the line
     //    See: Algorithm 1 "Area of Triangles and Polygons"
-    private static int isLeft( Point P0, Point P1, int X2, int Y2 )
+    private static float isLeft( PointF P0, PointF P1, float X2, float Y2 )
     {
         return ( (P1.x - P0.x) * (Y2 - P0.y)
                 - (X2 -  P0.x) * (P1.y - P0.y) );
@@ -29,14 +29,14 @@ public class PnPoly {
     //      Input:   P = a point,
     //               V[] = vertex points of a polygon V[n+1] with V[n]=V[0]
     //      Return:  wn = the winding number (=0 only when P is outside)
-    public static int wn( int X, int Y, Point[] V, int n )
+    public static int wn( float X, float Y, PointF[] V, int n )
     {
         int    wn = 0;    // the  winding number counter
 
         // loop through all edges of the polygon
-        Point R = V[0];
+        PointF R = V[0];
         for (int i=0; ++i<=n;) {   // edge from V[i-1] to  V[i]
-            Point S = V[i];
+            PointF S = V[i];
             if (R.y <= Y) {          // start y <= P.y
                 if (S.y  > Y)      // an upward crossing
                      if (isLeft( R, S, X, Y) > 0)  // P left of  edge

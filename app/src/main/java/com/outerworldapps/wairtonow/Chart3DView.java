@@ -22,10 +22,9 @@ package com.outerworldapps.wairtonow;
 
 import android.annotation.SuppressLint;
 import android.graphics.Color;
-import android.graphics.Point;
+import android.graphics.PointF;
 import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
-import android.opengl.Matrix;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
@@ -189,7 +188,7 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
      * @param pix = canvas pixel X,Y
      */
     @Override  // Backing
-    public boolean LatLonAlt2CanPixExact (float lat, float lon, float alt, Point pix)
+    public boolean LatLonAlt2CanPixExact (float lat, float lon, float alt, PointF pix)
     {
         EarthSector.LatLonAlt2XYZ (lat, lon, alt, canpixxyz);
         return myRenderer.WorldXYZ2PixelXY (canpixxyz, pix);
@@ -352,10 +351,11 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
         public  float cameraHdg;
         private float lastGPSHdg;
         private float sightnm;
-        private float[] mIdnMatrix = new float[16];
-        private float[] mMVPMatrix = new float[16];
-        private float[] projMatrix = new float[16];
-        private float[] viewMatrix = new float[16];
+        private double[] mIdnMatrix = new double[16];
+        private double[] mMVPMatrix = new double[16];
+        private double[] projMatrix = new double[16];
+        private double[] viewMatrix = new double[16];
+        private float[] mMVPMatrixF = new float[16];
         private EarthSector closeSectors;
         private EarthSector knownSectors;
         private HashMap<Integer,Short> knownHighestElevations = new HashMap<> ();
@@ -364,10 +364,10 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
         public  int mWidth, mHeight;
         private int[] l2stepLimits = new int[2];
         private long lastGPSTime;
-        private Point nepoint = new Point ();
-        private Point nwpoint = new Point ();
-        private Point sepoint = new Point ();
-        private Point swpoint = new Point ();
+        private PointF nepoint = new PointF ();
+        private PointF nwpoint = new PointF ();
+        private PointF sepoint = new PointF ();
+        private PointF swpoint = new PointF ();
         private Vector3 cameraLook = new Vector3 ();
         private Vector3 cameraLookMouse;
         private Vector3 cameraPos  = new Vector3 ();
@@ -376,7 +376,7 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
 
         public MyRenderer ()
         {
-            Matrix.setIdentityM (mIdnMatrix, 0);
+            MatrixD.setIdentityM (mIdnMatrix, 0);
             cameraLookMouse = cameraLook;
         }
 
@@ -639,7 +639,7 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
             /*
              * Set up transformation (camera) matrix.
              */
-            GLES20.glUniformMatrix4fv (muMVPMatrixHandle, 1, false, mMVPMatrix, 0);
+            GLES20.glUniformMatrix4fv (muMVPMatrixHandle, 1, false, mMVPMatrixF, 0);
 
             /*
              * Output at most MAXSECTORS sector tiles to the scene.
@@ -740,7 +740,7 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
             float top    = scale * aspect;
             float left   = -right;
             float bottom = -top;
-            Matrix.frustumM (projMatrix, 0, left, right, bottom, top, near, far);
+            MatrixD.frustumM (projMatrix, 0, left, right, bottom, top, near, far);
 
             /*
              * Apply mouse-driven displacement to modify the look-at point.
@@ -767,7 +767,7 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
             /*
              * Re-compute the view matrix.
              */
-            Matrix.setLookAtM (viewMatrix, 0,
+            MatrixD.setLookAtM (viewMatrix, 0,
                     cameraPos.x, cameraPos.y, cameraPos.z,
                     cameraLookMouse.x, cameraLookMouse.y, cameraLookMouse.z,
                     cameraUp.x, cameraUp.y, cameraUp.z);
@@ -777,12 +777,13 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
              */
             Vector3 lookLLA = new Vector3 ();
             EarthSector.XYZ2LatLonAlt (cameraLookMouse, lookLLA);
-            cameraHdg = Lib.LatLonTC (cameraPosLat, cameraPosLon, lookLLA.x, lookLLA.y);
+            cameraHdg = Lib.LatLonTC (cameraPosLat, cameraPosLon, (float) lookLLA.x, (float) lookLLA.y);
 
             /*
              * Make a composite matrix from camera frustum and camera position.
              */
-            Matrix.multiplyMM (mMVPMatrix, 0, projMatrix, 0, viewMatrix, 0);
+            MatrixD.multiplyMM (mMVPMatrix, 0, projMatrix, 0, viewMatrix, 0);
+            for (int i = 0; i < 16; i ++) mMVPMatrixF[i] = (float) mMVPMatrix[i];
 
             /*
              * Get range of lat/lon (whole STEPs) visible to camera.
@@ -953,10 +954,10 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
                     LatLon2PixelXY (nlat, wlon, nwpoint);
                     LatLon2PixelXY (slat, elon, sepoint);
                     LatLon2PixelXY (nlat, elon, nepoint);
-                    int minx = Math.min (Math.min (swpoint.x, nwpoint.x), Math.min (sepoint.x, nepoint.x));
-                    int maxx = Math.max (Math.max (swpoint.x, nwpoint.x), Math.max (sepoint.x, nepoint.x));
-                    int miny = Math.min (Math.min (swpoint.y, nwpoint.y), Math.min (sepoint.y, nepoint.y));
-                    int maxy = Math.max (Math.max (swpoint.y, nwpoint.y), Math.max (sepoint.y, nepoint.y));
+                    int minx = Math.round (Math.min (Math.min (swpoint.x, nwpoint.x), Math.min (sepoint.x, nepoint.x)));
+                    int maxx = Math.round (Math.max (Math.max (swpoint.x, nwpoint.x), Math.max (sepoint.x, nepoint.x)));
+                    int miny = Math.round (Math.min (Math.min (swpoint.y, nwpoint.y), Math.min (sepoint.y, nepoint.y)));
+                    int maxy = Math.round (Math.max (Math.max (swpoint.y, nwpoint.y), Math.max (sepoint.y, nepoint.y)));
                     if (maxx <= 0) continue;        // whole thing is off to left of screen
                     if (minx >= mWidth) continue;   // whole thing is off to right of screen
                     if (maxy <= 0) continue;        // whole thing is above top of screen
@@ -1034,7 +1035,7 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
          * @param xy  = where to put the resultant XY
          * @return true iff pixel is visible
          */
-        private boolean LatLon2PixelXY (float lat, float lon, Point xy)
+        private boolean LatLon2PixelXY (float lat, float lon, PointF xy)
         {
             int alt = Topography.getElevMetres (lat, lon);
             EarthSector.LatLonAlt2XYZ (lat, lon, alt, llvxyz);
@@ -1045,29 +1046,23 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
          * Convert a world XYZ to an on-the-screen pixel XY
          * @return whether the point is visible or not
          */
-        private boolean WorldXYZ2PixelXY (Vector3 xyz, Point xy)
+        private boolean WorldXYZ2PixelXY (Vector3 xyz, PointF xy)
         {
             // simplified version of GLU.gluProject()
-            float[] m = mMVPMatrix;
-            float rawx = m[ 0] * xyz.x + m[ 4] * xyz.y + m[ 8] * xyz.z + m[12];
-            float rawy = m[ 1] * xyz.x + m[ 5] * xyz.y + m[ 9] * xyz.z + m[13];
-            float rawh = m[ 3] * xyz.x + m[ 7] * xyz.y + m[11] * xyz.z + m[15];
+            double[] m = mMVPMatrix;
+            double rawx = m[ 0] * xyz.x + m[ 4] * xyz.y + m[ 8] * xyz.z + m[12];
+            double rawy = m[ 1] * xyz.x + m[ 5] * xyz.y + m[ 9] * xyz.z + m[13];
+            double rawh = m[ 3] * xyz.x + m[ 7] * xyz.y + m[11] * xyz.z + m[15];
             if (rawh == 0) return false;
-            rawx = (1 + rawx / rawh) / 2 * mWidth;
-            rawy = (1 - rawy / rawh) / 2 * mHeight;
-            xy.x = Math.round (rawx);
-            xy.y = Math.round (rawy);
-            if (rawx < Integer.MIN_VALUE) xy.x = Integer.MIN_VALUE;
-            if (rawy < Integer.MIN_VALUE) xy.y = Integer.MIN_VALUE;
-            if (rawx > Integer.MAX_VALUE) xy.x = Integer.MAX_VALUE;
-            if (rawy > Integer.MAX_VALUE) xy.y = Integer.MAX_VALUE;
+            xy.x = (float) ((1 + rawx / rawh) / 2 * mWidth);
+            xy.y = (float) ((1 - rawy / rawh) / 2 * mHeight);
 
             // see if pixel number is within range of the screen
             if ((xy.x < 0) || (xy.x >= mWidth) || (xy.y < 0) || (xy.y >= mHeight)) return false;
 
             // points behind the camera can appear within limits of pixels yet not be on screen
             // so we check the dot product = (cameraLookMouse - cameraPos) dot (xyz - cameraPos) > 0
-            float dotprod =
+            double dotprod =
                     (cameraLookMouse.x - cameraPos.x) * (xyz.x - cameraPos.x) +
                     (cameraLookMouse.y - cameraPos.y) * (xyz.y - cameraPos.y) +
                     (cameraLookMouse.z - cameraPos.z) * (xyz.z - cameraPos.z);

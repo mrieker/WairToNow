@@ -159,16 +159,20 @@ public class NMEADecoder extends MidDecoder {
         String type = tokens[0];
         reporter.adsbGpsInstance ("nmea-" + type);
         switch (type.substring (3)) {
-            case "RMC": {
-                RMCMessage.parse (tokens, this);
-                break;
-            }
             case "GGA": {
                 GGAMessage.parse (tokens, this);
                 break;
             }
             case "GSV": {
                 gsvMessage.parse (tokens);
+                break;
+            }
+            case "PWR": {
+                PWRMessage.parse (tokens, reporter);
+                break;
+            }
+            case "RMC": {
+                RMCMessage.parse (tokens, this);
                 break;
             }
             case "RTM": {

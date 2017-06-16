@@ -150,11 +150,9 @@ public class AdsbGpsRThread extends Thread implements Reporter {
     {
         StringBuilder sb = new StringBuilder ();
         sb.append (startWord);
-        if (!Float.isNaN (batteryLevel)) {
-            sb.append ("; Battery ");
-            sb.append (Math.round (batteryLevel * 100.0F));
-            sb.append ('%');
-            if (batteryCharging) sb.append (" charging");
+        if (batteryLevel != null) {
+            sb.append ("; battery ");
+            sb.append (batteryLevel);
         }
         if (lengthReceived > 0) {
             sb.append (String.format ("; %,d bytes", lengthReceived));
@@ -175,8 +173,7 @@ public class AdsbGpsRThread extends Thread implements Reporter {
      *  Called by Decoder  *
     \***********************/
 
-    private boolean batteryCharging;
-    private float batteryLevel = Float.NaN;
+    private String batteryLevel;
     private final TreeMap<String,int[]> instanceCounts = new TreeMap<> ();
 
     @Override  // Reporter
@@ -206,11 +203,9 @@ public class AdsbGpsRThread extends Thread implements Reporter {
      */
     @Override  // Reporter
     public void adsbGpsBattery (
-            boolean charging,
-            float batlevel)
+            String batlevel)
     {
-        batteryCharging = charging;
-        batteryLevel    = batlevel;
+        batteryLevel = batlevel;
     }
 
     /**
@@ -336,18 +331,43 @@ public class AdsbGpsRThread extends Thread implements Reporter {
             final float longitude,
             final float speed)
     {
-        WairToNow.wtnHandler.runDelayed (0, new Runnable () {
-            @Override
-            public void run () {
-                wairToNow.LocationReceived (
-                        speed / Lib.KtPerMPS,
-                        taltitude / Lib.FtPerM,
-                        heading,
-                        latitude,
-                        longitude,
-                        time);
-            }
-        });
+        ReportAdsbGpsOwnship r = reportAdsbGpsOwnship;
+        if (r.bussy) return;
+
+        // pass GPS sample on to GUI thread
+        r.bussy = true;
+        r.time = time;
+        r.taltitude = taltitude;
+        r.heading = heading;
+        r.latitude = latitude;
+        r.longitude = longitude;
+        r.speed = speed;
+        WairToNow.wtnHandler.runDelayed (0, r);
+    }
+
+    private final ReportAdsbGpsOwnship reportAdsbGpsOwnship = new ReportAdsbGpsOwnship ();
+
+    private class ReportAdsbGpsOwnship implements Runnable {
+        public volatile boolean bussy;
+
+        public long time;
+        public float taltitude;
+        public float heading;
+        public float latitude;
+        public float longitude;
+        public float speed;
+
+        @Override
+        public void run () {
+            wairToNow.LocationReceived (
+                    speed / Lib.KtPerMPS,
+                    taltitude / Lib.FtPerM,
+                    heading,
+                    latitude,
+                    longitude,
+                    time);
+            bussy = false;
+        }
     }
 
     /**
@@ -358,11 +378,11 @@ public class AdsbGpsRThread extends Thread implements Reporter {
     {
         final LinkedList<MyGpsSatellite> sats = new LinkedList<> (satellites);
         WairToNow.wtnHandler.runDelayed (0, new Runnable () {
-                @Override
-                public void run ()
-                {
-                    wairToNow.sensorsView.gpsStatusView.SetGPSStatus (sats);
-                }
+            @Override
+            public void run ()
+            {
+                wairToNow.sensorsView.gpsStatusView.SetGPSStatus (sats);
+            }
         });
     }
 

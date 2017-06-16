@@ -20,10 +20,8 @@
 
 package com.outerworldapps.wairtonow;
 
-import android.opengl.Matrix;
-
 public class Vector3 {
-    public float x, y, z;
+    public double x, y, z;
 
     public void set (Vector3 v)
     {
@@ -41,14 +39,14 @@ public class Vector3 {
         return norm;
     }
 
-    public float dot (Vector3 that)
+    public double dot (Vector3 that)
     {
         return this.x * that.x + this.y * that.y + this.z * that.z;
     }
 
-    public float length ()
+    public double length ()
     {
-        return Mathf.sqrt (dot (this));
+        return Math.sqrt (dot (this));
     }
 
     public Vector3 minus (Vector3 that)
@@ -71,9 +69,9 @@ public class Vector3 {
 
     public Vector3 rotate (Vector3 axis, double rads)
     {
-        float[] mat = new float[24];
+        double[] mat = new double[24];
 
-        Matrix.setRotateM (mat, 0, (float) Math.toDegrees (rads),
+        MatrixD.setRotateM (mat, 0, Math.toDegrees (rads),
                 axis.x, axis.y, axis.z);
 
         mat[16] = this.x;
@@ -81,7 +79,7 @@ public class Vector3 {
         mat[18] = this.z;
         mat[19] = 1.0F;
 
-        Matrix.multiplyMV (mat, 20, mat, 0, mat, 16);
+        MatrixD.multiplyMV (mat, 20, mat, 0, mat, 16);
 
         Vector3 rot = new Vector3 ();
         rot.x = mat[20] / mat[23];

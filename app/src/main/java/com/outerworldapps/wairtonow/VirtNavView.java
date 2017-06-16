@@ -240,6 +240,9 @@ public class VirtNavView extends LinearLayout
                 // ok, put us in CIFP tracking mode
                 selectedPlateCIFP = plateCIFP;
 
+                // have mode button show we are in CIFP tracking mode
+                modeButton.setText ("CIFP");
+
                 // set waypoint title string
                 wpIdent.setText ("CIFP: " + plateCIFP.getApproachName ());
 

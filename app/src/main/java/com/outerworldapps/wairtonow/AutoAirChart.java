@@ -26,7 +26,7 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Matrix;
-import android.graphics.Point;
+import android.graphics.PointF;
 import android.support.annotation.NonNull;
 import android.util.TypedValue;
 import android.view.View;
@@ -146,12 +146,12 @@ public class AutoAirChart implements DisplayableChart, Comparator<AirChart> {
     }
 
     @Override  // DisplayableChart
-    public boolean LatLon2CanPixExact (float lat, float lon, @NonNull Point canpix)
+    public boolean LatLon2CanPixExact (float lat, float lon, @NonNull PointF canpix)
     {
         // find last chart drawn that covers the given lat/lon
         boolean found = false;
-        int lastx = 0;
-        int lasty = 0;
+        float lastx = 0.0F;
+        float lasty = 0.0F;
         for (AirChart ac : airChartsAsync.keySet ()) {
             if (ac.IsDownloaded () &&
                     ac.LatLonIsCharted (lat, lon) &&
@@ -247,10 +247,10 @@ public class AutoAirChart implements DisplayableChart, Comparator<AirChart> {
         floats[6] = EarthSector.MBMSIZE;
         floats[7] = EarthSector.MBMSIZE;
         Matrix matrix = new Matrix ();
-        Point srctlpix = new Point ();
-        Point srctrpix = new Point ();
-        Point srcblpix = new Point ();
-        Point srcbrpix = new Point ();
+        PointF srctlpix = new PointF ();
+        PointF srctrpix = new PointF ();
+        PointF srcblpix = new PointF ();
+        PointF srcbrpix = new PointF ();
         for (AirChart ac : airChartsSync.keySet ()) {
             if (ac.IsDownloaded ()) {
                 Bitmap cbm = ac.GetMacroBitmap (slat, nlat, wlon, elon, false);
@@ -276,7 +276,7 @@ public class AutoAirChart implements DisplayableChart, Comparator<AirChart> {
     }
 
     @Override  // DisplayableChart
-    public void LatLon2MacroBitmap (float lat, float lon, @NonNull Point mbmpix)
+    public void LatLon2MacroBitmap (float lat, float lon, @NonNull PointF mbmpix)
     {
         float x;
         if (macroELon < macroWLon) {
@@ -285,8 +285,8 @@ public class AutoAirChart implements DisplayableChart, Comparator<AirChart> {
         } else {
             x = (lon - macroWLon) / (macroELon - macroWLon);
         }
-        mbmpix.x = Math.round (x * EarthSector.MBMSIZE);
-        mbmpix.y = Math.round ((macroNLat - lat) / (macroNLat - macroSLat) * EarthSector.MBMSIZE);
+        mbmpix.x = x * EarthSector.MBMSIZE;
+        mbmpix.y = (macroNLat - lat) / (macroNLat - macroSLat) * EarthSector.MBMSIZE;
     }
 
     /**

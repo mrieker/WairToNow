@@ -31,7 +31,7 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
-import android.graphics.Point;
+import android.graphics.PointF;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Typeface;
@@ -51,6 +51,7 @@ import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -459,8 +460,8 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         protected float xfmwfta, xfmwftb, xfmwftc, xfmwftd, xfmwfte, xfmwftf;
         protected float mPerBmpPix;
 
-        private Point canPoint   = new Point ();
-        private RectF canTmpRect = new RectF ();
+        private PointF canPoint   = new PointF ();
+        private RectF  canTmpRect = new RectF  ();
 
         /**
          * Display single-page plate according to current zoom/pan.
@@ -497,10 +498,8 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                     (isAptDgm && (wairToNow.currentGPSSpd < 80.0F * Lib.MPerNM / 3600.0F))) {
                 float bitmapX = LatLon2BitmapX (wairToNow.currentGPSLat, wairToNow.currentGPSLon);
                 float bitmapY = LatLon2BitmapY (wairToNow.currentGPSLat, wairToNow.currentGPSLon);
-                float canPointX = BitmapX2CanvasX (bitmapX);
-                float canPointY = BitmapY2CanvasY (bitmapY);
-                canPoint.x = Math.round (canPointX);
-                canPoint.y = Math.round (canPointY);
+                canPoint.x = BitmapX2CanvasX (bitmapX);
+                canPoint.y = BitmapY2CanvasY (bitmapY);
                 wairToNow.DrawLocationArrow (canvas, canPoint, 0.0F);
             }
             return true;
@@ -1104,6 +1103,95 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
      * Also display any associated georef info.
      */
     public class IAPPlateImage extends GRPlateImage {
+
+        // dme arcs added via dmearcs.txt (see PlateCIFP.java)
+        private class DMEArc {
+            public Waypoint nav;
+            public float beg, end, nm;
+
+            public void drawIt (Canvas bmcan)
+            {
+                // wrap beg to be in range (0..360] as that is the one that gets a label
+                while (beg <=  0.0F) beg += 360.0F;
+                while (beg > 360.0F) beg -= 360.0F;
+
+                // wrap end to be within 180 of beg
+                // it might end up negative, it might end up more than 360
+                while (end - beg < -180.0F) end += 360.0F;
+                while (end - beg >= 180.0F) end += 360.0F;
+
+                // calculate true endpoints
+                float magvar = nav.GetMagVar (nav.elev);
+                float trubeg = beg - magvar;
+                float truend = end - magvar;
+
+                // get lat,lon of arc endpoints
+                float beglat = Lib.LatHdgDist2Lat (nav.lat, trubeg, nm);
+                float beglon = Lib.LatLonHdgDist2Lon (nav.lat, nav.lon, trubeg, nm);
+                float endlat = Lib.LatHdgDist2Lat (nav.lat, truend, nm);
+                float endlon = Lib.LatLonHdgDist2Lon (nav.lat, nav.lon, truend, nm);
+
+                // convert all the lat,lon to bitmap x,y
+                float begbmx = LatLon2BitmapX (beglat, beglon);
+                float begbmy = LatLon2BitmapY (beglat, beglon);
+                float endbmx = LatLon2BitmapX (endlat, endlon);
+                float endbmy = LatLon2BitmapY (endlat, endlon);
+                float navbmx = LatLon2BitmapX (nav.lat, nav.lon);
+                float navbmy = LatLon2BitmapY (nav.lat, nav.lon);
+
+                float radius = Mathf.sqrt (Math.hypot (begbmx - navbmx, begbmy - navbmy) *
+                        Math.hypot (endbmx - navbmx, endbmy - navbmy));
+
+                // make rectangle the arc circle fits in
+                RectF rect = new RectF (navbmx - radius, navbmy - radius,
+                        navbmx + radius, navbmy + radius);
+
+                // draw arc
+                Paint paint = new Paint ();
+                paint.setColor (Color.BLACK);
+                paint.setFlags (Paint.ANTI_ALIAS_FLAG);
+                paint.setStrokeWidth (6.0F);
+                paint.setStyle (Paint.Style.STROKE);
+                float start = Math.min (trubeg, truend) - 90.0F;
+                float sweep = Math.abs (truend - trubeg);
+                bmcan.drawArc (rect, start, sweep, false, paint);
+
+                // draw radial line segment at beginning of arc
+                float trubegsin = Mathf.sin (Math.toRadians (trubeg));
+                float trubegcos = Mathf.cos (Math.toRadians (trubeg));
+                float pixpernm = radius / nm;
+                float innerx = navbmx + (nm - 0.6F) * pixpernm * trubegsin;
+                float innery = navbmy - (nm - 0.6F) * pixpernm * trubegcos;
+                float outerx = navbmx + (nm + 0.6F) * pixpernm * trubegsin;
+                float outery = navbmy - (nm + 0.6F) * pixpernm * trubegcos;
+                paint.setStrokeWidth (3.0F);
+                bmcan.drawLine (innerx, innery, outerx, outery, paint);
+
+                // draw legend
+                String legend1 = nav.ident + " " + Math.round (beg) + "\u00B0";
+                String legend2 = String.format ("%.1f", nm) + " nm";
+                paint.setStrokeWidth (1.0F);
+                paint.setStyle (Paint.Style.FILL_AND_STROKE);
+                paint.setTextSize (25.0F);
+                bmcan.save ();
+                if (trubeg <= 180.0F) {
+                    bmcan.rotate (trubeg - 90.0F, outerx, outery);
+                } else {
+                    Rect bounds1 = new Rect ();
+                    Rect bounds2 = new Rect ();
+                    paint.getTextBounds (legend1, 0, legend1.length (), bounds1);
+                    paint.getTextBounds (legend2, 0, legend2.length (), bounds2);
+                    int width = Math.max (bounds1.width (), bounds2.width ());
+                    bmcan.rotate (trubeg - 270.0F, outerx, outery);
+                    bmcan.translate (- width, 0);
+                }
+                bmcan.drawText (legend1, outerx, outery, paint);
+                outery += paint.getTextSize ();
+                bmcan.drawText (legend2, outerx, outery, paint);
+                bmcan.restore ();
+            }
+        }
+
         private Bitmap      bitmap;                           // single plate page
         private boolean     showIAPEditButtons;               // show/hide georef editing toolbar row
         private float       bitmapLat, bitmapLon;
@@ -1117,6 +1205,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         private int         crosshairBMY;
         private LambertConicalConformal lccmap;               // non-null: FAA-provided georef data
         private LatLon      bmxy2latlon = new LatLon ();
+        private LinkedList<DMEArc> dmeArcs;
         private Paint       editButtonPaint  = new Paint ();  // draws IAP georef edit tb hide/show button
         private Paint       geoRefPaint;                      // paints georef stuff on plate image
         private Path        diamond          = new Path  ();  // used to draw waypoint diamond shape
@@ -1124,7 +1213,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         public  PlateCIFP   plateCIFP;
         private PlateDME    plateDME;
         private PlateTimer  plateTimer;
-        private Point       bitmapPt = new Point ();
+        private PointF      bitmapPt = new PointF ();
         private RectF       editButtonBounds = new RectF ();  // where IAP georef edit tb hide/show button is on canvas
         private String      filename;                         // name of gifs on flash, without ".p<pageno>" suffix
         private TextView    geoRefInteg;                      // georef geometry integrity string
@@ -1171,6 +1260,27 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             plateCIFP = new PlateCIFP (wairToNow, this, airport, plateid);
         }
 
+        /**
+         * Set up to draw a DME arc on the plate.
+         * These are arcs as specified in dmearcs.txt.
+         * (called by PlateCIFP constructor)
+         * @param nav = navaid the arc is based on
+         * @param beg = beginning of arc (magnetic), this gets a tick mark and legend
+         * @param end = end of arc (magnetic), should be recip of final approach course
+         * @param nm  = arc radius, usually 10.0F
+         */
+        public void DrawDMEArc (Waypoint nav, float beg, float end, float nm)
+        {
+            // add it to list of DME arcs to be drawn on plate
+            if (dmeArcs == null) dmeArcs = new LinkedList<> ();
+            DMEArc dmeArc = new DMEArc ();
+            dmeArc.nav = nav;
+            dmeArc.beg = beg;
+            dmeArc.end = end;
+            dmeArc.nm  = nm;
+            dmeArcs.addLast (dmeArc);
+        }
+
         @Override  // PlateImage
         public void SetGPSLocation ()
         {
@@ -1204,17 +1314,17 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                 try {
                     if (result.moveToFirst ()) {
                         lccmap = new LambertConicalConformal (
-                                result.getFloat ( 0),
-                                result.getFloat ( 1),
-                                result.getFloat ( 2),
-                                result.getFloat ( 3),
-                                result.getFloat ( 4),
-                                result.getFloat ( 5),
+                                result.getFloat (0),
+                                result.getFloat (1),
+                                result.getFloat (2),
+                                result.getFloat (3),
+                                result.getFloat (4),
+                                result.getFloat (5),
                                 new float[] {
-                                    result.getFloat ( 6),
-                                    result.getFloat ( 7),
-                                    result.getFloat ( 8),
-                                    result.getFloat ( 9),
+                                    result.getFloat (6),
+                                    result.getFloat (7),
+                                    result.getFloat (8),
+                                    result.getFloat (9),
                                     result.getFloat (10),
                                     result.getFloat (11)
                                 }
@@ -1418,7 +1528,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                 crosshairBMY = Math.round (CanvasY2BitmapY (getHeight () / 2.0F));
             }
 
-            // re-draw litte show/hide arrow button in its new state
+            // re-draw little show/hide arrow button in its new state
             invalidate ();
         }
 
@@ -1471,6 +1581,46 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                      */
                     UpdateIAPGeoRefs ();
                 }
+            }
+
+            /*
+             * Maybe we add DME arcs to the bitmap.
+             */
+            if ((dmeArcs != null) && LatLon2BitmapOK ()) {
+
+                // draw DME arc(s) on a mutable copy of bitmap
+                bitmap = bitmap.copy (Bitmap.Config.RGB_565, true);
+                Canvas bmcan = new Canvas (bitmap);
+                for (DMEArc dmeArc : dmeArcs) dmeArc.drawIt (bmcan);
+
+                // if we don't already have an image file, create one
+                File csvfile = new File (WairToNow.dbdir + "/dmearcs.txt");
+                File imgfile = new File (WairToNow.dbdir + "/dmearcs-" + airport.ident + "-" +
+                        plateid.replace (" ", "_").replace ("/", "_") + "-" + expdate + ".png");
+                if (imgfile.lastModified () < csvfile.lastModified ()) {
+                    try {
+                        @SuppressLint("DrawAllocation")
+                        File tmpfile = new File (imgfile.getPath () + ".tmp");
+                        @SuppressLint("DrawAllocation")
+                        FileOutputStream tmpouts = new FileOutputStream (tmpfile);
+                        try {
+                            if (!bitmap.compress (Bitmap.CompressFormat.PNG, 0, tmpouts)) {
+                                throw new IOException ("bitmap.compress failed");
+                            }
+                        } finally {
+                            tmpouts.close ();
+                        }
+                        if (!tmpfile.renameTo (imgfile)) {
+                            throw new IOException ("error renaming from " + tmpfile.getPath ());
+                        }
+                    } catch (IOException ioe) {
+                        Log.w (TAG, "error writing " + imgfile.getPath () + ": " + ioe.getMessage ());
+                        Lib.Ignored (imgfile.delete ());
+                    }
+                }
+
+                // we don't have to do this any more for this plate
+                dmeArcs = null;
             }
 
             /*

@@ -29,7 +29,6 @@ import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Path;
-import android.graphics.Point;
 import android.graphics.PointF;
 import android.graphics.Rect;
 import android.graphics.RectF;
@@ -119,14 +118,14 @@ public class Chart2DView extends View
     private Paint[] faaWPPaints     = new Paint[] { new Paint (), new Paint () };
     private Paint[] userWPPaints    = new Paint[] { new Paint (), new Paint () };
     private Path trailPath          = new Path ();
-    private Point onDrawPt          = new Point ();
-    private Point canpix1           = new Point ();
-    private Point canpix2           = new Point ();
-    private Point canpix3           = new Point ();
-    private Point canpix4           = new Point ();
-    private Point drawCourseFilletCom = new Point ();
-    private Point drawCourseFilletFr  = new Point ();
-    private Point drawCourseFilletTo  = new Point ();
+    private PointF onDrawPt         = new PointF ();
+    private PointF canpix1          = new PointF ();
+    private PointF canpix2          = new PointF ();
+    private PointF canpix3          = new PointF ();
+    private PointF canpix4          = new PointF ();
+    private PointF drawCourseFilletCom = new PointF ();
+    private PointF drawCourseFilletFr  = new PointF ();
+    private PointF drawCourseFilletTo  = new PointF ();
     private Pointer firstPointer;
     private Pointer secondPointer;
     private Pointer transPointer    = new Pointer ();
@@ -707,7 +706,7 @@ public class Chart2DView extends View
         /*
          * Maybe draw crumbs trail.
          */
-        Point pt = onDrawPt;
+        PointF pt = onDrawPt;
         LinkedList<Position> shownTrail = wairToNow.crumbsView.GetShownTrail ();
         if (shownTrail != null) {
             // set up arrow size when heading north
@@ -817,11 +816,11 @@ public class Chart2DView extends View
                                   // null: not part of intersector set, so txtBox position is final
                                   // else: part of intersector set, final txtBox position not yet determined
 
-        public DrawWaypoint (String id, Point pt, Paint[] fgs)
+        public DrawWaypoint (String id, PointF pt, Paint[] fgs)
         {
             ident    = id;
-            x        = pt.x;
-            y        = pt.y;
+            x        = Math.round (pt.x);
+            y        = Math.round (pt.y);
             fgPaints = fgs;
 
             dotBox = new Rect (x-5, y-5, x+5, y+5);
@@ -1080,13 +1079,13 @@ public class Chart2DView extends View
             float nextlat, float nextlon)
     {
         // two points on line being turned from
-        Point fr  = drawCourseFilletFr;
-        Point com = drawCourseFilletCom;
+        PointF fr  = drawCourseFilletFr;
+        PointF com = drawCourseFilletCom;
         LatLon2CanPixExact (prevlat, prevlon, fr);
         LatLon2CanPixExact (currlat, currlon, com);
 
         // two points on line being turned to (com is one of them)
-        Point to  = drawCourseFilletTo;
+        PointF to  = drawCourseFilletTo;
         LatLon2CanPixExact (nextlat, nextlon, to);
 
         // get heading on current segment (ie, heading we are supposed to be on now)
@@ -1135,7 +1134,7 @@ public class Chart2DView extends View
     {
         float scaling = chartView.scaling;  // current map display scale factor
         PixelMapper pmap = chartView.pmap;  // current lat/lon => screen pixel mapper
-        Point pt = onDrawPt;
+        PointF pt = onDrawPt;
 
         /*
          * See if primarily east/west or north/south route.
@@ -1177,8 +1176,8 @@ public class Chart2DView extends View
 
             float lonstep = Mathf.sin (tcquad) / scaling / Lib.NMPerDeg / Mathf.cos (Mathf.toRadians (pmap.centerLat) / 2.0);
 
-            int lastx = 0;
-            int lasty = 0;
+            float lastx = 0.0F;
+            float lasty = 0.0F;
             int nstep = 0;
             for (float lon = cwl;; lon += lonstep) {
                 if (lon > cel) lon = cel;
@@ -1201,8 +1200,8 @@ public class Chart2DView extends View
 
             float latstep = Mathf.cos (tcquad) / scaling / Lib.NMPerDeg;
 
-            int lastx = 0;
-            int lasty = 0;
+            float lastx = 0.0F;
+            float lasty = 0.0F;
             int nstep = 0;
             for (float lat = csl;; lat += latstep) {
                 if (lat > cnl) lat = cnl;
@@ -1345,8 +1344,8 @@ public class Chart2DView extends View
                 LatLon2CanPixExact (lat, lon, canpix1);
                 LatLon2CanPixExact (lat, lon + 0.25F, canpix2);
                 LatLon2CanPixExact (lat + 0.25F, lon, canpix3);
-                int x1 = canpix1.x;
-                int y1 = canpix1.y;
+                float x1 = canpix1.x;
+                float y1 = canpix1.y;
                 canvas.drawLine (x1, y1, canpix2.x, canpix2.y, capGridLnPaint);
                 canvas.drawLine (x1, y1, canpix3.x, canpix3.y, capGridLnPaint);
 
@@ -1465,7 +1464,7 @@ public class Chart2DView extends View
      * which is ignored since this is a 2D projection.
      */
     @Override  // ChartView.Backing
-    public boolean LatLonAlt2CanPixExact (float lat, float lon, float alt, Point pix)
+    public boolean LatLonAlt2CanPixExact (float lat, float lon, float alt, PointF pix)
     {
         return LatLon2CanPixExact (lat, lon, pix);
     }
@@ -1474,7 +1473,7 @@ public class Chart2DView extends View
      * Use currently selected chart projection to compute exact canvas pixel for a given lat/lon.
      * If no chart selected, use linear interpolation from the four corners of the screen.
      */
-    public boolean LatLon2CanPixExact (float lat, float lon, Point canpix)
+    public boolean LatLon2CanPixExact (float lat, float lon, PointF canpix)
     {
         PixelMapper pmap = chartView.pmap;
         DisplayableChart sc = chartView.selectedChart;

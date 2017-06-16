@@ -28,7 +28,7 @@ import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Path;
-import android.graphics.Point;
+import android.graphics.PointF;
 import android.graphics.Rect;
 import android.support.annotation.NonNull;
 import android.util.Log;
@@ -69,10 +69,10 @@ public abstract class AirChart implements DisplayableChart {
             return new LatLon ();
         }
     };
-    private static ThreadLocal<Point> ptPerThread = new ThreadLocal<Point> () {
-        @Override protected Point initialValue ()
+    private static ThreadLocal<PointF> ptPerThread = new ThreadLocal<PointF> () {
+        @Override protected PointF initialValue ()
         {
-            return new Point ();
+            return new PointF ();
         }
     };
 
@@ -93,7 +93,7 @@ public abstract class AirChart implements DisplayableChart {
     private Paint expiredpaint;
     private Paint stnbgpaint;   // "showtilenames" background paint
     private Paint stntxpaint;   // "showtilenames" foreground paint
-    private Point drawOnCanvasPoint = new Point ();
+    private PointF drawOnCanvasPoint = new PointF ();
     private Rect canvasBounds       = new Rect (0, 0, 0, 0);
     public  String spacenamewr; // eg, "New York SEC 92"
     public  String spacenamenr; // eg, "New York SEC"
@@ -116,11 +116,11 @@ public abstract class AirChart implements DisplayableChart {
     private int chartedRitePix, chartedTopPix;
     public  int chartheight, chartwidth;  // pixel width & height of this chart including legend areas
 
-    private Point[] outline;
+    private PointF[] outline;
 
     // methods a projection-specific implementation must provide
     protected abstract String ParseParams (String csvLine);
-    public abstract boolean LatLon2ChartPixelExact (float lat, float lon, @NonNull Point p);
+    public abstract boolean LatLon2ChartPixelExact (float lat, float lon, @NonNull PointF p);
     protected abstract void ChartPixel2LatLonExact (float x, float y, @NonNull LatLon ll);
 
     // instantiate based on what projection is required for the chart
@@ -223,8 +223,8 @@ public abstract class AirChart implements DisplayableChart {
         gms_chartcenterx = chartwidth / 2;
         gms_chartcentery = chartheight / 2;
 
-        Point pt    = new Point ();
-        Paint paint = new Paint ();
+        PointF pt    = new PointF ();
+        Paint  paint = new Paint  ();
         paint.setStyle (Paint.Style.FILL_AND_STROKE);
 
         // if we have an icon image, use it to fill in background
@@ -233,13 +233,13 @@ public abstract class AirChart implements DisplayableChart {
         pt.x = 0;
         pt.y = 0;
         ChartPixel2GMSPixel (pt);
-        bmrect.left   = pt.x;
-        bmrect.top    = pt.y;
+        bmrect.left   = Math.round (pt.x);
+        bmrect.top    = Math.round (pt.y);
         pt.x = chartwidth;
         pt.y = chartheight;
         ChartPixel2GMSPixel (pt);
-        bmrect.right  = pt.x;
-        bmrect.bottom = pt.y;
+        bmrect.right  = Math.round (pt.x);
+        bmrect.bottom = Math.round (pt.y);
         String undername = spacenamenr.replace (' ', '_') + '_' + revision;
         String iconname = WairToNow.dbdir + "/charts/" + undername + "/icon.png";
         if (new File (iconname).exists ()) {
@@ -308,15 +308,15 @@ public abstract class AirChart implements DisplayableChart {
     private int gms_bitmapcenterx, gms_bitmapcentery;
     private int gms_chartcenterx, gms_chartcentery;
 
-    private void LatLon2GMSPixel (float lat, float lon, Point pt)
+    private void LatLon2GMSPixel (float lat, float lon, PointF pt)
     {
         LatLon2ChartPixelExact (lat, lon, pt);
         ChartPixel2GMSPixel (pt);
     }
-    private void ChartPixel2GMSPixel (Point pt)
+    private void ChartPixel2GMSPixel (PointF pt)
     {
-        pt.x = Math.round ((pt.x - gms_chartcenterx) / gms_ratio) + gms_bitmapcenterx;
-        pt.y = Math.round ((pt.y - gms_chartcentery) / gms_ratio) + gms_bitmapcentery;
+        pt.x = (pt.x - gms_chartcenterx) / gms_ratio + gms_bitmapcenterx;
+        pt.y = (pt.y - gms_chartcentery) / gms_ratio + gms_bitmapcentery;
     }
 
     /**
@@ -409,7 +409,7 @@ public abstract class AirChart implements DisplayableChart {
      * Use chart projection to map lat/lon to canvas pixel.
      */
     @Override  // DisplayableChart
-    public boolean LatLon2CanPixExact (float lat, float lon, @NonNull Point canpix)
+    public boolean LatLon2CanPixExact (float lat, float lon, @NonNull PointF canpix)
     {
         LatLon2ChartPixelExact (lat, lon, canpix);
 
@@ -417,8 +417,8 @@ public abstract class AirChart implements DisplayableChart {
         flt[0] = canpix.x;
         flt[1] = canpix.y;
         drawOnCanvasChartMat.mapPoints (flt, 2, flt, 0, 1);
-        canpix.x = Math.round (flt[2]);
-        canpix.y = Math.round (flt[3]);
+        canpix.x = flt[2];
+        canpix.y = flt[3];
         return true;
     }
 
@@ -521,19 +521,19 @@ public abstract class AirChart implements DisplayableChart {
         /*
          * Find range of canvas pixels that cover the requested lat/lon range.
          */
-        Point lastTlChartPix = new Point ();
-        Point lastTrChartPix = new Point ();
-        Point lastBlChartPix = new Point ();
-        Point lastBrChartPix = new Point ();
+        PointF lastTlChartPix = new PointF ();
+        PointF lastTrChartPix = new PointF ();
+        PointF lastBlChartPix = new PointF ();
+        PointF lastBrChartPix = new PointF ();
         LatLon2ChartPixelExact (nlat, wlon, lastTlChartPix);
         LatLon2ChartPixelExact (nlat, elon, lastTrChartPix);
         LatLon2ChartPixelExact (slat, wlon, lastBlChartPix);
         LatLon2ChartPixelExact (slat, elon, lastBrChartPix);
 
-        leftMacroChartPix = Math.min (Math.min (lastTlChartPix.x, lastTrChartPix.x), Math.min (lastBlChartPix.x, lastBrChartPix.x));
-        riteMacroChartPix = Math.max (Math.max (lastTlChartPix.x, lastTrChartPix.x), Math.max (lastBlChartPix.x, lastBrChartPix.x));
-        topMacroChartPix  = Math.min (Math.min (lastTlChartPix.y, lastTrChartPix.y), Math.min (lastBlChartPix.y, lastBrChartPix.y));
-        botMacroChartPix  = Math.max (Math.max (lastTlChartPix.y, lastTrChartPix.y), Math.max (lastBlChartPix.y, lastBrChartPix.y));
+        leftMacroChartPix = Math.round (Math.min (Math.min (lastTlChartPix.x, lastTrChartPix.x), Math.min (lastBlChartPix.x, lastBrChartPix.x)));
+        riteMacroChartPix = Math.round (Math.max (Math.max (lastTlChartPix.x, lastTrChartPix.x), Math.max (lastBlChartPix.x, lastBrChartPix.x)));
+        topMacroChartPix  = Math.round (Math.min (Math.min (lastTlChartPix.y, lastTrChartPix.y), Math.min (lastBlChartPix.y, lastBrChartPix.y)));
+        botMacroChartPix  = Math.round (Math.max (Math.max (lastTlChartPix.y, lastTrChartPix.y), Math.max (lastBlChartPix.y, lastBrChartPix.y)));
 
         /*
          * See if we already have a suitable .png file image.
@@ -634,7 +634,7 @@ public abstract class AirChart implements DisplayableChart {
      * @param mbmpix = where to return the corresponding macro bitmap pixel number
      */
     @Override  // DisplayableChart
-    public void LatLon2MacroBitmap (float lat, float lon, @NonNull Point mbmpix)
+    public void LatLon2MacroBitmap (float lat, float lon, @NonNull PointF mbmpix)
     {
         LatLon2ChartPixelExact (lat, lon, mbmpix);
         mbmpix.x = (mbmpix.x - leftMacroChartPix) * EarthSector.MBMSIZE / (riteMacroChartPix - leftMacroChartPix);
@@ -655,7 +655,7 @@ public abstract class AirChart implements DisplayableChart {
          *    [matrix] * [some_xy_in_chart] => [some_xy_in_canvas]
          */
         float[] points = drawOnCanvasPoints;
-        Point point = drawOnCanvasPoint;
+        PointF point = drawOnCanvasPoint;
 
         LatLon2ChartPixelExact (pmap.lastTlLat, pmap.lastTlLon, point);
         points[ 0] = point.x;  points[ 8] = 0;
@@ -1314,21 +1314,21 @@ public abstract class AirChart implements DisplayableChart {
                     if (namenr.equals (spacenamenr)) {
                         parts = parts[1].split ("/");
                         if (parts.length < 2) throw new Exception ("too few pairs");
-                        outline = new Point[parts.length+1];
+                        outline = new PointF[parts.length+1];
                         int j = 0;
                         for (String part : parts) {
                             String[] xystrs = part.split (",");
                             if (xystrs.length != 2) throw new Exception ("bad x,y " + part);
-                            Point p = new Point ();
-                            p.x = Integer.parseInt (xystrs[0].trim ());
-                            p.y = Integer.parseInt (xystrs[1].trim ());
+                            PointF p = new PointF ();
+                            p.x = Float.parseFloat (xystrs[0].trim ());
+                            p.y = Float.parseFloat (xystrs[1].trim ());
                             outline[j++] = p;
                         }
                         if (j == 2) {
-                            chartedLeftPix = Math.min (outline[0].x, outline[1].x);
-                            chartedRitePix = Math.max (outline[0].x, outline[1].x);
-                            chartedTopPix  = Math.min (outline[0].y, outline[1].y);
-                            chartedBotPix  = Math.max (outline[0].y, outline[1].y);
+                            chartedLeftPix = Math.round (Math.min (outline[0].x, outline[1].x));
+                            chartedRitePix = Math.round (Math.max (outline[0].x, outline[1].x));
+                            chartedTopPix  = Math.round (Math.min (outline[0].y, outline[1].y));
+                            chartedBotPix  = Math.round (Math.max (outline[0].y, outline[1].y));
                             outline = null;
                         } else {
                             outline[j] = outline[0];
@@ -1373,7 +1373,7 @@ public abstract class AirChart implements DisplayableChart {
         /*
          * It is within lat/lon limits, check pixel limits too.
          */
-        Point pt = ptPerThread.get ();
+        PointF pt = ptPerThread.get ();
         return LatLon2ChartPixelExact (lat, lon, pt) &&
                 TestPixelIsCharted (pt.x, pt.y);
     }
@@ -1409,7 +1409,7 @@ public abstract class AirChart implements DisplayableChart {
      * Test given pixel against chart pixel limits.
      * Fortunately most charts have simple rectangle limits.
      */
-    private boolean TestPixelIsCharted (int pixx, int pixy)
+    private boolean TestPixelIsCharted (float pixx, float pixy)
     {
         if (outline == null) {
             return (pixy >= chartedTopPix) && (pixy <= chartedBotPix) &&
@@ -1464,7 +1464,7 @@ public abstract class AirChart implements DisplayableChart {
          * @return p filled in
          */
         @Override  // AirChart
-        public boolean LatLon2ChartPixelExact (float lat, float lon, @NonNull Point p)
+        public boolean LatLon2ChartPixelExact (float lat, float lon, @NonNull PointF p)
         {
             lcc.LatLon2ChartPixelExact (lat, lon, p);
             return (p.x >= 0) && (p.x < chartwidth) && (p.y >= 0) && (p.y < chartheight);
@@ -1553,13 +1553,13 @@ public abstract class AirChart implements DisplayableChart {
         }
 
         @Override  // AirChart
-        public boolean LatLon2ChartPixelExact (float lat, float lon, @NonNull Point p)
+        public boolean LatLon2ChartPixelExact (float lat, float lon, @NonNull PointF p)
         {
             float beta = Mathf.toRadians (90.0F - lat);
             float pixelsFromNorthPole  = Mathf.tan (beta / 2.0F) * earthDiameterPixels;
             float angleCCWFromVertical = Mathf.toRadians (lon) + tiltedCCWRadians;
-            int x = Math.round (pixelsFromNorthPole * Mathf.sin (angleCCWFromVertical) + northPoleX);
-            int y = Math.round (pixelsFromNorthPole * Mathf.cos (angleCCWFromVertical) + northPoleY);
+            float x = pixelsFromNorthPole * Mathf.sin (angleCCWFromVertical) + northPoleX;
+            float y = pixelsFromNorthPole * Mathf.cos (angleCCWFromVertical) + northPoleY;
             p.x = x;
             p.y = y;
             return (x >= 0) && (x < chartwidth) && (y >= 0) && (y < chartheight);
@@ -1620,13 +1620,13 @@ public abstract class AirChart implements DisplayableChart {
         }
 
         @Override  // AirChart
-        public boolean LatLon2ChartPixelExact (float lat, float lon, @NonNull Point p)
+        public boolean LatLon2ChartPixelExact (float lat, float lon, @NonNull PointF p)
         {
             while (lon < lonw - 180.0F) lon += 360.0F;
             while (lon > lonw + 180.0F) lon -= 360.0F;
 
-            int x = Math.round ((lon - lonw) / (lone - lonw) * chartwidth);
-            int y = Math.round ((latn - lat) / (latn - lats) * chartheight);
+            float x = (lon - lonw) / (lone - lonw) * chartwidth;
+            float y = (latn - lat) / (latn - lats) * chartheight;
             p.x = x;
             p.y = y;
             return (x >= 0) && (x < chartwidth) && (y >= 0) && (y < chartheight);

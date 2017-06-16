@@ -60,6 +60,7 @@ public class OptionsView
     public  DefAltOption listMapOption;
     public  IntOption    chartTrackOption;
     public  IntOption    chartOrientOption;
+    public  IntOption    gpsUpdateOption;
     public  IntOption    latLonOption;
     private WairToNow    wairToNow;
 
@@ -125,6 +126,15 @@ public class OptionsView
                 CTO_NORTHUP,
                 CTO_TRACKUP });
 
+        gpsUpdateOption = new IntOption (
+                new String[] {
+                        "GPS updates 10 per sec",
+                        "GPS updates 3 per sec",
+                        "GPS updates 1 per sec"
+                },
+                new int[] { 10, 3, 1 }
+        );
+
         LinearLayout ll1 = new LinearLayout (ctx);
         ll1.setOrientation (LinearLayout.VERTICAL);
 
@@ -142,6 +152,7 @@ public class OptionsView
         ll1.addView (listMapOption);
         ll1.addView (latLonOption);
         ll1.addView (ktsMphOption);
+        ll1.addView (gpsUpdateOption);
 
         ScrollView sv1 = new ScrollView (ctx);
         sv1.addView (ll1);
@@ -288,6 +299,7 @@ public class OptionsView
                     if (name.equals ("plateMap"))    listMapOption.setAlt     (valu.equals (boolTrue));
                     if (name.equals ("latlonAlt"))   latLonOption.setKey      (valu);
                     if (name.equals ("ktsMphAlt"))   ktsMphOption.setAlt      (valu.equals (boolTrue));
+                    if (name.equals ("gpsUpdate"))   gpsUpdateOption.setKey   (valu);
                 }
             } finally {
                 csvreader.close ();
@@ -320,6 +332,7 @@ public class OptionsView
                 csvwriter.write ("plateMap,"    + Boolean.toString (listMapOption.getAlt ())                + "\n");
                 csvwriter.write ("latlonAlt,"   + latLonOption.getKey ()                                    + "\n");
                 csvwriter.write ("ktsMphAlt,"   + Boolean.toString (ktsMphOption.getAlt ())                 + "\n");
+                csvwriter.write ("gpsUpdate,"   + gpsUpdateOption.getKey ()                                 + "\n");
             } finally {
                 csvwriter.close ();
             }

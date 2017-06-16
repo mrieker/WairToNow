@@ -39,8 +39,7 @@ public interface Reporter {
     );
 
     void adsbGpsBattery (
-            boolean charging,
-            float batlevel      // 0.0..1.0
+            String batlevel
     );
 
     void adsbGpsInstance (

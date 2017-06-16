@@ -312,62 +312,6 @@ public class ParseCifp {
                 seg.print (pw);
             }
 
-            // make a radar vector transition segment
-            try {
-                // get final segment
-                Segment finseg = segments.get ("~f~");
-
-                // get each leg string that we wrote to database
-                String[] finlegs = finseg.printed.split (";");
-
-                // get first leg of final segment, it should always be a CF with a fix id
-                ParsedLeg finleg1 = new ParsedLeg (finlegs[1]);
-                if (!finleg1.pathterm.equals ("CF")) throw new Exception ("final seg doesn't start with CF leg");
-                String finid = finleg1.parms.get ("wp");
-                finid = airport.vfywp (finid, this);
-
-                // see if final segment starts right at the faf
-                // if not, we can use whatever it starts at as the vectoring fix
-                String vecid = finid;
-                if (finleg1.parms.containsKey ("faf")) {
-
-                    // if so, we have to make up a fix to put before the faf for vectoring to
-                    // this will give us a line in line with the runway
-                    // that the radar controller will vector the plane to
-                    // eg, KLWM VOR-23
-
-                    // get fix at end of final segment
-                    // not necessarily a runway, might be arbitrary fix for circling-only approach
-                    ParsedLeg finlege = new ParsedLeg (finlegs[finlegs.length-1]);
-                    if (!finlege.pathterm.equals ("CF")) throw new Exception ("final seg doesn't end with CF leg");
-                    String mapid = finlege.parms.get ("wp");
-                    mapid = airport.vfywp (mapid, this);
-                    Waypts.DBFix mapwp = airport.getwp (mapid);
-
-                    // get distance and heading from map to faf
-                    Waypts.DBFix fafwp = airport.getwp (finid);
-                    double m2fdist = Lib.LatLonDist (mapwp.lat, mapwp.lon, fafwp.lat, fafwp.lon);
-                    double m2ftc   = Lib.LatLonTC   (mapwp.lat, mapwp.lon, fafwp.lat, fafwp.lon);
-                    if (m2ftc < 0.0) m2ftc += 360.0;
-
-                    // make vectoring fix that same distance and heading behind the faf
-                    vecid = String.format ("%s[%.1f/%.1f", finid, m2fdist, m2ftc);
-                    vecid = vecid.replace (".0", "");
-                }
-
-                StringBuilder sb = new StringBuilder ();
-                sb.append (airport.icaoid);
-                sb.append (',');
-                sb.append (appid);
-                sb.append (',');
-                sb.append ("(rv);CF,wp=");
-                sb.append (vecid);
-                pw.println (sb.toString ());
-            } catch (Exception e) {
-                System.out.println (airport.icaoid + "." + appid + ".(rv): exception");
-                e.printStackTrace ();
-            }
-
             // some IAFs are buried inside transition segments
             // but we want the pilot to be able to select them
             // so output them as their own transition
@@ -778,6 +722,11 @@ public class ParseCifp {
                         // split the unnamed segment into final and missed segments
                         // mark final seg with name ~f~ and missed with ~m~
                         Segment tempseg = approach.segments.get ("");
+                        if (tempseg == null) {
+                            System.out.println (airport.icaoid + "." + approach.appid + ": missing unnamed segment");
+                            itapp.remove ();
+                            continue;
+                        }
                         approach.segments.remove ("");
 
                         Segment finalseg   = new Segment ();
@@ -815,6 +764,7 @@ public class ParseCifp {
                         }
 
                         // finalseg must begin with CF leg and contain FAF leg
+                        // (assumed by client CIFPLeg_CF.getFafWaypt() and CIFPLeg_RV.init2())
                         // it must also end with CF leg that has an altitude
                         Leg firstleg = null;
                         Leg fafleg   = null;
@@ -840,14 +790,19 @@ public class ParseCifp {
                                 appbad = true;
                             }
                             sb.delete (0, sb.length ());
-                            lastleg.print (sb, false);
-                            st = sb.toString ();
-                            if (!st.startsWith ("CF")) {
-                                System.out.println (airport.icaoid + "." + approach.appid + ": final segment doesn't end with CF");
-                                appbad = true;
-                            }
-                            if (!st.contains (",a=")) {
-                                System.out.println (airport.icaoid + "." + approach.appid + ": final segment doesn't end with altitude");
+                            try {
+                                lastleg.print (sb, false);
+                                st = sb.toString ();
+                                if (!st.startsWith ("CF")) {
+                                    System.out.println (airport.icaoid + "." + approach.appid + ": final segment doesn't end with CF");
+                                    appbad = true;
+                                }
+                                if (!st.contains (",a=")) {
+                                    System.out.println (airport.icaoid + "." + approach.appid + ": final segment doesn't end with altitude");
+                                    appbad = true;
+                                }
+                            } catch (BadWayptException bwe) {
+                                System.out.println (airport.icaoid + "." + approach.appid + ": final segment has bad waypoint " + bwe.wp);
                                 appbad = true;
                             }
                         }

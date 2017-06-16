@@ -27,7 +27,7 @@ import android.content.DialogInterface;
 import android.content.SharedPreferences;
 import android.database.DataSetObserver;
 import android.graphics.Color;
-import android.graphics.Point;
+import android.graphics.PointF;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
@@ -50,7 +50,7 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
         void ReCenter ();
         float GetCanvasHdgRads ();
         void recycle ();
-        boolean LatLonAlt2CanPixExact (float lat, float lon, float alt, Point pix);
+        boolean LatLonAlt2CanPixExact (float lat, float lon, float alt, PointF pix);
     }
 
     private boolean reselectLastChart = true;

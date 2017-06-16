@@ -1,0 +1,161 @@
+
+constructor()
+
+GotMouseDown()
+    CIFPButtonClicked()
+    CIFPSegmentSelected()
+    displaySelectionMenu()
+
+GotMouseUp()
+    CIFPButtonClicked()
+
+getRefNavWaypt()
+    GetCIFPSegments()
+
+getApproachName()
+
+getVNTracking()
+    CIFPStep.getVNTracking()
+
+SetGPSLocation()
+    UpdateState()
+
+UpdateState()
+    CIFPStep.drawStepDots()
+    CIFPStep.getTextLine()
+    CIFPStep.isRuntStep()
+    CIFPStep.bmpToNextTurn()
+    CIFPStep.isRuntStep()
+
+displaySelectionMenu()
+    CIFPSegmentSelected()
+
+displaySelectionButtons()
+    new SelectButton()
+
+DrawCIFP()
+    SelectButton.drawButton()
+    canvas.drawLine()  // path line
+    canvas.drawArc()   // path arc
+    filletArc.draw()
+    canvas.drawPath() // yellow button
+    canvas.drawRect() // text box
+    canvas.drawText() // text strings
+
+CIFPButtonClicked()
+    CIFPSegmentSelected()
+    GetCIFPSegments()
+    displaySelectionMenu()
+    displaySelectionButtons()
+
+CIFPSegmentSelected()
+    CIFPLeg.isOptional()
+    CIFPSegmentSelFinal()
+
+CIFPSegmentSelFinal()
+    CIFPSegment.getSteps()  // transition, final, missed
+    CIFPSegment.getFafLeg()
+    CIFPLeg.getFafWaypt()
+    CIFPSegment.getRwyLeg()
+    CIFPLeg.getRwyWaypt()
+    UpdateState()
+
+GetCIFPSegments()
+    new CIFPApproach()
+    new CIFPSegment()
+    makeLeg()
+        new CIFPLeg_??()
+        CIFPLeg.init1()
+    CIFPLeg.init2()
+
+class CIFPSegment {
+    init2()
+        CIFPLeg.init2()
+
+    getSteps()
+        CIFPLeg.isRuntLeg()
+        CIFPLeg.mergeAltitude()
+        CIFPLeg.getSteps()
+
+    getFafLeg()
+
+    getRwyLeg()
+
+    getName()
+}
+
+class CIFPStep {
+    drawStepDots() = 0
+    getTextLine() = 0
+    getVNTracking() = 0
+
+    drawFillet ()
+        drawFilletToLine()
+        filletArc.calcFilletLineToArc()
+
+    isRuntStep()
+
+    bmpToNextTurn()
+
+    getLinearVNTracking()
+        inEndFillet()
+        lineDeflection()
+        navDial.setDeflect()
+        navDial.setSlope()
+        navDial.setMode()
+        navDial.setDistance()
+}
+
+drawFilletToLine()
+    filletArc.calcFilletLineToLine()
+    filletArc.calcFilletArcToLine()
+
+class CIFPLeg {
+    isOptional()
+
+    init1() = 0
+    isRuntLeg()
+    init2()
+    getSteps() = 0
+    getFafWaypt()
+    getRwyWaypt()
+    getTCDeg()
+    appCourse()
+    appTrueAsMag()
+    appendTurn()
+    mergeAltitude()
+    appendAlt()
+    appTenth()
+    updateAlt()
+    getAltitude()
+}
+
+----------------------
+Restarting
+----------------------
+
+    cifpSelected = null
+    drawTextEnable = false
+    cifpTextLines = null
+    mapIndex = MAX_VALUE
+    currentStep = -1
+    CIFPSegmentSelected()
+        selectButtons = null
+        selectMenu.dismiss()
+        selectMenu = null
+        CIFPLeg.isOptional()
+        CIFPSegmentSelFinal()
+            cifpSelected = segment
+            drawTextEnable = true
+            CIFPSeg.getSteps() for trans, final, missed
+            cifpSteps = array from steps
+            cifpTextLines = array of nulls
+            currentStep = -1
+            selectedTime = now
+            vnFafPoint = where FAF is
+            vnRwyPoint = where Rwy is
+            vnFinalDist = faf-to-rwy nm
+            vnFinalTC = faf-to-rwy TC
+            vnGSFtPerNM = glide slope
+            UpdateState()
+                cifpSteps[0].begptalt,hdg,bmx,bmy = curposalt,hdg,bmx,bmy

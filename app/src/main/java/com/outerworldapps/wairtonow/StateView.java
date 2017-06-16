@@ -27,7 +27,7 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
-import android.graphics.Point;
+import android.graphics.PointF;
 import android.graphics.Rect;
 import android.support.annotation.NonNull;
 import android.view.MotionEvent;
@@ -502,7 +502,7 @@ public class StateView extends View {
                 if (distaway > TRAFDISTLIMNM) continue;
 
                 // it must map to a pixel within bounds of the screen
-                if (traffic.canpix == null) traffic.canpix = new Point ();
+                if (traffic.canpix == null) traffic.canpix = new PointF ();
                 float trafmsl = traffic.taltitude;
                 if (!backing.LatLonAlt2CanPixExact (
                         traffic.latitude, traffic.longitude, trafmsl, traffic.canpix)) continue;

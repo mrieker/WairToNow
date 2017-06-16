@@ -119,9 +119,23 @@ public class HelpView extends WebView
         }
 
         @SuppressWarnings ("unused")
-        public String getGitHashCode ()
+        public String getGithubLink ()
         {
-            return BuildConfig.GitHash.substring (0, 7);
+            String fullhash = BuildConfig.GitHash;
+            String abbrhash = fullhash.substring (0, 7);
+            String status = BuildConfig.GitStatus;
+            String[] lines = status.split ("\n");
+            for (String line : lines) {
+                line = line.trim ();
+                if (line.startsWith ("On branch ")) {
+                    if (line.equals ("On branch github")) {
+                        String link = "https://github.com/mrieker/WairToNow/commit/" + fullhash;
+                        return "<A HREF=\"" + link + "\">" + abbrhash + "</A>";
+                    }
+                    break;
+                }
+            }
+            return abbrhash;
         }
 
         @SuppressWarnings ("unused")

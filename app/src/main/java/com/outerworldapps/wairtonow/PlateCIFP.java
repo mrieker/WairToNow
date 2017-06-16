@@ -41,6 +41,10 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -85,6 +89,8 @@ public class PlateCIFP {
     public  CIFPSegment cifpSelected;
     private CIFPStep[] cifpSteps;
     private FilletArc filletArc = new FilletArc ();
+    private float     acraftalt;    // aircraft altitude feet
+    private float     acrafthdg;    // aircraft heading degrees
     private float     acraftbmx;    // aircraft bitmap x,y
     private float     acraftbmy;
     private float     aptmagvar;
@@ -103,6 +109,7 @@ public class PlateCIFP {
     private float     vnGSFtPerNM;
     private float     vnRwyGSElev;
     private float[]   cifpDotBitmapXYs = new float[32];
+    private GetCIFPSegments getCIFPSegments;
     private HashMap<String,SelectButton> selectButtons;
     private int       cifpDotIndex;
     private int       currentStep;
@@ -187,6 +194,8 @@ public class PlateCIFP {
         cifpTextHeight = cifpTxPaint.getTextSize ();
 
         aptmagvar = airport.GetMagVar (0.0F);
+
+        getCIFPSegments = new GetCIFPSegments ();
     }
 
     /**
@@ -274,7 +283,7 @@ public class PlateCIFP {
         if (cifpSelected != null) return cifpSelected.approach.refnavwp;
 
         // otherwise, make sure we have CIFP database for this plate loaded
-        if (cifpApproaches == null) GetCIFPSegments ();
+        if (cifpApproaches == null) getCIFPSegments.load ();
         if (cifpApproaches.isEmpty ()) return null;
 
         // return navaid for the first approach type (they should all be the same anyway)
@@ -317,11 +326,33 @@ public class PlateCIFP {
      */
     public void SetGPSLocation ()
     {
-        // make sure we have a segment selected for display
-        // also we might get double calls (via WaypointView and VirtNavView),
+        // we might get double calls (via WaypointView and VirtNavView),
         // so reject redundant GPS updates
-        if ((cifpSelected != null) && (lastGPSUpdateTime != wairToNow.currentGPSTime)) {
-            UpdateState ();
+        if (lastGPSUpdateTime != wairToNow.currentGPSTime) {
+            lastGPSUpdateTime = wairToNow.currentGPSTime;
+
+            acraftalt = wairToNow.currentGPSAlt * Lib.FtPerM;
+            acrafthdg = wairToNow.currentGPSHdg;
+            acraftbmx = plateView.LatLon2BitmapX (wairToNow.currentGPSLat, wairToNow.currentGPSLon);
+            acraftbmy = plateView.LatLon2BitmapY (wairToNow.currentGPSLat, wairToNow.currentGPSLon);
+
+            float spd = wairToNow.currentGPSSpd;
+
+            // we need a minimum speed so we can draw dots
+            if (spd < MINSPEEDKT / 3600.0F * Lib.MPerNM) {
+                spd = MINSPEEDKT / 3600.0F * Lib.MPerNM;
+            }
+
+            // how many bitmap pixels we will cross in a second at our current speed
+            bmpixpersec = bmpixpernm / Lib.MPerNM * spd;
+
+            // radius of turns at standard rate
+            stdturnradbmp = stdturnradsec * bmpixpersec;
+
+            // make sure we have a segment selected for display
+            if (cifpSelected != null) {
+                UpdateState ();
+            }
         }
     }
 
@@ -330,36 +361,14 @@ public class PlateCIFP {
     // used by VirtNavView without viewing the plate itself
     private void UpdateState ()
     {
-        lastGPSUpdateTime = wairToNow.currentGPSTime;
-
-        // compute the path in dots
-        int nsteps = cifpSteps.length;
-
-        curposalt = wairToNow.currentGPSAlt / Lib.FtPerM;
-        curposhdg = wairToNow.currentGPSHdg;
-        curposbmx = acraftbmx = plateView.LatLon2BitmapX (wairToNow.currentGPSLat, wairToNow.currentGPSLon);
-        curposbmy = acraftbmy = plateView.LatLon2BitmapY (wairToNow.currentGPSLat, wairToNow.currentGPSLon);
-        float spd = wairToNow.currentGPSSpd;
-
-        // we need a minimum speed so we can draw dots
-        if (spd < MINSPEEDKT / 3600.0F * Lib.MPerNM) {
-            spd = MINSPEEDKT / 3600.0F * Lib.MPerNM;
-        }
-
-        // how many bitmap pixels we will cross in a second at our current speed
-        bmpixpersec = bmpixpernm / Lib.MPerNM * spd;
-
-        // radius of turns at standard rate
-        stdturnradbmp = stdturnradsec * bmpixpersec;
-
-        // if first time through, save current position as starting point
+        // if first time through, save aircraft position as starting point
         // this sets the starting position where the initial line is drawn from
         if (currentStep < 0) {
             CIFPStep step0 = cifpSteps[0];
-            step0.begptalt = curposalt;
-            step0.begpthdg = curposhdg;
-            step0.begptbmx = curposbmx;
-            step0.begptbmy = curposbmy;
+            step0.begptalt = acraftalt;
+            step0.begpthdg = acrafthdg;
+            step0.begptbmx = acraftbmx;
+            step0.begptbmy = acraftbmy;
             currentStep = 0;
             Log.d (TAG, "PlateCIFP*: currentStep=" + currentStep + " <" + cifpSteps[currentStep].getTextLine () + ">");
         }
@@ -368,6 +377,7 @@ public class PlateCIFP {
         cifpDotIndex = 0;
         startGreens  = Integer.MAX_VALUE;
         startCyans   = Integer.MAX_VALUE;
+        int nsteps   = cifpSteps.length;
         for (int i = currentStep; i < nsteps; i ++) {
             CIFPStep step = cifpSteps[i];
 
@@ -418,11 +428,11 @@ public class PlateCIFP {
 
         // draw fillet arc showing turn at end of current step to next step.
         // the next step actually determines the shape of the fillet arc,
-        // but the fillet is considered part of the current step so it stays magenta.
-        // it's possible that the next step is a runt, in which case we ignore it and
-        // use the one after that.
+        // but the fillet is considered part of the current step so the current step
+        // stays magenta.  it's possible that the next step is a runt, in which case
+        // we ignore it and use the one after that.
         filletArc.turndir = 0;
-        filletArc.start   = Float.NaN; //TODO debug
+        filletArc.start   = Float.NaN;
         filletArc.startc  = Float.NaN;
         filletArc.stoptc  = Float.NaN;
         filletArc.sweep   = Float.NaN;
@@ -544,7 +554,7 @@ public class PlateCIFP {
     /**
      * Build list of buttons that can be clicked on to select which
      * approach and segment will be tracked.
-     * The buttons apprear on the plate at the location of the fix
+     * The buttons appear on the plate at the location of the fix
      * that the corresponding segment starts at.  The (rv) transition
      * appears over the airport itself.
      */
@@ -686,6 +696,7 @@ public class PlateCIFP {
      */
     public void DrawCIFP (Canvas canvas)
     {
+        // maybe draw transition segment select buttons over corresponding fix
         if (selectButtons != null) {
             for (String segid : selectButtons.keySet ()) {
                 SelectButton sb = selectButtons.get (segid);
@@ -847,15 +858,24 @@ public class PlateCIFP {
                         cifpSelected   = null;
                         drawTextEnable = false;
                         cifpTextLines  = null;
+                        cifpSteps      = null;
                         mapIndex       = Integer.MAX_VALUE;
                         currentStep    = -1;
+                        plateView.invalidate ();
                     }
                 });
                 adb.setNeutralButton ("RESTART", new DialogInterface.OnClickListener () {
                     @Override
                     public void onClick (DialogInterface dialogInterface, int i)
                     {
-                        CIFPSegmentSelected (cifpSelected);
+                        CIFPSegment seg = cifpSelected;
+                        cifpSelected    = null;
+                        drawTextEnable  = false;
+                        cifpTextLines   = null;
+                        cifpSteps       = null;
+                        mapIndex        = Integer.MAX_VALUE;
+                        currentStep     = -1;
+                        CIFPSegmentSelected (seg);
                     }
                 });
                 adb.setNegativeButton ("KEEP IT", null);
@@ -886,7 +906,7 @@ public class PlateCIFP {
             }
             runtbmpix = bmpixpernm * RUNTNM;
         }
-        GetCIFPSegments ();
+        getCIFPSegments.load ();
         if (cifpApproaches.isEmpty ()) {
             errorMessage ("", "No CIFP information available");
             return;
@@ -906,14 +926,27 @@ public class PlateCIFP {
 
     /**
      * Display the given transition segment
+     * @param segment = transition segment selected
      */
     private void CIFPSegmentSelected (CIFPSegment segment)
     {
+        // don't want the select buttons drawn any more
         selectButtons = null;
+
+        // don't want the select menu shown any more
         if (selectMenu != null) {
             selectMenu.dismiss ();
             selectMenu = null;
         }
+
+        for (CIFPLeg leg : segment.legs) {
+            if (leg.isOptional ()) return;
+        }
+        CIFPSegmentSelFinal (segment);
+    }
+
+    private void CIFPSegmentSelFinal (CIFPSegment segment)
+    {
         try {
             cifpSelected = segment;
 
@@ -946,7 +979,8 @@ public class PlateCIFP {
             if (fafleg == null) throw new Exception ("FAF leg missing");
             Waypoint vnFafWaypt = fafleg.getFafWaypt ();
             if (vnFafWaypt == null) throw new Exception ("FAF waypt missing");
-            CIFPLeg rwyleg = finalseg.legs[finalseg.legs.length-1];
+            CIFPLeg rwyleg = finalseg.getRwyLeg ();
+            if (rwyleg == null) throw new Exception ("RWY leg missing");
             Waypoint vnRwyWaypt = rwyleg.getRwyWaypt  ();
             if (vnRwyWaypt == null) throw new Exception ("MAP missing");
             vnFafPoint.x = plateView.LatLon2BitmapX (vnFafWaypt.lat, vnFafWaypt.lon);
@@ -982,271 +1016,394 @@ public class PlateCIFP {
      * Output:
      *  cifpApproaches = filled in
      */
-    @SuppressWarnings("ConstantConditions")
-    private void GetCIFPSegments ()
-    {
-        cifpApproaches = new TreeMap<> ();
+    private class GetCIFPSegments {
 
-        // Parse full approach plate name
-        String fullname = plateid.replace ("IAP-", "").replace ("-", " -").replace ("DME", " DME");
-        fullname = fullname.replace ("ILSLOC", "ILS LOC").replace ("VORTACAN", "VOR TACAN");
+        // results of parsing full approach name string
+        // eg, "IAP-LWM VOR 23"
+        private boolean sawdme = false;  // these get set if corresponding keyword seen
+        private boolean sawgls = false;
+        private boolean sawgps = false;
+        private boolean sawils = false;
+        private boolean sawlbc = false;
+        private boolean sawlda = false;
+        private boolean sawloc = false;
+        private boolean sawndb = false;
+        private boolean sawrnv = false;
+        private boolean sawsdf = false;
+        private boolean sawvor = false;
 
-        boolean sawdme = false;  // these get set if corresponding keyword seen
-        boolean sawgls = false;
-        boolean sawgps = false;
-        boolean sawils = false;
-        boolean sawlbc = false;
-        boolean sawlda = false;
-        boolean sawloc = false;
-        boolean sawndb = false;
-        boolean sawrnv = false;
-        boolean sawsdf = false;
-        boolean sawvor = false;
+        private String runway = null;  // either twodigitsletter string or -letter string
+        private String variant = "";   // either null or 'Y', 'Z' etc
 
-        String runway = null;  // either twodigitsletter string or -letter string
-        String variant = "";   // either null or 'Y', 'Z' etc
+        // results of parsing dmearcs.txt
+        private HashMap<String,String> addedDMEArcs = new HashMap<> ();
 
-        String[] fullwords = fullname.split (" ");
-        for (String word : fullwords) {
-            if (word.equals ("")) continue;
+        @SuppressWarnings("ConstantConditions")
+        public GetCIFPSegments ()
+        {
+            // Parse full approach plate name
+            String fullname = plateid.replace ("IAP-", "").replace ("-", " -").replace ("DME", " DME");
+            fullname = fullname.replace ("ILSLOC", "ILS LOC").replace ("VORTACAN", "VOR TACAN");
 
-            // an actual runway number 01..36 maybe followed by C, L, R
-            if ((word.charAt (0) >= '0') && (word.charAt (0) <= '3')) {
-                runway = word;
-                continue;
+            String[] fullwords = fullname.split (" ");
+            for (String word : fullwords) {
+                if (word.equals ("")) continue;
+
+                // an actual runway number 01..36 maybe followed by C, L, R
+                if ((word.charAt (0) >= '0') && (word.charAt (0) <= '3')) {
+                    runway = word;
+                    continue;
+                }
+
+                // an hyphen followed by a letter such as -A, -B, -C is circling-only approach
+                if (word.charAt (0) == '-') {
+                    runway = word;
+                    continue;
+                }
+
+                // a single letter such as W, X, Y, Z is an approach variant
+                if ((word.length () == 1) && (word.charAt (0) <= 'Z') && (word.charAt (0) >= 'S')) {
+                    variant = word;
+                    continue;
+                }
+
+                // 'BC' is for localizer back-course
+                if (word.equals ("BC")) {
+                    sawlbc = sawloc;
+                    sawloc = false;
+                    continue;
+                }
+
+                // all others simple keyword match
+                if (word.equals ("DME"))   sawdme = true;
+                if (word.equals ("GLS"))   sawgls = true;
+                if (word.equals ("GPS"))   sawgps = true;
+                if (word.equals ("ILS"))   sawils = true;
+                if (word.equals ("LDA"))   sawlda = true;
+                if (word.equals ("LOC"))   sawloc = true;
+                if (word.equals ("NDB"))   sawndb = true;
+                if (word.equals ("SDF"))   sawsdf = true;
+                if (word.equals ("VOR"))   sawvor = true;
+                if (word.equals ("(GPS)")) sawrnv = true;
             }
 
-            // an hyphen followed by a letter such as -A, -B, -C is circling-only approach
-            if (word.charAt (0) == '-') {
-                runway = word;
-                continue;
-            }
-
-            // a single letter such as W, X, Y, Z is an approach variant
-            if ((word.length () == 1) && (word.charAt (0) <= 'Z') && (word.charAt (0) >= 'S')) {
-                variant = word;
-                continue;
-            }
-
-            // 'BC' is for localizer back-course
-            if (word.equals ("BC")) {
-                sawlbc = sawloc;
-                sawloc = false;
-                continue;
-            }
-
-            // all others simple keyword match
-            if (word.equals ("DME"))   sawdme = true;
-            if (word.equals ("GLS"))   sawgls = true;
-            if (word.equals ("GPS"))   sawgps = true;
-            if (word.equals ("ILS"))   sawils = true;
-            if (word.equals ("LDA"))   sawlda = true;
-            if (word.equals ("LOC"))   sawloc = true;
-            if (word.equals ("NDB"))   sawndb = true;
-            if (word.equals ("SDF"))   sawsdf = true;
-            if (word.equals ("VOR"))   sawvor = true;
-            if (word.equals ("(GPS)")) sawrnv = true;
-        }
-
-        // scan the database for this airport and hopefully find airport's icaoid
-        // then gather up all CIFP segments for things that seem to match plate name
-        int expdate28 = MaintView.GetPlatesExpDate (airport.state);
-        String dbname = "plates_" + expdate28 + ".db";
-        try {
-            SQLiteDBs sqldb = SQLiteDBs.open (dbname);
-            Cursor result1 = sqldb.query (
-                    "iapcifps", columns_cp_misc,
-                    "cp_icaoid=?", new String[] { airport.ident },
-                    null, null, null, null);
-            try {
-                if (result1.moveToFirst ()) do {
-                    String appid = result1.getString (0);
-                    String segid = result1.getString (1);
-
+            // Read file containing added DME arcs, select those for this airport and approach
+            // Draw the DME arcs on the plate.
+            // KLWM,S23,LWM[330@10;CF,wp=LWM[330@10,a=+2000,iaf;AF,nav=LWM,beg=3300,end=566,nm=100,a=+2000
+            // KLWM,S23,LWM[120@10;CF,wp=LWM[120@10,a=+2000,iaf;AF,nav=LWM,beg=1200,end=566,nm=100,a=+2000
+            // KSFM,S25,ENE[340@8;CF,wp=ENE[340@8,a=+2000,iaf;AF,nav=ENE,beg=3400,end=814,nm=80,a=+2000;CF,wp=ENE,mc=2614,a=+1700
+            // KSFM,S25,ENE[180@8;CF,wp=ENE[180@8,a=+2000,iaf;AF,nav=ENE,beg=1800,end=814,nm=80,a=+2000;CF,wp=ENE,mc=2614,a=+1700
+            File dmeArcs = new File (WairToNow.dbdir + "/dmearcs.txt");
+            if (dmeArcs.exists ()) {
+                try {
+                    BufferedReader br = new BufferedReader (new FileReader (dmeArcs), 4096);
                     try {
-                        String apptype = null;
-                        char appcode;
-                        boolean rwmatch;
-
-                        // if circling-only approach, convert 3-letter code to 1-letter code
-                        // also see if -A in displayed plate id matches -A in database record approach id
-                        if (runway.startsWith ("-")) {
-                            String appid3 = appid.substring (0, 3);
-                            appcode = 0;
-                            rwmatch = circlingcodes.containsKey (appid3);
-                            if (rwmatch) {
-                                appcode = circlingcodes.get (appid3);
-                                rwmatch = appid.substring (3).equals (runway);
-                            }
-                        } else {
-                            // appid : <1-letter-code><runway><variant>
-                            //   1-letter-code = eg, 'D' for vor/dme
-                            //   runway = two digits
-                            //   variant = 'Z', 'Y', etc or missing
-                            //     (variant might be preceded by an hyphen)
-
-                            // straight-in capable, get 1-letter code
-                            appcode = appid.charAt (0);
-
-                            // also see if runway and variant match
-                            String appidnd = appid.replace ("-", "");
-                            rwmatch = appidnd.substring (1).equals (runway + variant);
-                        }
-
-                        if (rwmatch) {
-                            // see if the approach type matches
-                            // p150 Table 5-9 Runway Dependent Procedure Ident
-                            switch (appcode) {
-                                case 'B': {  // localizer back course
-                                    if (sawlbc) apptype = "LOC-BC";
-                                    break;
-                                }
-                                case 'D': {  // vor with dme required
-                                    if (sawvor && sawdme) apptype = "VOR/DME";
-                                    break;
-                                }
-                                case 'I': {  // ils
-                                    if (sawils) apptype = "ILS";
-                                    break;
-                                }
-                                case 'J': {  // gnss landing system
-                                    if (sawgls) apptype = "GLS";
-                                    break;
-                                }
-                                case 'L': {  // localizer
-                                    if (sawloc) apptype = "LOC";
-                                    break;
-                                }
-                                case 'N': {  // ndb
-                                    if (sawndb) apptype = "NDB";
-                                    break;
-                                }
-                                case 'P': {  // gps
-                                    if (sawgps) apptype = "GPS";
-                                    break;
-                                }
-                                case 'Q': {  // ndb with dme required
-                                    if (sawndb && sawdme) apptype = "NDB/DME";
-                                    break;
-                                }
-                                case 'R': {  // rnav (gps)
-                                    if (sawrnv) apptype = "RNAV/GPS";
-                                    break;
-                                }
-                                case 'S':    // vor has dme but not required
-                                case 'V': {  // vor
-                                    if (sawvor) apptype = "VOR";
-                                    break;
-                                }
-                                case 'U': {  // sdf
-                                    if (sawsdf) apptype = "SDF";
-                                    break;
-                                }
-                                case 'X': {  // lda
-                                    if (sawlda) apptype = "LDA";
-                                    break;
-                                }
+                        for (String line; (line = br.readLine ()) != null;) {
+                            line = line.trim ().replace (" ", "");
+                            if (line.equals ("")) continue;
+                            if (line.startsWith ("#")) continue;
+                            int i = line.indexOf (';');
+                            String idents = line.substring (0, i);
+                            String[] parts = idents.split (",");  // "KSFM", "S25", "ENE[180@8"
+                            if (parts[0].equals (airport.ident) && (appMatches (parts[1]) != null)) {
+                                String legs = line.substring (++ i);
+                                addedDMEArcs.put (parts[1] + "," + parts[2], legs);
+                                drawDMEArc (legs);
                             }
                         }
-
-                        // if it looks like approach type, runway and variant match,
-                        // add segment to list of matching segments.
-                        // note that we may get more than one approach to match this
-                        // plate, such as if the plate is 'ILS OR LOC ...', we get
-                        // ILS and LOC segments matching.
-                        if (apptype != null) {
-
-                            // see if we already know about approach this segment is for
-                            // if not, create new approach object
-                            CIFPApproach cifpapp = cifpApproaches.get (appid);
-                            if (cifpapp == null) {
-                                StringBuilder name = new StringBuilder ();
-                                name.append (apptype);
-                                if (!variant.equals ("")) {
-                                    name.append (' ');
-                                    name.append (variant);
-                                }
-                                if (!runway.startsWith ("-")) {
-                                    name.append (' ');
-                                }
-                                name.append (runway);
-
-                                cifpapp = new CIFPApproach ();
-                                cifpapp.appid = appid;
-                                cifpapp.name = name.toString ();
-                                cifpapp.type = apptype;
-                                cifpApproaches.put (appid, cifpapp);
-                            }
-
-                            if (segid.equals (CIFPSEG_REFNV)) {
-
-                                // these aren't really segments, but is the navaid for the approach
-                                // it tells us what localizer, ndb, vor etc the approach is based on
-                                cifpapp.refnavwp = plateView.FindWaypoint (result1.getString (2));
-                            } else {
-
-                                // real segments, get array of leg strings
-                                String[] semis = result1.getString (2).split (";");
-
-                                // make sure segment has at least one leg
-                                int nlegs = semis.length;
-                                if (nlegs <= 0) continue;
-
-                                // create segment object and associated leg objects
-                                CIFPSegment cifpseg = new CIFPSegment ();
-                                cifpseg.approach    = cifpapp;
-                                cifpseg.segid       = segid;
-                                cifpseg.legs        = new CIFPLeg[nlegs];
-                                for (int i = 0; i < nlegs; i ++) {
-                                    makeLeg (cifpseg, i, semis[i]);
-                                }
-
-                                // add segment to approach
-                                switch (segid) {
-                                    case CIFPSEG_FINAL: {
-                                        cifpapp.finalseg = cifpseg;
-                                        break;
-                                    }
-                                    case CIFPSEG_MISSD: {
-                                        cifpapp.missedseg = cifpseg;
-                                        break;
-                                    }
-                                    default: {
-                                        cifpapp.transsegs.put (segid, cifpseg);
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                    } catch (Exception e) {
-                        errorMessage ("error processing CIFP record " + airport.ident + "." +
-                                appid + "." + segid, e);
+                    } finally {
+                        br.close ();
                     }
-                } while (result1.moveToNext ());
-            } finally {
-                result1.close ();
-            }
-        } catch (Exception e) {
-            errorMessage ("error reading " + dbname, e);
-        }
-
-        // every approach must have a finalseg and a missedseg
-        // remove any that don't have both
-        for (Iterator<String> it = cifpApproaches.keySet ().iterator (); it.hasNext ();) {
-            String appid = it.next ();
-            CIFPApproach approach = cifpApproaches.get (appid);
-            if ((approach.finalseg == null) || (approach.missedseg == null)) {
-                it.remove ();
+                } catch (IOException ioe) {
+                    Log.w (TAG, "error reading " + dmeArcs.getPath () + ": " + ioe.getMessage ());
+                }
             }
         }
 
-        // second-phase init
-        for (CIFPApproach cifpapp : cifpApproaches.values ()) {
-            for (CIFPSegment cifpseg : cifpapp.transsegs.values ()) {
-                cifpseg.init2 ();
+        /**
+         * Read database for CIFPs pertaining to the plate.
+         * Load those records into cifpApproaches.
+         * That gives us a list of transition segments for the plate.
+         */
+        public void load ()
+        {
+            cifpApproaches = new TreeMap<> ();
+
+            // scan the database for this airport and hopefully find airport's icaoid
+            // then gather up all CIFP segments for things that seem to match plate name
+            int expdate28 = MaintView.GetPlatesExpDate (airport.state);
+            String dbname = "plates_" + expdate28 + ".db";
+            try {
+                SQLiteDBs sqldb = SQLiteDBs.open (dbname);
+                @SuppressWarnings("ConstantConditions")
+                Cursor result1 = sqldb.query (
+                        "iapcifps", columns_cp_misc,
+                        "cp_icaoid=?", new String[] { airport.ident },
+                        null, null, null, null);
+                try {
+                    if (result1.moveToFirst ()) do {
+                        String appid = result1.getString (0);
+                        String segid = result1.getString (1);
+                        String legs  = result1.getString (2);
+                        ParseCIFPSegment (appid, segid, legs);
+                    } while (result1.moveToNext ());
+                } finally {
+                    result1.close ();
+                }
+            } catch (Exception e) {
+                errorMessage ("error reading " + dbname, e);
             }
-            cifpapp.finalseg.init2 ();
-            cifpapp.missedseg.init2 ();
+
+            // maybe add some DME arcs to the diagramme
+            for (String appidsegid : addedDMEArcs.keySet ()) {
+                String[] parts = appidsegid.split (",");
+                ParseCIFPSegment (parts[0], parts[1], addedDMEArcs.get (appidsegid));
+            }
+
+            // every approach must have a finalseg and a missedseg
+            // remove any that don't have both
+            // also add a radar-vector transition segment for each approach
+            for (Iterator<String> it = cifpApproaches.keySet ().iterator (); it.hasNext ();) {
+                String appid = it.next ();
+                CIFPApproach approach = cifpApproaches.get (appid);
+                if ((approach.finalseg == null) || (approach.missedseg == null)) {
+                    it.remove ();
+                } else {
+                    CIFPSegment rvseg = new CIFPSegment ();
+                    CIFPLeg_rv  rvleg = new CIFPLeg_rv  ();
+
+                    rvseg.approach = approach;
+                    rvseg.segid    = CIFPSEG_RADAR;
+                    rvseg.legs     = new CIFPLeg[] { rvleg };
+
+                    rvleg.segment  = rvseg;
+                    rvleg.legidx   = 0;
+                    rvleg.legstr   = "";
+                    rvleg.pathterm = "rv";
+                    rvleg.parms    = new HashMap<> ();
+                    rvleg.init1 ();
+
+                    approach.transsegs.put (CIFPSEG_RADAR, rvseg);
+                }
+            }
+
+            // second-phase init
+            for (CIFPApproach cifpapp : cifpApproaches.values ()) {
+                for (CIFPSegment cifpseg : cifpapp.transsegs.values ()) {
+                    cifpseg.init2 ();
+                }
+                cifpapp.finalseg.init2 ();
+                cifpapp.missedseg.init2 ();
+            }
+        }
+
+        /**
+         * Parse a CIFP segment string and add segment to segments for this approach.
+         * @param appid = approach id, eg, "S23" for VOR 23 approach
+         * @param segid = segment id, eg "LWM" transition
+         * @param legs = legs, semi-colon separated,
+         *      eg, "CF,wp=LWM[330@10,a=+2000,iaf;AF,nav=LWM,beg=3300,end=566,nm=100,a=+2000"
+         */
+        private void ParseCIFPSegment (String appid, String segid, String legs)
+        {
+            try {
+                // if it looks like approach type, runway and variant match,
+                // add segment to list of matching segments.
+                // note that we may get more than one approach to match this
+                // plate, such as if the plate is 'ILS OR LOC ...', we get
+                // ILS and LOC segments matching.
+                String apptype = appMatches (appid);
+                if (apptype != null) {
+
+                    // see if we already know about approach this segment is for
+                    // if not, create new approach object
+                    CIFPApproach cifpapp = cifpApproaches.get (appid);
+                    if (cifpapp == null) {
+                        StringBuilder name = new StringBuilder ();
+                        name.append (apptype);
+                        if (!variant.equals ("")) {
+                            name.append (' ');
+                            name.append (variant);
+                        }
+                        if (!runway.startsWith ("-")) {
+                            name.append (' ');
+                        }
+                        name.append (runway);
+
+                        cifpapp = new CIFPApproach ();
+                        cifpapp.appid = appid;
+                        cifpapp.name = name.toString ();
+                        cifpapp.type = apptype;
+                        cifpApproaches.put (appid, cifpapp);
+                    }
+
+                    if (segid.equals (CIFPSEG_REFNV)) {
+
+                        // these aren't really segments, but is the navaid for the approach
+                        // it tells us what localizer, ndb, vor etc the approach is based on
+                        cifpapp.refnavwp = plateView.FindWaypoint (legs);
+                    } else {
+
+                        // real segments, get array of leg strings
+                        String[] semis = legs.split (";");
+
+                        // make sure segment has at least one leg
+                        int nlegs = semis.length;
+                        if (nlegs <= 0) return;
+
+                        // create segment object and associated leg objects
+                        CIFPSegment cifpseg = new CIFPSegment ();
+                        cifpseg.approach    = cifpapp;
+                        cifpseg.segid       = segid;
+                        cifpseg.legs        = new CIFPLeg[nlegs];
+                        for (int i = 0; i < nlegs; i ++) {
+                            makeLeg (cifpseg, i, semis[i]);
+                        }
+
+                        // add segment to approach
+                        switch (segid) {
+                            case CIFPSEG_FINAL: {
+                                cifpapp.finalseg = cifpseg;
+                                break;
+                            }
+                            case CIFPSEG_MISSD: {
+                                cifpapp.missedseg = cifpseg;
+                                break;
+                            }
+                            default: {
+                                cifpapp.transsegs.put (segid, cifpseg);
+                                break;
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                errorMessage ("error processing CIFP record " + airport.ident + "." +
+                        appid + "." + segid, e);
+            }
+        }
+
+        /**
+         * See if an approach matches the plate title string
+         * @param appid = CIFP approach name, eg, "I05Z"
+         * @return null: it doesn't match
+         *         else: approach type, eg, "ILS"
+         */
+        private String appMatches (String appid)
+        {
+            String apptype = null;
+            char appcode;
+            boolean rwmatch;
+
+            // if circling-only approach, convert 3-letter code to 1-letter code
+            // also see if -A in displayed plate id matches -A in database record approach id
+            if (runway.startsWith ("-")) {
+                String appid3 = appid.substring (0, 3);
+                appcode = 0;
+                rwmatch = circlingcodes.containsKey (appid3);
+                if (rwmatch) {
+                    appcode = circlingcodes.get (appid3);
+                    rwmatch = appid.substring (3).equals (runway);
+                }
+            } else {
+                // appid : <1-letter-code><runway><variant>
+                //   1-letter-code = eg, 'D' for vor/dme
+                //   runway = two digits
+                //   variant = 'Z', 'Y', etc or missing
+                //     (variant might be preceded by an hyphen)
+
+                // straight-in capable, get 1-letter code
+                appcode = appid.charAt (0);
+
+                // also see if runway and variant match
+                String appidnd = appid.replace ("-", "");
+                rwmatch = appidnd.substring (1).equals (runway + variant);
+            }
+
+            if (rwmatch) {
+                // see if the approach type matches
+                // p150 Table 5-9 Runway Dependent Procedure Ident
+                switch (appcode) {
+                    case 'B': {  // localizer back course
+                        if (sawlbc) apptype = "LOC-BC";
+                        break;
+                    }
+                    case 'D': {  // vor with dme required
+                        if (sawvor && sawdme) apptype = "VOR/DME";
+                        break;
+                    }
+                    case 'I': {  // ils
+                        if (sawils) apptype = "ILS";
+                        break;
+                    }
+                    case 'J': {  // gnss landing system
+                        if (sawgls) apptype = "GLS";
+                        break;
+                    }
+                    case 'L': {  // localizer
+                        if (sawloc) apptype = "LOC";
+                        break;
+                    }
+                    case 'N': {  // ndb
+                        if (sawndb) apptype = "NDB";
+                        break;
+                    }
+                    case 'P': {  // gps
+                        if (sawgps) apptype = "GPS";
+                        break;
+                    }
+                    case 'Q': {  // ndb with dme required
+                        if (sawndb && sawdme) apptype = "NDB/DME";
+                        break;
+                    }
+                    case 'R': {  // rnav (gps)
+                        if (sawrnv) apptype = "RNAV/GPS";
+                        break;
+                    }
+                    case 'S':    // vor has dme but not required
+                    case 'V': {  // vor
+                        if (sawvor) apptype = "VOR";
+                        break;
+                    }
+                    case 'U': {  // sdf
+                        if (sawsdf) apptype = "SDF";
+                        break;
+                    }
+                    case 'X': {  // lda
+                        if (sawlda) apptype = "LDA";
+                        break;
+                    }
+                }
+            }
+            return apptype;
+        }
+
+        /**
+         * Draw a DME arc on the plate
+         * @param legs = describes the DME arc, must contain an AF leg
+         *      eg, CF,wp=LWM[330@10,a=+2000,iaf;AF,nav=LWM,beg=3300,end=566,nm=100,a=+2000
+         */
+        private void drawDMEArc (String legs)
+        {
+            Waypoint nav = null;
+            float nm  = 0;
+            float beg = 0;
+            float end = 0;
+
+            String[] legsplit = legs.split (";");
+            for (String leg : legsplit) {
+                if (leg.startsWith ("AF,")) {
+                    String[] parms = leg.split (",");
+                    for (String parm : parms) {
+                        if (parm.startsWith ("nav=")) nav = plateView.FindWaypoint (parm.substring (4));
+                        if (parm.startsWith ("beg=")) beg = Integer.parseInt (parm.substring (4)) / 10.0F;
+                        if (parm.startsWith ("end=")) end = Integer.parseInt (parm.substring (4)) / 10.0F;
+                        if (parm.startsWith ("nm="))  nm  = Integer.parseInt (parm.substring (3)) / 10.0F;
+                    }
+                }
+            }
+
+            plateView.DrawDMEArc (nav, beg, end, nm);
         }
     }
 
@@ -1269,7 +1426,8 @@ public class PlateCIFP {
     /**
      * One per segment associated with an approach.
      * Every approach must have at least a final and missed segment.
-     * They usually have several transition segments as well.
+     * We also add a radar-vector transition segment.
+     * They usually have several other transition segments (from the database) as well.
      */
     public class CIFPSegment {
         public  CIFPApproach approach;
@@ -1286,12 +1444,28 @@ public class PlateCIFP {
         // get steps for all legs in this segment
         public CIFPLeg getSteps (LinkedList<CIFPStep> steps, CIFPLeg prevleg) throws Exception
         {
-            for (CIFPLeg leg : legs) {
+            int nlegs = legs.length;
+            int ileg  = 0;
+
+            // an ugliness for adding final steps to CIFPLeg_rv transition
+            // - we must skip all legs that come before the FAF leg
+            //   usually either 0 or 1 leg being skipped here
+            if (prevleg instanceof CIFPLeg_rv) {
+                for (; ileg < nlegs; ileg ++) {
+                    if (legs[ileg].parms.containsKey ("faf")) break;
+                }
+            }
+
+            // add steps from all the remaining legs
+            for (; ileg < nlegs; ileg ++) {
+                CIFPLeg leg = legs[ileg];
                 if (!leg.isRuntLeg (prevleg) || !prevleg.mergeAltitude (leg)) {
                     leg.getSteps (steps);
                     prevleg = leg;
                 }
             }
+
+            // return the last leg we added steps from
             return prevleg;
         }
 
@@ -1304,6 +1478,19 @@ public class PlateCIFP {
                 if (leg.parms.containsKey ("faf")) return leg;
             }
             return null;
+        }
+
+        // assuming this is the final segment (which has the FAF),
+        // get the leg ending over the numbers
+        public CIFPLeg getRwyLeg ()
+        {
+            boolean hasfaf = false;
+            CIFPLeg lastleg = null;
+            for (CIFPLeg leg : legs) {
+                if (leg.parms.containsKey ("faf")) hasfaf = true;
+                if (hasfaf) lastleg = leg;
+            }
+            return lastleg;
         }
 
         /**
@@ -1495,81 +1682,82 @@ public class PlateCIFP {
         protected void getLinearVNTracking (NavDialView navDial, String wpid)
         {
             // maybe we are in fillet at end of the line segment
-            if (inEndFillet (navDial)) return;
+            if (!inEndFillet (navDial)) {
 
-            // set obs dial to whatever course they should be flying in this step
-            float obstrue = trueCourse (begptbmx, begptbmy, endptbmx, endptbmy);
-            navDial.obsSetting = obstrue + aptmagvar;
+                // not in fillet, set obs dial to whatever course they should be flying in this step
+                float obstrue = trueCourse (begptbmx, begptbmy, endptbmx, endptbmy);
+                navDial.obsSetting = obstrue + aptmagvar;
 
-            // see if this segment is on final approach course
-            float obsfinaldiff = angleDiffU (obstrue - vnFinalTC);
-            boolean onfinalapp = obsfinaldiff < 15.0F;
+                // see if this segment is on final approach course
+                float obsfinaldiff = angleDiffU (obstrue - vnFinalTC);
+                boolean onfinalapp = obsfinaldiff < 15.0F;
 
-            // see if runway numbers are ahead of us or behind
-            float faf_to_rwy_x = vnRwyPoint.x - vnFafPoint.x;
-            float faf_to_rwy_y = vnRwyPoint.y - vnFafPoint.y;
-            float acf_to_rwy_x = vnRwyPoint.x - acraftbmx;
-            float acf_to_rwy_y = vnRwyPoint.y - acraftbmy;
-            boolean runwayahead = (faf_to_rwy_x * acf_to_rwy_x + faf_to_rwy_y * acf_to_rwy_y) > 0.0F;
+                // see if runway numbers are ahead of us or behind
+                float faf_to_rwy_x = vnRwyPoint.x - vnFafPoint.x;
+                float faf_to_rwy_y = vnRwyPoint.y - vnFafPoint.y;
+                float acf_to_rwy_x = vnRwyPoint.x - acraftbmx;
+                float acf_to_rwy_y = vnRwyPoint.y - acraftbmy;
+                boolean runwayahead = (faf_to_rwy_x * acf_to_rwy_x + faf_to_rwy_y * acf_to_rwy_y) > 0.0F;
 
-            // see how far away from FAF and runway numbers we are
-            float disttofaf = Mathf.hypot (acraftbmx - vnFafPoint.x, acraftbmy - vnFafPoint.y) / bmpixpernm;
-            float disttorwy = Mathf.hypot (acraftbmx - vnRwyPoint.x, acraftbmy - vnRwyPoint.y) / bmpixpernm;
+                // see how far away from FAF and runway numbers we are
+                float disttofaf = Mathf.hypot (acraftbmx - vnFafPoint.x, acraftbmy - vnFafPoint.y) / bmpixpernm;
+                float disttorwy = Mathf.hypot (acraftbmx - vnRwyPoint.x, acraftbmy - vnRwyPoint.y) / bmpixpernm;
 
-            // get signed distance to FAF by projecting our position onto the final approach course
-            float coursetofaf = trueCourse (acraftbmx, acraftbmy, vnFafPoint.x, vnFafPoint.y);
-            float signeddisttofaf = disttofaf * Mathf.cosdeg (coursetofaf - vnFinalTC);
+                // get signed distance to FAF by projecting our position onto the final approach course
+                float coursetofaf = trueCourse (acraftbmx, acraftbmy, vnFafPoint.x, vnFafPoint.y);
+                float signeddisttofaf = disttofaf * Mathf.cosdeg (coursetofaf - vnFinalTC);
 
-            // get needle sensitivity (in nm each side)
-            // - FAF more than 2nm ahead: +- 1nm
-            // - FAF less than 2nm ahead: +- 0.3nm to +- 1nm
-            // - inside FAF runway ahead: +- 0.3nm
-            // - runway behind: +- 1nm
-            float locsens;
-            if (!onfinalapp) locsens = 1.0F;  // out doing a PT or something
-            else if (signeddisttofaf > 2.0F) locsens = 1.0F;  // inbound but have a way to go
-            else if (signeddisttofaf > 0.0F) locsens = 0.3F + signeddisttofaf * 0.35F;
-            else if (runwayahead) locsens = 0.3F;  // closing in on runway
-            else locsens = 1.0F;  // gone missed
+                // get needle sensitivity (in nm each side)
+                // - FAF more than 2nm ahead: +- 1nm
+                // - FAF less than 2nm ahead: +- 0.3nm to +- 1nm
+                // - inside FAF runway ahead: +- 0.3nm
+                // - runway behind: +- 1nm
+                float locsens;
+                if (!onfinalapp) locsens = 1.0F;  // out doing a PT or something
+                else if (signeddisttofaf > 2.0F) locsens = 1.0F;  // inbound but have a way to go
+                else if (signeddisttofaf > 0.0F) locsens = 0.3F + signeddisttofaf * 0.35F;
+                else if (runwayahead) locsens = 0.3F;  // closing in on runway
+                else locsens = 1.0F;  // gone missed
 
-            // set localizer needle deflection
-            float deflection = lineDeflection (begptbmx, begptbmy, endptbmx, endptbmy);
-            navDial.setDeflect (deflection / locsens);
+                // set localizer needle deflection
+                float deflection = lineDeflection (begptbmx, begptbmy, endptbmx, endptbmy);
+                navDial.setDeflect (deflection / locsens);
 
-            // maybe we are in glideslope mode
-            //  * runway numbers must be ahead of us
-            //  * we must be within 2nm of final approach centerline
-            //  * we must be headed within 60deg of final approach course
-            //  * we must be within 3nm of FAF or between FAF and runway
-            if (runwayahead && onfinalapp &&
-                    (Math.abs (deflection) < NavDialView.LOCDEFLECT * 2.0F) &&
-                    ((disttofaf < 3.0F) || (disttorwy < vnFinalDist))) {
+                // maybe we are in glideslope mode
+                //  * runway numbers must be ahead of us
+                //  * we must be within 2nm of final approach centerline
+                //  * we must be headed within 60deg of final approach course
+                //  * we must be within 3nm of FAF or between FAF and runway
+                if (runwayahead && onfinalapp &&
+                        (Math.abs (deflection) < NavDialView.LOCDEFLECT * 2.0F) &&
+                        ((disttofaf < 3.0F) || (disttorwy < vnFinalDist))) {
 
-                // on final approach, put dial in ILS mode
-                navDial.setMode (NavDialView.Mode.ILS);
+                    // on final approach, put dial in ILS mode
+                    navDial.setMode (NavDialView.Mode.ILS);
 
-                // tell pilot what their descent rate should be to stay on glideslope
-                float nmpermin = wairToNow.currentGPSSpd / Lib.MPerNM * 60.0F;
-                float descrate = vnGSFtPerNM * nmpermin;
-                navDial.gsfpm  = - Math.round (descrate);
+                    // tell pilot what their descent rate should be to stay on glideslope
+                    float nmpermin = wairToNow.currentGPSSpd / Lib.MPerNM * 60.0F;
+                    float descrate = vnGSFtPerNM * nmpermin;
+                    navDial.gsfpm  = - Math.round (descrate);
 
-                // get glideslope sensitivity
-                // - at FAF: +- 492ft
-                // - at 4.63nm inside FAF: +- 148ft
-                float gssens = 492.0F + signeddisttofaf / 4.63F * (492.0F - 148.0F);
-                if (gssens < 148.0F) gssens = 148.0F;
+                    // get glideslope sensitivity
+                    // - at FAF: +- 492ft
+                    // - at 4.63nm inside FAF: +- 148ft
+                    float gssens = 492.0F + signeddisttofaf / 4.63F * (492.0F - 148.0F);
+                    if (gssens < 148.0F) gssens = 148.0F;
 
-                // get height below on-glideslope path
-                float ongsalt = disttorwy * vnGSFtPerNM + vnRwyGSElev;
-                float belowongs = ongsalt - wairToNow.currentGPSAlt * Lib.FtPerM;
+                    // get height below on-glideslope path
+                    float ongsalt = disttorwy * vnGSFtPerNM + vnRwyGSElev;
+                    float belowongs = ongsalt - acraftalt;
 
-                // set glideslope needle deflection
-                navDial.setSlope (belowongs / gssens * NavDialView.GSDEFLECT);
-            } else {
+                    // set glideslope needle deflection
+                    navDial.setSlope (belowongs / gssens * NavDialView.GSDEFLECT);
+                } else {
 
-                // not on final approach, put dial in LOC mode
-                // use LOC not VOR so dial can't be finger rotated
-                navDial.setMode (NavDialView.Mode.LOC);
+                    // not on final approach, put dial in LOC mode
+                    // use LOC not VOR so dial can't be finger rotated
+                    navDial.setMode (NavDialView.Mode.LOC);
+                }
             }
 
             // set DME distance and identifier
@@ -1629,7 +1817,7 @@ public class PlateCIFP {
         public abstract void init1 () throws Exception;
         public boolean isRuntLeg (CIFPLeg prevleg) { return false; }
         public abstract void init2 ();
-
+        public boolean isOptional () { return false; }
         public abstract void getSteps (LinkedList<CIFPStep> steps) throws Exception;
 
         /**
@@ -2517,16 +2705,17 @@ public class PlateCIFP {
             public void getVNTracking (NavDialView navDial)
             {
                 // check for being in fillet at end of DME arc
-                if (inEndFillet (navDial)) return;
+                if (!inEndFillet (navDial)) {
 
-                // never in glideslope mode for DME arc
-                navDial.setMode (NavDialView.Mode.LOC);
+                    // never in glideslope mode for DME arc
+                    navDial.setMode (NavDialView.Mode.LOC);
 
-                // set OBS based on position from center of arc
-                navDial.obsSetting = arcObsSetting (navpt.x, navpt.y, arcturndir);
+                    // set OBS based on position from center of arc
+                    navDial.obsSetting = arcObsSetting (navpt.x, navpt.y, arcturndir);
 
-                // set deflection based on distance from arc
-                navDial.setDeflect (arcDeflection (navpt.x, navpt.y, arcradbmp, arcturndir));
+                    // set deflection based on distance from arc
+                    navDial.setDeflect (arcDeflection (navpt.x, navpt.y, arcradbmp, arcturndir));
+                }
 
                 // put navwp in DME window
                 float distnav = Mathf.hypot (acraftbmx - navpt.x, acraftbmy - navpt.y);
@@ -2617,7 +2806,7 @@ public class PlateCIFP {
                 } else {
 
                     // this step is current, draw dots using actual climb rate
-                    float curgpsaltft = wairToNow.currentGPSAlt * Lib.FtPerM;
+                    float curgpsaltft = acraftalt;
                     if (Float.isNaN (climbegalt)) {
 
                         // first time here, save starting point
@@ -3066,10 +3255,68 @@ public class PlateCIFP {
     // hold until at fix
     // - just once around until reach the fix
     private class CIFPLeg_HF extends CIFPLeg_Hold {
+        private boolean flyHold;
+
+        /**
+         * Hold in place of procedure turn.
+         * Ask pilot if they want to do the hold.
+         * @return true: pilot was prompted, come back when pilot answers prompt
+         *         else: pilot wasn't prompted, continue processing
+         */
+        @Override
+        public boolean isOptional ()
+        {
+            // maybe we can tell if PT is required or should be skipped
+            // SFM-VOR-25/ENE:
+            //   from PSM: hold required
+            //   from PWM: hold skipped
+            //   from IZG: prompt
+            int rc = checkOptionalPT (segment, legidx, navpt, inbound);
+
+            ////// don't prompt for hardcore teardrop/parallel/direct entry
+            ////// do prompt for borderline cases
+            ////if (rc >= 0) {
+            ////    flyHold = rc > 0;  // force hold for hardcore teardrop/parallel entry
+            ////                       // skip hold for hardcore direct entry
+            ////    return false;
+            ////}
+
+            // don't prompt for hardcore teardrop/parallel entry
+            // do prompt for hardcore direct entry and borderline
+            if (rc > 0) {
+                flyHold = true;  // force hold for hardcore teardrop/parallel entry
+                return false;
+            }
+
+            // prompt pilot
+            AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
+            adb.setTitle ("Optional leg");
+            adb.setMessage ("Fly Hold at " + parms.get ("wp") + "?");
+            adb.setPositiveButton ("Yes", new DialogInterface.OnClickListener () {
+                @Override
+                public void onClick (DialogInterface dialogInterface, int i) {
+                    flyHold = true;
+                    CIFPSegmentSelFinal (segment);
+                }
+            });
+            adb.setNeutralButton ("No", new DialogInterface.OnClickListener () {
+                @Override
+                public void onClick (DialogInterface dialogInterface, int i) {
+                    flyHold = false;
+                    CIFPSegmentSelFinal (segment);
+                }
+            });
+            adb.setNegativeButton ("Cancel", null);
+            adb.show ();
+            return true;
+        }
+
         public void getSteps (LinkedList<CIFPStep> steps)
         {
-            steps.addLast (hstep1);
-            steps.addLast (hstep2);
+            if (flyHold) {
+                steps.addLast (hstep1);
+                steps.addLast (hstep2);
+            }
         }
     }
     // hold indefinitely
@@ -3095,13 +3342,14 @@ public class PlateCIFP {
             Mathf.toDegrees (Mathf.asin (stdturnradsec / HOLDLEGSEC * 2.0F));
 
     private abstract class CIFPLeg_Hold extends CIFPLeg {
+        protected float inbound, inboundsin, inboundcos; // heading inbound to navwp
+        protected PointF navpt = new PointF ();  // navaid/fix the hold is based on
+        protected Waypoint navwp;
+
         private char turndir;
-        private float inbound, inboundsin, inboundcos; // heading inbound to navwp
         private float parahdg;    // heading along parallel diagonal toward navwp (two curls)
         private float tearhdg;    // heading along teardrop diagonal away from navwp (one curl)
-        private PointF navpt = new PointF ();
         private String samedir, oppodir;
-        private Waypoint navwp;
 
         private float tc_acraft_to_navwp = Float.NaN;
                                             // incoming (entry) aircraft heading relative to inbound
@@ -3624,13 +3872,13 @@ public class PlateCIFP {
             @Override
             public void getVNTracking (NavDialView navDial)
             {
-                // check for fillet at end of step
-                // if there is a step 3, it filled this in to lead into step 3
-                if (inEndFillet (navDial)) return;
-
                 // DME dist and fix is always navwp
                 float distnav = Mathf.hypot (acraftbmx - navpt.x, acraftbmy - navpt.y);
                 navDial.setDistance (distnav / bmpixpernm, navwp.ident, false);
+
+                // check for fillet at end of step
+                // if there is a step 3, it filled this in to lead into step 3
+                if (inEndFillet (navDial)) return;
 
                 // parallel entry, give heading along diagonal
                 if (tc_acraft_to_navwp < -70.0F) {
@@ -4033,6 +4281,7 @@ public class PlateCIFP {
      *   3) go straight ahead until intercept beacon's radial inbound
      */
     private class CIFPLeg_PI extends CIFPLeg {
+        private boolean flyPT;
         private char td;         // 180deg and last 45deg turn direction
         private float a_tru, b_tru, c_tru;
         private float extendnm;  // extend outbound leg from navwp this far beyond HOLDLEGSEC
@@ -4086,12 +4335,13 @@ public class PlateCIFP {
             public void getVNTracking (NavDialView navDial)
             {
                 // maybe it is time to start turning 45deg outbound
-                if (inEndFillet (navDial)) return;
+                if (!inEndFillet (navDial)) {
 
-                // fly on outbound heading
-                navDial.setMode (NavDialView.Mode.LOC);
-                navDial.obsSetting = lineObsSetting (a_tru);
-                navDial.setDeflect (lineDeflection (navpt.x, navpt.y, a_tru));
+                    // if not, fly on outbound heading
+                    navDial.setMode (NavDialView.Mode.LOC);
+                    navDial.obsSetting = lineObsSetting (a_tru);
+                    navDial.setDeflect (lineDeflection (navpt.x, navpt.y, a_tru));
+                }
 
                 // give DME from navwp
                 float dist = Mathf.hypot (acraftbmx - navpt.x, acraftbmy - navpt.y);
@@ -4115,11 +4365,6 @@ public class PlateCIFP {
                 }
                 return textline;
             }
-
-            // no fillet cuz pistep3 is the fillet
-            @Override
-            public void drawFillet ()
-            { }
 
             // number of bitmap pixels to pistep3 turn
             @Override
@@ -4231,14 +4476,16 @@ public class PlateCIFP {
             public void getVNTracking (NavDialView navDial)
             {
                 // maybe have entered fillet at end of 45deg inbound line
-                if (inEndFillet (navDial)) return;
+                if (!inEndFillet (navDial)) {
 
-                // flying the inbound 45deg line
-                navDial.setMode (NavDialView.Mode.LOC);
+                    // not, flying the inbound 45deg line
+                    navDial.setMode (NavDialView.Mode.LOC);
+                    navDial.obsSetting = lineObsSetting (c_tru);
+                    navDial.setDeflect (lineDeflection (begptbmx, begptbmy, c_tru));
+                }
+
                 float dist = Mathf.hypot (acraftbmx - extpt.x, acraftbmy - extpt.y);
                 navDial.setDistance (dist / bmpixpernm, extwp.ident, false);
-                navDial.obsSetting = lineObsSetting (c_tru);
-                navDial.setDeflect (lineDeflection (begptbmx, begptbmy, c_tru));
             }
         };
 
@@ -4280,7 +4527,7 @@ public class PlateCIFP {
 
         public void init2 ()
         {
-            // see which is farther from the airport, the beacon or the FAF
+            // see which is farther from the airport, the PT's beacon or the FAF
             // that is the point we use for timing
             // this will select VELAN for the LWM VOR 23 approach
             CIFPLeg fafleg = segment.approach.finalseg.getFafLeg ();
@@ -4289,24 +4536,89 @@ public class PlateCIFP {
                 float dist_nav_to_apt = Lib.LatLonDist (navwp.lat, navwp.lon, airport.lat, airport.lon);
                 float dist_faf_to_apt = Lib.LatLonDist (fafwp.lat, fafwp.lon, airport.lat, airport.lon);
                 extendnm = dist_faf_to_apt - dist_nav_to_apt;
-                if (extendnm < 0.0F) {
-                    extendnm = 0.0F;
-                    extwp = navwp;
-                    extpt = navpt;
-                } else {
+                if (extendnm > 0.0F) {
                     extwp = fafwp;
                     extpt.x = plateView.LatLon2BitmapX (fafwp.lat, fafwp.lon);
                     extpt.y = plateView.LatLon2BitmapY (fafwp.lat, fafwp.lon);
+                    return;
                 }
             }
+            extendnm = 0.0F;
+            extwp = navwp;
+            extpt = navpt;
+        }
+
+        /**
+         * Give pilot the option to skip the procedure turn.
+         */
+        @Override
+        public boolean isOptional ()
+        {
+            // in such a case the PT is required or we would end up with an hairpin turn at VELAN
+            // ...going along the path LWM -> VELAN -> LWM -> RW23
+            // ...so we need to fly LWM -> VELAN -> PT -> LWM -> RW23
+            // even from over PSM, still requires PT, but would be better off using (rv) transition
+            if (extendnm > 0.0F) {
+                flyPT = true;
+                return false;
+            }
+
+            // maybe we can tell if PT is required or should be skipped
+            // GDM-VOR-A with PT on the VOR a couple miles west of airport
+            // ...whether prompt or not depends on aircraft current position
+            //    if airplane east of VOR (eg, over KBED), must do PT: GDM -> PT -> GDM -> KGDM
+            //    if airplane west of VOR (eg, over KORE), skip the PT: GDM -> KGDM
+            //    if airplane north or south of VOR (eg, over KEEN), prompt pilot
+            // FMH-ILS-23/MVY should force PT regardless of where aircraft is
+            // ...path is MVY -> BOMDE -> PT -> BOMDE -> RW23
+            int rc = checkOptionalPT (segment, legidx, navpt, inbound);
+
+            ////// don't prompt for hardcore teardrop/parallel/direct entry
+            ////// do prompt for borderline cases
+            ////if (rc >= 0) {
+            ////    flyPT = rc > 0;  // force hold for hardcore teardrop/parallel entry
+            ////                     // skip hold for hardcore direct entry
+            ////    return false;
+            ////}
+
+            // don't prompt for hardcore teardrop/parallel entry
+            // do prompt for hardcore direct entry and borderline
+            if (rc > 0) {
+                flyPT = true;  // force hold for hardcore teardrop/parallel entry
+                return false;
+            }
+
+            // we can't easily tell if PT is required or not so ask the pilot
+            AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
+            adb.setTitle ("Optional leg");
+            adb.setMessage ("Fly Procedure Turn at " + parms.get ("wp") + "?");
+            adb.setPositiveButton ("Yes", new DialogInterface.OnClickListener () {
+                @Override
+                public void onClick (DialogInterface dialogInterface, int i) {
+                    flyPT = true;
+                    CIFPSegmentSelFinal (segment);
+                }
+            });
+            adb.setNeutralButton ("No", new DialogInterface.OnClickListener () {
+                @Override
+                public void onClick (DialogInterface dialogInterface, int i) {
+                    flyPT = false;
+                    CIFPSegmentSelFinal (segment);
+                }
+            });
+            adb.setNegativeButton ("Cancel", null);
+            adb.show ();
+            return true;
         }
 
         public void getSteps (LinkedList<CIFPStep> steps)
         {
-            steps.addLast (pistep1);
-            steps.addLast (pistep2);
-            steps.addLast (pistep3);
-            steps.addLast (pistep4);
+            if (flyPT) {
+                steps.addLast (pistep1);
+                steps.addLast (pistep2);
+                steps.addLast (pistep3);
+                steps.addLast (pistep4);
+            }
         }
     }
 
@@ -4415,6 +4727,197 @@ public class PlateCIFP {
         {
             steps.addLast (rfstep);
         }
+    }
+
+    /**
+     * Fly radar vectors to intercept next leg.
+     * This should only be in the (rv) segment and should be the only leg therein.
+     * So we can assume the next leg is at beginning of final approach segment
+     * which is always a CF.
+     */
+    private class CIFPLeg_rv extends CIFPLeg {
+        private boolean virtnavdialmode = false;
+        private float curtc = Float.NaN;
+        private float virtnavdiallastobs;
+
+        // draw the radar vector line
+        // goes from where radar controller gave vector
+        // heading is what radar controller gave for heading
+        // (so we use what airplane is flying or what virtnav dial says)
+        // and goes to point intersecting final approach course
+        // - assumes the next leg is the FAF leg
+        //   the CIFP data often has some other point outside the FAF
+        //   listed in the final approach segment so it has to be left out
+        //   see CIFPSegment::getSteps()
+        private final CIFPStep rvstep = new CIFPStep () {
+            @Override
+            public String getTextLine ()
+            {
+                StringBuilder sb = new StringBuilder ();
+                sb.append ("radar vector ");
+                if (!Float.isNaN (curtc)) appTrueAsMag (sb, curtc);
+                appendAlt (sb);
+                return sb.toString ();
+            }
+
+            @Override
+            public void drawStepDots ()
+            {
+                if (!virtnavdialmode && (bmpToNextTurn (nextTurn) > 0.0F)) {
+
+                    // assume we should be flying starting at where we actually are
+                    begptbmx = curposbmx = acraftbmx;
+                    begptbmy = curposbmy = acraftbmy;
+
+                    // assume we should be flying what we are actually flying
+                    // calculate new intersection point
+                    calcIntersection (acrafthdg);
+                }
+
+                // draw from curposbmx,y to intersection point
+                drawStepCourseToPoint (endptbmx, endptbmy);
+
+                updateAlt ();
+            }
+
+            // update nav dial with current state
+            @Override
+            public void getVNTracking (NavDialView navDial)
+            {
+                // maybe we are in fillet at end of the line segment
+                if (!inEndFillet (navDial)) {
+
+                    // not, if first time here, set initial obs = aircraft heading
+                    if (!virtnavdialmode) {
+                        navDial.obsSetting = acrafthdg + aptmagvar;
+                        virtnavdialmode = true;
+                        virtnavdiallastobs = navDial.obsSetting + 180.0F;
+                    }
+
+                    // use VOR mode to allow finger turning the dial to what the vector is
+                    navDial.setMode (NavDialView.Mode.VOR);
+
+                    // if nav dial turned, assume it's a new vector and reset course line
+                    if (angleDiffU (virtnavdiallastobs - navDial.obsSetting) >= 0.125F) {
+                        virtnavdiallastobs = navDial.obsSetting;
+
+                        // new starting point to leg
+                        begptbmx = acraftbmx;
+                        begptbmy = acraftbmy;
+
+                        // get true course corresponding to the new obs setting
+                        float icepthdg = virtnavdiallastobs - aptmagvar;
+
+                        // calculate new intersection point
+                        calcIntersection (icepthdg);
+                    }
+
+                    // set VOR needle deflection based on aircraft current position
+                    float deflection = lineDeflection (begptbmx, begptbmy, endptbmx, endptbmy);
+                    navDial.setDeflect (deflection * (NavDialView.VORDEFLECT / NavDialView.LOCDEFLECT));
+                }
+
+                // set DME distance and identifier
+                float dist = Mathf.hypot (acraftbmx - endptbmx, acraftbmy - endptbmy);
+                navDial.setDistance (dist / bmpixpernm, "radar", false);
+            }
+
+            // calculate where current radar vector intersects final approach course
+            // input:
+            //  begptbmx,y = starting point of radar vector (ie, where airplane was when vector given)
+            //  iceptc = radar vector true course
+            // output:
+            //  endptbmx,y = ending point (somewhere on final approach course line)
+            private void calcIntersection (float iceptc)
+            {
+                curtc = iceptc;
+
+                // compute some point way ahead of us
+                float aheadbmx = begptbmx + Mathf.sindeg (iceptc) * 1024.0F;
+                float aheadbmy = begptbmy - Mathf.cosdeg (iceptc) * 1024.0F;
+
+                // find where the two lines intersect giving the end of this segment
+                endptbmx = Lib.lineIntersectX (begptbmx, begptbmy, aheadbmx, aheadbmy,
+                        vnFafPoint.x, vnFafPoint.y, vnRwyPoint.x, vnRwyPoint.y);
+                endptbmy = Lib.lineIntersectY (begptbmx, begptbmy, aheadbmx, aheadbmy,
+                        vnFafPoint.x, vnFafPoint.y, vnRwyPoint.x, vnRwyPoint.y);
+            }
+        };
+
+        public void init1 ()
+        { }
+
+        public void init2 ()
+        { }
+
+        public void getSteps (LinkedList<CIFPStep> steps)
+        {
+            steps.addLast (rvstep);
+        }
+    }
+
+    /**
+     * The HF (hold in place of PT) and PI (procedure turn) legs can be optional.
+     * We force it to be skipped if executing it would require an hairpin turn entering.
+     * We force it to be executed if skipping it would require an hairpin turn at the fix.
+     * Otherwise we prompt the pilot to see if they want to do it.
+     *
+     * @param segment = which transition segment the HF/PI leg is part of
+     * @param legidx = which leg of the segment the HF/PI is
+     * @param navpt = bitmap X,Y of waypoint the HF/PI is based on
+     * @param inbound = true course inbound toward navpt (usually same as runway true course)
+     * @return <0: borderline, prompt pilot for action to take
+     *         >0: hardcore teardrop/parallel, HF/PI is required as to do otherwise would require an hairpin turn
+     *         =0: hardcore direct entry, HF/PI is skipped as to do otherwise would require an hairpin turn
+     */
+    private int checkOptionalPT (CIFPSegment segment, int legidx, PointF navpt, float inbound)
+    {
+        // if segment has a beacon before the PT coming from same direction as the runway
+        // what would give the pilot an hairpin turn to make the turn to final,
+        // the PT is required
+        try  {
+            PointF befpt = new PointF ();
+            for (int i = legidx; i >= 0;) {
+
+                // get preceding point in segment
+                // if run out of points, use aircraft current position
+                if (-- i >= 0) {
+                    // get preceding point
+                    // if something other than a CF, prompt pilot
+                    CIFPLeg beforeleg = segment.legs[i];
+                    if (!(beforeleg instanceof CIFPLeg_CF)) break;
+                    // CF, get the waypoint
+                    String befwp = ((CIFPLeg_CF) beforeleg).parms.get ("wp");
+                    findWaypoint (befwp, befpt);
+                } else {
+                    // no more preceding CFs, use aircraft current position
+                    befpt.x = acraftbmx;
+                    befpt.y = acraftbmy;
+                }
+
+                // if runt distance away, ignore it
+                // we are almost always preceded by CF at same waypoint
+                // also ignore airplane if it is right on top of fix (ie, prompt pilot)
+                float nm_from_me_to_bef = Mathf.hypot (befpt.x - navpt.x, befpt.y - navpt.y) / bmpixpernm;
+                if (nm_from_me_to_bef < RUNTNM) continue;
+
+                // get true course from me to before point and to airport
+                // if they are both the same direction, the PT is required as it would be an hairpin turn
+                float tc_from_me_to_bef = trueCourse (navpt.x, navpt.y, befpt.x, befpt.y);
+                float tc_diff = angleDiffU (tc_from_me_to_bef - inbound);
+                if (tc_diff < 60.0F) return 1;
+
+                // if they are in opposite directions, the PT is not required as it would be an hairpin turn
+                if (tc_diff > 150.0F) return 0;
+
+                // prompt pilot
+                break;
+            }
+        } catch (Exception e) {
+            // if findWaypoint() throws up, assume have to prompt pilot
+            Lib.Ignored ();
+        }
+        return -1;
     }
 
     /**

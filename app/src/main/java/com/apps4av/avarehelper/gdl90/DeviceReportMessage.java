@@ -46,7 +46,8 @@ public class DeviceReportMessage {
          * Charge
          */
         boolean isCharging = ( (msg[5] & 0x04) != 0);
-
-        reporter.adsbGpsBattery (isCharging, batLevel);
+        String batlevel = Integer.toString (Math.round (batLevel * 100.0F)) + '%';
+        if (isCharging) batlevel += " charging";
+        reporter.adsbGpsBattery (batlevel);
     }
 }

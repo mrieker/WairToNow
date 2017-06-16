@@ -142,6 +142,16 @@ public class Lib {
     }
 
     /**
+     * Normalize a longitude in range -180.0..+179.999999999
+     */
+    public static double NormalLon (double lon)
+    {
+        while (lon < -180.0) lon += 360.0;
+        while (lon >= 180.0) lon -= 360.0;
+        return lon;
+    }
+
+    /**
      * Compute great-circle distance between two lat/lon co-ordinates
      * @return distance between two points (in nm)
      */

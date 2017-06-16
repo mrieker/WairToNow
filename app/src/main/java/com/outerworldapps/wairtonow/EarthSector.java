@@ -21,7 +21,7 @@
 package com.outerworldapps.wairtonow;
 
 import android.graphics.Bitmap;
-import android.graphics.Point;
+import android.graphics.PointF;
 import android.opengl.GLES20;
 import android.opengl.GLUtils;
 import android.support.annotation.NonNull;
@@ -64,7 +64,7 @@ public class EarthSector {
     private EarthSector nextLoad;
     private FloatBuffer mTriangles;
     private int mTextureID;
-    private Point intpoint;
+    private PointF intpoint;
     private Runnable onLoad;
 
     public EarthSector (@NonNull DisplayableChart dc, float slat, float nlat, float wlon, float elon)
@@ -74,7 +74,7 @@ public class EarthSector {
         this.nlat = nlat;
         this.wlon = wlon;
         this.elon = elon;
-        intpoint = new Point ();
+        intpoint = new PointF ();
     }
 
     /**
@@ -235,14 +235,14 @@ public class EarthSector {
 
                 // fill in x,y,z for the lat/lon
                 LatLonAlt2XYZ (lat, lon, alt, xyz);
-                vertices[k++] = xyz.x;
-                vertices[k++] = xyz.y;
-                vertices[k++] = xyz.z;
+                vertices[k++] = (float) xyz.x;
+                vertices[k++] = (float) xyz.y;
+                vertices[k++] = (float) xyz.z;
 
                 // fill in x,y of corresponding point of mBitmap
                 displayableChart.LatLon2MacroBitmap (lat, lon, intpoint);
-                vertices[k++] = (float) intpoint.x / mbmWidth;
-                vertices[k++] = (float) intpoint.y / mbmHeight;
+                vertices[k++] = intpoint.x / mbmWidth;
+                vertices[k++] = intpoint.y / mbmHeight;
             }
         }
 
@@ -328,13 +328,13 @@ public class EarthSector {
      */
     public static void LatLonAlt2XYZ (float lat, float lon, float alt, @NonNull Vector3 xyz)
     {
-        float r = alt * (FUNNYFACTOR / EARTHRADIUS) + 1.0F;
-        float latrad = Mathf.toRadians (lat);
-        float lonrad = Mathf.toRadians (lon);
-        float latcos = Mathf.cos (latrad);
-        xyz.x = r * Mathf.sin (lonrad) * latcos;
-        xyz.y = r * Mathf.sin (latrad);
-        xyz.z = r * Mathf.cos (lonrad) * latcos;
+        double r = alt * (FUNNYFACTOR / EARTHRADIUS) + 1.0;
+        double latrad = Math.toRadians (lat);
+        double lonrad = Math.toRadians (lon);
+        double latcos = Math.cos (latrad);
+        xyz.x = r * Math.sin (lonrad) * latcos;
+        xyz.y = r * Math.sin (latrad);
+        xyz.z = r * Math.cos (lonrad) * latcos;
     }
 
     /**
@@ -344,15 +344,15 @@ public class EarthSector {
      */
     public static void XYZ2LatLonAlt (@NonNull Vector3 xyz, @NonNull Vector3 lla)
     {
-        float x = xyz.x;
-        float y = xyz.y;
-        float z = xyz.z;
-        float r = Mathf.sqrt (x * x + y * y + z * z);
-        float latrad = Mathf.atan2 (y, Math.hypot (x, z));
+        double x = xyz.x;
+        double y = xyz.y;
+        double z = xyz.z;
+        double r = Math.sqrt (x * x + y * y + z * z);
+        double latrad = Math.atan2 (y, Math.hypot (x, z));
         @SuppressWarnings("SuspiciousNameCombination")
-        float lonrad = Mathf.atan2 (x, z);
-        lla.x = Mathf.toDegrees (latrad);
-        lla.y = Mathf.toDegrees (lonrad);
+        double lonrad = Math.atan2 (x, z);
+        lla.x = Math.toDegrees (latrad);
+        lla.y = Math.toDegrees (lonrad);
         lla.z = (r - 1.0F) * (EARTHRADIUS / FUNNYFACTOR);
     }
 

@@ -1,0 +1,54 @@
+#
+# Adds DME arcs to plates for training under VFR
+#
+# Use a file transfer program to copy this to your
+#   com.outerworldapps.wairtonow/files directory
+#
+# Note that patched plate .png files are created for
+#  each patched plate in the files directory so you
+#  can use a file transfer program to copy them to
+#  your PC and print them.
+#
+# Line format is (one line per DME arc wanted):
+#
+#  <icaoid>,<cifpid>,<startpoint>;<leg1>;<leg2>;...
+#   <icaoid> = airport ICAO id
+#   <cifpid> = approach CIFP name
+#   <startpoint> = <nav>[<beg>@<dme>
+#   <nav> = navaid the DME is measured from
+#   <beg> = beginning of the DME arc (magnetic degrees)
+#   <dme> = radius of the DME arc (nautical miles)
+#   <legn> = legs of the DME arc
+#
+# Format of the legs are:
+#
+#   CF,wp=<waypoint>,a=+<minalt>
+#     fly direct to waypoint at minalt altitude (feet)
+#     optional ,mc=<course> says to fly that magnetic course to the waypoint
+#
+#   AF,nav=<nav>,beg=<beg>,end=<end>,nm=<dme>,a=+<minalt>
+#     fly a DME arc around <nav> navaid
+#     with a radius of <dme> nautical miles
+#     starting at <beg> degrees magnetic from <nav>
+#     ending at <end> degrees magnetic from <nav>
+#     at a minimum altitude of <minalt> feet
+#
+# The first leg must be a CF leg going to the DME arc begin point.
+# There must be exactly one AF leg per line.
+#
+
+# add 10.0 dme arcs to LWM VOR 23 plate
+#  one starting at 120 and one starting at 330
+#  use 56.6 as end cuz that is final approach course
+#  use 2800' cuz that is MSA
+KLWM,S23,LWM[120@10; CF,wp=LWM[120@10,a=+2800,iaf; AF,nav=LWM,beg=1200,end=566,nm=100,a=+2800
+KLWM,S23,LWM[330@10; CF,wp=LWM[330@10,a=+2800,iaf; AF,nav=LWM,beg=3300,end=566,nm=100,a=+2800
+
+# add 8.0 dme arcs to SFM VOR 25 plate
+#  one starting at 180 and one starting at 340
+#  use 81.4 as end cuz that is final approach course
+#  use 1900' for 180 cuz that is MSA
+#  use 3600' for 340 cuz that is MSA, then inbound at 1900 cuz that is MSA for inbound course
+KSFM,S25,ENE[180@8; CF,wp=ENE[180@8,a=+1900,iaf; AF,nav=ENE,beg=1800,end=814,nm=80,a=+1900; CF,wp=ENE,mc=2614,a=+1900
+KSFM,S25,ENE[340@8; CF,wp=ENE[340@8,a=+3600,iaf; AF,nav=ENE,beg=3400,end=814,nm=80,a=+3600; CF,wp=ENE,mc=2614,a=+1900
+
