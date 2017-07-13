@@ -69,8 +69,16 @@
         </UL>
         <P>NOTE:  You should only have just one source of GPS information enabled at a time so
             the app doesn't receive closely spaced (distance-wise and time-wise) readings.</P>
-        <P>The Bluetooth and WiFi types accept dump978, GDL-90 and NMEA packets in any mix.</P>
+        <P>The Bluetooth and WiFi types accept dump1090, dump978, GDL-90 and NMEA packets in any mix.</P>
         <UL>
+            <LI><B>dump1090</B> is a program available on the Internet that decodes ADS-B packets
+                received from an SDR (software defined radio).  The author has successfully used it
+                with a Linux-based Raspberry PI.  The computer
+                (Raspberry PI) runs the <TT>dump1090</TT> program
+                then pipes the data to an Android WiFi TCP port using <TT>nc</TT> (netcat) or
+                similar program.  It can either literally use WiFi or can use <TT>adb forward</TT>
+                to send the data over a USB cable between the laptop and the Android device as the
+                WiFi may be unreliable.
             <LI><B>dump978</B> is a program available on the Internet that decodes ADS-B packets
                 received from an SDR (software defined radio).  The author has successfully used it
                 with a Windows-based laptop and with a Linux-based Raspberry PI.  The computer

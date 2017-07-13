@@ -73,7 +73,7 @@ public class OpenStreetMap {
         copyrtBGPaint.setColor (Color.WHITE);
         copyrtBGPaint.setStyle (Paint.Style.FILL_AND_STROKE);
         copyrtBGPaint.setTextSize (wairToNow.textSize * 3 / 4);
-        copyrtBGPaint.setStrokeWidth (30);
+        copyrtBGPaint.setStrokeWidth (wairToNow.thickLine);
         copyrtTxPaint.setColor (Color.BLACK);
         copyrtTxPaint.setTextSize (wairToNow.textSize * 3 / 4);
 

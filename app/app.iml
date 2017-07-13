@@ -86,5 +86,8 @@
     <orderEntry type="library" exported="" name="acra-4.8.5" level="project" />
     <orderEntry type="library" exported="" name="support-v4-23.2.0" level="project" />
     <orderEntry type="library" exported="" name="support-annotations-24.0.0-alpha1" level="project" />
+    <orderEntry type="library" exported="" name="libadsb-2.1" level="project" />
+    <orderEntry type="library" exported="" name="commons-lang-2.3" level="project" />
+    <orderEntry type="library" exported="" name="slf4j-api-1.7.21" level="project" />
   </component>
 </module>

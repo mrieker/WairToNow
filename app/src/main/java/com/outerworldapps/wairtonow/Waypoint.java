@@ -1152,17 +1152,7 @@ public abstract class Waypoint {
             {
                 PlateView pv = new PlateView (wpv, WairToNow.dbdir + "/datums/aptplates_" + ex + "/" + fn, aw, pd, ex, true);
                 wpv.selectedPlateView = pv;
-
-                /*
-                 * Display this view, telling any previous view to release any screen locks.
-                 * Then save the previous screen orientation.
-                 * Finally, lock screen in portrait because:
-                 *   1) portrait-style diagrams fit as is, even if phone is physically rotated
-                 *   2) landscape diagrams also fit as is, the user can rotate phone sideways
-                 *      to read it easier without the phone then flipping the diagram as well
-                 */
                 wpv.wairToNow.SetCurrentTab (pv);
-                wpv.wairToNow.setRequestedOrientation (ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
             }
         }
 

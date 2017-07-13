@@ -146,7 +146,7 @@ public class Chart2DView extends View
 
         capGridBGPaint.setColor (Color.argb (170, 255, 255, 255));
         capGridBGPaint.setStyle (Paint.Style.STROKE);
-        capGridBGPaint.setStrokeWidth (30);
+        capGridBGPaint.setStrokeWidth (wairToNow.thickLine);
         capGridBGPaint.setTextSize (ts);
         capGridLnPaint.setColor (capGridColor);
         capGridLnPaint.setStyle (Paint.Style.FILL);
@@ -158,11 +158,11 @@ public class Chart2DView extends View
 
         centerLnPaint.setColor (centerColor);
         centerLnPaint.setStyle (Paint.Style.STROKE);
-        centerLnPaint.setStrokeWidth (10);
+        centerLnPaint.setStrokeWidth (wairToNow.thinLine);
 
         courseLnPaint.setColor (courseColor);
         courseLnPaint.setStyle (Paint.Style.FILL);
-        courseLnPaint.setStrokeWidth (15);
+        courseLnPaint.setStrokeWidth (wairToNow.thinLine);
         courseLnPaint.setStyle (Paint.Style.STROKE);
         courseLnPaint.setTextAlign (Paint.Align.CENTER);
         courseTxPaint.setColor (courseColor);
@@ -173,12 +173,12 @@ public class Chart2DView extends View
 
         currentBGPaint.setColor (Color.WHITE);
         currentBGPaint.setStyle (Paint.Style.STROKE);
-        currentBGPaint.setStrokeWidth (30);
+        currentBGPaint.setStrokeWidth (wairToNow.thickLine);
         currentBGPaint.setTextSize (ts);
         currentBGPaint.setTextAlign (Paint.Align.CENTER);
         currentLnPaint.setColor (currentColor);
         currentLnPaint.setStyle (Paint.Style.STROKE);
-        currentLnPaint.setStrokeWidth (10);
+        currentLnPaint.setStrokeWidth (wairToNow.thinLine);
         currentTxPaint.setColor (currentColor);
         currentTxPaint.setStyle (Paint.Style.FILL);
         currentTxPaint.setStrokeWidth (2);
@@ -191,7 +191,7 @@ public class Chart2DView extends View
 
         wayptBGPaint.setColor (Color.BLACK);
         wayptBGPaint.setStyle (Paint.Style.STROKE);
-        wayptBGPaint.setStrokeWidth (15);
+        wayptBGPaint.setStrokeWidth (wairToNow.thinLine);
         wayptBGPaint.setTextSize (ts);
         wayptBGPaint.setTextAlign (Paint.Align.LEFT);
 
@@ -648,7 +648,7 @@ public class Chart2DView extends View
              */
             canvas.save ();
             canvas.translate (cw / 2, ch / 2);      // anything drawn below will be translated this much
-            wairToNow.DrawAirplaneSymbol (canvas);  // draw airplane symbol unrotated
+            wairToNow.DrawAirplaneSymbol (canvas, wairToNow.textSize * 1.5F);  // draw airplane symbol unrotated
             canvas.restore ();                      // remove translation/scaling/rotation
 
             /*
@@ -867,11 +867,11 @@ public class Chart2DView extends View
         public void DrawIt (Canvas canvas, boolean dofg)
         {
             if (!dofg) {
-                canvas.drawCircle (x, y, 9, wayptBGPaint);
+                canvas.drawCircle (x, y, wairToNow.thickLine * 0.25F, wayptBGPaint);
                 canvas.drawText (ident, txtBox.left, txtBox.top, wayptBGPaint);
             } else {
                 Paint fgPaint = fgPaints[color%fgPaints.length];
-                canvas.drawCircle (x, y, 5, fgPaint);
+                canvas.drawCircle (x, y, wairToNow.thickLine * 0.15F, fgPaint);
                 canvas.drawText (ident, txtBox.left, txtBox.top, fgPaint);
             }
         }

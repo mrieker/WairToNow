@@ -52,7 +52,7 @@ public class Dump978Decoder extends MidDecoder {
     }
 
     /**
-     * topDecoder.mbuf[msgStartIndex] points to our start character.
+     * msgStartIndex points to our start character.
      * If we have a whole message, remove from buffer and process it.
      * @return true: we removed a message; false: nothing removed
      */

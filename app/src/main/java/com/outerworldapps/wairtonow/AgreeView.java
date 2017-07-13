@@ -71,17 +71,24 @@ public class AgreeView extends ScrollView implements WairToNow.CanBeMainView {
 
         LinearLayout llv = new LinearLayout (wairToNow);
         llv.setOrientation (LinearLayout.VERTICAL);
+
+        TextView tvh = new TextView (wairToNow);
+        wairToNow.SetTextSize (tvh);
+        tvh.setText ("Please read then scroll to bottom to accept or reject license agreement.");
+        llv.addView (tvh);
+
         llv.addView (helpView);
 
-        TextView tv = new TextView (wairToNow);
-        wairToNow.SetTextSize (tv);
-        tv.setText ("Note:  The above can be re-displayed later by clicking the Help button.");
-        llv.addView (tv);
+        TextView tvf = new TextView (wairToNow);
+        wairToNow.SetTextSize (tvf);
+        tvf.setText ("Note:  The above can be re-displayed later by clicking the Help button.");
+        llv.addView (tvf);
 
         Button butok = new Button (wairToNow);
         wairToNow.SetTextSize (butok);
-        butok.setText ("I ACCEPT the terms of the above licenses, and will use it only in a " +
-                       "manner where any failure would result in only a minor hazard or less.");
+        butok.setText ("I ACCEPT the terms of the above licenses, and will use WairToNow only in a " +
+                       "manner where, in the words of AC 120-76C, any failure would result " +
+                       "in only a minor hazard or less.");
         butok.setOnClickListener (new OnClickListener () {
             @Override
             public void onClick (View view)
@@ -100,8 +107,9 @@ public class AgreeView extends ScrollView implements WairToNow.CanBeMainView {
 
         Button butcan = new Button (wairToNow);
         wairToNow.SetTextSize (butcan);
-        butcan.setText ("I DO NOT ACCEPT the terms of the above licenses, or I might use it in " +
-                        "a manner where any failure might present more than a minor hazard.");
+        butcan.setText ("I DO NOT ACCEPT the terms of the above licenses, or I might use WairToNow in " +
+                        "a manner where, in the words of AC 120-76C, any failure might present " +
+                        "more than a minor hazard.");
         butcan.setOnClickListener (new OnClickListener () {
             @Override
             public void onClick (View view) {

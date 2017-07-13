@@ -21,10 +21,8 @@
 package com.outerworldapps.wairtonow;
 
 import android.annotation.SuppressLint;
-import android.content.ContentValues;
 import android.content.pm.ActivityInfo;
 import android.database.Cursor;
-import android.database.sqlite.SQLiteDatabase;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
@@ -34,39 +32,22 @@ import android.graphics.Path;
 import android.graphics.PointF;
 import android.graphics.Rect;
 import android.graphics.RectF;
-import android.graphics.Typeface;
 import android.os.SystemClock;
 import android.support.annotation.NonNull;
-import android.text.InputType;
-import android.util.Base64;
 import android.util.Log;
+import android.view.Display;
 import android.view.MotionEvent;
 import android.view.View;
-import android.widget.Button;
-import android.widget.EditText;
 import android.widget.LinearLayout;
-import android.widget.TextView;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
-import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
-import java.io.PrintWriter;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Locale;
-import java.util.zip.DataFormatException;
-import java.util.zip.Deflater;
-import java.util.zip.Inflater;
 
 /**
  * This view presents the plate to the user (apt diagram, iap, sid, star, etc),
@@ -76,28 +57,12 @@ import java.util.zip.Inflater;
 @SuppressLint("ViewConstructor")
 public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
     private final static String TAG = "WairToNow";
-    private final static boolean disableWebServer = true;
-    private final static int GEOREFBOX = 64;
-    private final static float GEOREFDIMND = 1;
     private final static int MAXZOOMIN = 16;
     private final static int MAXZOOMOUT = 8;
-    private final static String GeoRefDBName = "georefs.db";
-    private final static String GeoRefLastPath = WairToNow.dbdir + "/georefs.last";
-
-    private static class IAPGeoRefMap {
-        public boolean manual;      // true: manually entered; false: machine detected
-        public boolean used;        // being used to map latlon->pixels
-        public boolean valid;       // pixels[] array verifies with actual image
-        public float lat, lon;      // fix's lat/lon
-        public int pixelx, pixely;  // bitmap pixel co-ordinate for the fix
-        public byte[] pixels;       // pixels in vacinity of fix when saved
-        public String ident;        // fix id
-    }
-
-    private final static byte[] nullblob = new byte[0];
 
     private boolean full;
     private int expdate;                // plate expiration date, eg, 20150917
+    private int screenOrient;
     private Paint exppaint;
     public  PlateImage plateImage;      // displays the plate image bitmap
     private String plateid;             // which plate, eg, "IAP-LOC RWY 16"
@@ -106,11 +71,8 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
     private Waypoint.Airport airport;   // which airport, eg, "KBVY"
 
     private final static String[] columns_apdgeorefs1 = new String[] { "gr_wfta", "gr_wftb", "gr_wftc", "gr_wftd", "gr_wfte", "gr_wftf" };
-    private final static String[] columns_georefs1 = new String[] { "rowid", "gr_icaoid", "gr_plate", "gr_waypt", "gr_bmpixx", "gr_bmpixy", "gr_zpixels" };
-    private final static String[] columns_georefs2 = new String[] { "gr_waypt", "gr_bmpixx", "gr_bmpixy", "gr_zpixels" };
     private final static String[] columns_georefs21 = new String[] { "gr_clat", "gr_clon", "gr_stp1", "gr_stp2", "gr_rada", "gr_radb",
             "gr_tfwa", "gr_tfwb", "gr_tfwc", "gr_tfwd", "gr_tfwe", "gr_tfwf" };
-    private final static String[] columns_iapgeorefs1 = new String[] { "gr_waypt", "gr_bmpixx", "gr_bmpixy" };
 
     public PlateView (WaypointView wv, String fn, Waypoint.Airport aw, String pd, int ex, boolean fu)
     {
@@ -135,6 +97,10 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         expdate = ex;
 
         setOrientation (VERTICAL);
+
+        Display display = wairToNow.getWindowManager().getDefaultDisplay();
+        screenOrient = (display.getHeight () < display.getWidth ()) ?
+                ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE : ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
 
         if (plateid.startsWith ("APD-")) {
             plateImage = new APDPlateImage (fn);
@@ -167,7 +133,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
     @Override  // CanBeMainView
     public int GetOrientation ()
     {
-        return ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
+        return screenOrient;
     }
 
     @Override  // CanBeMainView
@@ -649,7 +615,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
 
             rwPaint = new Paint ();
             rwPaint.setColor (Color.MAGENTA);
-            rwPaint.setStrokeWidth (6);
+            rwPaint.setStrokeWidth (wairToNow.thinLine / 2.0F);
             rwPaint.setStyle (Paint.Style.FILL_AND_STROKE);
 
             /*
@@ -1100,7 +1066,6 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
 
     /**
      * Display the IAP plate image file.
-     * Also display any associated georef info.
      */
     public class IAPPlateImage extends GRPlateImage {
 
@@ -1193,44 +1158,31 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         }
 
         private Bitmap      bitmap;                           // single plate page
-        private boolean     showIAPEditButtons;               // show/hide georef editing toolbar row
+        private boolean     hasDMEArcs;
         private float       bitmapLat, bitmapLon;
         private float       bmxy2llx = Float.NaN;
         private float       bmxy2lly = Float.NaN;
-        private GeoRefIdent geoRefIdent;                      // georef identifier name input box
-        private GeoRefInput iapGeoRefInput;                   // the whole georef editing toolbar row
-        private int         bmHeight;                         // height of one image
-        private int         bmWidth;                          // width of one image
-        private int         crosshairBMX;                     // where georef crosshairs are in bitmap co-ords
-        private int         crosshairBMY;
         private LambertConicalConformal lccmap;               // non-null: FAA-provided georef data
         private LatLon      bmxy2latlon = new LatLon ();
         private LinkedList<DMEArc> dmeArcs;
-        private Paint       editButtonPaint  = new Paint ();  // draws IAP georef edit tb hide/show button
-        private Paint       geoRefPaint;                      // paints georef stuff on plate image
-        private Path        diamond          = new Path  ();  // used to draw waypoint diamond shape
-        private Path        editButtonPath   = new Path  ();
+        private long        plateLoadedUptime;
+        private Paint       runwayPaint;                      // paints georef stuff on plate image
         public  PlateCIFP   plateCIFP;
         private PlateDME    plateDME;
         private PlateTimer  plateTimer;
         private PointF      bitmapPt = new PointF ();
-        private RectF       editButtonBounds = new RectF ();  // where IAP georef edit tb hide/show button is on canvas
         private String      filename;                         // name of gifs on flash, without ".p<pageno>" suffix
-        private TextView    geoRefInteg;                      // georef geometry integrity string
-
-        private HashMap<String,IAPGeoRefMap> iapGeoRefMaps = new HashMap<> ();
-                                                              // georef points associated with this IAP plate
-                                                              // should match what's in local database
 
         public IAPPlateImage (String fn)
         {
             filename = fn;
 
-            geoRefPaint = new Paint ();
-            geoRefPaint.setStrokeWidth (5);
-            geoRefPaint.setStyle (Paint.Style.FILL_AND_STROKE);
-            geoRefPaint.setTextAlign (Paint.Align.CENTER);
-            geoRefPaint.setTextSize (wairToNow.textSize);
+            runwayPaint = new Paint ();
+            runwayPaint.setColor (Color.MAGENTA);
+            runwayPaint.setStrokeWidth (wairToNow.thinLine / 2.0F);
+            runwayPaint.setStyle (Paint.Style.FILL_AND_STROKE);
+            runwayPaint.setTextAlign (Paint.Align.CENTER);
+            runwayPaint.setTextSize (wairToNow.textSize);
 
             plateDME   = new PlateDME (wairToNow, this, airport.ident, plateid);
             plateTimer = new PlateTimer (wairToNow, this);
@@ -1241,23 +1193,12 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             GetIAPGeoRefPoints ();
 
             /*
-             * If no FAA georefs, allow manual entry of waypoints for georeferencing.
-             */
-            if (lccmap == null) {
-                DetentHorizontalScrollView hsv = new DetentHorizontalScrollView (wairToNow);
-                wairToNow.SetDetentSize (hsv);
-                hsv.setLayoutParams (new LayoutParams (LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
-                iapGeoRefInput = new GeoRefInput ();
-                iapGeoRefInput.setVisibility (GONE);
-                hsv.addView (iapGeoRefInput);
-                PlateView.this.addView (hsv);
-            }
-
-            /*
              * Init CIFP class.
              * Constructor uses lat/lon <=> bitmap pixel mapping.
              */
             plateCIFP = new PlateCIFP (wairToNow, this, airport, plateid);
+
+            plateLoadedUptime = SystemClock.uptimeMillis ();
         }
 
         /**
@@ -1279,6 +1220,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             dmeArc.end = end;
             dmeArc.nm  = nm;
             dmeArcs.addLast (dmeArc);
+            hasDMEArcs = true;
         }
 
         @Override  // PlateImage
@@ -1294,19 +1236,13 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         }
 
         /**
-         * Read previously manually entered georeference points for this plate.
-         * Also get any machine-detected points downloaded from the server.
-         * Manual points override machine points of same name.
-         * But if there are FAA-supplied georef points, just use those.
+         * Check for FAA-supplied georeference information.
          */
         private void GetIAPGeoRefPoints ()
         {
             String[] grkey = new String[] { airport.ident, plateid };
             String machinedbname = "plates_" + expdate + ".db";
             SQLiteDBs machinedb = SQLiteDBs.create (machinedbname);
-
-            // first check for FAA-provided georef data.
-            // always use that if present
             if (machinedb.tableExists ("iapgeorefs2")) {
                 Cursor result = machinedb.query ("iapgeorefs2", columns_georefs21,
                         "gr_icaoid=? AND gr_plate=?", grkey,
@@ -1329,155 +1265,9 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                                     result.getFloat (11)
                                 }
                         );
-                        return;
                     }
                 } finally {
                     result.close ();
-                }
-            }
-
-            // otherwise check for manually entered and machine detected georef waypoints
-            boolean manual = false;
-            do {
-                try {
-                    SQLiteDBs sqldb = manual ? OpenGeoRefDB () : machinedb;
-                    Cursor result = sqldb.query (
-                            manual ? "georefs" : "iapgeorefs",
-                            manual ? columns_georefs2 : columns_iapgeorefs1,
-                            "gr_icaoid=? AND gr_plate=?", grkey,
-                            null, null, null, null);
-                    try {
-                        if (result.moveToFirst ()) {
-                            do {
-                                String id = result.getString (0);
-                                Waypoint wp = airport.GetNearbyWaypoint (id);
-                                if (wp != null) {
-                                    int pixelx = result.getInt (1);
-                                    int pixely = result.getInt (2);
-                                    if ((pixelx != 0) || (pixely != 0)) {
-                                        IAPGeoRefMap grm = new IAPGeoRefMap ();
-                                        grm.ident  = wp.ident;
-                                        grm.pixelx = pixelx;
-                                        grm.pixely = pixely;
-                                        grm.lat    = wp.lat;
-                                        grm.lon    = wp.lon;
-                                        grm.manual = manual;
-                                        grm.valid  = !manual;
-                                        grm.pixels = manual ? Decompress (result.getBlob (3)) : null;
-                                        iapGeoRefMaps.put (wp.ident, grm);
-                                    } else {
-                                        iapGeoRefMaps.remove (wp.ident);
-                                    }
-                                }
-                            } while (result.moveToNext ());
-                        }
-                    } finally {
-                        result.close ();
-                    }
-                } catch (Exception e) {
-                    Log.e (TAG, "error reading " + (manual ? GeoRefDBName : machinedbname), e);
-                }
-                manual = !manual;
-            } while (manual);
-
-            // can't set xfmwft* until we check validity of manual points
-        }
-
-        /**
-         * Someone just manually located a fix on the IAP plate.
-         * Update the screen, send to webserver and write to local database.
-         * @param ident = fix id
-         * @param lat   = fix's latitude
-         * @param lon   = fix's longitude
-         * @param pixx  = fix's bitmap X-coord
-         * @param pixy  = fix's bitmap Y-coord
-         */
-        private void PutIAPGeoRefPoint (String ident, float lat, float lon, int pixx, int pixy)
-        {
-            IAPGeoRefMap grm = new IAPGeoRefMap ();
-            grm.ident  = ident;
-            grm.lat    = lat;
-            grm.lon    = lon;
-            grm.pixelx = pixx;
-            grm.pixely = pixy;
-            grm.valid  = true;
-            grm.manual = true;
-
-            /*
-             * Update the plate display.
-             */
-            iapGeoRefMaps.put (ident, grm);
-            UpdateIAPGeoRefs ();
-            invalidate ();
-
-            /*
-             * Get copy of pixels surrounding waypoint so we can validate it when plate is updated.
-             * If plate gets changed next update cycle, this waypoint will show in red and the user
-             * will have to update the waypoint's position on the plate.
-             */
-            byte[] blob = new byte[GEOREFBOX*GEOREFBOX*4];
-            int pbi = 0;
-            for (int dy = -GEOREFBOX; dy < GEOREFBOX; dy ++) {
-                int bmy = pixy + dy;
-                for (int dx = -GEOREFBOX; dx < GEOREFBOX; dx ++) {
-                    int bmx = pixx + dx;
-                    byte p = 0;
-                    if ((bmx >= 0) && (bmx < bmWidth) && (bmy >= 0) && (bmy < bmHeight)) {
-                        p = Byte666 (bitmap.getPixel (bmx, bmy));
-                    }
-                    blob[pbi++] = p;
-                }
-            }
-            byte[] zblob = Compress (blob);
-
-            /*
-             * Try to send it all to webserver for permanent storage.
-             * If not currently accessible, we will try to send it next time a plate is opened.
-             */
-            int saved = SaveGeoRefToWebserver (airport.ident, plateid, ident, pixx, pixy, zblob);
-
-            /*
-             * Write georef data to local database file.
-             */
-            try {
-                SQLiteDBs sqldb = OpenGeoRefDB ();
-                WriteGeoRefRec (sqldb, airport.ident, plateid, ident, pixx, pixy, saved, zblob);
-            } catch (Exception e) {
-                Log.e (TAG, "error writing " + GeoRefDBName, e);
-            }
-        }
-
-        /**
-         * Someone wants to delete a fix from the IAP plate.
-         * Update the screen, send to webserver and write to local database.
-         * @param ident = fix id
-         */
-        public void DelIAPGeoRefPoint (String ident)
-        {
-            IAPGeoRefMap grm = iapGeoRefMaps.get (ident);
-            if (grm != null) {
-
-                /*
-                 * Update the plate display.
-                 */
-                iapGeoRefMaps.remove (ident);
-                UpdateIAPGeoRefs ();
-                invalidate ();
-
-                /*
-                 * Try to send it all to webserver for permanent storage.
-                 * If not currently accessible, we will try to send it next time a plate is opened.
-                 */
-                int saved = SaveGeoRefToWebserver (airport.ident, plateid, ident, 0, 0, nullblob);
-
-                /*
-                 * Delete georef data from local database file.
-                 */
-                try {
-                    SQLiteDBs sqldb = OpenGeoRefDB ();
-                    WriteGeoRefRec (sqldb, airport.ident, plateid, ident, 0, 0, saved, nullblob);
-                } catch (Exception e) {
-                    Log.e (TAG, "error writing " + GeoRefDBName, e);
                 }
             }
         }
@@ -1495,9 +1285,6 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
 
         protected void GotMouseDown (float x, float y)
         {
-            if ((lccmap == null) && editButtonBounds.contains (x, y)) {
-                ShowHideEditToolbar ();
-            }
             plateCIFP.GotMouseDown (x, y);
             plateDME.GotMouseDown (x, y);
             plateTimer.GotMouseDown (x, y);
@@ -1514,25 +1301,6 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         }
 
         /**
-         * Toggle showing/hiding IAP georef editing toolbar.
-         */
-        private void ShowHideEditToolbar ()
-        {
-            // show/hide toolbar itself
-            showIAPEditButtons = !showIAPEditButtons;
-            iapGeoRefInput.setVisibility (showIAPEditButtons ? VISIBLE : GONE);
-
-            // initially position crosshairs in center of screen
-            if (showIAPEditButtons) {
-                crosshairBMX = Math.round (CanvasX2BitmapX (getWidth  () / 2.0F));
-                crosshairBMY = Math.round (CanvasY2BitmapY (getHeight () / 2.0F));
-            }
-
-            // re-draw little show/hide arrow button in its new state
-            invalidate ();
-        }
-
-        /**
          * Draw the plate image and any other marks on it we want.
          */
         @Override  // View
@@ -1543,84 +1311,10 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
              */
             if (bitmap == null) {
                 bitmap = OpenFirstPage (filename);
+                if (hasDMEArcs && (bitmap != null)) {
+                    DrawDMEArcsOnBitmap ();
+                }
                 if (bitmap == null) return;
-                bmWidth  = bitmap.getWidth  ();
-                bmHeight = bitmap.getHeight ();
-
-                if (lccmap == null) {
-
-                    /*
-                     * Make sure any associated manually entered IAP georefs are still valid
-                     * by matching the pixels surrounding the point.
-                     */
-                    for (IAPGeoRefMap grm : iapGeoRefMaps.values ()) {
-                        grm.valid = true;
-                        if (grm.manual && (grm.pixels != null)) {
-                            int i = 0;
-                            for (int dy = -GEOREFBOX; dy < GEOREFBOX; dy++) {
-                                int y = grm.pixely + dy;
-                                for (int dx = -GEOREFBOX; dx < GEOREFBOX; dx++) {
-                                    int x = grm.pixelx + dx;
-                                    byte p = 0;
-                                    if ((x >= 0) && (x < bmWidth) && (y >= 0) && (y < bmHeight)) {
-                                        p = Byte666 (bitmap.getPixel (x, y));
-                                    }
-                                    if (p != grm.pixels[i++]) {
-                                        grm.valid = false;
-                                        dx = GEOREFBOX;
-                                        dy = GEOREFBOX;
-                                    }
-                                }
-                            }
-                            grm.pixels = null;
-                        }
-                    }
-
-                    /*
-                     * Use the valid georefs to map lat/lon -> bitmap pixel.
-                     */
-                    UpdateIAPGeoRefs ();
-                }
-            }
-
-            /*
-             * Maybe we add DME arcs to the bitmap.
-             */
-            if ((dmeArcs != null) && LatLon2BitmapOK ()) {
-
-                // draw DME arc(s) on a mutable copy of bitmap
-                bitmap = bitmap.copy (Bitmap.Config.RGB_565, true);
-                Canvas bmcan = new Canvas (bitmap);
-                for (DMEArc dmeArc : dmeArcs) dmeArc.drawIt (bmcan);
-
-                // if we don't already have an image file, create one
-                File csvfile = new File (WairToNow.dbdir + "/dmearcs.txt");
-                File imgfile = new File (WairToNow.dbdir + "/dmearcs-" + airport.ident + "-" +
-                        plateid.replace (" ", "_").replace ("/", "_") + "-" + expdate + ".png");
-                if (imgfile.lastModified () < csvfile.lastModified ()) {
-                    try {
-                        @SuppressLint("DrawAllocation")
-                        File tmpfile = new File (imgfile.getPath () + ".tmp");
-                        @SuppressLint("DrawAllocation")
-                        FileOutputStream tmpouts = new FileOutputStream (tmpfile);
-                        try {
-                            if (!bitmap.compress (Bitmap.CompressFormat.PNG, 0, tmpouts)) {
-                                throw new IOException ("bitmap.compress failed");
-                            }
-                        } finally {
-                            tmpouts.close ();
-                        }
-                        if (!tmpfile.renameTo (imgfile)) {
-                            throw new IOException ("error renaming from " + tmpfile.getPath ());
-                        }
-                    } catch (IOException ioe) {
-                        Log.w (TAG, "error writing " + imgfile.getPath () + ": " + ioe.getMessage ());
-                        Lib.Ignored (imgfile.delete ());
-                    }
-                }
-
-                // we don't have to do this any more for this plate
-                dmeArcs = null;
             }
 
             /*
@@ -1629,59 +1323,9 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             ShowSinglePage (canvas, bitmap);
 
             /*
-             * Draw little triangle button at top to hide/show IAP georef edit buttons.
+             * Draw runways if FAA-provided georef present.
              */
-            if ((lccmap == null) && full && !wairToNow.optionsView.typeBOption.checkBox.isChecked ()) {
-                DrawEditButton (canvas);
-            }
-
-            /*
-             * Draw diamonds for all defined IAP georeference points.
-             *    GREEN : manual, valid and being used
-             *   YELLOW : manual, valid but not being used
-             *      RED : manual, not valid
-             *     BLUE : machine and being used
-             *     CYAN : machine but not being used
-             * Also draw box and waypoint name if crosshairs enabled.
-             */
-            if ((lccmap == null) && !wairToNow.optionsView.typeBOption.checkBox.isChecked ()) {
-                float dimnddx = GEOREFDIMND / Lib.MMPerIn * wairToNow.dotsPerInchX;
-                float dimnddy = GEOREFDIMND / Lib.MMPerIn * wairToNow.dotsPerInchY;
-                for (IAPGeoRefMap grm : iapGeoRefMaps.values ()) {
-                    geoRefPaint.setColor (
-                            ! grm.manual ? (grm.used ? Color.BLUE : Color.CYAN) :
-                                    ! grm.valid ? Color.RED : ! grm.used ? Color.YELLOW : Color.GREEN);
-                    float canvasX = BitmapX2CanvasX (grm.pixelx);
-                    float canvasY = BitmapY2CanvasY (grm.pixely);
-                    diamond.rewind  ();
-                    diamond.moveTo  (canvasX, canvasY - dimnddy);
-                    diamond.rLineTo ( dimnddx,  dimnddy);
-                    diamond.rLineTo (-dimnddx,  dimnddy);
-                    diamond.rLineTo (-dimnddx, -dimnddy);
-                    diamond.rLineTo ( dimnddx, -dimnddy);
-                    canvas.drawPath (diamond, geoRefPaint);
-
-                    if (showIAPEditButtons) {
-                        float lox = BitmapX2CanvasX (grm.pixelx - GEOREFBOX);
-                        float hix = BitmapX2CanvasX (grm.pixelx + GEOREFBOX);
-                        float loy = BitmapY2CanvasY (grm.pixely - GEOREFBOX);
-                        float hiy = BitmapY2CanvasY (grm.pixely + GEOREFBOX);
-                        canvas.drawLine (lox, loy, hix, loy, geoRefPaint);
-                        canvas.drawLine (lox, hiy, hix, hiy, geoRefPaint);
-                        canvas.drawLine (lox, loy, lox, hiy, geoRefPaint);
-                        canvas.drawLine (hix, loy, hix, hiy, geoRefPaint);
-                        float lineHeight = geoRefPaint.getFontSpacing ();
-                        canvas.drawText (grm.ident, canvasX, hiy + lineHeight, geoRefPaint);
-                    }
-                }
-            }
-
-            /*
-             * Draw runways if editing button enabled for verification.
-             * Also draw if using FAA-provided georef.
-             */
-            if (showIAPEditButtons || (lccmap != null)) {
-                geoRefPaint.setColor (Color.MAGENTA);
+            if ((lccmap != null) && (SystemClock.uptimeMillis () - plateLoadedUptime < 10000)) {
                 HashMap<String,Waypoint.Runway> runways = airport.GetRunways ();
                 for (Waypoint.Runway runway : runways.values ()) {
                     float begbmx = LatLon2BitmapX (runway.lat, runway.lon);
@@ -1692,7 +1336,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                     float begy = BitmapY2CanvasY (begbmy);
                     float endx = BitmapX2CanvasX (endbmx);
                     float endy = BitmapY2CanvasY (endbmy);
-                    canvas.drawLine (begx, begy, endx, endy, geoRefPaint);
+                    canvas.drawLine (begx, begy, endx, endy, runwayPaint);
                 }
             }
 
@@ -1713,17 +1357,6 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             wairToNow.currentCloud.DrawIt (canvas);
 
             /*
-             * Draw IAP georeferencing crosshairs.
-             */
-            if (showIAPEditButtons) {
-                float crosshairCanvasX = BitmapX2CanvasX (crosshairBMX);
-                float crosshairCanvasY = BitmapY2CanvasY (crosshairBMY);
-                geoRefPaint.setColor (Color.MAGENTA);
-                canvas.drawLine (crosshairCanvasX, 0, crosshairCanvasX, getHeight (), geoRefPaint);
-                canvas.drawLine (0, crosshairCanvasY, getWidth (), crosshairCanvasY, geoRefPaint);
-            }
-
-            /*
              * Draw GPS Available box around plate border.
              */
             if (full && !wairToNow.optionsView.typeBOption.checkBox.isChecked ()) {
@@ -1734,339 +1367,93 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         /**
          * Convert lat,lon to bitmap X,Y.
          * Use LCC conversion if FAA-supplied georef data given.
-         * Otherwise, use two machine or user entered waypoints with linear interpolation.
          */
         @Override  // GRPPlateImage
         protected boolean LatLon2BitmapOK ()
         {
-            return (lccmap != null) || super.LatLon2BitmapOK ();
+            return lccmap != null;
         }
 
         @Override  // GRPPlateImage
         public float LatLon2BitmapX (float lat, float lon)
         {
-            if (lccmap != null) {
-                bitmapLat = lat;
-                bitmapLon = lon;
-                lccmap.LatLon2ChartPixelExact (lat, lon, bitmapPt);
-                return bitmapPt.x;
-            }
-            return super.LatLon2BitmapX (lat, lon);
+            if (lccmap == null) return Float.NaN;
+            bitmapLat = lat;
+            bitmapLon = lon;
+            lccmap.LatLon2ChartPixelExact (lat, lon, bitmapPt);
+            return bitmapPt.x;
         }
 
         @Override  // GRPPlateImage
         public float LatLon2BitmapY (float lat, float lon)
         {
-            if (lccmap != null) {
-                if ((bitmapLat != lat) || (bitmapLon != lon)) {
-                    bitmapLat = lat;
-                    bitmapLon = lon;
-                    lccmap.LatLon2ChartPixelExact (lat, lon, bitmapPt);
-                }
-                return bitmapPt.y;
+            if (lccmap == null) return Float.NaN;
+            if ((bitmapLat != lat) || (bitmapLon != lon)) {
+                bitmapLat = lat;
+                bitmapLon = lon;
+                lccmap.LatLon2ChartPixelExact (lat, lon, bitmapPt);
             }
-            return super.LatLon2BitmapY (lat, lon);
+            return bitmapPt.y;
         }
 
         @Override  // GRPPlateImage
         public float BitmapXY2Lat (float bmx, float bmy)
         {
-            if (lccmap != null) {
-                if ((bmx != bmxy2llx) || (bmy != bmxy2lly)) {
-                    bmxy2llx = bmx;
-                    bmxy2lly = bmy;
-                    lccmap.ChartPixel2LatLonExact (bmx, bmy, bmxy2latlon);
-                }
-                return bmxy2latlon.lat;
+            if (lccmap == null) return Float.NaN;
+            if ((bmx != bmxy2llx) || (bmy != bmxy2lly)) {
+                bmxy2llx = bmx;
+                bmxy2lly = bmy;
+                lccmap.ChartPixel2LatLonExact (bmx, bmy, bmxy2latlon);
             }
-            return super.BitmapXY2Lat (bmx, bmy);
+            return bmxy2latlon.lat;
         }
 
         @Override  // GRPPlateImage
         public float BitmapXY2Lon (float bmx, float bmy)
         {
-            if (lccmap != null) {
-                if ((bmx != bmxy2llx) || (bmy != bmxy2lly)) {
-                    bmxy2llx = bmx;
-                    bmxy2lly = bmy;
-                    lccmap.ChartPixel2LatLonExact (bmx, bmy, bmxy2latlon);
-                }
-                return bmxy2latlon.lon;
+            if (lccmap == null) return Float.NaN;
+            if ((bmx != bmxy2llx) || (bmy != bmxy2lly)) {
+                bmxy2llx = bmx;
+                bmxy2lly = bmy;
+                lccmap.ChartPixel2LatLonExact (bmx, bmy, bmxy2latlon);
             }
-            return super.BitmapXY2Lon (bmx, bmy);
+            return bmxy2latlon.lon;
         }
 
         /**
-         * See which georef points will be used to locate the airplane.
-         * Find pairs that give greatest width for longitude and height for latitude.
+         * Adds DME arcs to copy of original plate bitmap image.
+         * Write to file so user can print it.
          */
-        @SuppressLint("SetTextI18n")
-        private void UpdateIAPGeoRefs ()
+        private void DrawDMEArcsOnBitmap ()
         {
-            // find two valid points farthest apart
-            IAPGeoRefMap besti = null;
-            IAPGeoRefMap bestj = null;
-            float bestdistxy = 0.0F;
-            for (IAPGeoRefMap grmi : iapGeoRefMaps.values ()) {
-                grmi.used = false;
-                if (grmi.valid) {
-                    for (IAPGeoRefMap grmj : iapGeoRefMaps.values ()) {
-                        if (grmj.valid) {
-                            int dx = grmj.pixelx - grmi.pixelx;
-                            int dy = grmj.pixely - grmi.pixely;
-                            float distxy = Mathf.hypot (dx, dy);
-                            if (bestdistxy < distxy) {
-                                bestdistxy = distxy;
-                                besti = grmi;
-                                bestj = grmj;
-                            }
+            // draw DME arc(s) on a mutable copy of bitmap
+            Bitmap bm = bitmap.copy (Bitmap.Config.RGB_565, true);
+            Canvas bmcan = new Canvas (bm);
+            for (DMEArc dmeArc : dmeArcs) dmeArc.drawIt (bmcan);
+            bitmap = bm;
+
+            // if we don't already have an image file, create one
+            File csvfile = new File (WairToNow.dbdir + "/dmearcs.txt");
+            File imgfile = new File (WairToNow.dbdir + "/dmearcs-" + airport.ident + "-" +
+                    plateid.replace (" ", "_").replace ("/", "_") + "-" + expdate + ".png");
+            if (imgfile.lastModified () < csvfile.lastModified ()) {
+                try {
+                    File tmpfile = new File (imgfile.getPath () + ".tmp");
+                    FileOutputStream tmpouts = new FileOutputStream (tmpfile);
+                    try {
+                        if (!bitmap.compress (Bitmap.CompressFormat.PNG, 0, tmpouts)) {
+                            throw new IOException ("bitmap.compress failed");
                         }
+                    } finally {
+                        tmpouts.close ();
                     }
-                }
-            }
-
-            // assume pair not found
-            xfmwfta = 0.0F;
-            xfmwftb = 0.0F;
-            xfmwftc = 0.0F;
-            xfmwftd = 0.0F;
-            xfmwfte = 0.0F;
-            xfmwftf = 0.0F;
-            geoRefInteg.setText ("");
-            editButtonPaint.setColor (Color.GRAY);
-
-            // see if pair found
-            if (besti != null) {
-
-                // let user see which two points were chosen
-                besti.used = true;
-                bestj.used = true;
-
-                // set up lat/lon => bitmap pixel transformation
-                float rotby = SetLatLon2Bitmap (besti.lat, besti.lon, bestj.lat, bestj.lon, besti.pixelx, besti.pixely, bestj.pixelx, bestj.pixely);
-
-                // 1.0: not rotated at all
-                // 0.0: downside up
-                float upright = 1.0F - Math.abs (rotby) / Mathf.PI;
-
-                geoRefInteg.setText ("geom " + String.format ("%.1f", upright * 100.0) + " %");
-                int c = upright > 0.97 ? Color.GREEN : upright > 0.90 ? Color.YELLOW : Color.RED;
-                geoRefInteg.setTextColor (c);
-                editButtonPaint.setColor (c);
-            }
-        }
-
-        /**
-         * Draw little arrow button to toggle edit button visibility.
-         */
-        private void DrawEditButton (Canvas canvas)
-        {
-            float ts = wairToNow.textSize;
-            float xc = getWidth () / 2;
-            float xl = xc - ts * 2;
-            float xr = xc + ts * 2;
-            //noinspection UnnecessaryLocalVariable
-            float yt = ts;
-            float yb = ts * 2;
-
-            editButtonBounds.left   = xl;
-            editButtonBounds.right  = xr;
-            editButtonBounds.top    = yt;
-            editButtonBounds.bottom = yb;
-
-            editButtonPath.rewind ();
-            if (showIAPEditButtons) {
-                editButtonPath.moveTo (xl, yb);
-                editButtonPath.lineTo (xc, yt);
-                editButtonPath.lineTo (xr, yb);
-                editButtonPath.lineTo (xl, yb);
-            } else {
-                editButtonPath.moveTo (xl, yt);
-                editButtonPath.lineTo (xc, yb);
-                editButtonPath.lineTo (xr, yt);
-                editButtonPath.lineTo (xl, yt);
-            }
-            canvas.drawPath (editButtonPath, editButtonPaint);
-        }
-
-        /**
-         * IAP GeoRef editing toolbar.
-         */
-        private class GeoRefInput extends LinearLayout {
-            public GeoRefInput ()
-            {
-                super (wairToNow);
-                setOrientation (HORIZONTAL);
-                addView (new GeoRefArrow (new int[] { 4, 2, 2, 6, 6, 6, 4, 2 }, 0, -1));  // up
-                addView (new GeoRefArrow (new int[] { 4, 6, 2, 2, 6, 2, 4, 6 }, 0,  1));  // down
-                addView (new GeoRefArrow (new int[] { 2, 4, 6, 2, 6, 6, 2, 4 }, -1, 0));  // left
-                addView (new GeoRefArrow (new int[] { 6, 4, 2, 2, 2, 6, 6, 4 },  1, 0));  // right
-                geoRefIdent = new GeoRefIdent ();
-                addView (geoRefIdent);
-                addView (new GeoRefSave ());
-                addView (new GeoRefDelete ());
-                geoRefInteg = new TextView (wairToNow);
-                wairToNow.SetTextSize (geoRefInteg);
-                addView (geoRefInteg);
-            }
-        }
-
-        private class GeoRefArrow extends Button implements OnClickListener, OnLongClickListener {
-            private int deltax, deltay;
-            private int[] raw;
-            private long downAt, longAt;
-            private Path path;
-
-            public GeoRefArrow (int[] logo, int dx, int dy)
-            {
-                super (wairToNow);
-                raw    = logo;
-                deltax = dx;
-                deltay = dy;
-                setOnClickListener (this);
-                setOnLongClickListener (this);
-                setText (" ");
-                setTypeface (Typeface.MONOSPACE);
-                wairToNow.SetTextSize (this);
-            }
-
-            @Override  // TextView
-            public boolean onTouchEvent (@NonNull MotionEvent me)
-            {
-                switch (me.getActionMasked ()) {
-                    case MotionEvent.ACTION_DOWN: {
-                        downAt = SystemClock.uptimeMillis ();
-                        longAt = 0;
-                        break;
+                    if (!tmpfile.renameTo (imgfile)) {
+                        throw new IOException ("error renaming from " + tmpfile.getPath ());
                     }
-                    case MotionEvent.ACTION_CANCEL:
-                    case MotionEvent.ACTION_UP: {
-                        downAt = 0;
-                        longAt = 0;
-                        break;
-                    }
+                } catch (IOException ioe) {
+                    Log.w (TAG, "error writing " + imgfile.getPath () + ": " + ioe.getMessage ());
+                    Lib.Ignored (imgfile.delete ());
                 }
-                return super.onTouchEvent (me);
-            }
-
-            @Override  // OnClickListener
-            public void onClick (View v)
-            {
-                Clicked (deltax, deltay);
-            }
-
-            @Override  // OnLongClickListener
-            public boolean onLongClick (View v)
-            {
-                longAt = SystemClock.uptimeMillis ();
-                LongClicked ();
-                return true;
-            }
-
-            /**
-             * Move the crosshairs by a large amount if button is still down.
-             * Then start a timer to move them again by the long press interval.
-             */
-            public void LongClicked ()
-            {
-                if (longAt > downAt) {
-                    Clicked (deltax * 48, deltay * 48);
-                    WairToNow.wtnHandler.runDelayed (longAt - downAt, new Runnable () {
-                        @Override
-                        public void run ()
-                        {
-                            LongClicked ();
-                        }
-                    });
-                }
-            }
-
-            /**
-             * Update crosshairs position by the given amount and re-draw plate image.
-             */
-            private void Clicked (int dx, int dy)
-            {
-                crosshairBMX += dx;
-                crosshairBMY += dy;
-                int w = bitmap.getWidth  () - 1;
-                int h = bitmap.getHeight () - 1;
-                if (crosshairBMX < 0) crosshairBMX = 0;
-                if (crosshairBMY < 0) crosshairBMY = 0;
-                if (crosshairBMX > w) crosshairBMX = w;
-                if (crosshairBMY > h) crosshairBMY = h;
-                IAPPlateImage.this.invalidate ();
-            }
-
-            /**
-             * Draw the arrow triangle after making sure the button is square.
-             */
-            @Override
-            public void onDraw (@NonNull Canvas canvas)
-            {
-                super.onDraw (canvas);
-
-                if (path == null) {
-                    int size = getHeight ();
-                    path = new Path ();
-                    for (int i = 0; i < raw.length;) {
-                        float x = size * raw[i++] / 8.0F;
-                        float y = size * raw[i++] / 8.0F;
-                        if (i == 0) path.moveTo (x, y);
-                        else path.lineTo (x, y);
-                    }
-                    setWidth (size);
-                } else {
-                    canvas.drawPath (path, getPaint ());
-                }
-            }
-        }
-
-        private class GeoRefIdent extends EditText {
-            public GeoRefIdent ()
-            {
-                super (wairToNow);
-                setEms (5);
-                setInputType (InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
-                setSingleLine ();
-                wairToNow.SetTextSize (this);
-            }
-        }
-
-        private class GeoRefSave extends Button implements OnClickListener {
-            @SuppressLint("SetTextI18n")
-            public GeoRefSave ()
-            {
-                super (wairToNow);
-                setOnClickListener (this);
-                setText ("SAVE");
-                wairToNow.SetTextSize (this);
-            }
-
-            @Override
-            public void onClick (View v)
-            {
-                Waypoint wp = airport.GetNearbyWaypoint (geoRefIdent.getText ().toString ().toUpperCase (Locale.US));
-                if (wp != null) {
-                    geoRefIdent.setText (wp.ident);
-                    PutIAPGeoRefPoint (wp.ident, wp.lat, wp.lon, crosshairBMX, crosshairBMY);
-                }
-            }
-        }
-
-        private class GeoRefDelete extends Button implements OnClickListener {
-            @SuppressLint("SetTextI18n")
-            public GeoRefDelete ()
-            {
-                super (wairToNow);
-                setOnClickListener (this);
-                setText ("DELETE");
-                wairToNow.SetTextSize (this);
-            }
-
-            @Override
-            public void onClick (View v)
-            {
-                DelIAPGeoRefPoint (geoRefIdent.getText ().toString ().toUpperCase (Locale.US));
             }
         }
     }
@@ -2205,328 +1592,5 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                 }
             }
         }
-    }
-
-    /**
-     * Convert a 32-bit ARGB color to a 8-bit RGB color.
-     */
-    private static byte Byte666 (int pix8888)
-    {
-        int r = (int) (Color.red   (pix8888) * 6 / 256.0F);
-        int g = (int) (Color.green (pix8888) * 6 / 256.0F);
-        int b = (int) (Color.blue  (pix8888) * 6 / 256.0F);
-        return (byte) (r * 36 + g * 6 + b);
-    }
-
-    /**
-     * Open georeferencing database, creating it if it doesn't exist.
-     * Also try to check for updates from the webserver.
-     */
-    private static SQLiteDBs OpenGeoRefDB ()
-    {
-        SQLiteDBs sqldb = SQLiteDBs.create (GeoRefDBName);
-
-        /*
-         * Create table if it doesn't already exist.
-         */
-        if (!sqldb.tableExists ("georefs")) {
-            sqldb.execSQL ("CREATE TABLE georefs (gr_icaoid TEXT NOT NULL, gr_plate TEXT NOT NULL, gr_waypt TEXT NOT NULL, gr_bmpixx INTEGER NOT NULL, gr_bmpixy INTEGER NOT NULL, gr_saved INTEGER NOT NULL, gr_zpixels BLOB NOT NULL);");
-            sqldb.execSQL ("CREATE UNIQUE INDEX georefuniques ON georefs (gr_icaoid, gr_plate, gr_waypt);");
-            sqldb.execSQL ("CREATE INDEX georefbyplate ON georefs (gr_icaoid, gr_plate);");
-            sqldb.execSQL ("CREATE INDEX georefuploads ON georefs (gr_saved);");  //TODO: WHERE gr_saved=0
-        }
-
-        /*
-         * Try to check webserver for updates.
-         */
-        FetchGeoRefUpdates (sqldb);
-
-        return sqldb;
-    }
-
-    /**
-     * Get any updates from web server.
-     */
-    private static void FetchGeoRefUpdates (SQLiteDBs sqldb)
-    {
-        if (disableWebServer) return;
-
-        /*
-         * lastgeorefmark is the ftell() of the end of the server's georefs.csv file that we have seen.
-         * Any newer records were appended to that file and we will read the new ones in.
-         * If newer records duplicate older ones, the older ones will be overwritten locally.
-         */
-        int lastgeorefmark = 0;
-        try {
-            BufferedReader br = new BufferedReader (new FileReader (GeoRefLastPath), 32);
-            try {
-                lastgeorefmark = Integer.parseInt (br.readLine ());
-            } finally {
-                br.close ();
-            }
-        } catch (FileNotFoundException fnfe) {
-            Lib.Ignored ();
-        } catch (Exception e) {
-            Log.w (TAG, "error reading " + GeoRefLastPath, e);
-        }
-
-        boolean webreachable = false;
-        try {
-            URL url = new URL (MaintView.dldir + "/loadgeoref.php?since=" + lastgeorefmark);
-            HttpURLConnection httpCon = (HttpURLConnection)url.openConnection ();
-            try {
-                httpCon.setRequestMethod ("GET");
-                httpCon.connect ();
-                int rc = httpCon.getResponseCode ();
-                if (rc != HttpURLConnection.HTTP_OK) {
-                    throw new IOException ("http response code " + rc + " on loadgeoref.php");
-                }
-                webreachable = true;
-                BufferedReader br = new BufferedReader (new InputStreamReader (httpCon.getInputStream ()), 4096);
-                try {
-                    lastgeorefmark = Integer.parseInt (br.readLine ());
-                    String line;
-                    while ((line = br.readLine ()) != null) {
-                        String[] cols = Lib.QuotedCSVSplit (line);
-                        byte[] zblob = Base64.decode (cols[5], Base64.NO_WRAP);
-                        WriteGeoRefRec (sqldb,
-                                cols[0], cols[1], cols[2],
-                                Integer.parseInt (cols[3]),
-                                Integer.parseInt (cols[4]),
-                                1, zblob);
-                    }
-                } finally {
-                    br.close ();
-                }
-            } finally {
-                httpCon.disconnect ();
-            }
-            PrintWriter pw = new PrintWriter (new FileWriter (GeoRefLastPath));
-            try {
-                pw.println (lastgeorefmark);
-            } finally {
-                pw.close ();
-            }
-        } catch (IOException ioe) {
-            Log.w (TAG, "error updating georefs from webserver", ioe);
-        }
-
-        /*
-         * Maybe we have some unsent georefs for the webserver.
-         */
-        if (webreachable) {
-
-            /*
-             * Find all records not saved to webserver.
-             */
-            Cursor result1 = sqldb.query (
-                    "georefs", columns_georefs1,
-                    "gr_saved=0", null,
-                    null, null, null, null);
-
-            /*
-             * Keep track of which ones we are able to save.
-             */
-            long[] deledRowIDs = new long[result1.getCount()];
-            long[] savedRowIDs = new long[result1.getCount()];
-            int numDeled = 0;
-            int numSaved = 0;
-
-            /*
-             * Read through the unsaved records.
-             */
-            try {
-                if (result1.moveToFirst ()) {
-                    do {
-
-                        /*
-                         * Try to send to webserver.
-                         */
-                        long rowid    = result1.getLong   (0);
-                        String icaoid = result1.getString (1);
-                        String plate  = result1.getString (2);
-                        String waypt  = result1.getString (3);
-                        int bmpixx    = result1.getInt    (4);
-                        int bmpixy    = result1.getInt    (5);
-                        byte[] zblob  = result1.getBlob   (6);
-                        int saved = SaveGeoRefToWebserver (icaoid, plate, waypt, bmpixx, bmpixy, zblob);
-
-                        /*
-                         * If unable to send, don't bother with any more as we probably don't have internet.
-                         */
-                        if (saved == 0) break;
-
-                        /*
-                         * Saved to web, update database after done reading.
-                         */
-                        if (bmpixx == 0) deledRowIDs[numDeled++] = rowid;
-                                    else savedRowIDs[numSaved++] = rowid;
-                    } while (result1.moveToNext ());
-                }
-            } finally {
-                result1.close ();
-            }
-
-            /*
-             * Update database for any records just saved to webserver,
-             * saying we don't have to try to save them any more.
-             */
-            for (int i = 0; i < numDeled; i ++) {
-                sqldb.delete ("georefs", "rowid=" + deledRowIDs[i], null);
-            }
-            if (numSaved > 0) {
-                ContentValues values = new ContentValues (1);
-                values.put ("gr_saved", 1);
-                for (int i = 0; i < numSaved; i ++) {
-                    long rowid = savedRowIDs[i];
-                    sqldb.update ("georefs", values, "rowid=" + rowid, null);
-                }
-            }
-        }
-    }
-
-    /**
-     * Write georeference waypoint to local database.
-     * @param icaoid  = airport the approach is for
-     * @param plateid = approach at that airport
-     * @param wayptid = waypoint we now the location of
-     * @param bmpixx  = where it is on the approach plate (0 means delete from plate)
-     * @param bmpixy  = y-coord
-     * @param saved   = 0: has not been saved to webserver; 1: has been saved to webserver
-     * @param zblob   = compressed bitmap pixels surrounding the waypoint
-     */
-    private static void WriteGeoRefRec (SQLiteDBs sqldb, String icaoid, String plateid, String wayptid,
-                                        int bmpixx, int bmpixy, int saved, byte[] zblob)
-    {
-        ContentValues values = new ContentValues (7);
-        values.put ("gr_icaoid",  icaoid);
-        values.put ("gr_plate",   plateid);
-        values.put ("gr_waypt",   wayptid);
-        values.put ("gr_bmpixx",  bmpixx);
-        values.put ("gr_bmpixy",  bmpixy);
-        values.put ("gr_saved",   saved);
-        values.put ("gr_zpixels", zblob);
-        sqldb.insertWithOnConflict ("georefs", null, values, SQLiteDatabase.CONFLICT_REPLACE);
-    }
-
-    /**
-     * Send georeference waypoint to the webserver for permanent storage.
-     * @param icaoid  = airport the approach is for
-     * @param plateid = approach at that airport
-     * @param wayptid = waypoint we now the location of
-     * @param bmpixx  = where it is on the approach plate (0 means delete from plate)
-     * @param bmpixy  = y-coord
-     * @param zblob   = compressed bitmap pixels surrounding the waypoint
-     * @return 0: webserver is down, not saved; 1: successfully saved
-     */
-    private static int SaveGeoRefToWebserver (String icaoid,
-                                              @SuppressWarnings("ParameterCanBeLocal") String plateid,
-                                              String wayptid, int bmpixx, int bmpixy, byte[] zblob)
-    {
-        if (disableWebServer) return 1;
-
-        plateid = Lib.QuotedString (plateid);
-        Log.i (TAG, "saving georef " + icaoid + "," + plateid + "," + wayptid + " to webserver");
-        try {
-            URL url = new URL (MaintView.dldir + "/savegeoref.php");
-            HttpURLConnection httpCon = (HttpURLConnection)url.openConnection ();
-            try {
-                httpCon.setRequestMethod ("POST");
-                httpCon.setDoOutput (true);
-                httpCon.setDoInput (true);
-                BufferedWriter bw = new BufferedWriter (new OutputStreamWriter (httpCon.getOutputStream (), "UTF-8"));
-                try {
-                    bw.write (icaoid);
-                    bw.write (',');
-                    bw.write (plateid);
-                    bw.write (',');
-                    bw.write (wayptid);
-                    bw.write (',');
-                    bw.write (Integer.toString (bmpixx));
-                    bw.write (',');
-                    bw.write (Integer.toString (bmpixy));
-                    bw.write (',');
-                    bw.write (Base64.encodeToString (zblob, Base64.NO_WRAP));
-                } finally {
-                    bw.close ();
-                }
-                httpCon.connect ();
-                int rc = httpCon.getResponseCode ();
-                if (rc != HttpURLConnection.HTTP_OK) {
-                    throw new IOException ("http response code " + rc + " on savegeoref.php");
-                }
-                BufferedReader br = new BufferedReader (new InputStreamReader (httpCon.getInputStream ()), 32);
-                try {
-                    String okline = br.readLine ();
-                    if (!"OK".equals (okline)) {
-                        throw new IOException ("http reply line " + okline + " on savegeoref.php");
-                    }
-                    return 1;
-                } finally {
-                    br.close ();
-                }
-            } finally {
-                httpCon.disconnect ();
-            }
-        } catch (IOException ioe) {
-            Log.e (TAG, "error saving georef to webserver", ioe);
-        }
-        return 0;
-    }
-
-    /**
-     * Compress a byte array.
-     */
-    private static byte[] Compress (byte[] blob)
-    {
-        Deflater compressor = new Deflater ();
-        compressor.setLevel (Deflater.BEST_COMPRESSION);
-        compressor.setInput (blob);
-        compressor.finish ();
-        LinkedList<byte[]> bufs = new LinkedList<> ();
-        LinkedList<Integer> lens = new LinkedList<> ();
-        int tot = 0;
-        while (!compressor.finished ()) {
-            byte[] buf = new byte[4096];
-            int len = compressor.deflate (buf);
-            bufs.addLast (buf);
-            lens.addLast (len);
-            tot += len;
-        }
-        byte zblob[] = new byte[tot];
-        tot = 0;
-        for (byte[] buf : bufs) {
-            int len = lens.removeFirst ();
-            System.arraycopy (buf, 0, zblob, tot, len);
-            tot += len;
-        }
-        return zblob;
-    }
-
-    /**
-     * Decompress a byte array compressed with Compress().
-     */
-    private static byte[] Decompress (byte[] zblob) throws DataFormatException
-    {
-        Inflater decompressor = new Inflater ();
-        decompressor.setInput (zblob);
-        LinkedList<byte[]> bufs = new LinkedList<> ();
-        LinkedList<Integer> lens = new LinkedList<> ();
-        int tot = 0;
-        while (!decompressor.finished ()) {
-            byte[] buf = new byte[4096];
-            int len = decompressor.inflate (buf);
-            bufs.addLast (buf);
-            lens.addLast (len);
-            tot += len;
-        }
-        byte blob[] = new byte[tot];
-        tot = 0;
-        for (byte[] buf : bufs) {
-            int len = lens.removeFirst ();
-            System.arraycopy (buf, 0, blob, tot, len);
-            tot += len;
-        }
-        return blob;
     }
 }

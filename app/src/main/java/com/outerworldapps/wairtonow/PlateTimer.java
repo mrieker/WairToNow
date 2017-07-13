@@ -52,7 +52,7 @@ public class PlateTimer {
 
         timrBGPaint.setColor (Color.BLACK);
         timrBGPaint.setStyle (Paint.Style.FILL_AND_STROKE);
-        timrBGPaint.setStrokeWidth (30);
+        timrBGPaint.setStrokeWidth (wairToNow.thickLine);
 
         timrTxPaint.setColor (Color.YELLOW);
         timrTxPaint.setStyle (Paint.Style.FILL);

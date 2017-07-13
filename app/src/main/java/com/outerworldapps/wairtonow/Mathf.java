@@ -37,11 +37,11 @@ public class Mathf {
     public static float cosdeg (double x) { return (float)Math.cos (x / 180.0 * Math.PI); }
     public static float sindeg (double x) { return (float)Math.sin (x / 180.0 * Math.PI); }
 
-    public static float toDegrees (float r) { return r / PI * 180.0F; }
-    public static float toRadians (float d) { return d / 180.0F * PI; }
+    public static float toDegrees (double r) { return (float) Math.toDegrees (r); }
+    public static float toRadians (double d) { return (float) Math.toRadians (d); }
 
     public static float log10 (double x) { return (float) Math.log10 (x); }
 
-    public static float ceil  (float f) { return (float) Math.ceil  (f); }
-    public static float floor (float f) { return (float) Math.floor (f); }
+    public static float ceil  (double f) { return (float) Math.ceil  (f); }
+    public static float floor (double f) { return (float) Math.floor (f); }
 }

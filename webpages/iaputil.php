@@ -56,7 +56,6 @@ END;
 
     $aptname = "datums/airports_$cycles28.csv";
     $gifdir  = "datums/aptplates_$cycles28";
-    $iapdir  = "datums/iapgeorefs_$cycles28";
     $iap2dir = "datums/iapgeorefs2_$cycles28";
 
     /**

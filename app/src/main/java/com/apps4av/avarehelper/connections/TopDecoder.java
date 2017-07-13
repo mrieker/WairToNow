@@ -52,6 +52,7 @@ public class TopDecoder {
 
     // table containing list of message formats we handle
     private final MidDecoder[] midDecoders = new MidDecoder[] {
+            new Dump1090Decoder (this),
             new Dump978Decoder (this),
             new GDL90Decoder (this),
             new NMEADecoder (this)

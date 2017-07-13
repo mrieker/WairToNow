@@ -40,4 +40,5 @@ dependencies {
     compile 'com.android.support:support-annotations:22.2.0'
     compile 'com.android.support:support-annotations:24.0.0-alpha1'
     compile 'ch.acra:acra:4.8.5'
+    compile 'org.opensky-network:libadsb:2.1'
 }

@@ -80,7 +80,7 @@ public class PlateDME {
 
         dmeBGPaint.setColor (Color.BLACK);
         dmeBGPaint.setStyle (Paint.Style.FILL_AND_STROKE);
-        dmeBGPaint.setStrokeWidth (30);
+        dmeBGPaint.setStrokeWidth (wairToNow.thickLine);
 
         dmeTxPaint.setColor (Color.YELLOW);
         dmeTxPaint.setStyle (Paint.Style.FILL);

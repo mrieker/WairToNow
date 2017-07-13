@@ -410,7 +410,8 @@ public class AdsbGpsRThread extends Thread implements Reporter {
             String callsign)
     {
         Log.d (TAG, "adsbGpsTraffic: " + Lib.TimeStringUTC (time) + " lat=" + latitude +
-                " lon=" + longitude + " alt=" + taltitude);
+                " lon=" + longitude + " alt=" + taltitude + " adr=" + Integer.toHexString (address) +
+                " ident=" + callsign);
         Traffic traffic   = new Traffic ();
         traffic.time      = time;
         traffic.taltitude = taltitude / Lib.FtPerM;

@@ -150,7 +150,7 @@ public abstract class AirChart implements DisplayableChart {
             stnbgpaint = new Paint ();
             stnbgpaint.setColor (Color.WHITE);
             stnbgpaint.setStyle (Paint.Style.STROKE);
-            stnbgpaint.setStrokeWidth (30);
+            stnbgpaint.setStrokeWidth (wairToNow.thickLine);
             stnbgpaint.setTextSize (wairToNow.textSize / 2);
             stnbgpaint.setTextAlign (Paint.Align.CENTER);
 

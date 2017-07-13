@@ -467,9 +467,8 @@ public class NavDialView extends View {
             if (ctx instanceof WairToNow) {
                 canvas.save ();
                 canvas.rotate (heading);
-                canvas.translate (0, - 725);
-                canvas.scale (2.0F, 2.0F);
-                ((WairToNow) ctx).DrawAirplaneSymbol (canvas);
+                canvas.translate (0, -725);
+                ((WairToNow) ctx).DrawAirplaneSymbol (canvas, 140);
                 canvas.restore ();
             }
         }

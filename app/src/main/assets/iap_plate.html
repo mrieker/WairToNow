@@ -91,8 +91,13 @@
             the lower right corner of the screen.  Also, dots will be drawn on the plate image
             showing the corresponding route.  To collapse the text (but leave the dots intact), do
             a short click on the text box and it will shrink to a small triangle button.  A long
-            click on either the triangle button or text box will clear both the text and the
-            dots.</P>
+            click on either the triangle button or text box will prompt you for one of these
+            actions:</P>
+        <UL>
+            <LI><B>DISCONTINUE</B> - clears the dots and text from the plate</LI>
+            <LI><B>RESTART</B> - starts the sequencing from the beginning of the selected segment</LI>
+            <LI><B>KEEP IT</B> - keeps everything as it is, no changes</LI>
+        </UL>
         <P>The text and dot colors are as follows:</P>
         <UL>
             <LI>Magenta indicates the current leg</LI>
@@ -104,14 +109,18 @@
             not have to fly all the way to that fix.</I>  Just intercept the next segment of the
             approach and when you get established on that segment, it will become current (magenta)
             and the old magenta dots and text will be removed.</P>
+        <P>For the radar vector transition (rv), the initial dotted line will track the aircraft
+            heading, showing the pilot where the current radar vector will intercept the final
+            approach course.  If the aircraft is headed away from the final approach course,
+            no line will be shown.</P>
         <P>The CIFP text often gives altitudes for the legs.  <I>Especially in the case of
-            descent</I>, verify the altitude given with that on the plate image itself before
-            changing altitude.</P>
-        <P>The altitude displayed in the text box for the runway waypoint (eg, <TT>RW16</TT>)
+            descent</I>, verify the altitude given with that on the plate image itself (in black)
+            before changing altitude.</P>
+        <P><FONT COLOR=RED>The altitude displayed in the text box for the runway waypoint (eg, <TT>RW16</TT>)
             <B>is not the DA, DH, MDA etc</B> so do not treat it as such!  It is the altitude that
             a normal descent glide path would bring you to over the numbers.  <I>You <B>must</B>
             use the DA, DH, MDA etc provided in the table on the plate image to determine the
-            correct altitude.</I></P>
+            correct altitude.</I></FONT></P>
         <P>Hold and Procedure Turn dots will be depicted based on the aircraft's current ground
             speed as sensed by the GPS, and assuming one minute legs and standard rate turns.  Do
             not feel obligated to follow what is being depicted by the CIFP dots or text, always
@@ -128,69 +137,19 @@
             the textual display will remove the dots and text from the display.</FONT></P>
         <P><IMG WIDTH=400 HEIGHT=640 SRC="cifp-sample-400.png"></P>
         <H3>Georeferencing</H3>
-        <P>The FAA is providing georeference information for some approach procedures.
+        <P>The FAA is providing georeference information for most approach procedures.
             WairToNow will attempt to use this information where available.  It will be
-            indicated by the absence of an editing triangle at the top of the page, and
-            the airport runways will be overdrawn with magenta lines.  If the magenta
+            indicated by the airport runways being overdrawn with magenta lines for the
+            first ten seconds of display.  If the magenta
             lines are in the correct position, ie, they overlay the black FAA-drawn
             runway lines, the georeference information is most likely valid.  Note that
             all runways may not be lined over, but some are.  The important thing is that
             for those that are lined over, the lines are in the correct position.  The
             positions do not have to be exact but should be very close.
             <BR><IMG WIDTH=128 HEIGHT=128 SRC="iap_rwy_verify_example.png"></P>
-        <P>WairToNow also provides a database of machine-detected reference points
-            for most approach procedures that do not have FAA-provided georefence
-            information.  They are indicated by blue dots on the plate at the
-            machine-detected waypoints. It is recommended to verify these points before
-            using the plate as follows:</P>
-        <UL>
-            <LI>Click the triangle button at the top center of the plate.
-                You should see blue boxes appear around the reference points with
-                the names of the fixes below the boxes in blue.
-            <LI>Verify that the name below each of the boxes in blue <I>matches
-                the name of the fix as printed on the plate by the FAA</I>.
-                <BR><IMG WIDTH=128 HEIGHT=128 SRC="iap_waypt_verify.png">
-            <LI>Verify that the black FAA-drawn runway lines are overdrawn by
-                magenta WairToNow-drawn runway lines.  You may need to zoom in
-                on the airport area quite a bit to see them.  The lines do not
-                need to exactly match position but should be close.  Also, sometimes
-                a runway line or two will be missing one way or the other which
-                doesn't matter.  It is the position that is important.
-                <BR><IMG WIDTH=128 HEIGHT=128 SRC="iap_rwy_verify_example.png">
-            <LI>Click the triangle button again and the boxes will go away.
-        </UL>
-        <P>If these points are missing or incorrectly named or otherwise inadequate,
-            you may manually enter reference points and they will override the
-            provided points. The procedure is:</P>
-        <UL>
-            <LI>Click the triangle button at the top center of the plate.
-                It should open a row of buttons and a text box, along with
-                some crosshairs.  Any reference points currently defined
-                for the plate should have a box drawn around them with the
-                waypoint name shown below the box.
-            <LI>Position the crosshairs over a fix you wish to add to the
-                ones used.  You may want to zoom in quite a bit to get good
-                positioning.  Then type the name of the fix in the text box
-                and click the <B>Save</B> button.  If the fix name is valid,
-                a dot will be placed at the crosshair position along with a
-                box and the fix name.
-            <LI>To delete a reference point, including a machine-detected
-                one, type the fix name in the box and click the <B>Delete</B>
-                button.
-        </UL>
-        <P>The dot/box color has these meanings:</P>
-        <UL>
-            <LI><FONT COLOR=BLUE>Blue</FONT> - machine generated point being used for georeferencing
-            <LI><FONT COLOR=CYAN>Cyan</FONT> - machine generated point not being used for georeferencing
-            <LI><FONT COLOR=RED>Red</FONT> - manually entered point giving poor geometry
-            <LI><FONT COLOR=YELLOW>Yellow</FONT> - manually entered point not being used for georeferencing
-            <LI><FONT COLOR=GREEN>Green</FONT> - manually entered point being used for georeferencing
-        </UL>
-        <P>Two reference points are required for georeferencing to work.  WairToNow will
-            pick two out of those it has that give the best geometry.</P>
-        <P><FONT COLOR=RED>Be aware that even though there is nothing on a plate
-            indicating that a fix as drawn by the FAA is not drawn to scale,
-            <I>sometimes they are not</I>.  So you may need to try several points
-            before getting everything, including the runways, to line up.</FONT></P>
+        <P>Note that not everything on the plate is drawn to scale.  Many navaids and intersections
+            used for the approach would be off the chart if drawn to scale.  Such a condition is
+            <I>usually</I> indicated on the chart but sometimes is not.  <I>ALWAYS use your
+            aircraft's approved navigation systems to verify your position!</I></P>
     </BODY>
 </HTML>

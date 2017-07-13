@@ -57,39 +57,13 @@ function processstate
                 rm -f $iap2outdir/$stateid.rej
             fi
         fi
-
-        # generate IAP georeferencing data for those that FAA doesn't do
-        rm -f $iapoutdir/$stateid.csv.tmp
-        rm -f $iapoutdir/$stateid.rej.tmp
-        if [ ! -f $iapoutdir/$stateid.csv ]
-        then
-            java DecodePlate -verbose \
-                -csv2in $iap2outdir/$stateid.csv \
-                -csvout $iapoutdir/$stateid.csv.tmp \
-                -cycles28 $cycles28 \
-                -rejects $iapoutdir/$stateid.rej.tmp \
-                    < decodeallplates.$stateid.tmp \
-                    > $iapoutdir/$stateid.log
-            if [ -f $iapoutdir/$stateid.csv.tmp ]
-            then
-                mv -f $iapoutdir/$stateid.csv.tmp $iapoutdir/$stateid.csv
-            else
-                rm -f $iapoutdir/$stateid.csv
-            fi
-            if [ -f $iapoutdir/$stateid.rej.tmp ]
-            then
-                mv -f $iapoutdir/$stateid.rej.tmp $iapoutdir/$stateid.rej
-            else
-                rm -f $iapoutdir/$stateid.rej
-            fi
-        fi
     done
 }
 
 set -e
 date
 unset DISPLAY
-export CLASSPATH=DecodePlate.jar:DecodePlate2.jar:pdfbox-1.8.10.jar:commons-logging-1.2.jar
+export CLASSPATH=DecodePlate2.jar:pdfbox-1.8.10.jar:commons-logging-1.2.jar
 
 #
 # Make sure we have all the necessary jar files.
@@ -145,9 +119,8 @@ fi
 #
 cycles28=`./cureffdate -28 -x yyyymmdd`
 apdoutdir=datums/apdgeorefs_$cycles28
-iapoutdir=datums/iapgeorefs_$cycles28
 iap2outdir=datums/iapgeorefs2_$cycles28
-mkdir -p $apdoutdir $iapoutdir $iap2outdir
+mkdir -p $apdoutdir $iap2outdir
 
 #
 # Start threads to process plates.

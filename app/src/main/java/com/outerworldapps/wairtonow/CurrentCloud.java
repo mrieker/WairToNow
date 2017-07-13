@@ -57,7 +57,7 @@ public class CurrentCloud {
 
         currentBGPaint.setColor (Color.WHITE);
         currentBGPaint.setStyle (Paint.Style.STROKE);
-        currentBGPaint.setStrokeWidth (30);
+        currentBGPaint.setStrokeWidth (wairToNow.thickLine);
         currentBGPaint.setTextSize (ts);
         currentBGPaint.setTextAlign (Paint.Align.CENTER);
         currentTxPaint.setColor (CurrentCloud.currentColor);

@@ -64,6 +64,8 @@ public class WairToNow extends Activity {
     public static String dbdir;
     public static WTNHandler wtnHandler;
 
+    private final static int airplaneHeight = 313 - 69;
+
     private boolean gpsAvailable;
     private boolean hasAgreed;
     private boolean lastLocQueued;
@@ -72,14 +74,13 @@ public class WairToNow extends Activity {
     public  CrumbsView crumbsView;
     public  CurrentCloud currentCloud;
     private DetentHorizontalScrollView tabButtonScroller;
-    private float airplaneScale;
     public  float currentGPSAlt;    // metres MSL
     public  float currentGPSLat;    // degrees
     public  float currentGPSLon;    // degrees
     public  float currentGPSHdg;    // degrees true
     public  float currentGPSSpd;    // metres per second
     public  float dotsPerInch, dotsPerInchX, dotsPerInchY;
-    public  float textSize;
+    public  float textSize, thickLine, thinLine;
     private GlassView glassView;
     public  final HashMap<String,MetarRepo> metarRepos = new HashMap<> ();
     public  int displayWidth;
@@ -133,6 +134,8 @@ public class WairToNow extends Activity {
         dotsPerInchX = metrics.xdpi;
         dotsPerInchY = metrics.ydpi;
         dotsPerInch  = Mathf.sqrt (dotsPerInchX * dotsPerInchY);
+        thickLine    = dotsPerInch / 12.0F;
+        thinLine     = dotsPerInch / 24.0F;
 
         File efd = getExternalFilesDir (null);
         if (efd == null) {
@@ -181,7 +184,7 @@ public class WairToNow extends Activity {
          */
         gpsAvailablePaint = new Paint ();
         gpsAvailablePaint.setColor (Color.WHITE);
-        gpsAvailablePaint.setStrokeWidth (20);
+        gpsAvailablePaint.setStrokeWidth (thickLine);
         gpsAvailablePaint.setStyle (Paint.Style.FILL_AND_STROKE);
         gpsAvailablePaint.setTextAlign (Paint.Align.CENTER);
 
@@ -207,10 +210,9 @@ public class WairToNow extends Activity {
         airplanePath.lineTo ( +42, 301 - acy);
         airplanePath.lineTo ( +44, 326 - acy);
         airplanePath.lineTo (0, 313 - acy);
-        airplaneScale = textSize * 1.5F / (313 - 69);
 
         airplanePaint.setColor (CurrentCloud.currentColor);
-        airplanePaint.setStrokeWidth (10);
+        airplanePaint.setStrokeWidth (thinLine);
         airplanePaint.setTextAlign (Paint.Align.CENTER);
 
         /*
@@ -836,14 +838,15 @@ public class WairToNow extends Activity {
         canvas.save ();
         canvas.translate (pt.x, pt.y);  // anything drawn below will be translated this much
         canvas.rotate (hdg);            // anything drawn below will be rotated this much
-        DrawAirplaneSymbol (canvas);    // draw the airplane with vectors and filling
+        DrawAirplaneSymbol (canvas, textSize * 1.5F);  // draw the airplane with vectors and filling
         canvas.restore ();              // remove translation/scaling/rotation
     }
 
-    public void DrawAirplaneSymbol (Canvas canvas)
+    public void DrawAirplaneSymbol (Canvas canvas, float pixels)
     {
+        float scale = pixels / airplaneHeight;
         airplanePaint.setStyle (Paint.Style.FILL);
-        canvas.scale (airplaneScale, airplaneScale);    // anything drawn below will be scaled this much
+        canvas.scale (scale, scale);                    // anything drawn below will be scaled this much
         canvas.drawPath (airplanePath, airplanePaint);  // draw the airplane with vectors and filling
     }
 

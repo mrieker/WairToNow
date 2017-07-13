@@ -48,8 +48,7 @@
     </HEAD>
     <BODY>
         <?php
-            $iapdirs = array ("WTN" => "datums/iapgeorefs_$cycles28",   // WairToNow generated (DecodePlate.java)
-                              "FAA" => "datums/iapgeorefs2_$cycles28"); // FAA generated (DecodePlate2.java)
+            $iapdirs = array ("FAA" => "datums/iapgeorefs2_$cycles28"); // FAA generated (DecodePlate2.java)
 
             $tmpdir = "viewiap";
 
@@ -122,8 +121,11 @@
                 echo "<UL>";
                 foreach ($iapdirs as $type => $iapdir) {
                     if (file_exists ("$iapdir/$state.csv")) {
-                        echo "<LI><A HREF=\"$iapdir/$state.csv\">$type CSV file</A>";
+                        echo "<LI><A HREF=\"$iapdir/$state.csv\">$type georef CSV file</A>";
                     }
+                }
+                if (file_exists ("datums/iapcifps_$cycles28/$state.csv")) {
+                    echo "<LI><A HREF=\"datums/iapcifps_$cycles28/$state.csv\">CIFP CSV file</A>";
                 }
                 echo "</UL>\n";
 
@@ -182,17 +184,6 @@
                 foreach ($refdicaoids as $refdicaoid => $dummy) {
                     $faaid = $faaids[$refdicaoid];
                     $refdfaaids[$faaid] = TRUE;
-                }
-
-                // approaches get listed as rejected by FAA generated georef when accepted by WTN generated georef
-                // so remove entries from $badiaps[][] what are listed in $goodiaps[][]
-                foreach ($badiaps as $faaid => $iapids) {
-                    $icaoid = $icaoids[$faaid];
-                    foreach ($iapids as $iapid => $dummy) {
-                        if (isset ($goodiaps[$icaoid][$iapid])) {
-                            unset ($badiaps[$faaid][$iapid]);
-                        }
-                    }
                 }
 
                 // output a link for each such airport
@@ -327,12 +318,8 @@
                                 $iapid = $columns[1];
                                 $iapid = str_replace ("\"", "", $iapid);
                                 if (!isset ($gotiaps[$iapid])) {
-                                    $iap_x = urlencode ($iapid);
                                     $iap_y = htmlspecialchars ($iapid);
-                                    echo "<LI>";
-                                    if ($type == "WTN") echo "<A HREF=\"viewiap.php?$sl&icaoid=$icaoid&faaid=$faaid&iapid=$iap_x\">";
-                                    echo $iap_y;
-                                    if ($type == "WTN") echo "</A>\n";
+                                    echo "<LI>$iap_y";
                                     echoIAPGifLink ($state, $faaid, $iapid);
                                     $gotiaps[$iapid] = TRUE;
                                 }

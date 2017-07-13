@@ -113,10 +113,10 @@ public class LogPlayGpsAdsb extends GpsAdsbReceiver {
         });
     }
 
-    /*************************************************************\
-     *  GpsAdsbReceiver implementation                           *
-     *  Used by SensorsView to enable the WiFi UDP data source.  *
-    \*************************************************************/
+    /*****************************************************************************\
+     *  GpsAdsbReceiver implementation                                           *
+     *  Used by SensorsView to let the user select a log file as a data source.  *
+    \*****************************************************************************/
 
     @Override  // GpsAdsbReceiver
     public String getPrefKey ()
@@ -186,8 +186,9 @@ public class LogPlayGpsAdsb extends GpsAdsbReceiver {
     }
 
     /**
-     * User just clicked GPS/ADS-B wifi UDP enable checkbox.
-     * Turn wifi UDP GPS/ADS-B on and off.
+     * User just clicked 'log file playback' enable checkbox.
+     * Open or close the log file selected in the selection box.
+     * If opening file, start a thread to read it and pass packets to the decoder.
      */
     @SuppressLint("SetTextI18n")
     private void btAdsbEnabClicked ()
@@ -249,7 +250,7 @@ public class LogPlayGpsAdsb extends GpsAdsbReceiver {
     }
 
     /**
-     * A packet was received from GPS/ADS-B receiver and this page is visible.
+     * A packet was read from the log file and this page is visible.
      * Update the on-screen text to show updated byte count.
      */
     private final Runnable adsbPacketReceivedUI = new Runnable () {

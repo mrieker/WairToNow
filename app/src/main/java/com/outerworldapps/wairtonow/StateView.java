@@ -101,7 +101,7 @@ public class StateView extends View {
 
         centerBGPaint.setColor (Color.WHITE);
         centerBGPaint.setStyle (Paint.Style.STROKE);
-        centerBGPaint.setStrokeWidth (30);
+        centerBGPaint.setStrokeWidth (wairToNow.thickLine);
         centerBGPaint.setTextSize (ts);
         centerBGPaint.setTextAlign (Paint.Align.CENTER);
         centerTxPaint.setColor (centerColor);
@@ -112,7 +112,7 @@ public class StateView extends View {
 
         courseBGPaint.setColor (Color.WHITE);
         courseBGPaint.setStyle (Paint.Style.STROKE);
-        courseBGPaint.setStrokeWidth (30);
+        courseBGPaint.setStrokeWidth (wairToNow.thickLine);
         courseBGPaint.setTextSize (ts);
         courseBGPaint.setTextAlign (Paint.Align.CENTER);
         courseTxPaint.setColor (courseColor);
@@ -123,7 +123,7 @@ public class StateView extends View {
 
         trafficBGPaint.setColor (Color.BLACK);
         trafficBGPaint.setStyle (Paint.Style.STROKE);
-        trafficBGPaint.setStrokeWidth (20);
+        trafficBGPaint.setStrokeWidth (wairToNow.thickLine * 2.0F / 3.0F);
         trafficBGPaint.setTextSize (ts * 0.75F);
         trafficTxPaint.setColor (Color.YELLOW);
         trafficTxPaint.setStyle (Paint.Style.FILL);
@@ -190,12 +190,14 @@ public class StateView extends View {
 
                 if (centerInfoBounds.contains (x, y)) {
                     showCenterInfo ^= (now - downOnCenterInfo < 500);
+                    downOnCenterInfo = 0;
                     invalidate ();
                     return true;
                 }
 
                 if (courseInfoBounds.contains (x, y)) {
                     showCourseInfo ^= (now - downOnCourseInfo < 500);
+                    downOnCourseInfo = 0;
                     invalidate ();
                     return true;
                 }

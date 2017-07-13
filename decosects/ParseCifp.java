@@ -43,7 +43,7 @@ import java.util.Iterator;
 import java.util.TreeMap;
 
 /*
-    Spec references are for v20
+    Spec references are for arinc-424-20
 
     >> 3.2.4 airport (P)
     >> 3.2.4.13 terminal ndb (PN)
@@ -434,6 +434,7 @@ public class ParseCifp {
         }
     }
 
+    // See attachment 5, p350, for leg types (pathterm)
     private static class Leg {
         public Segment segment;
         public int legnum;      // eg 10

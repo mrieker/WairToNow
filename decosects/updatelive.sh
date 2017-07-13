@@ -120,7 +120,6 @@ processdatums datums/aptinfo_
 processdatums datums/aptplates_
 processdatums datums/fixes_          .csv
 processdatums datums/iapcifps_
-processdatums datums/iapgeorefs_
 processdatums datums/iapgeorefs2_
 processdatums datums/intersections_  .csv
 processdatums datums/localizers_     .csv
