@@ -35,7 +35,7 @@ import android.view.View;
  */
 public class PlateTimer {
     private boolean   timerQueued;
-    private float     timrCharWidth, timrTextAscent, timrTextHeight;
+    private double     timrCharWidth, timrTextAscent, timrTextHeight;
     private long      timerStarted;
     private Paint     timrBGPaint      = new Paint ();
     private Paint     timrTxPaint      = new Paint ();
@@ -78,9 +78,9 @@ public class PlateTimer {
         };
     }
 
-    public void GotMouseDown (float x, float y)
+    public void GotMouseDown (double x, double y)
     {
-        if (timrButtonBounds.contains (x, y)) {
+        if (timrButtonBounds.contains ((float) x, (float) y)) {
             TimerButtonClicked ();
         }
     }
@@ -94,8 +94,8 @@ public class PlateTimer {
 
         // see if timer running
         if (timerStarted > 0) {
-            int timrx = canvasWidth - (int) Mathf.ceil (timrCharWidth * 6.5F);
-            int timry = (int) Mathf.ceil (timrTextHeight * 1.25F);
+            int timrx = canvasWidth - (int) Math.ceil (timrCharWidth * 6.5);
+            int timry = (int) Math.ceil (timrTextHeight * 1.25);
 
             timrButtonBounds.top    = timry - (int) Math.ceil (timrTextAscent);
             timrButtonBounds.bottom = timry;
@@ -121,7 +121,7 @@ public class PlateTimer {
                 sb.append ("---:--");
             }
 
-            timrx -= (int) Mathf.ceil (timrCharWidth / 5.0F);
+            timrx -= (int) Math.ceil (timrCharWidth / 5.0);
             canvas.drawText (sb.toString (), timrx, timry, timrTxPaint);
 
             // come back in a second for update

@@ -551,8 +551,8 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
             }
 
             // scan list to generate stats
-            float distnm  = 0;
-            float peakkts = 0;
+            double distnm  = 0;
+            double peakkts = 0;
             Position lastpos = null;
             long finished = 0;
             long started  = 0;
@@ -563,7 +563,7 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
                     distnm += Lib.LatLonDist (lastpos.latitude, lastpos.longitude,
                             pos.latitude, pos.longitude);
                 }
-                float kts = pos.speed * Lib.KtPerMPS;
+                double kts = pos.speed * Lib.KtPerMPS;
                 if (peakkts < kts) peakkts = kts;
                 finished = pos.time;
                 lastpos  = pos;
@@ -582,7 +582,7 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
             elapsed += (elsec % 60) + "s";
 
             // format rest of string
-            float avgkts = distnm * 3600000.0F / elms;
+            double avgkts = distnm * 3600000.0 / elms;
 
             java.text.DateFormat f = java.text.DateFormat.getDateTimeInstance ();
             boolean sm = wairToNow.optionsView.ktsMphOption.getAlt ();
@@ -829,11 +829,11 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
                         while ((line = br.readLine ()) != null) {
                             String[] cols = Lib.QuotedCSVSplit (line);
                             if (pos == null) pos = new Position ();
-                            pos.altitude  = Float.parseFloat (cols[0]);
-                            pos.heading   = Float.parseFloat (cols[1]);
-                            pos.latitude  = Float.parseFloat (cols[2]);
-                            pos.longitude = Float.parseFloat (cols[3]);
-                            pos.speed     = Float.parseFloat (cols[4]);
+                            pos.altitude  = Double.parseDouble (cols[0]);
+                            pos.heading   = Double.parseDouble (cols[1]);
+                            pos.latitude  = Double.parseDouble (cols[2]);
+                            pos.longitude = Double.parseDouble (cols[3]);
+                            pos.speed     = Double.parseDouble (cols[4]);
                             pos.time      = Long.parseLong   (cols[5]);
                             if (addPointToTrail (displaytrail, pos, INTERVALMS) |
                                     addPointToTrail (playbacktrail, pos, 1)) pos = null;
@@ -856,8 +856,8 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
                                     switch (xpp.getName ()) {
                                         case "trkpt": {
                                             if (pos == null) pos = new Position ();
-                                            pos.latitude  = Float.parseFloat (xpp.getAttributeValue (null, "lat"));
-                                            pos.longitude = Float.parseFloat (xpp.getAttributeValue (null, "lon"));
+                                            pos.latitude  = Double.parseDouble (xpp.getAttributeValue (null, "lat"));
+                                            pos.longitude = Double.parseDouble (xpp.getAttributeValue (null, "lon"));
                                             break;
                                         }
                                     }
@@ -874,21 +874,21 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
                                             case "ele": {
                                                 if (pos == null) throw new NullPointerException ("<ele> outside of <trkpt>");
                                                 if (text == null) throw new NullPointerException ("no text for <ele>");
-                                                pos.altitude = Float.parseFloat (text);
+                                                pos.altitude = Double.parseDouble (text);
                                                 text = null;
                                                 break;
                                             }
                                             case "heading": {
                                                 if (pos == null) throw new NullPointerException ("<heading> outside of <trkpt>");
                                                 if (text == null) throw new NullPointerException ("no text for <heading>");
-                                                pos.heading = Float.parseFloat (text);
+                                                pos.heading = Double.parseDouble (text);
                                                 text = null;
                                                 break;
                                             }
                                             case "speed": {
                                                 if (pos == null) throw new NullPointerException ("<speed> outside of <trkpt>");
                                                 if (text == null) throw new NullPointerException ("no text for <speed>");
-                                                pos.speed = Float.parseFloat (text);
+                                                pos.speed = Double.parseDouble (text);
                                                 text = null;
                                                 break;
                                             }

@@ -267,11 +267,11 @@ public class TopDecoder {
         mIcaoAddress += (msg[7] & 0xFF);
 
         // latitude and longitude
-        float mLat = calculateLatDegrees (msg, 8);
-        float mLon = calculateLonDegrees (msg, 8);
+        double mLat = calculateLatDegrees (msg, 8);
+        double mLon = calculateLonDegrees (msg, 8);
 
         // altitude
-        float altitude = Float.NaN;
+        double altitude = Double.NaN;
         int codedAltitude;
         codedAltitude  = (msg[14] & 0xFF) << 4;
         codedAltitude += (msg[15] & 0xF0) >> 4;
@@ -285,14 +285,14 @@ public class TopDecoder {
         }
 
         // heading, speed, climb
-        float mHeading, mSpeed, mVertVelocity;
+        double mHeading, mSpeed, mVertVelocity;
         boolean airborne = (msg[16] & 0x80) == 0;
         if (airborne) {
             int vel;
 
             boolean supersonic = (msg[16] & 0x40) != 0;
 
-            float mNortherlyVelocity = Float.NaN;
+            double mNortherlyVelocity = Double.NaN;
             vel = ((msg[16] & 0x1F) << 6) | ((msg[17] & 0xFC) >> 2);
             boolean northVelocityValid = (vel & 0x3FF) != 0;
             if (northVelocityValid) {
@@ -301,7 +301,7 @@ public class TopDecoder {
                 if (supersonic) mNortherlyVelocity *= 4;
             }
 
-            float mEasterlyVelocity = Float.NaN;
+            double mEasterlyVelocity = Double.NaN;
             vel = ((msg[17] & 0x03) << 9) | ((msg[18] & 0xFF) << 1) | ((msg[19] & 0x80) >> 7);
             boolean eastVelocityValid = (vel & 0x3FF) != 0;
             if (eastVelocityValid) {
@@ -311,11 +311,11 @@ public class TopDecoder {
             }
 
             if (northVelocityValid && eastVelocityValid) {
-                mHeading = (float) Math.toDegrees (Math.atan2 (mEasterlyVelocity, mNortherlyVelocity));
-                mSpeed   = (float) Math.hypot (mEasterlyVelocity, mNortherlyVelocity);
+                mHeading = Math.toDegrees (Math.atan2 (mEasterlyVelocity, mNortherlyVelocity));
+                mSpeed   = Math.hypot (mEasterlyVelocity, mNortherlyVelocity);
             } else {
-                mHeading = Float.NaN;
-                mSpeed   = Float.NaN;
+                mHeading = Double.NaN;
+                mSpeed   = Double.NaN;
             }
 
             // vertical velocity (ft/min)
@@ -329,7 +329,7 @@ public class TopDecoder {
                     mVertVelocity = - mVertVelocity;
                 }
             } else {
-                mVertVelocity = Float.NaN;
+                mVertVelocity = Double.NaN;
             }
         } else {
             int vel;
@@ -338,7 +338,7 @@ public class TopDecoder {
             if (vel != 0) {
                 mSpeed = vel - 1;
             } else {
-                mSpeed = Float.NaN;
+                mSpeed = Double.NaN;
             }
 
             // msg[17] & 0x03 == 3 : TRUE heading  << assume this
@@ -346,10 +346,10 @@ public class TopDecoder {
             //                   1 : ?
             //                   0 : ?
             int tracking = ((msg[18] & 0xFF) << 1) | ((msg[19] & 0x80) >> 7);
-            mHeading = tracking * (360.0F / 512);
+            mHeading = tracking * (360.0 / 512);
 
             // assume things on ground neither climb nor descend
-            mVertVelocity = 0.0F;
+            mVertVelocity = 0.0;
         }
 
         // aircraft callsign
@@ -383,7 +383,7 @@ public class TopDecoder {
      * @param skip = first byte of 6-byte lat/lon field
      * @return floatingpoint degrees latitude
      */
-    public static float calculateLatDegrees (byte[] msg, int skip)
+    public static double calculateLatDegrees (byte[] msg, int skip)
     {
         int lat;
 
@@ -394,7 +394,7 @@ public class TopDecoder {
         lat <<= 8;
         lat  += msg[skip+2] & 0xFE;
 
-        return lat * (180.0F / (1 << 24));
+        return lat * (180.0 / (1 << 24));
     }
 
     /**
@@ -404,7 +404,7 @@ public class TopDecoder {
      * @param skip = first byte of 6-byte lat/lon field
      * @return floatingpoint degrees longitude
      */
-    public static float calculateLonDegrees (byte[] msg, int skip)
+    public static double calculateLonDegrees (byte[] msg, int skip)
     {
         int lon = 0 - (msg[skip+2] & 0x01);  // get top bit, sign extended
 
@@ -415,7 +415,7 @@ public class TopDecoder {
         lon <<= 8;
         lon  += msg[skip+5] & 0xFE;
 
-        return lon * (180.0F / (1 << 24));
+        return lon * (180.0 / (1 << 24));
     }
 
     /**

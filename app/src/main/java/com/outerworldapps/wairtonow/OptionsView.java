@@ -53,11 +53,11 @@ public class OptionsView
     public  CheckOption  powerLockOption;
     public  CheckOption  showNexrad;
     public  CheckOption  showTraffic;
+    public  CheckOption  showWxSumDot;
     public  CheckOption  userWPOption;
     public  CheckOption  typeBOption;
     public  DefAltOption ktsMphOption;
     public  DefAltOption magTrueOption;
-    public  DefAltOption listMapOption;
     public  IntOption    chartTrackOption;
     public  IntOption    chartOrientOption;
     public  IntOption    gpsUpdateOption;
@@ -93,8 +93,8 @@ public class OptionsView
         gpsCompassOption  = new CheckOption  ("GPS status compass",          false);
         showNexrad        = new CheckOption  ("Show ADS-B Nexrad (2D only)", false);
         showTraffic       = new CheckOption  ("Show ADS-B Traffic",          false);
+        showWxSumDot      = new CheckOption  ("Show Wx Summary Dots",        false);
         magTrueOption     = new DefAltOption ("Magnetic", "True");
-        listMapOption     = new DefAltOption ("Maint Plates List", "Maint Plates Map");
         ktsMphOption      = new DefAltOption ("Kts", "MPH");
 
         latLonOption      = new IntOption (
@@ -144,12 +144,12 @@ public class OptionsView
         ll1.addView (typeBOption);
         ll1.addView (showNexrad);
         ll1.addView (showTraffic);
+        ll1.addView (showWxSumDot);
         ll1.addView (powerLockOption);
         ll1.addView (gpsCompassOption);
         ll1.addView (chartOrientOption);
         ll1.addView (chartTrackOption);
         ll1.addView (magTrueOption);
-        ll1.addView (listMapOption);
         ll1.addView (latLonOption);
         ll1.addView (ktsMphOption);
         ll1.addView (gpsUpdateOption);
@@ -169,14 +169,14 @@ public class OptionsView
      * @param alt = altitude (metres MSL) where the heading is wanted
      * @return string of heading
      */
-    public String HdgString (float hdg, float lat, float lon, float alt)
+    public String HdgString (double hdg, double lat, double lon, double alt)
     {
         String suffix = (char)0xB0 + " True";
         if (!magTrueOption.getAlt ()) {
             hdg += Lib.MagVariation (lat, lon, alt);
             suffix = (char)0xB0 + " Mag";
         }
-        int ihdg = (int)(hdg + 1439.5F) % 360 + 1;
+        int ihdg = (int)(hdg + 1439.5) % 360 + 1;
         return Integer.toString (ihdg + 1000).substring (1) + suffix;
     }
 
@@ -187,7 +187,7 @@ public class OptionsView
      * @param negch = char to display if negative (S or W)
      * @return resultant string
      */
-    public String LatLonString (float val, char posch, char negch)
+    public String LatLonString (double val, char posch, char negch)
     {
         if (val < 0) {
             posch ^= negch;
@@ -250,7 +250,7 @@ public class OptionsView
 
             // ddd.dddddd^
             case LLO_DDDDDD: {
-                int ival = Math.round (val * 1000000);
+                int ival = (int) Math.round (val * 1000000);
                 int dpts = 6;
                 while ((dpts > 1) && (ival % 10 == 0)) {
                     ival /= 10;
@@ -285,21 +285,21 @@ public class OptionsView
                     int i = csvline.indexOf (',');
                     String name = csvline.substring (0, i);
                     String valu = csvline.substring (++ i);
-                    if (name.equals ("capGrid"))     capGridOption.checkBox.setChecked    (valu.equals (boolTrue));
-                    if (name.equals ("faaWPs"))      faaWPOption.checkBox.setChecked      (valu.equals (boolTrue));
-                    if (name.equals ("userWPs"))     userWPOption.checkBox.setChecked     (valu.equals (boolTrue));
-                    if (name.equals ("typeB"))       typeBOption.checkBox.setChecked      (valu.equals (boolTrue));
-                    if (name.equals ("powerLock"))   powerLockOption.checkBox.setChecked  (valu.equals (boolTrue));
-                    if (name.equals ("gpsCompass"))  gpsCompassOption.checkBox.setChecked (valu.equals (boolTrue));
-                    if (name.equals ("showNexrad"))  showNexrad.checkBox.setChecked       (valu.equals (boolTrue));
-                    if (name.equals ("showTraffic")) showTraffic.checkBox.setChecked      (valu.equals (boolTrue));
-                    if (name.equals ("chartOrient")) chartOrientOption.setKey (valu);
-                    if (name.equals ("chartTrack"))  chartTrackOption.setKey  (valu);
-                    if (name.equals ("magtrueAlt"))  magTrueOption.setAlt     (valu.equals (boolTrue));
-                    if (name.equals ("plateMap"))    listMapOption.setAlt     (valu.equals (boolTrue));
-                    if (name.equals ("latlonAlt"))   latLonOption.setKey      (valu);
-                    if (name.equals ("ktsMphAlt"))   ktsMphOption.setAlt      (valu.equals (boolTrue));
-                    if (name.equals ("gpsUpdate"))   gpsUpdateOption.setKey   (valu);
+                    if (name.equals ("capGrid"))      capGridOption.checkBox.setChecked    (valu.equals (boolTrue));
+                    if (name.equals ("faaWPs"))       faaWPOption.checkBox.setChecked      (valu.equals (boolTrue));
+                    if (name.equals ("userWPs"))      userWPOption.checkBox.setChecked     (valu.equals (boolTrue));
+                    if (name.equals ("typeB"))        typeBOption.checkBox.setChecked      (valu.equals (boolTrue));
+                    if (name.equals ("powerLock"))    powerLockOption.checkBox.setChecked  (valu.equals (boolTrue));
+                    if (name.equals ("gpsCompass"))   gpsCompassOption.checkBox.setChecked (valu.equals (boolTrue));
+                    if (name.equals ("showNexrad"))   showNexrad.checkBox.setChecked       (valu.equals (boolTrue));
+                    if (name.equals ("showTraffic"))  showTraffic.checkBox.setChecked      (valu.equals (boolTrue));
+                    if (name.equals ("showWxSumDot")) showWxSumDot.checkBox.setChecked     (valu.equals (boolTrue));
+                    if (name.equals ("chartOrient"))  chartOrientOption.setKey (valu);
+                    if (name.equals ("chartTrack"))   chartTrackOption.setKey  (valu);
+                    if (name.equals ("magtrueAlt"))   magTrueOption.setAlt     (valu.equals (boolTrue));
+                    if (name.equals ("latlonAlt"))    latLonOption.setKey      (valu);
+                    if (name.equals ("ktsMphAlt"))    ktsMphOption.setAlt      (valu.equals (boolTrue));
+                    if (name.equals ("gpsUpdate"))    gpsUpdateOption.setKey   (valu);
                 }
             } finally {
                 csvreader.close ();
@@ -318,21 +318,21 @@ public class OptionsView
         try {
             BufferedWriter csvwriter = new BufferedWriter (new FileWriter (csvname), 1024);
             try {
-                csvwriter.write ("capGrid,"     + Boolean.toString (capGridOption.checkBox.isChecked ())    + "\n");
-                csvwriter.write ("faaWPs,"      + Boolean.toString (faaWPOption.checkBox.isChecked ())      + "\n");
-                csvwriter.write ("userWPs,"     + Boolean.toString (userWPOption.checkBox.isChecked ())     + "\n");
-                csvwriter.write ("typeB,"       + Boolean.toString (typeBOption.checkBox.isChecked ())      + "\n");
-                csvwriter.write ("powerLock,"   + Boolean.toString (powerLockOption.checkBox.isChecked ())  + "\n");
-                csvwriter.write ("gpsCompass,"  + Boolean.toString (gpsCompassOption.checkBox.isChecked ()) + "\n");
-                csvwriter.write ("showNexrad,"  + Boolean.toString (showNexrad.checkBox.isChecked ())       + "\n");
-                csvwriter.write ("showTraffic," + Boolean.toString (showTraffic.checkBox.isChecked ())      + "\n");
-                csvwriter.write ("chartOrient," + chartOrientOption.getKey ()                               + "\n");
-                csvwriter.write ("chartTrack,"  + chartTrackOption.getKey ()                                + "\n");
-                csvwriter.write ("magtrueAlt,"  + Boolean.toString (magTrueOption.getAlt ())                + "\n");
-                csvwriter.write ("plateMap,"    + Boolean.toString (listMapOption.getAlt ())                + "\n");
-                csvwriter.write ("latlonAlt,"   + latLonOption.getKey ()                                    + "\n");
-                csvwriter.write ("ktsMphAlt,"   + Boolean.toString (ktsMphOption.getAlt ())                 + "\n");
-                csvwriter.write ("gpsUpdate,"   + gpsUpdateOption.getKey ()                                 + "\n");
+                csvwriter.write ("capGrid,"      + Boolean.toString (capGridOption.checkBox.isChecked ())    + "\n");
+                csvwriter.write ("faaWPs,"       + Boolean.toString (faaWPOption.checkBox.isChecked ())      + "\n");
+                csvwriter.write ("userWPs,"      + Boolean.toString (userWPOption.checkBox.isChecked ())     + "\n");
+                csvwriter.write ("typeB,"        + Boolean.toString (typeBOption.checkBox.isChecked ())      + "\n");
+                csvwriter.write ("powerLock,"    + Boolean.toString (powerLockOption.checkBox.isChecked ())  + "\n");
+                csvwriter.write ("gpsCompass,"   + Boolean.toString (gpsCompassOption.checkBox.isChecked ()) + "\n");
+                csvwriter.write ("showNexrad,"   + Boolean.toString (showNexrad.checkBox.isChecked ())       + "\n");
+                csvwriter.write ("showTraffic,"  + Boolean.toString (showTraffic.checkBox.isChecked ())      + "\n");
+                csvwriter.write ("showWxSumDot," + Boolean.toString (showWxSumDot.checkBox.isChecked ())     + "\n");
+                csvwriter.write ("chartOrient,"  + chartOrientOption.getKey ()                               + "\n");
+                csvwriter.write ("chartTrack,"   + chartTrackOption.getKey ()                                + "\n");
+                csvwriter.write ("magtrueAlt,"   + Boolean.toString (magTrueOption.getAlt ())                + "\n");
+                csvwriter.write ("latlonAlt,"    + latLonOption.getKey ()                                    + "\n");
+                csvwriter.write ("ktsMphAlt,"    + Boolean.toString (ktsMphOption.getAlt ())                 + "\n");
+                csvwriter.write ("gpsUpdate,"    + gpsUpdateOption.getKey ()                                 + "\n");
             } finally {
                 csvwriter.close ();
             }
@@ -535,11 +535,11 @@ public class OptionsView
     /*public class SliderOption extends LinearLayout implements SeekBar.OnSeekBarChangeListener {
         private static final int SMAX = 1024;
 
-        private float minlg;
-        private float maxlg;
+        private double minlg;
+        private double maxlg;
         private SeekBar slider;
 
-        public SliderOption (Context ctx, String minlbl, float minval, float defval, float maxval, String maxlbl)
+        public SliderOption (Context ctx, String minlbl, double minval, double defval, double maxval, String maxlbl)
         {
             super (ctx);
 
@@ -570,19 +570,19 @@ public class OptionsView
             setValue (defval);
         }
 
-        public float getValue ()
+        public double getValue ()
         {
-            float ratio = (float) slider.getProgress () / (float) SMAX;
-            float vallg = (maxlg - minlg) * ratio + minlg;
-            return (float) Math.exp (vallg);
+            double ratio = (double) slider.getProgress () / (double) SMAX;
+            double vallg = (maxlg - minlg) * ratio + minlg;
+            return (double) Math.exp (vallg);
         }
 
-        public void setValue (float val)
+        public void setValue (double val)
         {
-            float vallg = Math.log (val);
-            float ratio = (vallg - minlg) / (maxlg - minlg);
-            if (ratio < 0.0F) ratio = 0.0F;
-            if (ratio > 1.0F) ratio = 1.0F;
+            double vallg = Math.log (val);
+            double ratio = (vallg - minlg) / (maxlg - minlg);
+            if (ratio < 0.0) ratio = 0.0;
+            if (ratio > 1.0) ratio = 1.0;
             slider.setProgress ((int) (ratio * SMAX));
         }
 

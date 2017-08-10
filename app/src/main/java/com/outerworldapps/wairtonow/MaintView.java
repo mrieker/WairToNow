@@ -39,11 +39,9 @@ import android.os.Handler;
 import android.os.Message;
 import android.support.annotation.NonNull;
 import android.util.Log;
-import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.AbsoluteLayout;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.CompoundButton;
@@ -52,8 +50,6 @@ import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
-
-import com.github.rongi.rotate_layout.layout.RotateLayout;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
@@ -1138,13 +1134,8 @@ public class MaintView
             BufferedReader rdr = new BufferedReader (new InputStreamReader (am.open ("statelocation.dat")), 1024);
             String line;
             while ((line = rdr.readLine ()) != null) {
-                String parts[] = line.split (" ");
-                StateCheckBox sb = new StateCheckBox (
-                        parts[0],
-                        Integer.parseInt (parts[1]),
-                        Integer.parseInt (parts[2])
-                );
-                stateCheckBoxes.put (parts[0], sb);
+                StateCheckBox sb = new StateCheckBox (line.substring (0, 2), line.substring (3));
+                stateCheckBoxes.put (sb.ss, sb);
             }
             rdr.close ();
 
@@ -1160,41 +1151,16 @@ public class MaintView
             this.removeAllViews ();
             if (scbParent != null) scbParent.removeAllViews ();
 
-            if (wairToNow.optionsView.listMapOption.getAlt ()) {
-                //noinspection deprecation
-                AbsoluteLayout al = new AbsoluteLayout (wairToNow);
-
-                for (StateCheckBox sb : stateCheckBoxes.values ()) {
-                    sb.Rebuild ();
-                    //noinspection deprecation
-                    AbsoluteLayout.LayoutParams lp = new AbsoluteLayout.LayoutParams (
-                            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
-                            sb.xx * 4, sb.yy * 4
-                    );
-                    al.addView (sb, lp);
-                }
-
-                ViewGroup.LayoutParams vglp = new ViewGroup.LayoutParams (ViewGroup.LayoutParams.FILL_PARENT, ViewGroup.LayoutParams.FILL_PARENT);
-                RotateLayout.LayoutParams rllp = new RotateLayout.LayoutParams (vglp);
-                rllp.angle = -90;  // clockwise
-                RotateLayout rl = new RotateLayout (wairToNow);
-                rl.addView (al, rllp);
-
-                this.addView (rl);
-
-                scbParent = al;
-            } else {
-                LinearLayout ll = new LinearLayout (wairToNow);
-                ll.setOrientation (LinearLayout.VERTICAL);
-                for (StateCheckBox sb : stateCheckBoxes.values ()) {
-                    sb.Rebuild ();
-                    ll.addView (sb);
-                }
-
-                this.addView (ll);
-
-                scbParent = ll;
+            LinearLayout ll = new LinearLayout (wairToNow);
+            ll.setOrientation (LinearLayout.VERTICAL);
+            for (StateCheckBox sb : stateCheckBoxes.values ()) {
+                sb.Rebuild ();
+                ll.addView (sb);
             }
+
+            this.addView (ll);
+
+            scbParent = ll;
         }
 
         public void StartDwnld (String state, Runnable done)
@@ -1208,24 +1174,21 @@ public class MaintView
      * Consists of a checkbox and overlaying text giving the state name.
      */
     private class StateCheckBox extends FrameLayout implements Downloadable {
-        public int xx;     // x,y within StateMapView
-        public int yy;
         public String ss;  // two-letter state code (capital letters)
+        public String fullname;  // full name string
 
-        private boolean mapStyle;
         private CheckBox cb;
         private int enddate;
         private LinkedList<Runnable> whenDoneRun = new LinkedList<> ();
         private TextView lb;
         private ViewGroup cblbParent;
 
-        public StateCheckBox (String s, int x, int y)
+        public StateCheckBox (String s, String f)
         {
             super (wairToNow);
 
-            xx = x;
-            yy = y;
             ss = s;
+            fullname = f;
 
             allDownloadables.addLast (this);
 
@@ -1243,32 +1206,15 @@ public class MaintView
             this.removeAllViews ();
             if (cblbParent != null) cblbParent.removeAllViews ();
 
-            mapStyle = wairToNow.optionsView.listMapOption.getAlt ();
-            if (mapStyle) {
-                LayoutParams lp1 = new LayoutParams (
-                        ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
-                        Gravity.TOP | Gravity.LEFT
-                );
-                addView (cb, lp1);
+            LinearLayout ll = new LinearLayout (wairToNow);
+            ll.setOrientation (LinearLayout.HORIZONTAL);
 
-                LayoutParams lp2 = new LayoutParams (
-                        ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
-                        Gravity.TOP | Gravity.LEFT
-                );
-                addView (lb, lp2);
+            ll.addView (cb);
+            ll.addView (lb);
 
-                cblbParent = this;
-            } else {
-                LinearLayout ll = new LinearLayout (wairToNow);
-                ll.setOrientation (LinearLayout.HORIZONTAL);
+            addView (ll);
 
-                ll.addView (cb);
-                ll.addView (lb);
-
-                addView (ll);
-
-                cblbParent = ll;
-            }
+            cblbParent = ll;
         }
 
         public void StartDwnld (Runnable done)
@@ -1318,11 +1264,7 @@ public class MaintView
         public void UpdateSingleLinkText (int c, String t)
         {
             lb.setTextColor (c);
-            if (mapStyle) {
-                lb.setText (ss);
-            } else {
-                lb.setText ("State " + ss + ": " + t);
-            }
+            lb.setText (ss + " " + fullname + ": " + t);
         }
     }
 
@@ -2081,24 +2023,24 @@ public class MaintView
             }
 
             @Override
-            public void MouseDown (float x, float y)
+            public void MouseDown (double x, double y)
             { }
 
             @Override
-            public void MouseUp (float x, float y)
+            public void MouseUp (double x, double y)
             { }
 
             @Override
-            public void Panning (float x, float y, float dx, float dy)
+            public void Panning (double x, double y, double dx, double dy)
             {
-                matrix.postTranslate (dx, dy);
+                matrix.postTranslate ((float) dx, (float) dy);
                 viewer.invalidate ();
             }
 
             @Override
-            public void Scaling (float fx, float fy, float sf)
+            public void Scaling (double fx, double fy, double sf)
             {
-                matrix.postScale (sf, sf, fx, fy);
+                matrix.postScale ((float) sf, (float) sf, (float) fx, (float) fy);
                 viewer.invalidate ();
             }
 
@@ -2476,18 +2418,18 @@ public class MaintView
                     ContentValues values = new ContentValues (14);
                     values.put ("gr_icaoid", cols[0]);   // eg, "KBVY"
                     values.put ("gr_state", statecode);  // eg, "MA"
-                    values.put ("gr_tfwa", Float.parseFloat (cols[ 1]));
-                    values.put ("gr_tfwb", Float.parseFloat (cols[ 2]));
-                    values.put ("gr_tfwc", Float.parseFloat (cols[ 3]));
-                    values.put ("gr_tfwd", Float.parseFloat (cols[ 4]));
-                    values.put ("gr_tfwe", Float.parseFloat (cols[ 5]));
-                    values.put ("gr_tfwf", Float.parseFloat (cols[ 6]));
-                    values.put ("gr_wfta", Float.parseFloat (cols[ 7]));
-                    values.put ("gr_wftb", Float.parseFloat (cols[ 8]));
-                    values.put ("gr_wftc", Float.parseFloat (cols[ 9]));
-                    values.put ("gr_wftd", Float.parseFloat (cols[10]));
-                    values.put ("gr_wfte", Float.parseFloat (cols[11]));
-                    values.put ("gr_wftf", Float.parseFloat (cols[12]));
+                    values.put ("gr_tfwa", Double.parseDouble (cols[ 1]));
+                    values.put ("gr_tfwb", Double.parseDouble (cols[ 2]));
+                    values.put ("gr_tfwc", Double.parseDouble (cols[ 3]));
+                    values.put ("gr_tfwd", Double.parseDouble (cols[ 4]));
+                    values.put ("gr_tfwe", Double.parseDouble (cols[ 5]));
+                    values.put ("gr_tfwf", Double.parseDouble (cols[ 6]));
+                    values.put ("gr_wfta", Double.parseDouble (cols[ 7]));
+                    values.put ("gr_wftb", Double.parseDouble (cols[ 8]));
+                    values.put ("gr_wftc", Double.parseDouble (cols[ 9]));
+                    values.put ("gr_wftd", Double.parseDouble (cols[10]));
+                    values.put ("gr_wfte", Double.parseDouble (cols[11]));
+                    values.put ("gr_wftf", Double.parseDouble (cols[12]));
                     sqldb.insertWithOnConflict ("apdgeorefs", null, values, SQLiteDatabase.CONFLICT_IGNORE);
 
                     if (++ numAdded == 256) {
@@ -2638,18 +2580,18 @@ public class MaintView
                     values.put ("gr_icaoid", cols[0]);    // eg, "KBVY"
                     values.put ("gr_state",  statecode);  // eg, "MA"
                     values.put ("gr_plate",  cols[1]);    // eg, "IAP-LOC RWY 16"
-                    values.put ("gr_clat",   Float.parseFloat (cols[ 2]));
-                    values.put ("gr_clon",   Float.parseFloat (cols[ 3]));
-                    values.put ("gr_stp1",   Float.parseFloat (cols[ 4]));
-                    values.put ("gr_stp2",   Float.parseFloat (cols[ 5]));
-                    values.put ("gr_rada",   Float.parseFloat (cols[ 6]));
-                    values.put ("gr_radb",   Float.parseFloat (cols[ 7]));
-                    values.put ("gr_tfwa",   Float.parseFloat (cols[ 8]));
-                    values.put ("gr_tfwb",   Float.parseFloat (cols[ 9]));
-                    values.put ("gr_tfwc",   Float.parseFloat (cols[10]));
-                    values.put ("gr_tfwd",   Float.parseFloat (cols[11]));
-                    values.put ("gr_tfwe",   Float.parseFloat (cols[12]));
-                    values.put ("gr_tfwf",   Float.parseFloat (cols[13]));
+                    values.put ("gr_clat",   Double.parseDouble (cols[ 2]));
+                    values.put ("gr_clon",   Double.parseDouble (cols[ 3]));
+                    values.put ("gr_stp1",   Double.parseDouble (cols[ 4]));
+                    values.put ("gr_stp2",   Double.parseDouble (cols[ 5]));
+                    values.put ("gr_rada",   Double.parseDouble (cols[ 6]));
+                    values.put ("gr_radb",   Double.parseDouble (cols[ 7]));
+                    values.put ("gr_tfwa",   Double.parseDouble (cols[ 8]));
+                    values.put ("gr_tfwb",   Double.parseDouble (cols[ 9]));
+                    values.put ("gr_tfwc",   Double.parseDouble (cols[10]));
+                    values.put ("gr_tfwd",   Double.parseDouble (cols[11]));
+                    values.put ("gr_tfwe",   Double.parseDouble (cols[12]));
+                    values.put ("gr_tfwf",   Double.parseDouble (cols[13]));
                     sqldb.insertWithOnConflict ("iapgeorefs2", null, values, SQLiteDatabase.CONFLICT_IGNORE);
 
                     // if we have added a handful, flush them out

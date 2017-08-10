@@ -35,6 +35,12 @@
             <Button
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:text="Chart"
+                android:id="@+id/use_chartland"/>
+
+            <Button
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
                 android:text="FAAWP1"
                 android:id="@+id/use_faawp1land"/>
 

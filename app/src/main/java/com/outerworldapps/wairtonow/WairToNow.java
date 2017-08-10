@@ -29,7 +29,6 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
-import android.graphics.PointF;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
@@ -59,7 +58,7 @@ public class WairToNow extends Activity {
     private final static String TAG = "WairToNow";
     public final static long agreePeriod = 60 * 24 * 60 * 60 * 1000L;  // agree every this often
     public final static long gpsDownDelay = 4000;     // gps down this long for blink warning
-    public final static float gpsMinSpeedMPS = 3.0F;  // must be going this fast for heading valid
+    public final static double gpsMinSpeedMPS = 3.0;  // must be going this fast for heading valid
 
     public static String dbdir;
     public static WTNHandler wtnHandler;
@@ -74,11 +73,11 @@ public class WairToNow extends Activity {
     public  CrumbsView crumbsView;
     public  CurrentCloud currentCloud;
     private DetentHorizontalScrollView tabButtonScroller;
-    public  float currentGPSAlt;    // metres MSL
-    public  float currentGPSLat;    // degrees
-    public  float currentGPSLon;    // degrees
-    public  float currentGPSHdg;    // degrees true
-    public  float currentGPSSpd;    // metres per second
+    public  double currentGPSAlt;    // metres MSL
+    public  double currentGPSLat;    // degrees
+    public  double currentGPSLon;    // degrees
+    public  double currentGPSHdg;    // degrees true
+    public  double currentGPSSpd;    // metres per second
     public  float dotsPerInch, dotsPerInchX, dotsPerInchY;
     public  float textSize, thickLine, thinLine;
     private GlassView glassView;
@@ -133,7 +132,7 @@ public class WairToNow extends Activity {
         getWindowManager ().getDefaultDisplay ().getMetrics (metrics);
         dotsPerInchX = metrics.xdpi;
         dotsPerInchY = metrics.ydpi;
-        dotsPerInch  = Mathf.sqrt (dotsPerInchX * dotsPerInchY);
+        dotsPerInch  = (float) Math.sqrt (dotsPerInchX * dotsPerInchY);
         thickLine    = dotsPerInch / 12.0F;
         thinLine     = dotsPerInch / 24.0F;
 
@@ -590,12 +589,12 @@ public class WairToNow extends Activity {
     /**
      * Location of the airplane has been received from GPS.
      */
-    public void LocationReceived (float speed, float altitude, float heading,
-                                  float latitude, float longitude, long time)
+    public void LocationReceived (double speed, double altitude, double heading,
+                                  double latitude, double longitude, long time)
     {
         if (gpsAvailable) {
-            int thisInterval = Math.round ((float) (time - gpsThrottleStart) *
-                    (float) optionsView.gpsUpdateOption.getVal () / 1000.0F);
+            int thisInterval = (int) Math.round ((double) (time - gpsThrottleStart) *
+                    (double) optionsView.gpsUpdateOption.getVal () / 1000.0);
             if (thisInterval <= gpsLastInterval) return;
             gpsLastInterval = thisInterval;
         } else {
@@ -623,8 +622,8 @@ public class WairToNow extends Activity {
     /**
      * Set the current location of the airplane.
      */
-    public void SetCurrentLocation (float speed, float altitude, float heading,
-                                    float latitude, float longitude, long time)
+    public void SetCurrentLocation (double speed, double altitude, double heading,
+                                    double latitude, double longitude, long time)
     {
         currentGPSTime = time;
         currentGPSLat  = latitude;
@@ -811,7 +810,7 @@ public class WairToNow extends Activity {
      *   lastGPSTimestamp = time of previous gps sample
      *   lastGPSHeading = true heading for the arrow symbol (previous gps sample)
      */
-    public void DrawLocationArrow (Canvas canvas, PointF pt, float canHdgRads)
+    public void DrawLocationArrow (Canvas canvas, PointD pt, double canHdgRads)
     {
         /*
          * If not receiving GPS signal, blink the icon.
@@ -823,30 +822,30 @@ public class WairToNow extends Activity {
          */
         if (currentGPSSpd < gpsMinSpeedMPS) {
             airplanePaint.setStyle (Paint.Style.STROKE);
-            canvas.drawCircle (pt.x, pt.y, textSize * 0.5F, airplanePaint);
+            canvas.drawCircle ((float) pt.x, (float) pt.y, textSize * 0.5F, airplanePaint);
             return;
         }
 
         /*
          * Heading angle relative to UP on screen.
          */
-        float hdg = currentGPSHdg - Mathf.toDegrees (canHdgRads);
+        double hdg = currentGPSHdg - Math.toDegrees (canHdgRads);
 
         /*
          * Draw the icon.
          */
         canvas.save ();
-        canvas.translate (pt.x, pt.y);  // anything drawn below will be translated this much
-        canvas.rotate (hdg);            // anything drawn below will be rotated this much
-        DrawAirplaneSymbol (canvas, textSize * 1.5F);  // draw the airplane with vectors and filling
-        canvas.restore ();              // remove translation/scaling/rotation
+        canvas.translate ((float) pt.x, (float) pt.y);  // anything drawn below will be translated this much
+        canvas.rotate ((float) hdg);                    // anything drawn below will be rotated this much
+        DrawAirplaneSymbol (canvas, textSize * 1.5);    // draw the airplane with vectors and filling
+        canvas.restore ();                              // remove translation/scaling/rotation
     }
 
-    public void DrawAirplaneSymbol (Canvas canvas, float pixels)
+    public void DrawAirplaneSymbol (Canvas canvas, double pixels)
     {
-        float scale = pixels / airplaneHeight;
+        double scale = pixels / airplaneHeight;
         airplanePaint.setStyle (Paint.Style.FILL);
-        canvas.scale (scale, scale);                    // anything drawn below will be scaled this much
+        canvas.scale ((float) scale, (float) scale);    // anything drawn below will be scaled this much
         canvas.drawPath (airplanePath, airplanePaint);  // draw the airplane with vectors and filling
     }
 
@@ -892,9 +891,6 @@ public class WairToNow extends Activity {
         }
         if ("Re-center".equals (sel) && hasAgreed) {
             chartView.ReCenter ();
-            if (currentTabButton.view != chartView) {
-                SetCurrentTab (chartView);
-            }
         }
         if ("Show".equals (sel)) {
             SetTabVisibility (true);
@@ -909,11 +905,11 @@ public class WairToNow extends Activity {
     {
         SharedPreferences prefs = getPreferences (MODE_PRIVATE);
         SharedPreferences.Editor editr = prefs.edit ();
-        editr.putFloat ("lastKnownAlt", currentGPSAlt);
-        editr.putFloat ("lastKnownHdg", currentGPSHdg);
-        editr.putFloat ("lastKnownLat", currentGPSLat);
-        editr.putFloat ("lastKnownLon", currentGPSLon);
-        editr.putFloat ("lastKnownSpd", currentGPSSpd);
+        editr.putFloat ("lastKnownAlt", (float) currentGPSAlt);
+        editr.putFloat ("lastKnownHdg", (float) currentGPSHdg);
+        editr.putFloat ("lastKnownLat", (float) currentGPSLat);
+        editr.putFloat ("lastKnownLon", (float) currentGPSLon);
+        editr.putFloat ("lastKnownSpd", (float) currentGPSSpd);
         editr.putLong ("lastKnownTime", currentGPSTime);
         editr.commit ();
     }
@@ -948,7 +944,7 @@ public class WairToNow extends Activity {
 
         dotsPerInchX  = metrics.xdpi;
         dotsPerInchY  = metrics.ydpi;
-        dotsPerInch   = Mathf.sqrt (dotsPerInchX * dotsPerInchY);
+        dotsPerInch   = (float) Math.sqrt (dotsPerInchX * dotsPerInchY);
     }
 
     /**

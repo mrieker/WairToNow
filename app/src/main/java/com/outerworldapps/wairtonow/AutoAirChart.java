@@ -26,7 +26,6 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Matrix;
-import android.graphics.PointF;
 import android.support.annotation.NonNull;
 import android.util.TypedValue;
 import android.view.View;
@@ -42,8 +41,8 @@ import java.util.TreeSet;
  * Group of same-scaled air (eg, SEC or WAC) charts (that are downloaded) sown together.
  */
 public class AutoAirChart implements DisplayableChart, Comparator<AirChart> {
-    private float macroNLat, macroSLat;
-    private float macroELon, macroWLon;
+    private double macroNLat, macroSLat;
+    private double macroELon, macroWLon;
     private HashSet<String> dontAskAboutDownloading = new HashSet<> ();
     private long viewDrawCycle;
     private String basename;
@@ -112,7 +111,7 @@ public class AutoAirChart implements DisplayableChart, Comparator<AirChart> {
      * @param canvasHdgRads = 'up' heading on canvas
      */
     @Override  // DisplayableChart
-    public void DrawOnCanvas (@NonNull PixelMapper pmap, @NonNull Canvas canvas, @NonNull Invalidatable inval, float canvasHdgRads)
+    public void DrawOnCanvas (@NonNull PixelMapper pmap, @NonNull Canvas canvas, @NonNull Invalidatable inval, double canvasHdgRads)
     {
         // fill white background for enroute charts cuz they sometimes leave gaps
         if (category.equals ("ENR")) canvas.drawColor (Color.WHITE);
@@ -146,12 +145,12 @@ public class AutoAirChart implements DisplayableChart, Comparator<AirChart> {
     }
 
     @Override  // DisplayableChart
-    public boolean LatLon2CanPixExact (float lat, float lon, @NonNull PointF canpix)
+    public boolean LatLon2CanPixExact (double lat, double lon, @NonNull PointD canpix)
     {
         // find last chart drawn that covers the given lat/lon
         boolean found = false;
-        float lastx = 0.0F;
-        float lasty = 0.0F;
+        double lastx = 0.0;
+        double lasty = 0.0;
         for (AirChart ac : airChartsAsync.keySet ()) {
             if (ac.IsDownloaded () &&
                     ac.LatLonIsCharted (lat, lon) &&
@@ -169,12 +168,12 @@ public class AutoAirChart implements DisplayableChart, Comparator<AirChart> {
     }
 
     @Override  // DisplayableChart
-    public boolean CanPix2LatLonExact (float canpixx, float canpixy, @NonNull LatLon ll)
+    public boolean CanPix2LatLonExact (double canpixx, double canpixy, @NonNull LatLon ll)
     {
         // find last chart drawn that covers the given pixel
         boolean found = false;
-        float lastlat = 0.0F;
-        float lastlon = 0.0F;
+        double lastlat = 0.0;
+        double lastlon = 0.0;
         for (AirChart ac : airChartsAsync.keySet ()) {
             // get what this chart thinks the lat/lon of the canvas pixel is
             // and see if that chart covers that lat/lon
@@ -217,7 +216,7 @@ public class AutoAirChart implements DisplayableChart, Comparator<AirChart> {
      * @return corresponding bitmap
      */
     @Override  // DisplayableChart
-    public Bitmap GetMacroBitmap (float slat, float nlat, float wlon, float elon)
+    public Bitmap GetMacroBitmap (double slat, double nlat, double wlon, double elon)
     {
         macroSLat = slat;
         macroNLat = nlat;
@@ -247,10 +246,10 @@ public class AutoAirChart implements DisplayableChart, Comparator<AirChart> {
         floats[6] = EarthSector.MBMSIZE;
         floats[7] = EarthSector.MBMSIZE;
         Matrix matrix = new Matrix ();
-        PointF srctlpix = new PointF ();
-        PointF srctrpix = new PointF ();
-        PointF srcblpix = new PointF ();
-        PointF srcbrpix = new PointF ();
+        PointD srctlpix = new PointD ();
+        PointD srctrpix = new PointD ();
+        PointD srcblpix = new PointD ();
+        PointD srcbrpix = new PointD ();
         for (AirChart ac : airChartsSync.keySet ()) {
             if (ac.IsDownloaded ()) {
                 Bitmap cbm = ac.GetMacroBitmap (slat, nlat, wlon, elon, false);
@@ -258,14 +257,14 @@ public class AutoAirChart implements DisplayableChart, Comparator<AirChart> {
                 ac.LatLon2MacroBitmap (nlat, elon, srctrpix);
                 ac.LatLon2MacroBitmap (slat, wlon, srcblpix);
                 ac.LatLon2MacroBitmap (slat, elon, srcbrpix);
-                floats[ 8] = srctlpix.x;
-                floats[ 9] = srctlpix.y;
-                floats[10] = srctrpix.x;
-                floats[11] = srctrpix.y;
-                floats[12] = srcblpix.x;
-                floats[13] = srcblpix.y;
-                floats[14] = srcbrpix.x;
-                floats[15] = srcbrpix.y;
+                floats[ 8] = (float) srctlpix.x;
+                floats[ 9] = (float) srctlpix.y;
+                floats[10] = (float) srctrpix.x;
+                floats[11] = (float) srctrpix.y;
+                floats[12] = (float) srcblpix.x;
+                floats[13] = (float) srcblpix.y;
+                floats[14] = (float) srcbrpix.x;
+                floats[15] = (float) srcbrpix.y;
                 matrix.setPolyToPoly (floats, 8, floats, 0, 4);
                 can.drawBitmap (cbm, matrix, null);
                 cbm.recycle ();
@@ -276,12 +275,12 @@ public class AutoAirChart implements DisplayableChart, Comparator<AirChart> {
     }
 
     @Override  // DisplayableChart
-    public void LatLon2MacroBitmap (float lat, float lon, @NonNull PointF mbmpix)
+    public void LatLon2MacroBitmap (double lat, double lon, @NonNull PointD mbmpix)
     {
-        float x;
+        double x;
         if (macroELon < macroWLon) {
-            if (lon < (macroELon + macroWLon) / 2.0F) lon += 360.0F;
-            x = (lon - macroWLon) / (macroELon - macroWLon + 360.0F);
+            if (lon < (macroELon + macroWLon) / 2.0) lon += 360.0;
+            x = (lon - macroWLon) / (macroELon - macroWLon + 360.0);
         } else {
             x = (lon - macroWLon) / (macroELon - macroWLon);
         }

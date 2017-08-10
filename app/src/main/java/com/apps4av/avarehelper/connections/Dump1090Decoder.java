@@ -64,13 +64,13 @@ public class Dump1090Decoder extends MidDecoder {
         public int icao24;
         public String callsign = "";
 
-        public float climb = Float.NaN;  // feet per minute
-        public float speed = Float.NaN;  // knots
-        public float geoMinusBaro = Float.NaN;  // feet
-        public float heading = Float.NaN;  // degrees
-        public float lat, lon;  // degrees
-        public float presalt;   // feet
-        public float truealt;   // feet
+        public double climb = Double.NaN;  // feet per minute
+        public double speed = Double.NaN;  // knots
+        public double geoMinusBaro = Double.NaN;  // feet
+        public double heading = Double.NaN;  // degrees
+        public double lat, lon;  // degrees
+        public double presalt;   // feet
+        public double truealt;   // feet
 
         AirbornePositionMsg posEven;
         AirbornePositionMsg posOdd;
@@ -78,8 +78,8 @@ public class Dump1090Decoder extends MidDecoder {
         // set altitude given a pressure (barometric) altitude in metres
         public void setPresAlt (double baroalt, Reporter reporter)
         {
-            presalt = (float) baroalt * Lib.FtPerM;
-            truealt = Float.isNaN (geoMinusBaro) ?
+            presalt = baroalt * Lib.FtPerM;
+            truealt = Double.isNaN (geoMinusBaro) ?
                     reporter.adsbGpsPalt2Talt (lat, lon, presalt) :
                     presalt - geoMinusBaro;
         }
@@ -151,6 +151,7 @@ public class Dump1090Decoder extends MidDecoder {
         try {
             // decode message and get ICAO identifier for the aircraft
             ModeSReply msg = Decoder.genericDecoder (new String (mbuf, saveRem, semiNl - saveRem));
+            reporter.adsbGpsInstance ("dump1090-" + msg.getClass ().getSimpleName ());
             int icao24 = icao24int (msg.getIcao24 ());
             Aircraft aircraft = aircrafts.get (icao24);
             if (aircraft == null) {
@@ -184,15 +185,15 @@ public class Dump1090Decoder extends MidDecoder {
 
                         // we should be able to compute and report position now
                         Position position = msgpos.getGlobalPosition (other);
-                        aircraft.lat = (float) (double) position.getLatitude  ();
-                        aircraft.lon = (float) (double) position.getLongitude ();
+                        aircraft.lat = position.getLatitude  ();
+                        aircraft.lon = position.getLongitude ();
                         Double boxedalt = position.getAltitude  ();  // metres
                         if (boxedalt != null) {
                             if (msgpos.isBarometricAltitude ()) {
                                 aircraft.setPresAlt (boxedalt, reporter);
                             } else {
-                                aircraft.presalt = Float.NaN;
-                                aircraft.truealt = (float) (double) boxedalt * Lib.FtPerM;
+                                aircraft.presalt = Double.NaN;
+                                aircraft.truealt = boxedalt * Lib.FtPerM;
                             }
                         }
                         reporter.adsbGpsTraffic (
@@ -213,16 +214,16 @@ public class Dump1090Decoder extends MidDecoder {
                 case ADSB_AIRSPEED: {
                     AirspeedHeadingMsg msgspd = (AirspeedHeadingMsg) msg;
                     if (msgspd.hasAirspeedInfo ()) {
-                        aircraft.speed = (float) msgspd.getAirspeed () * Lib.KtPerMPS;
+                        aircraft.speed = msgspd.getAirspeed () * Lib.KtPerMPS;
                     }
                     if (msgspd.hasVerticalRateInfo ()) {
-                        aircraft.climb = (float) msgspd.getVerticalRate () * Lib.FtPerM * 60.0F;
+                        aircraft.climb = msgspd.getVerticalRate () * Lib.FtPerM * 60.0;
                     }
                     if (msgspd.hasGeoMinusBaroInfo ()) {
-                        aircraft.geoMinusBaro = (float) msgspd.getGeoMinusBaro () * Lib.FtPerM;
+                        aircraft.geoMinusBaro = msgspd.getGeoMinusBaro () * Lib.FtPerM;
                     }
                     if (msgspd.hasHeadingInfo ()) {
-                        aircraft.heading = (float) msgspd.getHeading ();
+                        aircraft.heading = msgspd.getHeading ();
                     }
                     break;
                 }

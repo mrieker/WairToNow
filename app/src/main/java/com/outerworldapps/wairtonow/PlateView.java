@@ -29,7 +29,6 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
-import android.graphics.PointF;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.os.SystemClock;
@@ -184,7 +183,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
      */
     private abstract class PlateImage extends View {
         private ADVPanAndZoom advPanAndZoom;
-        private float         unzoomedCanvasWidth;
+        private double         unzoomedCanvasWidth;
         private Rect          bitmapRect = new Rect ();    // biggest centered square completely filled by bitmap
         private RectF         canvasRect = new RectF ();   // initially biggest centered square completely filled by display area
                                                            // ... but gets panned/zoomed by user
@@ -196,8 +195,8 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         }
 
         public abstract void CloseBitmaps ();
-        protected abstract void GotMouseDown (float x, float y);
-        protected abstract void GotMouseUp (float x, float y);
+        protected abstract void GotMouseDown (double x, double y);
+        protected abstract void GotMouseUp (double x, double y);
 
         public void SetGPSLocation () { }
 
@@ -221,17 +220,17 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                 super (wairToNow);
             }
 
-            public void MouseDown (float x, float y)
+            public void MouseDown (double x, double y)
             {
                 GotMouseDown (x, y);
             }
 
-            public void MouseUp (float x, float y)
+            public void MouseUp (double x, double y)
             {
                 GotMouseUp (x, y);
             }
 
-            public void Panning (float x, float y, float dx, float dy)
+            public void Panning (double x, double y, double dx, double dy)
             {
                 canvasRect.left   += dx;
                 canvasRect.right  += dx;
@@ -240,15 +239,15 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                 invalidate ();
             }
 
-            public void Scaling (float fx, float fy, float sf)
+            public void Scaling (double fx, double fy, double sf)
             {
-                float canvasWidth = canvasRect.width () * sf;
+                double canvasWidth = canvasRect.width () * sf;
                 if ((canvasWidth > unzoomedCanvasWidth / MAXZOOMOUT) &&
                     (canvasWidth < unzoomedCanvasWidth * MAXZOOMIN)){
-                    canvasRect.left   = (canvasRect.left   - fx) * sf + fx;
-                    canvasRect.right  = (canvasRect.right  - fx) * sf + fx;
-                    canvasRect.top    = (canvasRect.top    - fy) * sf + fy;
-                    canvasRect.bottom = (canvasRect.bottom - fy) * sf + fy;
+                    canvasRect.left   = (float) ((canvasRect.left   - fx) * sf + fx);
+                    canvasRect.right  = (float) ((canvasRect.right  - fx) * sf + fx);
+                    canvasRect.top    = (float) ((canvasRect.top    - fy) * sf + fy);
+                    canvasRect.bottom = (float) ((canvasRect.bottom - fy) * sf + fy);
                 }
                 invalidate ();
             }
@@ -305,21 +304,21 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             int canHeight = getHeight ();
 
             // get drawring area dimensions in inches
-            float xdpi = wairToNow.dotsPerInchX;
-            float ydpi = wairToNow.dotsPerInchY;
-            float canInWidth  = canWidth  / xdpi;
-            float canInHeight = canHeight / ydpi;
+            double xdpi = wairToNow.dotsPerInchX;
+            double ydpi = wairToNow.dotsPerInchY;
+            double canInWidth  = canWidth  / xdpi;
+            double canInHeight = canHeight / ydpi;
 
             // get largest square centered on canvas that can be seen in total
             // ie, there might be unused parts of two of the canvas' margins
             if (canInHeight > canInWidth) {
                 canvasRect.left   = 0;
                 canvasRect.right  = canWidth;
-                canvasRect.top    = ydpi * (canInHeight - canInWidth) / 2;
-                canvasRect.bottom = ydpi * (canInHeight + canInWidth) / 2;
+                canvasRect.top    = (float) (ydpi * (canInHeight - canInWidth) / 2);
+                canvasRect.bottom = (float) (ydpi * (canInHeight + canInWidth) / 2);
             } else {
-                canvasRect.left   = xdpi * (canInWidth - canInHeight) / 2;
-                canvasRect.right  = xdpi * (canInWidth + canInHeight) / 2;
+                canvasRect.left   = (float) (xdpi * (canInWidth - canInHeight) / 2);
+                canvasRect.right  = (float) (xdpi * (canInWidth + canInHeight) / 2);
                 canvasRect.top    = 0;
                 canvasRect.bottom = canHeight;
             }
@@ -346,21 +345,21 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             }
 
             // get drawring area dimensions in inches
-            float xdpi = wairToNow.dotsPerInchX;
-            float ydpi = wairToNow.dotsPerInchY;
-            float canInWidth  = canWidth  / xdpi;
-            float canInHeight = canHeight / ydpi;
+            double xdpi = wairToNow.dotsPerInchX;
+            double ydpi = wairToNow.dotsPerInchY;
+            double canInWidth  = canWidth  / xdpi;
+            double canInHeight = canHeight / ydpi;
 
             // get largest square centered on canvas that can be seen in total
             // ie, there might be unused parts of two of the canvas' margins
             if (canInHeight > canInWidth) {
                 canvasRect.left   = 0;
                 canvasRect.right  = canWidth;
-                canvasRect.top    = ydpi * (canInHeight - canInWidth) / 2;
-                canvasRect.bottom = ydpi * (canInHeight + canInWidth) / 2;
+                canvasRect.top    = (float) (ydpi * (canInHeight - canInWidth) / 2);
+                canvasRect.bottom = (float) (ydpi * (canInHeight + canInWidth) / 2);
             } else {
-                canvasRect.left   = xdpi * (canInWidth - canInHeight) / 2;
-                canvasRect.right  = xdpi * (canInWidth + canInHeight) / 2;
+                canvasRect.left   = (float) (xdpi * (canInWidth - canInHeight) / 2);
+                canvasRect.right  = (float) (xdpi * (canInWidth + canInHeight) / 2);
                 canvasRect.top    = 0;
                 canvasRect.bottom = canHeight;
             }
@@ -370,25 +369,25 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         /**
          * bitmap <=> view mapping.
          */
-        protected float BitmapX2CanvasX (float bitmapX)
+        protected double BitmapX2CanvasX (double bitmapX)
         {
-            float nx = (bitmapX - bitmapRect.left) / (float) bitmapRect.width ();
+            double nx = (bitmapX - bitmapRect.left) / (double) bitmapRect.width ();
             return nx * canvasRect.width () + canvasRect.left;
         }
-        protected float BitmapY2CanvasY (float bitmapY)
+        protected double BitmapY2CanvasY (double bitmapY)
         {
-            float ny = (bitmapY - bitmapRect.top) / (float) bitmapRect.height ();
+            double ny = (bitmapY - bitmapRect.top) / (double) bitmapRect.height ();
             return ny * canvasRect.height () + canvasRect.top;
         }
 
-        protected float CanvasX2BitmapX (float canvasX)
+        protected double CanvasX2BitmapX (double canvasX)
         {
-            float nx = (canvasX - canvasRect.left) / canvasRect.width ();
+            double nx = (canvasX - canvasRect.left) / canvasRect.width ();
             return nx * bitmapRect.width () + bitmapRect.left;
         }
-        protected float CanvasY2BitmapY (float canvasY)
+        protected double CanvasY2BitmapY (double canvasY)
         {
-            float ny = (canvasY - canvasRect.top) / canvasRect.height ();
+            double ny = (canvasY - canvasRect.top) / canvasRect.height ();
             return ny * bitmapRect.height () + bitmapRect.top;
         }
 
@@ -407,11 +406,11 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                 }
                 canvas.save ();
                 canvas.clipRect (outline);
-                float ch = outline.height ();
-                float step = wairToNow.dotsPerInch * 0.75F;
-                for (float i = outline.left - ch; i < outline.right; i += step) {
-                    canvas.drawLine (i, outline.top, ch + i, outline.bottom, exppaint);
-                    canvas.drawLine (i, outline.bottom, ch + i, outline.top, exppaint);
+                double ch = outline.height ();
+                double step = wairToNow.dotsPerInch * 0.75;
+                for (double i = outline.left - ch; i < outline.right; i += step) {
+                    canvas.drawLine ((float) i, outline.top, (float) (ch + i), outline.bottom, exppaint);
+                    canvas.drawLine ((float) i, outline.bottom, (float) (ch + i), outline.top, exppaint);
                 }
                 canvas.restore ();
             }
@@ -422,11 +421,11 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
      * Single-page georeferenced plates.
      */
     private abstract class GRPlateImage extends PlateImage {
-        protected float xfmtfwa, xfmtfwb, xfmtfwc, xfmtfwd, xfmtfwe, xfmtfwf;
-        protected float xfmwfta, xfmwftb, xfmwftc, xfmwftd, xfmwfte, xfmwftf;
-        protected float mPerBmpPix;
+        protected double xfmtfwa, xfmtfwb, xfmtfwc, xfmtfwd, xfmtfwe, xfmtfwf;
+        protected double xfmwfta, xfmwftb, xfmwftc, xfmwftd, xfmwfte, xfmwftf;
+        protected double mPerBmpPix;
 
-        private PointF canPoint   = new PointF ();
+        private PointD canPoint   = new PointD ();
         private RectF  canTmpRect = new RectF  ();
 
         /**
@@ -437,10 +436,10 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             /*
              * See where page maps to on canvas.
              */
-            canTmpRect.top    = BitmapY2CanvasY (0);
-            canTmpRect.bottom = BitmapY2CanvasY (bitmap.getHeight ());
-            canTmpRect.left   = BitmapX2CanvasX (0);
-            canTmpRect.right  = BitmapX2CanvasX (bitmap.getWidth  ());
+            canTmpRect.top    = (float) BitmapY2CanvasY (0);
+            canTmpRect.bottom = (float) BitmapY2CanvasY (bitmap.getHeight ());
+            canTmpRect.left   = (float) BitmapX2CanvasX (0);
+            canTmpRect.right  = (float) BitmapX2CanvasX (bitmap.getWidth  ());
 
             /*
              * Display bitmap to canvas.
@@ -461,12 +460,12 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             if (!LatLon2BitmapOK ()) return false;
 
             if (!wairToNow.optionsView.typeBOption.checkBox.isChecked () ||
-                    (isAptDgm && (wairToNow.currentGPSSpd < 80.0F * Lib.MPerNM / 3600.0F))) {
-                float bitmapX = LatLon2BitmapX (wairToNow.currentGPSLat, wairToNow.currentGPSLon);
-                float bitmapY = LatLon2BitmapY (wairToNow.currentGPSLat, wairToNow.currentGPSLon);
+                    (isAptDgm && (wairToNow.currentGPSSpd < 80.0 * Lib.MPerNM / 3600.0))) {
+                double bitmapX = LatLon2BitmapX (wairToNow.currentGPSLat, wairToNow.currentGPSLon);
+                double bitmapY = LatLon2BitmapY (wairToNow.currentGPSLat, wairToNow.currentGPSLon);
                 canPoint.x = BitmapX2CanvasX (bitmapX);
                 canPoint.y = BitmapY2CanvasY (bitmapY);
-                wairToNow.DrawLocationArrow (canvas, canPoint, 0.0F);
+                wairToNow.DrawLocationArrow (canvas, canPoint, 0.0);
             }
             return true;
         }
@@ -474,17 +473,17 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         /**
          * Set lat/lon => bitmap transform via two example mappings.
          */
-        protected float SetLatLon2Bitmap (float ilat, float ilon, float jlat, float jlon,
+        protected double SetLatLon2Bitmap (double ilat, double ilon, double jlat, double jlon,
                                           int ipixelx, int ipixely, int jpixelx, int jpixely)
         {
-            float avglatcos = Mathf.cos (Mathf.toRadians (airport.lat));
+            double avglatcos = Math.cos (Math.toRadians (airport.lat));
 
             //noinspection UnnecessaryLocalVariable
-            float inorthing = ilat;                // 60nm units north of equator
-            float ieasting  = ilon * avglatcos;    // 60nm units east of prime meridian
+            double inorthing = ilat;                // 60nm units north of equator
+            double ieasting  = ilon * avglatcos;    // 60nm units east of prime meridian
             //noinspection UnnecessaryLocalVariable
-            float jnorthing = jlat;                // 60nm units north of equator
-            float jeasting  = jlon * avglatcos;    // 60nm units east of prime meridian
+            double jnorthing = jlat;                // 60nm units north of equator
+            double jeasting  = jlon * avglatcos;    // 60nm units east of prime meridian
 
             // determine transform to convert northing/easting to pixel
 
@@ -502,13 +501,13 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             //    wfta' + wftd' = 0
             //    wftb' - wftc' = 0
 
-            float[][] mat = new float[][] {
-                    new float[] { 1,  0, 0, 1, 0, 0, 0 },
-                    new float[] { 0, -1, 1, 0, 0, 0, 0 },
-                    new float[] { ieasting, 0, inorthing, 0, 1, 0, ipixelx },
-                    new float[] { 0, ieasting, 0, inorthing, 0, 1, ipixely },
-                    new float[] { jeasting, 0, jnorthing, 0, 1, 0, jpixelx },
-                    new float[] { 0, jeasting, 0, jnorthing, 0, 1, jpixely }
+            double[][] mat = new double[][] {
+                    new double[] { 1,  0, 0, 1, 0, 0, 0 },
+                    new double[] { 0, -1, 1, 0, 0, 0, 0 },
+                    new double[] { ieasting, 0, inorthing, 0, 1, 0, ipixelx },
+                    new double[] { 0, ieasting, 0, inorthing, 0, 1, ipixely },
+                    new double[] { jeasting, 0, jnorthing, 0, 1, 0, jpixelx },
+                    new double[] { 0, jeasting, 0, jnorthing, 0, 1, jpixely }
             };
             Lib.RowReduce (mat);
 
@@ -528,7 +527,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             // save real-world metres per bitmap pixel
             // xfmwft{a,b,c,d} are in pixels/degree
 
-            mPerBmpPix = Lib.NMPerDeg * Lib.MPerNM / Mathf.hypot (xfmwftc, xfmwftd);
+            mPerBmpPix = Lib.NMPerDeg * Lib.MPerNM / Math.hypot (xfmwftc, xfmwftd);
 
             // convert the wfta',wftb' to wfta,wftb include factor to convert longitude => easting
             // wftc',wftd',wfte',wftf' are the same as wftc,wftd,wfte,wftf
@@ -553,10 +552,10 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             //   tfwa * pixx + tfwc * pixy + tfwe = lon
             //   tfwb * pixx + tfwd * pixy + tfwf = lat
 
-            float rev[][] = new float[][] {
-                new float[] { xfmwfta, xfmwftb, 0, 1, 0, 0 },
-                new float[] { xfmwftc, xfmwftd, 0, 0, 1, 0 },
-                new float[] { xfmwfte, xfmwftf, 1, 0, 0, 1 },
+            double rev[][] = new double[][] {
+                new double[] { xfmwfta, xfmwftb, 0, 1, 0, 0 },
+                new double[] { xfmwftc, xfmwftd, 0, 0, 1, 0 },
+                new double[] { xfmwfte, xfmwftf, 1, 0, 0, 1 },
             };
             Lib.RowReduce (rev);
 
@@ -569,7 +568,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
 
             // return rotation angle
 
-            return Mathf.atan2 (xfmwftb, xfmwfta);
+            return Math.atan2 (xfmwftb, xfmwfta);
         }
 
         /**
@@ -579,11 +578,11 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         {
             return (xfmwfte != 0.0) || (xfmwftf != 0.0);
         }
-        protected float LatLon2BitmapX (float lat, float lon)
+        protected double LatLon2BitmapX (double lat, double lon)
         {
             return xfmwfta * lon + xfmwftc * lat + xfmwfte;
         }
-        protected float LatLon2BitmapY (float lat, float lon)
+        protected double LatLon2BitmapY (double lat, double lon)
         {
             return xfmwftb * lon + xfmwftd * lat + xfmwftf;
         }
@@ -591,11 +590,11 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         /**
          * Gif pixel => Lat/Lon
          */
-        protected float BitmapXY2Lat (float bmx, float bmy)
+        protected double BitmapXY2Lat (double bmx, double bmy)
         {
             return xfmtfwb * bmx + xfmtfwd * bmy + xfmtfwf;
         }
-        protected float BitmapXY2Lon (float bmx, float bmy)
+        protected double BitmapXY2Lon (double bmx, double bmy)
         {
             return xfmtfwa * bmx + xfmtfwc * bmy + xfmtfwe;
         }
@@ -630,12 +629,12 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                         null, null, null, null);
                 try {
                     if (result.moveToFirst ()) {
-                        xfmwfta = result.getFloat (0);
-                        xfmwftb = result.getFloat (1);
-                        xfmwftc = result.getFloat (2);
-                        xfmwftd = result.getFloat (3);
-                        xfmwfte = result.getFloat (4);
-                        xfmwftf = result.getFloat (5);
+                        xfmwfta = result.getDouble (0);
+                        xfmwftb = result.getDouble (1);
+                        xfmwftc = result.getDouble (2);
+                        xfmwftd = result.getDouble (3);
+                        xfmwfte = result.getDouble (4);
+                        xfmwftf = result.getDouble (5);
                     }
                 } finally {
                     result.close ();
@@ -656,8 +655,8 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             }
         }
 
-        protected void GotMouseDown (float x, float y) { }
-        protected void GotMouseUp (float x, float y) { }
+        protected void GotMouseDown (double x, double y) { }
+        protected void GotMouseUp (double x, double y) { }
 
         /**
          * Draw the plate image and any other marks on it we want.
@@ -685,15 +684,15 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
              */
             if (DrawLocationArrow (canvas, true)) {
                 for (Waypoint.Runway rwy : airport.GetRunways ().values ()) {
-                    float begBmX = LatLon2BitmapX (rwy.begLat, rwy.begLon);
-                    float begBmY = LatLon2BitmapY (rwy.begLat, rwy.begLon);
-                    float endBmX = LatLon2BitmapX (rwy.endLat, rwy.endLon);
-                    float endBmY = LatLon2BitmapY (rwy.endLat, rwy.endLon);
-                    float begCanX = BitmapX2CanvasX (begBmX);
-                    float begCanY = BitmapY2CanvasY (begBmY);
-                    float midCanX = (BitmapX2CanvasX (endBmX) + begCanX) / 2.0F;
-                    float midCanY = (BitmapY2CanvasY (endBmY) + begCanY) / 2.0F;
-                    canvas.drawLine (begCanX, begCanY, midCanX, midCanY, rwPaint);
+                    double begBmX = LatLon2BitmapX (rwy.begLat, rwy.begLon);
+                    double begBmY = LatLon2BitmapY (rwy.begLat, rwy.begLon);
+                    double endBmX = LatLon2BitmapX (rwy.endLat, rwy.endLon);
+                    double endBmY = LatLon2BitmapY (rwy.endLat, rwy.endLon);
+                    double begCanX = BitmapX2CanvasX (begBmX);
+                    double begCanY = BitmapY2CanvasY (begBmY);
+                    double midCanX = (BitmapX2CanvasX (endBmX) + begCanX) / 2.0;
+                    double midCanY = (BitmapY2CanvasY (endBmY) + begCanY) / 2.0;
+                    canvas.drawLine ((float) begCanX, (float) begCanY, (float) midCanX, (float) midCanY, rwPaint);
                 }
             }
 
@@ -733,42 +732,42 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                 rwywp = rwy;
 
                 // get runway dimensions in NM
-                float lengthNM = (float) rwy.getLengthFt () / Lib.FtPerM / Lib.MPerNM;
-                float widthNM  = (float) rwy.getWidthFt  () / Lib.FtPerM / Lib.MPerNM;
+                double lengthNM = (double) rwy.getLengthFt () / Lib.FtPerM / Lib.MPerNM;
+                double widthNM  = (double) rwy.getWidthFt  () / Lib.FtPerM / Lib.MPerNM;
 
                 // get runway midpoint and heading from this end to the midpoint
-                float midLat = (rwy.lat + rwy.endLat) / 2.0F;
-                float midLon = Lib.AvgLons (rwy.lon, rwy.endLon);
-                float hdgDeg = Lib.LatLonTC (rwy.lat, rwy.lon, midLat, midLon);
+                double midLat = (rwy.lat + rwy.endLat) / 2.0;
+                double midLon = Lib.AvgLons (rwy.lon, rwy.endLon);
+                double hdgDeg = Lib.LatLonTC (rwy.lat, rwy.lon, midLat, midLon);
 
                 // get lat/lon on centerline of beginning of runway
-                float begLat = Lib.LatHdgDist2Lat (midLat, hdgDeg + 180.0F, lengthNM / 2.0F);
-                float begLon = Lib.LatLonHdgDist2Lon (midLat, midLon, hdgDeg + 180.0F, lengthNM / 2.0F);
+                double begLat = Lib.LatHdgDist2Lat (midLat, hdgDeg + 180.0, lengthNM / 2.0);
+                double begLon = Lib.LatLonHdgDist2Lon (midLat, midLon, hdgDeg + 180.0, lengthNM / 2.0);
 
                 // get lat/lon of left & right sides of this end of runway
-                float begLeftLat = Lib.LatHdgDist2Lat (begLat, hdgDeg - 90.0F, widthNM / 2.0F);
-                float begLeftLon = Lib.LatLonHdgDist2Lon (begLat, begLon, hdgDeg - 90.0F, widthNM / 2.0F);
+                double begLeftLat = Lib.LatHdgDist2Lat (begLat, hdgDeg - 90.0, widthNM / 2.0);
+                double begLeftLon = Lib.LatLonHdgDist2Lon (begLat, begLon, hdgDeg - 90.0, widthNM / 2.0);
 
-                float begRiteLat = Lib.LatHdgDist2Lat (begLat, hdgDeg + 90.0F, widthNM / 2.0F);
-                float begRiteLon = Lib.LatLonHdgDist2Lon (begLat, begLon, hdgDeg + 90.0F, widthNM / 2.0F);
+                double begRiteLat = Lib.LatHdgDist2Lat (begLat, hdgDeg + 90.0, widthNM / 2.0);
+                double begRiteLon = Lib.LatLonHdgDist2Lon (begLat, begLon, hdgDeg + 90.0, widthNM / 2.0);
 
                 // get lat/lon of left & right sides of midpoint on runway
-                float midLeftLat = Lib.LatHdgDist2Lat (midLat, hdgDeg - 90.0F, widthNM / 2.0F);
-                float midLeftLon = Lib.LatLonHdgDist2Lon (midLat, midLon, hdgDeg - 90.0F, widthNM / 2.0F);
+                double midLeftLat = Lib.LatHdgDist2Lat (midLat, hdgDeg - 90.0, widthNM / 2.0);
+                double midLeftLon = Lib.LatLonHdgDist2Lon (midLat, midLon, hdgDeg - 90.0, widthNM / 2.0);
 
-                float midRiteLat = Lib.LatHdgDist2Lat (midLat, hdgDeg + 90.0F, widthNM / 2.0F);
-                float midRiteLon = Lib.LatLonHdgDist2Lon (midLat, midLon, hdgDeg + 90.0F, widthNM / 2.0F);
+                double midRiteLat = Lib.LatHdgDist2Lat (midLat, hdgDeg + 90.0, widthNM / 2.0);
+                double midRiteLon = Lib.LatLonHdgDist2Lon (midLat, midLon, hdgDeg + 90.0, widthNM / 2.0);
 
                 // compute corresponding bitmap pixels
-                begLeftBmpX = Math.round (LatLon2BitmapX (begLeftLat, begLeftLon));
-                begLeftBmpY = Math.round (LatLon2BitmapY (begLeftLat, begLeftLon));
-                begRiteBmpX = Math.round (LatLon2BitmapX (begRiteLat, begRiteLon));
-                begRiteBmpY = Math.round (LatLon2BitmapY (begRiteLat, begRiteLon));
+                begLeftBmpX = (int) Math.round (LatLon2BitmapX (begLeftLat, begLeftLon));
+                begLeftBmpY = (int) Math.round (LatLon2BitmapY (begLeftLat, begLeftLon));
+                begRiteBmpX = (int) Math.round (LatLon2BitmapX (begRiteLat, begRiteLon));
+                begRiteBmpY = (int) Math.round (LatLon2BitmapY (begRiteLat, begRiteLon));
 
-                midLeftBmpX = Math.round (LatLon2BitmapX (midLeftLat, midLeftLon));
-                midLeftBmpY = Math.round (LatLon2BitmapY (midLeftLat, midLeftLon));
-                midRiteBmpX = Math.round (LatLon2BitmapX (midRiteLat, midRiteLon));
-                midRiteBmpY = Math.round (LatLon2BitmapY (midRiteLat, midRiteLon));
+                midLeftBmpX = (int) Math.round (LatLon2BitmapX (midLeftLat, midLeftLon));
+                midLeftBmpY = (int) Math.round (LatLon2BitmapY (midLeftLat, midLeftLon));
+                midRiteBmpX = (int) Math.round (LatLon2BitmapX (midRiteLat, midRiteLon));
+                midRiteBmpY = (int) Math.round (LatLon2BitmapY (midRiteLat, midRiteLon));
 
                 // compute top center of runway numbers text
                 numsTopBmpX = (begLeftBmpX + begRiteBmpX) / 2;
@@ -786,7 +785,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
 
         // one of these per waypoint within the display area
         private class WpInfo {
-            public float bmpX, bmpY;
+            public double bmpX, bmpY;
             public String ident;
             public String type;
 
@@ -801,16 +800,16 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             }
         }
 
-        private final static float defnm = 0.75F;
-        private final static float padnm = 0.25F;
+        private final static double defnm = 0.75;
+        private final static double padnm = 0.25;
 
         private boolean firstDraw = true;
-        private float longestNM;
-        private float minlat;
-        private float maxlat;
-        private float minlon;
-        private float maxlon;
-        private float qtrTextHeight;
+        private double longestNM;
+        private double minlat;
+        private double maxlat;
+        private double minlon;
+        private double maxlon;
+        private double qtrTextHeight;
         private HashMap<String,RwyInfo> runways = new HashMap<> ();
         private HashMap<String,WpInfo> waypoints = new HashMap<> ();
         private int synthWidth;
@@ -828,9 +827,9 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             rwyPaint.setTextSize (wairToNow.textSize);
             Rect bounds = new Rect ();
             rwyPaint.getTextBounds ("M", 0, 1, bounds);
-            qtrTextHeight = bounds.height () / 4.0F;
+            qtrTextHeight = bounds.height () / 4.0;
 
-            float avglatcos = Mathf.cos (Mathf.toRadians (airport.lat));
+            double avglatcos = Math.cos (Math.toRadians (airport.lat));
             minlat = airport.lat;
             maxlat = airport.lat;
             minlon = airport.lon;
@@ -842,14 +841,14 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                 maxlat += defnm / Lib.NMPerDeg;
                 minlon -= defnm / Lib.NMPerDeg / avglatcos;
                 maxlon += defnm / Lib.NMPerDeg / avglatcos;
-                longestNM = (defnm - padnm) * 2.0F;
+                longestNM = (defnm - padnm) * 2.0;
             } else {
                 for (Waypoint.Runway rwywp : rwywps) {
                     if (minlat > rwywp.lat) minlat = rwywp.lat;
                     if (maxlat < rwywp.lat) maxlat = rwywp.lat;
                     if (minlon > rwywp.lon) minlon = rwywp.lon;
                     if (maxlon < rwywp.lon) maxlon = rwywp.lon;
-                    float lenNM = rwywp.getLengthFt () / Lib.FtPerM / Lib.MPerNM;
+                    double lenNM = rwywp.getLengthFt () / Lib.FtPerM / Lib.MPerNM;
                     if (longestNM < lenNM) longestNM = lenNM;
                 }
                 minlat -= padnm / Lib.NMPerDeg;
@@ -887,8 +886,8 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             wairToNow.openStreetMap.CloseBitmaps ();
         }
 
-        protected void GotMouseDown (float x, float y) { }
-        protected void GotMouseUp (float x, float y) { }
+        protected void GotMouseDown (double x, double y) { }
+        protected void GotMouseUp (double x, double y) { }
 
         /**
          * Draw the plate image and any other marks on it we want.
@@ -902,15 +901,15 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             int width  = getWidth ();
             int height = getHeight ();
             CalcOSMBackground (width, height);
-            wairToNow.openStreetMap.Draw (canvas, pmap, this, 0.0F);
+            wairToNow.openStreetMap.Draw (canvas, pmap, this);
 
             /*
              * Show debugging lines through airport reference point.
              */
             /*{
                 rwyPaint.setColor (Color.WHITE);
-                float aptCanX = BitmapX2CanvasX (LatLon2BitmapX (airport.lat, airport.lon));
-                float aptCanY = BitmapY2CanvasY (LatLon2BitmapY (airport.lat, airport.lon));
+                double aptCanX = BitmapX2CanvasX (LatLon2BitmapX (airport.lat, airport.lon));
+                double aptCanY = BitmapY2CanvasY (LatLon2BitmapY (airport.lat, airport.lon));
                 canvas.drawLine (0, aptCanY, width, aptCanY, rwyPaint);
                 canvas.drawLine (aptCanX, 0, aptCanX, height, rwyPaint);
             }*/
@@ -920,32 +919,32 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
              */
             /*
             rwyPaint.setColor (Color.CYAN);
-            float aptlatcos = Mathf.cos (Mathf.toRadians (airport.lat));
-            float smFactor  = wairToNow.optionsView.ktsMphOption.getAlt () ? Lib.SMPerNM : 1.0;
-            float canx0     = BitmapX2CanvasX (0);
-            float cany0     = BitmapY2CanvasY (synthHeight);
-            float canx0lim  = canx0 + metrics.xdpi / 4;
-            float cany0lim  = cany0 - metrics.ydpi / 4;
-            int   nsteps    = (int) Mathf.ceil (longestNM * smFactor / stepMi / 2.0);
+            double aptlatcos = Math.cos (Math.toRadians (airport.lat));
+            double smFactor  = wairToNow.optionsView.ktsMphOption.getAlt () ? Lib.SMPerNM : 1.0;
+            double canx0     = BitmapX2CanvasX (0);
+            double cany0     = BitmapY2CanvasY (synthHeight);
+            double canx0lim  = canx0 + metrics.xdpi / 4;
+            double cany0lim  = cany0 - metrics.ydpi / 4;
+            int   nsteps    = (int) Math.ceil (longestNM * smFactor / stepMi / 2.0);
             for (int step = 0; step <= nsteps; step ++) {
-                String str = Float.toString (step * stepMi);
+                String str = Double.toString (step * stepMi);
                 int strlen = str.length ();
 
-                float dlatdeg = step * stepMi / smFactor / Lib.NMPerDeg;
-                float dlondeg = dlatdeg / aptlatcos;
+                double dlatdeg = step * stepMi / smFactor / Lib.NMPerDeg;
+                double dlondeg = dlatdeg / aptlatcos;
 
                 // left column
                 rwyPaint.setTextAlign (Paint.Align.LEFT);
-                float cany1 = BitmapY2CanvasY (LatLon2BitmapY (airport.lat + dlatdeg, airport.lon)) + qtrTextHeight * 2;
+                double cany1 = BitmapY2CanvasY (LatLon2BitmapY (airport.lat + dlatdeg, airport.lon)) + qtrTextHeight * 2;
                 canvas.drawText (str, 0, strlen, canx0, cany1, rwyPaint);
-                float cany2 = BitmapY2CanvasY (LatLon2BitmapY (airport.lat - dlatdeg, airport.lon)) + qtrTextHeight * 2;
+                double cany2 = BitmapY2CanvasY (LatLon2BitmapY (airport.lat - dlatdeg, airport.lon)) + qtrTextHeight * 2;
                 if (cany2 < cany0lim) canvas.drawText (str, 0, strlen, canx0, cany2, rwyPaint);
 
                 // bottom row
                 rwyPaint.setTextAlign (Paint.Align.CENTER);
-                float canx1 = BitmapX2CanvasX (LatLon2BitmapX (airport.lat, airport.lon + dlondeg));
+                double canx1 = BitmapX2CanvasX (LatLon2BitmapX (airport.lat, airport.lon + dlondeg));
                 canvas.drawText (str, 0, strlen, canx1, cany0, rwyPaint);
-                float canx2 = BitmapX2CanvasX (LatLon2BitmapX (airport.lat, airport.lon - dlondeg));
+                double canx2 = BitmapX2CanvasX (LatLon2BitmapX (airport.lat, airport.lon - dlondeg));
                 if (canx2 > canx0lim) canvas.drawText (str, 0, strlen, canx2, cany0, rwyPaint);
             }
             */
@@ -956,23 +955,23 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             for (RwyInfo rwy : runways.values ()) {
 
                 // compute corresponding canvas pixels
-                float begLeftCanX = BitmapX2CanvasX (rwy.begLeftBmpX);
-                float begLeftCanY = BitmapY2CanvasY (rwy.begLeftBmpY);
-                float begRiteCanX = BitmapX2CanvasX (rwy.begRiteBmpX);
-                float begRiteCanY = BitmapY2CanvasY (rwy.begRiteBmpY);
+                double begLeftCanX = BitmapX2CanvasX (rwy.begLeftBmpX);
+                double begLeftCanY = BitmapY2CanvasY (rwy.begLeftBmpY);
+                double begRiteCanX = BitmapX2CanvasX (rwy.begRiteBmpX);
+                double begRiteCanY = BitmapY2CanvasY (rwy.begRiteBmpY);
 
-                float midLeftCanX = BitmapX2CanvasX (rwy.midLeftBmpX);
-                float midLeftCanY = BitmapY2CanvasY (rwy.midLeftBmpY);
-                float midRiteCanX = BitmapX2CanvasX (rwy.midRiteBmpX);
-                float midRiteCanY = BitmapY2CanvasY (rwy.midRiteBmpY);
+                double midLeftCanX = BitmapX2CanvasX (rwy.midLeftBmpX);
+                double midLeftCanY = BitmapY2CanvasY (rwy.midLeftBmpY);
+                double midRiteCanX = BitmapX2CanvasX (rwy.midRiteBmpX);
+                double midRiteCanY = BitmapY2CanvasY (rwy.midRiteBmpY);
 
                 // draw rectangle for this runway half
                 rwyPath.reset ();
-                rwyPath.moveTo (begLeftCanX, begLeftCanY);
-                rwyPath.lineTo (begRiteCanX, begRiteCanY);
-                rwyPath.lineTo (midRiteCanX, midRiteCanY);
-                rwyPath.lineTo (midLeftCanX, midLeftCanY);
-                rwyPath.lineTo (begLeftCanX, begLeftCanY);
+                rwyPath.moveTo ((float) begLeftCanX, (float) begLeftCanY);
+                rwyPath.lineTo ((float) begRiteCanX, (float) begRiteCanY);
+                rwyPath.lineTo ((float) midRiteCanX, (float) midRiteCanY);
+                rwyPath.lineTo ((float) midLeftCanX, (float) midLeftCanY);
+                rwyPath.lineTo ((float) begLeftCanX, (float) begLeftCanY);
 
                 rwyPaint.setColor (rwy.surfColor);
                 canvas.drawPath (rwyPath, rwyPaint);
@@ -984,14 +983,14 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             rwyPaint.setColor (Color.MAGENTA);
             rwyPaint.setTextAlign (Paint.Align.LEFT);
             for (WpInfo wpInfo : waypoints.values ()) {
-                float canX = BitmapX2CanvasX (wpInfo.bmpX);
-                float canY = BitmapY2CanvasY (wpInfo.bmpY);
-                canvas.drawCircle (canX, canY, qtrTextHeight, rwyPaint);
+                double canX = BitmapX2CanvasX (wpInfo.bmpX);
+                double canY = BitmapY2CanvasY (wpInfo.bmpY);
+                canvas.drawCircle ((float) canX, (float) canY, (float) qtrTextHeight, rwyPaint);
                 canX += qtrTextHeight * 2;
                 canY -= qtrTextHeight;
-                canvas.drawText (wpInfo.ident, 0, wpInfo.ident.length (), canX, canY, rwyPaint);
+                canvas.drawText (wpInfo.ident, 0, wpInfo.ident.length (), (float) canX, (float) canY, rwyPaint);
                 canY += qtrTextHeight * 6;
-                canvas.drawText (wpInfo.type, 0, wpInfo.type.length (), canX, canY, rwyPaint);
+                canvas.drawText (wpInfo.type, 0, wpInfo.type.length (), (float) canX, (float) canY, rwyPaint);
             }
 
             /*
@@ -1001,11 +1000,12 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             rwyPaint.setTextAlign (Paint.Align.CENTER);
             for (RwyInfo rwy : runways.values ()) {
                 canvas.save ();
-                float canX = BitmapX2CanvasX (rwy.numsTopBmpX);
-                float canY = BitmapY2CanvasY (rwy.numsTopBmpY);
-                float deg  = rwy.rwywp.trueHdg;
-                canvas.rotate (deg, canX, canY);
-                canvas.drawText (rwy.rwywp.number, 0, rwy.rwywp.number.length (), canX, canY + rwy.numBounds.height () * 1.5F, rwyPaint);
+                double canX = BitmapX2CanvasX (rwy.numsTopBmpX);
+                double canY = BitmapY2CanvasY (rwy.numsTopBmpY);
+                double deg  = rwy.rwywp.trueHdg;
+                canvas.rotate ((float) deg, (float) canX, (float) canY);
+                canvas.drawText (rwy.rwywp.number, 0, rwy.rwywp.number.length (),
+                        (float) canX, (float) (canY + rwy.numBounds.height () * 1.5), rwyPaint);
                 canvas.restore ();
             }
 
@@ -1034,19 +1034,19 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                 firstDraw = false;
             }
 
-            float leftbmx = CanvasX2BitmapX (0);
-            float ritebmx = CanvasX2BitmapX (canWidth);
-            float topbmy  = CanvasY2BitmapY (0);
-            float botbmy  = CanvasY2BitmapY (canHeight);
+            double leftbmx = CanvasX2BitmapX (0);
+            double ritebmx = CanvasX2BitmapX (canWidth);
+            double topbmy  = CanvasY2BitmapY (0);
+            double botbmy  = CanvasY2BitmapY (canHeight);
 
-            float tllat = BitmapXY2Lat (leftbmx, topbmy);
-            float tllon = BitmapXY2Lon (leftbmx, topbmy);
-            float trlat = BitmapXY2Lat (ritebmx, topbmy);
-            float trlon = BitmapXY2Lon (ritebmx, topbmy);
-            float bllat = BitmapXY2Lat (leftbmx, botbmy);
-            float bllon = BitmapXY2Lon (leftbmx, botbmy);
-            float brlat = BitmapXY2Lat (ritebmx, botbmy);
-            float brlon = BitmapXY2Lon (ritebmx, botbmy);
+            double tllat = BitmapXY2Lat (leftbmx, topbmy);
+            double tllon = BitmapXY2Lon (leftbmx, topbmy);
+            double trlat = BitmapXY2Lat (ritebmx, topbmy);
+            double trlon = BitmapXY2Lon (ritebmx, topbmy);
+            double bllat = BitmapXY2Lat (leftbmx, botbmy);
+            double bllon = BitmapXY2Lon (leftbmx, botbmy);
+            double brlat = BitmapXY2Lat (ritebmx, botbmy);
+            double brlon = BitmapXY2Lon (ritebmx, botbmy);
 
             pmap.setup (canWidth, canHeight, tllat, tllon, trlat, trlon, bllat, bllon, brlat, brlon);
         }
@@ -1072,44 +1072,44 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         // dme arcs added via dmearcs.txt (see PlateCIFP.java)
         private class DMEArc {
             public Waypoint nav;
-            public float beg, end, nm;
+            public double beg, end, nm;
 
             public void drawIt (Canvas bmcan)
             {
                 // wrap beg to be in range (0..360] as that is the one that gets a label
-                while (beg <=  0.0F) beg += 360.0F;
-                while (beg > 360.0F) beg -= 360.0F;
+                while (beg <=  0.0) beg += 360.0;
+                while (beg > 360.0) beg -= 360.0;
 
                 // wrap end to be within 180 of beg
                 // it might end up negative, it might end up more than 360
-                while (end - beg < -180.0F) end += 360.0F;
-                while (end - beg >= 180.0F) end += 360.0F;
+                while (end - beg < -180.0) end += 360.0;
+                while (end - beg >= 180.0) end += 360.0;
 
                 // calculate true endpoints
-                float magvar = nav.GetMagVar (nav.elev);
-                float trubeg = beg - magvar;
-                float truend = end - magvar;
+                double magvar = nav.GetMagVar (nav.elev);
+                double trubeg = beg - magvar;
+                double truend = end - magvar;
 
                 // get lat,lon of arc endpoints
-                float beglat = Lib.LatHdgDist2Lat (nav.lat, trubeg, nm);
-                float beglon = Lib.LatLonHdgDist2Lon (nav.lat, nav.lon, trubeg, nm);
-                float endlat = Lib.LatHdgDist2Lat (nav.lat, truend, nm);
-                float endlon = Lib.LatLonHdgDist2Lon (nav.lat, nav.lon, truend, nm);
+                double beglat = Lib.LatHdgDist2Lat (nav.lat, trubeg, nm);
+                double beglon = Lib.LatLonHdgDist2Lon (nav.lat, nav.lon, trubeg, nm);
+                double endlat = Lib.LatHdgDist2Lat (nav.lat, truend, nm);
+                double endlon = Lib.LatLonHdgDist2Lon (nav.lat, nav.lon, truend, nm);
 
                 // convert all the lat,lon to bitmap x,y
-                float begbmx = LatLon2BitmapX (beglat, beglon);
-                float begbmy = LatLon2BitmapY (beglat, beglon);
-                float endbmx = LatLon2BitmapX (endlat, endlon);
-                float endbmy = LatLon2BitmapY (endlat, endlon);
-                float navbmx = LatLon2BitmapX (nav.lat, nav.lon);
-                float navbmy = LatLon2BitmapY (nav.lat, nav.lon);
+                double begbmx = LatLon2BitmapX (beglat, beglon);
+                double begbmy = LatLon2BitmapY (beglat, beglon);
+                double endbmx = LatLon2BitmapX (endlat, endlon);
+                double endbmy = LatLon2BitmapY (endlat, endlon);
+                double navbmx = LatLon2BitmapX (nav.lat, nav.lon);
+                double navbmy = LatLon2BitmapY (nav.lat, nav.lon);
 
-                float radius = Mathf.sqrt (Math.hypot (begbmx - navbmx, begbmy - navbmy) *
+                double radius = Math.sqrt (Math.hypot (begbmx - navbmx, begbmy - navbmy) *
                         Math.hypot (endbmx - navbmx, endbmy - navbmy));
 
                 // make rectangle the arc circle fits in
-                RectF rect = new RectF (navbmx - radius, navbmy - radius,
-                        navbmx + radius, navbmy + radius);
+                RectF rect = new RectF ((float) (navbmx - radius), (float) (navbmy - radius),
+                        (float) (navbmx + radius), (float) (navbmy + radius));
 
                 // draw arc
                 Paint paint = new Paint ();
@@ -1117,61 +1117,61 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                 paint.setFlags (Paint.ANTI_ALIAS_FLAG);
                 paint.setStrokeWidth (6.0F);
                 paint.setStyle (Paint.Style.STROKE);
-                float start = Math.min (trubeg, truend) - 90.0F;
-                float sweep = Math.abs (truend - trubeg);
-                bmcan.drawArc (rect, start, sweep, false, paint);
+                double start = Math.min (trubeg, truend) - 90.0;
+                double sweep = Math.abs (truend - trubeg);
+                bmcan.drawArc (rect, (float) start, (float) sweep, false, paint);
 
                 // draw radial line segment at beginning of arc
-                float trubegsin = Mathf.sin (Math.toRadians (trubeg));
-                float trubegcos = Mathf.cos (Math.toRadians (trubeg));
-                float pixpernm = radius / nm;
-                float innerx = navbmx + (nm - 0.6F) * pixpernm * trubegsin;
-                float innery = navbmy - (nm - 0.6F) * pixpernm * trubegcos;
-                float outerx = navbmx + (nm + 0.6F) * pixpernm * trubegsin;
-                float outery = navbmy - (nm + 0.6F) * pixpernm * trubegcos;
+                double trubegsin = Math.sin (Math.toRadians (trubeg));
+                double trubegcos = Math.cos (Math.toRadians (trubeg));
+                double pixpernm = radius / nm;
+                double innerx = navbmx + (nm - 0.6) * pixpernm * trubegsin;
+                double innery = navbmy - (nm - 0.6) * pixpernm * trubegcos;
+                double outerx = navbmx + (nm + 0.6) * pixpernm * trubegsin;
+                double outery = navbmy - (nm + 0.6) * pixpernm * trubegcos;
                 paint.setStrokeWidth (3.0F);
-                bmcan.drawLine (innerx, innery, outerx, outery, paint);
+                bmcan.drawLine ((float) innerx, (float) innery, (float) outerx, (float) outery, paint);
 
                 // draw legend
                 String legend1 = nav.ident + " " + Math.round (beg) + "\u00B0";
-                String legend2 = String.format ("%.1f", nm) + " nm";
+                String legend2 = String.format (Locale.US, "%.1f", nm) + " nm";
                 paint.setStrokeWidth (1.0F);
                 paint.setStyle (Paint.Style.FILL_AND_STROKE);
                 paint.setTextSize (25.0F);
                 bmcan.save ();
-                if (trubeg <= 180.0F) {
-                    bmcan.rotate (trubeg - 90.0F, outerx, outery);
+                if (trubeg <= 180.0) {
+                    bmcan.rotate ((float) (trubeg - 90.0), (float) outerx, (float) outery);
                 } else {
                     Rect bounds1 = new Rect ();
                     Rect bounds2 = new Rect ();
                     paint.getTextBounds (legend1, 0, legend1.length (), bounds1);
                     paint.getTextBounds (legend2, 0, legend2.length (), bounds2);
                     int width = Math.max (bounds1.width (), bounds2.width ());
-                    bmcan.rotate (trubeg - 270.0F, outerx, outery);
+                    bmcan.rotate ((float) (trubeg - 270.0), (float) outerx, (float) outery);
                     bmcan.translate (- width, 0);
                 }
-                bmcan.drawText (legend1, outerx, outery, paint);
+                bmcan.drawText (legend1, (float) outerx, (float) outery, paint);
                 outery += paint.getTextSize ();
-                bmcan.drawText (legend2, outerx, outery, paint);
+                bmcan.drawText (legend2, (float) outerx, (float) outery, paint);
                 bmcan.restore ();
             }
         }
 
-        private Bitmap      bitmap;                           // single plate page
+        private Bitmap      bitmap;                 // single plate page
         private boolean     hasDMEArcs;
-        private float       bitmapLat, bitmapLon;
-        private float       bmxy2llx = Float.NaN;
-        private float       bmxy2lly = Float.NaN;
-        private LambertConicalConformal lccmap;               // non-null: FAA-provided georef data
+        private double      bitmapLat, bitmapLon;
+        private double      bmxy2llx = Double.NaN;
+        private double      bmxy2lly = Double.NaN;
+        private Lambert     lccmap;                 // non-null: FAA-provided georef data
         private LatLon      bmxy2latlon = new LatLon ();
         private LinkedList<DMEArc> dmeArcs;
         private long        plateLoadedUptime;
-        private Paint       runwayPaint;                      // paints georef stuff on plate image
+        private Paint       runwayPaint;            // paints georef stuff on plate image
         public  PlateCIFP   plateCIFP;
         private PlateDME    plateDME;
         private PlateTimer  plateTimer;
-        private PointF      bitmapPt = new PointF ();
-        private String      filename;                         // name of gifs on flash, without ".p<pageno>" suffix
+        private PointD      bitmapPt = new PointD ();
+        private String      filename;               // name of gifs on flash, without ".p<pageno>" suffix
 
         public IAPPlateImage (String fn)
         {
@@ -1208,9 +1208,9 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
          * @param nav = navaid the arc is based on
          * @param beg = beginning of arc (magnetic), this gets a tick mark and legend
          * @param end = end of arc (magnetic), should be recip of final approach course
-         * @param nm  = arc radius, usually 10.0F
+         * @param nm  = arc radius, usually 10.0
          */
-        public void DrawDMEArc (Waypoint nav, float beg, float end, float nm)
+        public void DrawDMEArc (Waypoint nav, double beg, double end, double nm)
         {
             // add it to list of DME arcs to be drawn on plate
             if (dmeArcs == null) dmeArcs = new LinkedList<> ();
@@ -1249,20 +1249,20 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                         null, null, null, null);
                 try {
                     if (result.moveToFirst ()) {
-                        lccmap = new LambertConicalConformal (
-                                result.getFloat (0),
-                                result.getFloat (1),
-                                result.getFloat (2),
-                                result.getFloat (3),
-                                result.getFloat (4),
-                                result.getFloat (5),
-                                new float[] {
-                                    result.getFloat (6),
-                                    result.getFloat (7),
-                                    result.getFloat (8),
-                                    result.getFloat (9),
-                                    result.getFloat (10),
-                                    result.getFloat (11)
+                        lccmap = new Lambert (
+                                result.getDouble (0),
+                                result.getDouble (1),
+                                result.getDouble (2),
+                                result.getDouble (3),
+                                result.getDouble (4),
+                                result.getDouble (5),
+                                new double[] {
+                                    result.getDouble (6),
+                                    result.getDouble (7),
+                                    result.getDouble (8),
+                                    result.getDouble (9),
+                                    result.getDouble (10),
+                                    result.getDouble (11)
                                 }
                         );
                     }
@@ -1283,20 +1283,20 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             }
         }
 
-        protected void GotMouseDown (float x, float y)
+        protected void GotMouseDown (double x, double y)
         {
             plateCIFP.GotMouseDown (x, y);
             plateDME.GotMouseDown (x, y);
             plateTimer.GotMouseDown (x, y);
-            wairToNow.currentCloud.MouseDown (Math.round (x), Math.round (y),
+            wairToNow.currentCloud.MouseDown ((int) Math.round (x), (int) Math.round (y),
                     System.currentTimeMillis ());
         }
 
-        protected void GotMouseUp (float x, float y)
+        protected void GotMouseUp (double x, double y)
         {
             plateCIFP.GotMouseUp ();
             plateDME.GotMouseUp ();
-            if (wairToNow.currentCloud.MouseUp (Math.round (x), Math.round (y),
+            if (wairToNow.currentCloud.MouseUp ((int) Math.round (x), (int) Math.round (y),
                     System.currentTimeMillis ())) invalidate ();
         }
 
@@ -1328,15 +1328,15 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             if ((lccmap != null) && (SystemClock.uptimeMillis () - plateLoadedUptime < 10000)) {
                 HashMap<String,Waypoint.Runway> runways = airport.GetRunways ();
                 for (Waypoint.Runway runway : runways.values ()) {
-                    float begbmx = LatLon2BitmapX (runway.lat, runway.lon);
-                    float begbmy = LatLon2BitmapY (runway.lat, runway.lon);
-                    float endbmx = LatLon2BitmapX (runway.endLat, runway.endLon);
-                    float endbmy = LatLon2BitmapY (runway.endLat, runway.endLon);
-                    float begx = BitmapX2CanvasX (begbmx);
-                    float begy = BitmapY2CanvasY (begbmy);
-                    float endx = BitmapX2CanvasX (endbmx);
-                    float endy = BitmapY2CanvasY (endbmy);
-                    canvas.drawLine (begx, begy, endx, endy, runwayPaint);
+                    double begbmx = LatLon2BitmapX (runway.lat, runway.lon);
+                    double begbmy = LatLon2BitmapY (runway.lat, runway.lon);
+                    double endbmx = LatLon2BitmapX (runway.endLat, runway.endLon);
+                    double endbmy = LatLon2BitmapY (runway.endLat, runway.endLon);
+                    double begx = BitmapX2CanvasX (begbmx);
+                    double begy = BitmapY2CanvasY (begbmy);
+                    double endx = BitmapX2CanvasX (endbmx);
+                    double endy = BitmapY2CanvasY (endbmy);
+                    canvas.drawLine ((float) begx, (float) begy, (float) endx, (float) endy, runwayPaint);
                 }
             }
 
@@ -1375,9 +1375,9 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         }
 
         @Override  // GRPPlateImage
-        public float LatLon2BitmapX (float lat, float lon)
+        public double LatLon2BitmapX (double lat, double lon)
         {
-            if (lccmap == null) return Float.NaN;
+            if (lccmap == null) return Double.NaN;
             bitmapLat = lat;
             bitmapLon = lon;
             lccmap.LatLon2ChartPixelExact (lat, lon, bitmapPt);
@@ -1385,9 +1385,9 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         }
 
         @Override  // GRPPlateImage
-        public float LatLon2BitmapY (float lat, float lon)
+        public double LatLon2BitmapY (double lat, double lon)
         {
-            if (lccmap == null) return Float.NaN;
+            if (lccmap == null) return Double.NaN;
             if ((bitmapLat != lat) || (bitmapLon != lon)) {
                 bitmapLat = lat;
                 bitmapLon = lon;
@@ -1397,9 +1397,9 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         }
 
         @Override  // GRPPlateImage
-        public float BitmapXY2Lat (float bmx, float bmy)
+        public double BitmapXY2Lat (double bmx, double bmy)
         {
-            if (lccmap == null) return Float.NaN;
+            if (lccmap == null) return Double.NaN;
             if ((bmx != bmxy2llx) || (bmy != bmxy2lly)) {
                 bmxy2llx = bmx;
                 bmxy2lly = bmy;
@@ -1409,9 +1409,9 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         }
 
         @Override  // GRPPlateImage
-        public float BitmapXY2Lon (float bmx, float bmy)
+        public double BitmapXY2Lon (double bmx, double bmy)
         {
-            if (lccmap == null) return Float.NaN;
+            if (lccmap == null) return Double.NaN;
             if ((bmx != bmxy2llx) || (bmy != bmxy2lly)) {
                 bmxy2llx = bmx;
                 bmxy2lly = bmy;
@@ -1499,8 +1499,8 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             }
         }
 
-        protected void GotMouseDown (float x, float y) { }
-        protected void GotMouseUp (float x, float y) { }
+        protected void GotMouseDown (double x, double y) { }
+        protected void GotMouseUp (double x, double y) { }
 
         /**
          * Draw the plate image.
@@ -1532,8 +1532,8 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                 /*
                  * See where it maps to on canvas and skip if not visible.
                  */
-                canTmpRect.top    = BitmapY2CanvasY (imageTop) + vpi * 2;
-                canTmpRect.bottom = BitmapY2CanvasY (imageBot) + vpi * 2;
+                canTmpRect.top    = (float) BitmapY2CanvasY (imageTop) + vpi * 2;
+                canTmpRect.bottom = (float) BitmapY2CanvasY (imageBot) + vpi * 2;
                 if (canTmpRect.top    >= canHeight) continue;
                 if (canTmpRect.bottom <= 0)         continue;
 
@@ -1544,8 +1544,8 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                     /*
                      * See where it maps to on canvas and skip if not visible.
                      */
-                    canTmpRect.left  = BitmapX2CanvasX (imageLeft) + hpi * 2;
-                    canTmpRect.right = BitmapX2CanvasX (imageRite) + hpi * 2;
+                    canTmpRect.left  = (float) BitmapX2CanvasX (imageLeft) + hpi * 2;
+                    canTmpRect.right = (float) BitmapX2CanvasX (imageRite) + hpi * 2;
                     if (canTmpRect.left  >= canWidth) continue;
                     if (canTmpRect.right <= 0)        continue;
 

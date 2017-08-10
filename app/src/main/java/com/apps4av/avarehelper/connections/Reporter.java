@@ -32,9 +32,9 @@ public interface Reporter {
     void adsbGpsLog (String message, Exception e);
 
     void adsbGpsAHRS (
-            float bank,
-            float heading,
-            float pitch,
+            double bank,
+            double heading,
+            double pitch,
             long time
     );
 
@@ -69,11 +69,11 @@ public interface Reporter {
 
     void adsbGpsOwnship (
             long time,          // ms since 1970-01-01 00:00:00 UTC
-            float taltitude,    // feet MSL (TRUE altitude)
-            float heading,      // degrees
-            float latitude,     // degrees
-            float longitude,    // degrees
-            float speed         // knots
+            double taltitude,    // feet MSL (TRUE altitude)
+            double heading,      // degrees
+            double latitude,     // degrees
+            double longitude,    // degrees
+            double speed         // knots
     );
 
     void adsbGpsSatellites (
@@ -82,19 +82,19 @@ public interface Reporter {
 
     void adsbGpsTraffic (
             long time,          // ms since 1970-01-01 00:00:00 UTC
-            float taltitude,    // feet MSL (TRUE altitude)
-            float heading,      // degrees
-            float latitude,     // degrees
-            float longitude,    // degrees
-            float speed,        // knots
-            float climb,        // feet per minute
+            double taltitude,    // feet MSL (TRUE altitude)
+            double heading,      // degrees
+            double latitude,     // degrees
+            double longitude,    // degrees
+            double speed,        // knots
+            double climb,        // feet per minute
             int address,        // <27:24>:addr type; <23:00>:address
             String callsign
     );
 
-    float adsbGpsPalt2Talt (
-            float latitude,
-            float longitude,
-            float paltitude
+    double adsbGpsPalt2Talt (
+            double latitude,
+            double longitude,
+            double paltitude
     );
 }

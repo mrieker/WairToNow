@@ -21,7 +21,6 @@
 package com.outerworldapps.wairtonow;
 
 import android.graphics.Bitmap;
-import android.graphics.PointF;
 import android.opengl.GLES20;
 import android.opengl.GLUtils;
 import android.support.annotation.NonNull;
@@ -35,7 +34,7 @@ import java.nio.FloatBuffer;
  * OpenGL 3D sector of the earth.
  */
 public class EarthSector {
-    public final static float EARTHRADIUS = Lib.NMPerDeg * Lib.MPerNM * 180.0F / Mathf.PI;
+    public final static double EARTHRADIUS = Lib.NMPerDeg * Lib.MPerNM * 180.0 / Math.PI;
     public final static int FUNNYFACTOR = 4;  // exaggerate MSL altitudes by this factor
     public final static int MBMSIZE = 512;    // macro bitmap size
     public final static int MAXSTEPS = 32;    // maximum steps (intervals between vertices)
@@ -49,9 +48,9 @@ public class EarthSector {
     private static LoaderThread loaderThread;
 
     public boolean refd;        // seen by camera and is one of MAXSECTORS closest to camera
-    public float slat, wlon;    // southwest corner lat/lon
-    public float nlat, elon;    // northeast corner lat/lon
-    public float nmfromcam;     // naut miles from camera
+    public double slat, wlon;    // southwest corner lat/lon
+    public double nlat, elon;    // northeast corner lat/lon
+    public double nmfromcam;     // naut miles from camera
     public int hashkey;
 
     public EarthSector nextAll;
@@ -64,17 +63,17 @@ public class EarthSector {
     private EarthSector nextLoad;
     private FloatBuffer mTriangles;
     private int mTextureID;
-    private PointF intpoint;
+    private PointD intpoint;
     private Runnable onLoad;
 
-    public EarthSector (@NonNull DisplayableChart dc, float slat, float nlat, float wlon, float elon)
+    public EarthSector (@NonNull DisplayableChart dc, double slat, double nlat, double wlon, double elon)
     {
         displayableChart = dc;
         this.slat = slat;
         this.nlat = nlat;
         this.wlon = wlon;
         this.elon = elon;
-        intpoint = new PointF ();
+        intpoint = new PointD ();
     }
 
     /**
@@ -226,8 +225,8 @@ public class EarthSector {
             for (int jlon = iwlon; jlon <= jelon; jlon += minsperstep) {
                 int ilon  = jlon;
                 if (ilon >= 180 * 60) ilon -= 360 * 60;
-                float lat = ilat / 60.0F;
-                float lon = ilon / 60.0F;
+                double lat = ilat / 60.0;
+                double lon = ilon / 60.0;
                 int alt = Topography.getElevMetres (lat, lon);
                 if ((alt < 0) || (alt == Topography.INVALID_ELEV)) {
                     alt = 0;
@@ -241,8 +240,8 @@ public class EarthSector {
 
                 // fill in x,y of corresponding point of mBitmap
                 displayableChart.LatLon2MacroBitmap (lat, lon, intpoint);
-                vertices[k++] = intpoint.x / mbmWidth;
-                vertices[k++] = intpoint.y / mbmHeight;
+                vertices[k++] = (float) intpoint.x / mbmWidth;
+                vertices[k++] = (float) intpoint.y / mbmHeight;
             }
         }
 
@@ -326,7 +325,7 @@ public class EarthSector {
      *   +Y comes out north pole
      *   +Z comes out near ghana
      */
-    public static void LatLonAlt2XYZ (float lat, float lon, float alt, @NonNull Vector3 xyz)
+    public static void LatLonAlt2XYZ (double lat, double lon, double alt, @NonNull Vector3 xyz)
     {
         double r = alt * (FUNNYFACTOR / EARTHRADIUS) + 1.0;
         double latrad = Math.toRadians (lat);
@@ -353,7 +352,7 @@ public class EarthSector {
         double lonrad = Math.atan2 (x, z);
         lla.x = Math.toDegrees (latrad);
         lla.y = Math.toDegrees (lonrad);
-        lla.z = (r - 1.0F) * (EARTHRADIUS / FUNNYFACTOR);
+        lla.z = (r - 1.0) * (EARTHRADIUS / FUNNYFACTOR);
     }
 
     /**

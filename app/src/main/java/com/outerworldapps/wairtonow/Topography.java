@@ -59,12 +59,12 @@ public class Topography {
      * @param lon = longitude, rounded to nearest minute
      * @return INVALID_ELEV: elevation unknown; else: elevation in metres MSL
      */
-    public static short getElevMetres (float lat, float lon) {
+    public static short getElevMetres (double lat, double lon) {
         /*
          * Split given lat,lon into degrees and minutes.
          */
-        int ilatmin = Math.round (lat * 60.0F) + 60000;
-        int ilonmin = Math.round (lon * 60.0F) + 60000;
+        int ilatmin = (int) Math.round (lat * 60.0) + 60000;
+        int ilonmin = (int) Math.round (lon * 60.0) + 60000;
         int ilatdeg = ilatmin / 60 - 1000;
         int ilondeg = ilonmin / 60 - 1000;
 

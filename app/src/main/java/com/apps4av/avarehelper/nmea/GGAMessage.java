@@ -30,7 +30,7 @@ import com.apps4av.avarehelper.connections.TopDecoder;
  *                           2 = DGPS fix
  *                           3 = PPS fix
  *                           4 = Real Time Kinematic
- *                           5 = Float RTK
+ *                           5 = Double RTK
  *                           6 = estimated (dead reckoning) (2.3 feature)
  *                           7 = Manual input mode
  *                           8 = Simulation mode
@@ -58,12 +58,12 @@ public class GGAMessage {
             mf.ownLatitude  = NMEADecoder.degrees (tokens[2], tokens[3], "N", "S");
             mf.ownLongitude = NMEADecoder.degrees (tokens[4], tokens[5], "E", "W");
 
-            float alt = NMEADecoder.parseFloat (tokens[9], Float.NaN, 3.28084F);
+            double alt = NMEADecoder.parseDouble (tokens[9], Double.NaN, 3.28084);
             if (!tokens[10].equals ("M")) {
                 throw new NumberFormatException ("bad altitude units " + tokens[10]);
             }
 
-            mf.maybeReportOwnshipInfo (time, Float.NaN, Float.NaN, alt);
+            mf.maybeReportOwnshipInfo (time, Double.NaN, Double.NaN, alt);
         }
     }
 }

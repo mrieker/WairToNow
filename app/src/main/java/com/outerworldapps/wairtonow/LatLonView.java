@@ -97,16 +97,16 @@ public class LatLonView extends LinearLayout {
     /**
      * Get the lat/lon value in degrees.
      */
-    public float getVal ()
+    public double getVal ()
     {
-        float deg = degtv.getVal ();
+        double deg = degtv.getVal ();
         if (mintv == null) {
             deg /= 1000000;
         } else if (sectv == null) {
-            deg += (float)mintv.getVal () / 600000;
+            deg += (double)mintv.getVal () / 600000;
         } else {
-            deg += (float)mintv.getVal () / 60;
-            deg += (float)sectv.getVal () / 360000;
+            deg += (double)mintv.getVal () / 60;
+            deg += (double)sectv.getVal () / 360000;
         }
         if (negtv.getVal ()) deg = -deg;
         return deg;
@@ -115,13 +115,13 @@ public class LatLonView extends LinearLayout {
     /**
      * Set the lat/lon value to given number of degrees.
      */
-    public void setVal (float val)
+    public void setVal (double val)
     {
         boolean neg = (val < 0);
         if (neg) val = -val;
         negtv.setVal (neg);
         if (mintv == null) {
-            degtv.setVal (Math.round (val * 1000000));
+            degtv.setVal ((int) Math.round (val * 1000000));
         } else if (sectv == null) {
             val *= 600000;
             val += 0.5;
@@ -151,7 +151,7 @@ public class LatLonView extends LinearLayout {
      */
     private void Reformat ()
     {
-        float val = getVal ();  // save current numeric value
+        double val = getVal ();  // save current numeric value
         removeAllViews ();      // clear out any boxes that exist
         Format ();              // set up new boxes
         setVal (val);           // set value in new boxes

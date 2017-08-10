@@ -31,8 +31,8 @@ import android.view.MotionEvent;
 import android.view.View;
 
 public class NavDialView extends View {
-    public final static float NODISTANCE = 999999.0F;
-    public final static float NOHEADING  = 999999.0F;
+    public final static double NODISTANCE = 999999.0;
+    public final static double NOHEADING  = 999999.0;
 
     private final static int DMETEXTSIZE = 100;
     private final static int GSFPMTEXTSIZE = 80;
@@ -46,26 +46,26 @@ public class NavDialView extends View {
     }
 
     public interface OBSChangedListener {
-        void obsChanged (float obs);
+        void obsChanged (double obs);
     }
 
-    private final static float DIALRATIO  =  5;  // number of times drag finger to drag obs once
-    public  final static float VORDEFLECT = 10;  // degrees each side for VOR mode deflection
-    public  final static float LOCDEFLECT =  3;  // degrees each side for ILS/LOC mode deflection
-    public  final static float GSDEFLECT  =  1;  // degrees each side for GS deflection
+    private final static double DIALRATIO  =  5;  // number of times drag finger to drag obs once
+    public  final static double VORDEFLECT = 10;  // degrees each side for VOR mode deflection
+    public  final static double LOCDEFLECT =  3;  // degrees each side for ILS/LOC mode deflection
+    public  final static double GSDEFLECT  =  1;  // degrees each side for GS deflection
 
     private boolean dmeSlant;
     public  boolean hsiEnable;
     public  DMEClickedListener dmeClickedListener;
-    private float deflect;
-    private float distance;
-    private float heading;
-    private float lastHeight, lastRotate, lastScale, lastWidth;
-    public  float obsSetting;
-    private float slope;
-    private float touchDownOBS;
-    private float touchDownX;
-    private float touchDownY;
+    private double deflect;
+    private double distance;
+    private double heading;
+    private float  lastHeight, lastRotate, lastScale, lastWidth;
+    public  double obsSetting;
+    private double slope;
+    private double touchDownOBS;
+    private double touchDownX;
+    private double touchDownY;
     public  int  gsfpm;
     private long touchDownTime;
     private Mode mode;
@@ -231,7 +231,7 @@ public class NavDialView extends View {
      *    < 0: deflect needle to left of center
      *    > 0: deflect needle to right of center
      */
-    public void setDeflect (float d)
+    public void setDeflect (double d)
     {
         deflect = d;
         invalidate ();
@@ -241,7 +241,7 @@ public class NavDialView extends View {
      * Set glideslope deviation if in Mode.ILS.
      * @param s = degrees
      */
-    public void setSlope (float s)
+    public void setSlope (double s)
     {
         slope = s;
         invalidate ();
@@ -250,7 +250,7 @@ public class NavDialView extends View {
     /**
      * Set which heading we are actually going, relative to straight up on dial.
      */
-    public void setHeading (float h)
+    public void setHeading (double h)
     {
         heading = h;
         invalidate ();
@@ -259,7 +259,7 @@ public class NavDialView extends View {
     /**
      * Set distance (DME) value.
      */
-    public void setDistance (float d, String i, boolean s)
+    public void setDistance (double d, String i, boolean s)
     {
         distance = d;
         dmeIdent = i;
@@ -284,8 +284,8 @@ public class NavDialView extends View {
 
             case MotionEvent.ACTION_UP: {
                 if (mode != Mode.OFF) {
-                    float x = event.getX ();
-                    float y = event.getY ();
+                    double x = event.getX ();
+                    double y = event.getY ();
                     long  t = event.getEventTime ();
                     if ((t - touchDownTime < 500) && (dmeClickedListener != null) &&
                             withinDMEArea (touchDownX, touchDownY) && withinDMEArea (x, y)) {
@@ -296,15 +296,15 @@ public class NavDialView extends View {
 
             case MotionEvent.ACTION_MOVE: {
                 if ((mode == Mode.ADF) || (mode == Mode.VOR)) {
-                    float moveX    = event.getX ();
-                    float moveY    = event.getY ();
-                    float centerX  = getWidth ()  / 2.0F;
-                    float centerY  = getHeight () / 2.0F;
-                    float startHdg = Mathf.atan2 (touchDownX - centerX, touchDownY - centerY);
-                    float moveHdg  = Mathf.atan2 (moveX - centerX, moveY - centerY);
+                    double moveX    = event.getX ();
+                    double moveY    = event.getY ();
+                    double centerX  = getWidth ()  / 2.0;
+                    double centerY  = getHeight () / 2.0;
+                    double startHdg = Math.atan2 (touchDownX - centerX, touchDownY - centerY);
+                    double moveHdg  = Math.atan2 (moveX - centerX, moveY - centerY);
 
                     // compute how many degrees finger moved since ACTION_DOWN
-                    float degsMoved = Mathf.toDegrees (moveHdg - startHdg);
+                    double degsMoved = Math.toDegrees (moveHdg - startHdg);
                     while (degsMoved < -180) degsMoved += 360;
                     while (degsMoved >= 180) degsMoved -= 360;
 
@@ -359,7 +359,7 @@ public class NavDialView extends View {
         canvas.save ();
         lastRotate = 0.0F;
         if (hsiEnable && (heading != NOHEADING) && isHSIAble ()) {
-            lastRotate = - heading;
+            lastRotate = (float) - heading;
             canvas.rotate (lastRotate);
         }
 
@@ -388,7 +388,7 @@ public class NavDialView extends View {
             }
 
             // draw VOR/localizer needle
-            float degdiff = deflect;
+            double degdiff = deflect;
             while (degdiff >= 180) degdiff -= 360;
             while (degdiff < -180) degdiff += 360;
             if ((degdiff > -90) && (degdiff <= 90)) {
@@ -399,26 +399,26 @@ public class NavDialView extends View {
                 if (degdiff >= 180) degdiff -= 360;
                 degdiff = - degdiff;
             }
-            float maxdeflect = (mode == Mode.VOR) ? VORDEFLECT : LOCDEFLECT;
-            float pegdeflect = maxdeflect * 1.2F;
+            double maxdeflect = (mode == Mode.VOR) ? VORDEFLECT : LOCDEFLECT;
+            double pegdeflect = maxdeflect * 1.2;
             if (degdiff >= pegdeflect) degdiff =  pegdeflect;
             if (degdiff < -pegdeflect) degdiff = -pegdeflect;
-            float needleMidX = degdiff / maxdeflect * 412;
-            float needleTopY = -412 * 1.2F;
-            float needleBotY =  412 * 1.2F;
-            canvas.drawLine (needleMidX, needleTopY, needleMidX, needleBotY, vorNeedlePaint);
+            double needleMidX = degdiff / maxdeflect * 412;
+            double needleTopY = -412 * 1.2;
+            double needleBotY =  412 * 1.2;
+            canvas.drawLine ((float) needleMidX, (float) needleTopY, (float) needleMidX, (float) needleBotY, vorNeedlePaint);
         }
 
         // draw glideslope needle
         if (mode == Mode.ILS) {
-            float maxdeflect = GSDEFLECT;
-            float pegdeflect = maxdeflect * 1.2F;
+            double maxdeflect = GSDEFLECT;
+            double pegdeflect = maxdeflect * 1.2;
             if (slope >= pegdeflect) slope =  pegdeflect;
             if (slope < -pegdeflect) slope = -pegdeflect;
-            float needleCentY = slope / maxdeflect * -412;
-            float needleLeftX = -412 * 1.2F;
-            float needleRiteX =  412 * 1.2F;
-            canvas.drawLine (needleLeftX, needleCentY, needleRiteX, needleCentY, vorNeedlePaint);
+            double needleCentY = slope / maxdeflect * -412;
+            double needleLeftX = -412 * 1.2;
+            double needleRiteX =  412 * 1.2;
+            canvas.drawLine ((float) needleLeftX, (float) needleCentY, (float) needleRiteX, (float) needleCentY, vorNeedlePaint);
         }
 
         // cover up end of VOR-style needle in case it goes under dial
@@ -426,7 +426,7 @@ public class NavDialView extends View {
 
         // draw OBS dial
         canvas.save ();
-        canvas.rotate (-obsSetting);
+        canvas.rotate ((float) - obsSetting);
         for (int deg = 0; deg < 360; deg += 5) {
             switch ((deg / 5) % 6) {
                 case 0: {
@@ -456,7 +456,7 @@ public class NavDialView extends View {
         // ADF-style needle
         if (mode == Mode.ADF) {
             canvas.save ();
-            canvas.rotate (deflect);
+            canvas.rotate ((float) deflect);
             canvas.drawPath (adfNeedlePath, adfNeedlePaint);
             canvas.restore ();
         }
@@ -466,7 +466,7 @@ public class NavDialView extends View {
             Context ctx = getContext ();
             if (ctx instanceof WairToNow) {
                 canvas.save ();
-                canvas.rotate (heading);
+                canvas.rotate ((float) heading);
                 canvas.translate (0, -725);
                 ((WairToNow) ctx).DrawAirplaneSymbol (canvas, 140);
                 canvas.restore ();
@@ -484,16 +484,16 @@ public class NavDialView extends View {
     }
 
     // see if x,y is within area drawn by drawDMEInfo
-    private boolean withinDMEArea (float x, float y)
+    private boolean withinDMEArea (double x, double y)
     {
         x -= lastWidth / 2;
         y -= lastHeight / 2;
         x /= lastScale;
         y /= lastScale;
-        float cr = Mathf.cosdeg (lastRotate);
-        float sr = Mathf.sindeg (lastRotate);
-        float xr = cr * x + sr * y;
-        float yr = cr * y - sr * x;
+        double cr = Mathf.cosdeg (lastRotate);
+        double sr = Mathf.sindeg (lastRotate);
+        double xr = cr * x + sr * y;
+        double yr = cr * y - sr * x;
         return (xr > -440) && (xr < -100) && (yr > 80) && (yr < 220 + DMETEXTSIZE);
     }
 
@@ -503,7 +503,7 @@ public class NavDialView extends View {
     {
         if (mode != Mode.OFF) {
             int x0 = -80;
-            int idist10 = Math.round (distance * 10.0F);
+            int idist10 = (int) Math.round (distance * 10.0);
             if ((idist10 >= 0) && (idist10 <= 1999)) {
                 x0 = drawDMEDigit (canvas, digitPaint, x0, idist10 % 10);
                 x0 = drawDMEDot (canvas, digitPaint, x0);

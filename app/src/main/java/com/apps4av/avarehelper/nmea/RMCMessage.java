@@ -32,15 +32,15 @@ public class RMCMessage {
         if (valid) {
             int  msec = NMEADecoder.milliseconds (tokens[1]);
             long time = TopDecoder.GetFullTime (msec);
-            float lat = NMEADecoder.degrees (tokens[3], tokens[4], "N", "S");
-            float lon = NMEADecoder.degrees (tokens[5], tokens[6], "E", "W");
-            float kts = NMEADecoder.parseFloat (tokens[7], Float.NaN, 1.0F);
-            float hdg = NMEADecoder.parseFloat (tokens[8], Float.NaN, 1.0F);
+            double lat = NMEADecoder.degrees (tokens[3], tokens[4], "N", "S");
+            double lon = NMEADecoder.degrees (tokens[5], tokens[6], "E", "W");
+            double kts = NMEADecoder.parseDouble (tokens[7], Double.NaN, 1.0);
+            double hdg = NMEADecoder.parseDouble (tokens[8], Double.NaN, 1.0);
 
             mf.ownLatitude  = lat;
             mf.ownLongitude = lon;
 
-            mf.maybeReportOwnshipInfo (time, hdg, kts, Float.NaN);
+            mf.maybeReportOwnshipInfo (time, hdg, kts, Double.NaN);
         }
     }
 }

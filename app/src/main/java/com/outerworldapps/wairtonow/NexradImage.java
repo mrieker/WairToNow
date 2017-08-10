@@ -38,8 +38,8 @@ public class NexradImage {
     private int[] data;
 
     public boolean conus;
-    public float northLat, southLat;
-    public float eastLon, westLon;
+    public double northLat, southLat;
+    public double eastLon, westLon;
     public int block;  // <22>: southern hemisphere flag; <21:20>: scale; <19:00>: block number
     public int seqno;
     public long time;
@@ -67,18 +67,18 @@ public class NexradImage {
         // block 0's west edge is on prime meridian
         // low numbered blocks are 48*scale minutes wide
         // high numbered blocks are 96*scale minutes wide
-        westLon = Lib.NormalLon ((blockno % 450) * 48.0F / 60.0F);
-        eastLon = Lib.NormalLon (westLon + (blockno >= 405000 ? 96.0F : 48.0F) * scale / 60.0F);
+        westLon = Lib.NormalLon ((blockno % 450) * 48.0 / 60.0);
+        eastLon = Lib.NormalLon (westLon + (blockno >= 405000 ? 96.0 : 48.0) * scale / 60.0);
 
         // all blocks are 4*scale minutes high
         if ((block & 0x400000) != 0) {  // <23> contains hemisphere flag
             // southern hemisphere - block 0's northern edge is on the equator
-            northLat = (blockno / 450) * -4.0F / 60.0F;
-            southLat = northLat - 4.0F * scale / 60.0F;
+            northLat = (blockno / 450) * -4.0 / 60.0;
+            southLat = northLat - 4.0 * scale / 60.0;
         } else {
             // northern hemisphere - block 0's southern edge is on the equator
-            southLat = (blockno / 450) *  4.0F / 60.0F;
-            northLat = southLat + 4.0F * scale / 60.0F;
+            southLat = (blockno / 450) *  4.0 / 60.0;
+            northLat = southLat + 4.0 * scale / 60.0;
         }
     }
 
@@ -122,21 +122,21 @@ public class NexradImage {
         }
 
         // get pixel size in lat/lon for stepping in +X and +Y directions
-        float pixStepLat = (southLat - northLat) / HEIGHT;
-        float pixStepLon = (eastLon - westLon) / WIDTH;
+        double pixStepLat = (southLat - northLat) / HEIGHT;
+        double pixStepLon = (eastLon - westLon) / WIDTH;
 
         // loop through X and Y pixels
         boolean keepda = false;
         boolean tossbm = false;
         for (int y = 0; y < HEIGHT; y ++) {
-            float pixNorthLat = pixStepLat * y + northLat;
-            float pixSouthLat = pixNorthLat + pixStepLat;
+            double pixNorthLat = pixStepLat * y + northLat;
+            double pixSouthLat = pixNorthLat + pixStepLat;
             for (int x = 0; x < WIDTH; x ++) {
 
                 // skip long computation if pixel already transparent
                 if (data[y*WIDTH+x] != 0) {
-                    float pixWestLon = pixStepLon * x + westLon;
-                    float pixEastLon = pixWestLon + pixStepLon;
+                    double pixWestLon = pixStepLon * x + westLon;
+                    double pixEastLon = pixWestLon + pixStepLon;
 
                     // if pixel overlaps blocked-out area at all, make it transparent
                     if (Lib.LatOverlap (pixSouthLat, pixNorthLat, block.southLat, block.northLat) &&

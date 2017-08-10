@@ -22,7 +22,6 @@ package com.outerworldapps.wairtonow;
 
 import android.annotation.SuppressLint;
 import android.graphics.Color;
-import android.graphics.PointF;
 import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
 import android.util.Log;
@@ -42,20 +41,20 @@ import javax.microedition.khronos.opengles.GL10;
 public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
     public final static int BGCOLOR = 0x00BFFF;               // deep sky blue
     public final static int MAXSECTORS = 100;                 // max sectors to build textures for
-    public final static float MTEVEREST = 8848.0F;            // metres msl
+    public final static double MTEVEREST = 8848.0;            // metres msl
     public final static int MINIMUMAGL = 3;                   // metres agl
-    public final static float NEARDIST = 1.0F / 1024 / 1024;  // earth radii
-    public final static float GRAVACCEL = 9.806F;             // metres per sec**2
-    public final static float MAXTILTUP = 30.0F;              // degrees
-    public final static float MAXTILTDN = 60.0F;              // degrees
-    public final static float MINSECONDS = 0.5F;              // accept points at least 1/2sec apart
+    public final static double NEARDIST = 1.0 / 1024 / 1024;  // earth radii
+    public final static double GRAVACCEL = 9.806;             // metres per sec**2
+    public final static double MAXTILTUP = 30.0;              // degrees
+    public final static double MAXTILTDN = 60.0;              // degrees
+    public final static double MINSECONDS = 0.5;              // accept points at least 1/2sec apart
 
     private ChartView chartView;
-    private float mouseDispS;  // < 1: zoomed in; > 1: zoomed out
-    private float mouseDispX;
-    private float mouseDispY;
-    private float mouseDownX;
-    private float mouseDownY;
+    private double mouseDispS;  // < 1: zoomed in; > 1: zoomed out
+    private double mouseDispX;
+    private double mouseDispY;
+    private double mouseDownX;
+    private double mouseDownY;
     private MyPanAndZoom myPanAndZoom;
     private MyRenderer myRenderer;
     private Vector3 canpixxyz = new Vector3 ();
@@ -66,7 +65,7 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
         super (cv.wairToNow);
 
         chartView  = cv;
-        mouseDispS = 1.0F;
+        mouseDispS = 1.0;
         wairToNow  = cv.wairToNow;
 
         myPanAndZoom = new MyPanAndZoom ();
@@ -120,7 +119,7 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
     @Override  // Backing
     public void Activate ()
     {
-        chartView.scaling = 1.0F;
+        chartView.scaling = 1.0;
         chartView.ReCenter ();
     }
 
@@ -134,13 +133,13 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
      * Get what we consider to be the 'up' heading.
      */
     @Override  // Backing
-    public float GetCanvasHdgRads ()
+    public double GetCanvasHdgRads ()
     {
-        float hdg = wairToNow.currentGPSHdg;
+        double hdg = wairToNow.currentGPSHdg;
         if ((myRenderer != null) && (myRenderer.mWidth != 0)) {
             hdg = myRenderer.cameraHdg;
         }
-        return Mathf.toRadians (hdg);
+        return Math.toRadians (hdg);
     }
 
     /**
@@ -188,7 +187,7 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
      * @param pix = canvas pixel X,Y
      */
     @Override  // Backing
-    public boolean LatLonAlt2CanPixExact (float lat, float lon, float alt, PointF pix)
+    public boolean LatLonAlt2CanPixExact (double lat, double lon, double alt, PointD pix)
     {
         EarthSector.LatLonAlt2XYZ (lat, lon, alt, canpixxyz);
         return myRenderer.WorldXYZ2PixelXY (canpixxyz, pix);
@@ -209,14 +208,14 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
             super (wairToNow);
         }
 
-        public void MouseDown (float x, float y)
+        public void MouseDown (double x, double y)
         {
             mouseDownX = x - mouseDispX;  // save where mouse was clicked
             mouseDownY = y - mouseDispY;
         }
-        public void MouseUp (float x, float y)
+        public void MouseUp (double x, double y)
         { }
-        public void Panning (float x, float y, float dx, float dy)
+        public void Panning (double x, double y, double dx, double dy)
         {
             mouseDispX = x - mouseDownX;  // update total displacement
             mouseDispY = y - mouseDownY;
@@ -225,12 +224,12 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
                 requestRender ();        // rebuild transformation matrix
             }
         }
-        public void Scaling (float fx, float fy, float sf)
+        public void Scaling (double fx, double fy, double sf)
         {
             mouseDispS /= sf;
-            if (mouseDispS < 0.125F) mouseDispS = 0.125F;
-            if (mouseDispS > 8.0F)   mouseDispS = 8.0F;
-            chartView.scaling = 1.0F / mouseDispS;
+            if (mouseDispS < 0.125) mouseDispS = 0.125;
+            if (mouseDispS > 8.0)   mouseDispS = 8.0;
+            chartView.scaling = 1.0 / mouseDispS;
             if (myRenderer != null) {
                 myRenderer.rebuildCamera = true;
                 requestRender ();        // rebuild transformation matrix
@@ -307,10 +306,10 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
         private final static int TRIANGLES_DATA_STRIDE_BYTES = TRIANGLES_DATA_STRIDE * FLOAT_SIZE_BYTES;
 
         /*
-         * See how many degrees away Mt. Everest can be and still see the peak from sea level.
+         * See how many radians away Mt. Everest can be and still see the peak from sea level.
          * About 3 deg or 180 nm.
          */
-        private final float mevsightang = Mathf.acos (EarthSector.EARTHRADIUS / (MTEVEREST + EarthSector.EARTHRADIUS));
+        private final double mevsightang = Math.acos (EarthSector.EARTHRADIUS / (MTEVEREST + EarthSector.EARTHRADIUS));
 
         private final static String mVertexShader =
                 "uniform mat4 uMVPMatrix;\n" +
@@ -345,12 +344,12 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
         private boolean rebuildObjects;
         private boolean surfaceCreated;
         private DisplayableChart displayableChart;
-        private float camsightang;
-        private float cameraPosLat, cameraPosLon, cameraPosAlt;
-        private float cameraLookLat, cameraLookLon, cameraLookAlt;
-        public  float cameraHdg;
-        private float lastGPSHdg;
-        private float sightnm;
+        private double camsightang;
+        private double cameraPosLat, cameraPosLon, cameraPosAlt;
+        private double cameraLookLat, cameraLookLon, cameraLookAlt;
+        public  double cameraHdg;
+        private double lastGPSHdg;
+        private double sightnm;
         private double[] mIdnMatrix = new double[16];
         private double[] mMVPMatrix = new double[16];
         private double[] projMatrix = new double[16];
@@ -364,10 +363,10 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
         public  int mWidth, mHeight;
         private int[] l2stepLimits = new int[2];
         private long lastGPSTime;
-        private PointF nepoint = new PointF ();
-        private PointF nwpoint = new PointF ();
-        private PointF sepoint = new PointF ();
-        private PointF swpoint = new PointF ();
+        private PointD nepoint = new PointD ();
+        private PointD nwpoint = new PointD ();
+        private PointD sepoint = new PointD ();
+        private PointD swpoint = new PointD ();
         private Vector3 cameraLook = new Vector3 ();
         private Vector3 cameraLookMouse;
         private Vector3 cameraPos  = new Vector3 ();
@@ -430,15 +429,15 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
         public void setLocation ()
         {
             WairToNow wtn = wairToNow;
-            float lat = wtn.currentGPSLat;
-            float lon = wtn.currentGPSLon;
+            double lat = wtn.currentGPSLat;
+            double lon = wtn.currentGPSLon;
             long time = wtn.currentGPSTime;
 
             // don't accept two points very close to each other
             // cuz we won't be able to compute a direction between them
             // 0.0625 = we can take points at least 0.0625sec apart
-            float seconds = (time - lastGPSTime) / 1000.0F;
-            float distmet = Lib.LatLonDist (lat, lon, cameraLookLat, cameraLookLon) * Lib.MPerNM;
+            double seconds = (time - lastGPSTime) / 1000.0;
+            double distmet = Lib.LatLonDist (lat, lon, cameraLookLat, cameraLookLon) * Lib.MPerNM;
             if (seconds > MINSECONDS) {
                 if (distmet > WairToNow.gpsMinSpeedMPS * seconds) {
 
@@ -450,15 +449,15 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
 
                     // make sure new altitude is above ground a little bit
                     // ...so we aren't looking up at or down from bottom side
-                    int slatmin = (int) Mathf.floor (lat * 60.0F);
+                    int slatmin = (int) Math.floor (lat * 60.0);
                     int nlatmin = slatmin + 1;
-                    int wlonmin = (int) Mathf.floor (lon * 60.0F);
+                    int wlonmin = (int) Math.floor (lon * 60.0);
                     int elonmin = (wlonmin + 1 + 180 * 60) % (360 * 60) - 180 * 60;
-                    int swelev = Topography.getElevMetres (slatmin / 60.0F, wlonmin / 60.0F);
-                    int nwelev = Topography.getElevMetres (nlatmin / 60.0F, wlonmin / 60.0F);
-                    int seelev = Topography.getElevMetres (slatmin / 60.0F, elonmin / 60.0F);
-                    int neelev = Topography.getElevMetres (nlatmin / 60.0F, elonmin / 60.0F);
-                    float alt = wtn.currentGPSAlt;
+                    int swelev = Topography.getElevMetres (slatmin / 60.0, wlonmin / 60.0);
+                    int nwelev = Topography.getElevMetres (nlatmin / 60.0, wlonmin / 60.0);
+                    int seelev = Topography.getElevMetres (slatmin / 60.0, elonmin / 60.0);
+                    int neelev = Topography.getElevMetres (nlatmin / 60.0, elonmin / 60.0);
+                    double alt = wtn.currentGPSAlt;
                     if (alt < swelev + MINIMUMAGL) alt = swelev + MINIMUMAGL;
                     if (alt < nwelev + MINIMUMAGL) alt = nwelev + MINIMUMAGL;
                     if (alt < seelev + MINIMUMAGL) alt = seelev + MINIMUMAGL;
@@ -472,7 +471,7 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
 
                     // bank the camera using a computed bank angle
                     // ie, rotate the up vector around the position-to-lookat vector
-                    float bankrad = CalcBankAngle ();
+                    double bankrad = CalcBankAngle ();
                     cameraUp = cameraPos.rotate (cameraLook.minus (cameraPos), bankrad);
 
                     // update the display
@@ -492,36 +491,36 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
          * to the current GPS sample heading.
          * @return bank angle in radians (positive is turning right)
          */
-        private float CalcBankAngle ()
+        private double CalcBankAngle ()
         {
             WairToNow wtn = wairToNow;
-            float hdg = wtn.currentGPSHdg;
-            float spd = wtn.currentGPSSpd;
+            double hdg = wtn.currentGPSHdg;
+            double spd = wtn.currentGPSSpd;
             long time = wtn.currentGPSTime;
 
             /*
              * Rate of turn can be computed from two most recent GPS reports.
              * Units are radians per second.
              */
-            float prevHdg = lastGPSHdg;
+            double prevHdg = lastGPSHdg;
             if (prevHdg - hdg >  180) prevHdg -= 360;
             if (prevHdg - hdg < -180) prevHdg += 360;
-            float rateOfTurn = Mathf.toRadians ((hdg - prevHdg) / (time - lastGPSTime) * 1000.0F);
+            double rateOfTurn = Math.toRadians ((hdg - prevHdg) / (time - lastGPSTime) * 1000.0);
 
             /*
              * Calculate turn radius (metres).
              */
-            //float turnRadius = spd / rateOfTurn;
+            //double turnRadius = spd / rateOfTurn;
 
             /*
              * Calculate centripetal acceleration (metres per second squared).
              */
-            float centripAccel = spd * rateOfTurn;
+            double centripAccel = spd * rateOfTurn;
 
             /*
              * Bank angle is arctan (centripAccel / gravity).
              */
-            return Mathf.atan2 (centripAccel, GRAVACCEL);
+            return Math.atan2 (centripAccel, GRAVACCEL);
         }
 
         /**
@@ -714,32 +713,32 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
              * to earth's edge assuming earth's edge is at sea level, no matter where
              * the camera is pointed.
              */
-            camsightang = Mathf.acos (EarthSector.EARTHRADIUS / (cameraPosAlt + EarthSector.EARTHRADIUS));
+            camsightang = Math.acos (EarthSector.EARTHRADIUS / (cameraPosAlt + EarthSector.EARTHRADIUS));
 
             /*
              * See how far away from the camera Mt. Everest could possibly be to see the peak
              * that is not obscured by a sea-level surface between camera and peak.
              */
-            sightnm = Mathf.toDegrees (camsightang + mevsightang) * Lib.NMPerDeg;
+            sightnm = Math.toDegrees (camsightang + mevsightang) * Lib.NMPerDeg;
 
             /*
              * Set up camera frustum far plane so that the camera can see that far away.
              */
-            float fardist = sightnm * Lib.MPerNM / EarthSector.EARTHRADIUS;
+            double fardist = sightnm * Lib.MPerNM / EarthSector.EARTHRADIUS;
 
             /*
              * Set up camera frustum.
              */
-            float scale  = mouseDispS * NEARDIST;
-            float near   = NEARDIST;
+            double scale  = mouseDispS * NEARDIST;
+            double near   = NEARDIST;
             //noinspection UnnecessaryLocalVariable
-            float far    = fardist;
-            float aspect = (float) mHeight / (float) mWidth;
+            double far    = fardist;
+            double aspect = (double) mHeight / (double) mWidth;
             //noinspection UnnecessaryLocalVariable
-            float right  = scale;
-            float top    = scale * aspect;
-            float left   = -right;
-            float bottom = -top;
+            double right  = scale;
+            double top    = scale * aspect;
+            double left   = -right;
+            double bottom = -top;
             MatrixD.frustumM (projMatrix, 0, left, right, bottom, top, near, far);
 
             /*
@@ -748,19 +747,19 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
              * Y-displacement rotates about the normal to the position x look plane.
              */
             cameraLookMouse = cameraLook;
-            float dispX = mouseDispX;
-            float dispY = mouseDispY;
+            double dispX = mouseDispX;
+            double dispY = mouseDispY;
             if ((dispX != 0) || (dispY != 0)) {
                 Vector3 diff = cameraLook.minus (cameraPos);
-                Vector3 rotated = diff.rotate (cameraUp, dispX * mouseDispS * Math.PI / 2.0F / mWidth);
+                Vector3 rotated = diff.rotate (cameraUp, dispX * mouseDispS * Math.PI / 2.0 / mWidth);
                 cameraLookMouse = cameraPos.plus (rotated);
 
                 Vector3 normal = cameraPos.cross (cameraLookMouse);
-                float anglY = dispY / -2.0F / mWidth;
-                if (anglY < -MAXTILTUP / 180.0F) anglY = -MAXTILTUP / 180.0F;
-                if (anglY >  MAXTILTDN / 180.0F) anglY =  MAXTILTDN / 180.0F;
-                mouseDispY = Math.round (anglY * mWidth * -2.0F);
-                rotated = rotated.rotate (normal, anglY * mouseDispS * Mathf.PI);
+                double anglY = dispY / -2.0 / mWidth;
+                if (anglY < -MAXTILTUP / 180.0) anglY = -MAXTILTUP / 180.0;
+                if (anglY >  MAXTILTDN / 180.0) anglY =  MAXTILTDN / 180.0;
+                mouseDispY = Math.round (anglY * mWidth * -2.0);
+                rotated = rotated.rotate (normal, anglY * mouseDispS * Math.PI);
                 cameraLookMouse = cameraPos.plus (rotated);
             }
 
@@ -777,7 +776,7 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
              */
             Vector3 lookLLA = new Vector3 ();
             EarthSector.XYZ2LatLonAlt (cameraLookMouse, lookLLA);
-            cameraHdg = Lib.LatLonTC (cameraPosLat, cameraPosLon, (float) lookLLA.x, (float) lookLLA.y);
+            cameraHdg = Lib.LatLonTC (cameraPosLat, cameraPosLon, lookLLA.x, lookLLA.y);
 
             /*
              * Make a composite matrix from camera frustum and camera position.
@@ -789,20 +788,20 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
              * Get range of lat/lon (whole STEPs) visible to camera.
              * We can't possibly see anything farther away than this.
              */
-            float sightdeg  = sightnm / Lib.NMPerDeg;
-            float camlatcos = Mathf.cos (Math.toRadians (cameraPosLat));
-            slatMin = (int) Math.floor ((cameraPosLat - sightdeg) * 60.0F);
-            nlatMin = (int) Math.ceil ((cameraPosLat + sightdeg) * 60.0F);
-            wlonMin = (int) Math.floor (Lib.NormalLon (cameraPosLon - sightdeg * camlatcos) * 60.0F);
-            elonMin = (int) Math.ceil  (Lib.NormalLon (cameraPosLon + sightdeg * camlatcos) * 60.0F);
+            double sightdeg  = sightnm / Lib.NMPerDeg;
+            double camlatcos = Math.cos (Math.toRadians (cameraPosLat));
+            slatMin = (int) Math.floor ((cameraPosLat - sightdeg) * 60.0);
+            nlatMin = (int) Math.ceil ((cameraPosLat + sightdeg) * 60.0);
+            wlonMin = (int) Math.floor (Lib.NormalLon (cameraPosLon - sightdeg * camlatcos) * 60.0);
+            elonMin = (int) Math.ceil  (Lib.NormalLon (cameraPosLon + sightdeg * camlatcos) * 60.0);
 
             /*
              * Save limits of what is currently visible.
              */
-            float nlat = nlatMin / 60.0F;
-            float slat = slatMin / 60.0F;
-            float elon = elonMin / 60.0F;
-            float wlon = wlonMin / 60.0F;
+            double nlat = nlatMin / 60.0;
+            double slat = slatMin / 60.0;
+            double elon = elonMin / 60.0;
+            double wlon = wlonMin / 60.0;
             try {
                 chartView.pmap.setup (mWidth, mHeight,
                         nlat, wlon, nlat, elon, slat, wlon, slat, elon);
@@ -913,13 +912,13 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
                     /*
                      * Calculate how far center of sector is from camera.
                      */
-                    float slat = ilatmin / 60.0F;
-                    float nlat = (ilatmin + stepmin) / 60.0F;
-                    float wlon = ilonmin / 60.0F;
-                    float elon = (ilonmin + stepmin) / 60.0F;
-                    float nmfromcam = Lib.LatLonDist (cameraPosLat, cameraPosLon,
-                            (slat + nlat) / 2.0F, (wlon + elon) / 2.0F);
-                    if (elon >= 180.0F) elon -= 360.0F;
+                    double slat = ilatmin / 60.0;
+                    double nlat = (ilatmin + stepmin) / 60.0;
+                    double wlon = ilonmin / 60.0;
+                    double elon = (ilonmin + stepmin) / 60.0;
+                    double nmfromcam = Lib.LatLonDist (cameraPosLat, cameraPosLon,
+                            (slat + nlat) / 2.0, (wlon + elon) / 2.0);
+                    if (elon >= 180.0) elon -= 360.0;
 
                     /*
                      * Do sector at next zoomed-in level if too close to camera for this zoom level.
@@ -928,7 +927,7 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
                     // l2stepmin=4; stepmin=16: nmfromcam=10.0 .. 20.0  zoomed-in 2x: 20.0 .. 40.0
                     // l2stepmin=3: stepmin= 8: nmfromcam= 5.0 .. 10.0  zoomed-in 2x: 10.0 .. 20.0
                     // l2stepmin=2: stepmin= 4: nmfromcam= 2.5 ..  5.0  zoomed-in 2x:  5.0 .. 10.0
-                    float stepmindist = stepmin * 20.0F / 32.0F;
+                    double stepmindist = stepmin * 20.0 / 32.0;
                     if ((nmfromcam * mouseDispS < stepmindist) && (l2stepmin > l2stepLimits[0])) {
                         generateSectors (l2stepmin - 1, ilatmin, ilatmin + stepmin, ilonmin, ilonmin + stepmin);
                         continue;
@@ -940,8 +939,8 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
                      */
                     if (l2stepmin == l2stepLimits[1]) {
                         int secmaxelev = GetHighestElev (ilatmin, ilonmin, l2stepmin);
-                        float secsightang = Mathf.acos (EarthSector.EARTHRADIUS / (secmaxelev + EarthSector.EARTHRADIUS));
-                        float secsightnm = Mathf.toDegrees (camsightang + secsightang) * Lib.NMPerDeg;
+                        double secsightang = Math.acos (EarthSector.EARTHRADIUS / (secmaxelev + EarthSector.EARTHRADIUS));
+                        double secsightnm = Math.toDegrees (camsightang + secsightang) * Lib.NMPerDeg;
                         if (nmfromcam > secsightnm) continue;
                     }
 
@@ -954,10 +953,10 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
                     LatLon2PixelXY (nlat, wlon, nwpoint);
                     LatLon2PixelXY (slat, elon, sepoint);
                     LatLon2PixelXY (nlat, elon, nepoint);
-                    int minx = Math.round (Math.min (Math.min (swpoint.x, nwpoint.x), Math.min (sepoint.x, nepoint.x)));
-                    int maxx = Math.round (Math.max (Math.max (swpoint.x, nwpoint.x), Math.max (sepoint.x, nepoint.x)));
-                    int miny = Math.round (Math.min (Math.min (swpoint.y, nwpoint.y), Math.min (sepoint.y, nepoint.y)));
-                    int maxy = Math.round (Math.max (Math.max (swpoint.y, nwpoint.y), Math.max (sepoint.y, nepoint.y)));
+                    int minx = (int) Math.round (Math.min (Math.min (swpoint.x, nwpoint.x), Math.min (sepoint.x, nepoint.x)));
+                    int maxx = (int) Math.round (Math.max (Math.max (swpoint.x, nwpoint.x), Math.max (sepoint.x, nepoint.x)));
+                    int miny = (int) Math.round (Math.min (Math.min (swpoint.y, nwpoint.y), Math.min (sepoint.y, nepoint.y)));
+                    int maxy = (int) Math.round (Math.max (Math.max (swpoint.y, nwpoint.y), Math.max (sepoint.y, nepoint.y)));
                     if (maxx <= 0) continue;        // whole thing is off to left of screen
                     if (minx >= mWidth) continue;   // whole thing is off to right of screen
                     if (maxy <= 0) continue;        // whole thing is above top of screen
@@ -1020,7 +1019,7 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
                 for (int jlon = ilonmin; jlon <= ilonmin + stepmin; jlon ++) {
                     int ilon = jlon;
                     if (ilon >= 180 * 60) ilon -= 360 * 60;
-                    short elev = Topography.getElevMetres (ilat / 60.0F, ilon / 60.0F);
+                    short elev = Topography.getElevMetres (ilat / 60.0, ilon / 60.0);
                     if (highest < elev) highest = elev;
                 }
             }
@@ -1035,7 +1034,7 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
          * @param xy  = where to put the resultant XY
          * @return true iff pixel is visible
          */
-        private boolean LatLon2PixelXY (float lat, float lon, PointF xy)
+        private boolean LatLon2PixelXY (double lat, double lon, PointD xy)
         {
             int alt = Topography.getElevMetres (lat, lon);
             EarthSector.LatLonAlt2XYZ (lat, lon, alt, llvxyz);
@@ -1046,7 +1045,7 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
          * Convert a world XYZ to an on-the-screen pixel XY
          * @return whether the point is visible or not
          */
-        private boolean WorldXYZ2PixelXY (Vector3 xyz, PointF xy)
+        private boolean WorldXYZ2PixelXY (Vector3 xyz, PointD xy)
         {
             // simplified version of GLU.gluProject()
             double[] m = mMVPMatrix;
@@ -1054,8 +1053,8 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
             double rawy = m[ 1] * xyz.x + m[ 5] * xyz.y + m[ 9] * xyz.z + m[13];
             double rawh = m[ 3] * xyz.x + m[ 7] * xyz.y + m[11] * xyz.z + m[15];
             if (rawh == 0) return false;
-            xy.x = (float) ((1 + rawx / rawh) / 2 * mWidth);
-            xy.y = (float) ((1 - rawy / rawh) / 2 * mHeight);
+            xy.x = (1 + rawx / rawh) / 2 * mWidth;
+            xy.y = (1 - rawy / rawh) / 2 * mHeight;
 
             // see if pixel number is within range of the screen
             if ((xy.x < 0) || (xy.x >= mWidth) || (xy.y < 0) || (xy.y >= mHeight)) return false;
@@ -1066,7 +1065,7 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
                     (cameraLookMouse.x - cameraPos.x) * (xyz.x - cameraPos.x) +
                     (cameraLookMouse.y - cameraPos.y) * (xyz.y - cameraPos.y) +
                     (cameraLookMouse.z - cameraPos.z) * (xyz.z - cameraPos.z);
-            return dotprod > 0.0F;
+            return dotprod > 0.0;
         }
     }
 }

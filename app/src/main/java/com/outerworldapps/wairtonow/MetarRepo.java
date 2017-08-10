@@ -20,7 +20,10 @@
 
 package com.outerworldapps.wairtonow;
 
+import java.util.Calendar;
+import java.util.GregorianCalendar;
 import java.util.HashMap;
+import java.util.TimeZone;
 import java.util.TreeMap;
 
 /**
@@ -29,15 +32,18 @@ import java.util.TreeMap;
 public class MetarRepo {
     private final static int MAXMETARS = 20;
 
-    private float altSetting;
-    private float latitude;
-    private float longitude;
+    private double altSetting;
+    public  double latitude;
+    public  double longitude;
+    public  int ceilingft;   // feet or -1 if unknown
     private int lastSeqno = Integer.MIN_VALUE;
+    public  long ceilingms;  // timestamp (ms) or 0 if unknown
     private TreeMap<Integer,Metar> metarAges = new TreeMap<> ();
     public  TreeMap<String,TreeMap<Long,Metar>> metarTypes = new TreeMap<> ();
 
-    public MetarRepo (float lat, float lon)
+    public MetarRepo (double lat, double lon)
     {
+        ceilingft = -1;
         latitude  = lat;
         longitude = lon;
     }
@@ -69,16 +75,57 @@ public class MetarRepo {
         }
 
         // if it contains altimeter setting, save it
+        // likewise for ceiling
         if (newmet.type.equals ("METAR") || newmet.type.equals ("SPECI")) {
+            long whents = 0;
             String[] parts = newmet.data.split (" ");
             for (String part : parts) {
                 if (part.equals ("RMK")) break;
+
+                if ((part.length () == 7) && part.endsWith ("Z")) {
+                    try {
+                        int ddhhmm = Integer.parseInt (part.substring (0, 6));
+                        int metday = ddhhmm / 10000;
+                        int methr  = (ddhhmm / 100) % 100;
+                        int metmin = ddhhmm % 100;
+                        GregorianCalendar gc = new GregorianCalendar (TimeZone.getTimeZone ("GMT"));
+                        int metyear = gc.get (Calendar.YEAR);
+                        int metmon  = gc.get (Calendar.MONTH);
+                        int nowday  = gc.get (Calendar.DAY_OF_MONTH);
+                        if (metday > nowday) {
+                            if (-- metmon < Calendar.JANUARY) {
+                                gc.set (Calendar.YEAR, -- metyear);
+                                metmon = Calendar.DECEMBER;
+                            }
+                            gc.set (Calendar.MONTH, metmon);
+                        }
+                        gc.set (Calendar.DAY_OF_MONTH, metday);
+                        gc.set (Calendar.HOUR, methr);
+                        gc.set (Calendar.MINUTE, metmin);
+                        gc.set (Calendar.SECOND, 0);
+                        whents = gc.getTimeInMillis () / 1000 * 1000;
+                    } catch (NumberFormatException nfe) {
+                        Lib.Ignored ();
+                    }
+                }
+
+                // altimeter setting
                 if ((part.length () == 5) && (part.charAt (0) == 'A')) {
                     try {
                         int setting = Integer.parseInt (part.substring (1));
                         if ((setting > 2500) && (setting < 3500)) {
-                            altSetting = setting / 100.0F;
+                            altSetting = setting / 100.0;
                         }
+                    } catch (NumberFormatException nfe) {
+                        Lib.Ignored ();
+                    }
+                }
+
+                // ceiling
+                if ((part.length () == 6) && (part.startsWith ("BKN") || part.startsWith ("OVC"))) {
+                    try {
+                        ceilingft = Integer.parseInt (part.substring (3)) * 100;
+                        ceilingms = whents;
                     } catch (NumberFormatException nfe) {
                         Lib.Ignored ();
                     }
@@ -94,15 +141,15 @@ public class MetarRepo {
      * @param lon = longitude of aircraft
      * @return altimeter setting (or 0 if unknown)
      */
-    public static float getAltSetting (HashMap<String,MetarRepo> metarRepos, float lat, float lon)
+    public static double getAltSetting (HashMap<String,MetarRepo> metarRepos, double lat, double lon)
     {
-        float closestdistance = 100.0F;
-        float closestsetting  = 0.0F;
+        double closestdistance = 100.0;
+        double closestsetting  = 0.0;
         //noinspection SynchronizationOnLocalVariableOrMethodParameter
         synchronized (metarRepos) {
             for (MetarRepo repo : metarRepos.values ()) {
-                if (repo.altSetting > 0.0F) {
-                    float dist = Lib.LatLonDist (repo.latitude, repo.longitude, lat, lon);
+                if (repo.altSetting > 0.0) {
+                    double dist = Lib.LatLonDist (repo.latitude, repo.longitude, lat, lon);
                     if (closestdistance > dist) {
                         closestdistance = dist;
                         closestsetting  = repo.altSetting;

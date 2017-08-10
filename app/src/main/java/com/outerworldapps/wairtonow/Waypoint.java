@@ -24,7 +24,6 @@ import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
-import android.content.pm.ActivityInfo;
 import android.database.Cursor;
 import android.graphics.Color;
 import android.text.Editable;
@@ -61,14 +60,14 @@ public abstract class Waypoint {
     }
 
     public final static String TAG = "WairToNow";
-    public final static float ELEV_UNKNOWN = 999999.0F;
+    public final static double ELEV_UNKNOWN = 999999.0;
     public final static int   VAR_UNKNOWN  = 999999;
 
     public final static ArrayList<Class<? extends Waypoint>> wpclasses = GetWaypointClasses ();
 
-    public float  lat;                   // degrees north
-    public float  lon;                   // degrees east
-    public float  elev = ELEV_UNKNOWN;   // feet MSL
+    public double  lat;                   // degrees north
+    public double  lon;                   // degrees east
+    public double  elev = ELEV_UNKNOWN;   // feet MSL
     public int    magvar = VAR_UNKNOWN;  // magnetic variation (+=West; -=East)
     public String ident;                 // for airports, ICAO identifier
 
@@ -100,8 +99,8 @@ public abstract class Waypoint {
     public static void ShowWaypointDialog (
             final WairToNow wtn,
             final String title,
-            final float nearlat,
-            final float nearlon,
+            final double nearlat,
+            final double nearlon,
             final String oldid,
             final Selected wpsel)
     {
@@ -135,8 +134,8 @@ public abstract class Waypoint {
                 String after = editable.toString ();
                 if (!after.equals ("")) {
                     try {
-                        float value = Float.parseFloat (after);
-                        if ((value >= 0.0F) && (value <= 360.0F)) return;
+                        double value = Double.parseDouble (after);
+                        if ((value >= 0.0) && (value <= 360.0)) return;
                     } catch (NumberFormatException nfe) {
                         Lib.Ignored ();
                     }
@@ -172,8 +171,8 @@ public abstract class Waypoint {
                 String after = editable.toString ();
                 if (!after.equals ("")) {
                     try {
-                        float value = Float.parseFloat (after);
-                        if ((value >= 0.0F) && (value <= 999.0F)) return;
+                        double value = Double.parseDouble (after);
+                        if ((value >= 0.0) && (value <= 999.0)) return;
                     } catch (NumberFormatException nfe) {
                         Lib.Ignored ();
                     }
@@ -188,9 +187,9 @@ public abstract class Waypoint {
             RNavParse rnavParse = new RNavParse (oldid);
             ident.setText (rnavParse.baseident);
             if (rnavParse.rnavsuffix != null) {
-                rnavradl.setText (Lib.FloatNTZ (rnavParse.rnavradial));
+                rnavradl.setText (Lib.DoubleNTZ (rnavParse.rnavradial));
                 magTrue.setMag (rnavParse.magnetic);
-                rnavdist.setText (Lib.FloatNTZ (rnavParse.rnavdistance));
+                rnavdist.setText (Lib.DoubleNTZ (rnavParse.rnavdistance));
                 hasRNavOffset = true;
             }
         } catch (Exception e) {
@@ -285,8 +284,8 @@ public abstract class Waypoint {
             WairToNow wtn,
             String title,
             Selected wpsel,
-            float nearlat,
-            float nearlon,
+            double nearlat,
+            double nearlon,
             EditText ident,
             EditText rnavradl,
             MagTrueSpinner magTrue,
@@ -303,9 +302,9 @@ public abstract class Waypoint {
 
             // look for the one so named that is closest to given lat/lon
             Waypoint bestwp = null;
-            float bestnm = 999999.0F;
+            double bestnm = 999999.0;
             for (Waypoint wp : wplist) {
-                float nm = Lib.LatLonDist (wp.lat, wp.lon, nearlat, nearlon);
+                double nm = Lib.LatLonDist (wp.lat, wp.lon, nearlat, nearlon);
                 if (bestnm > nm) {
                     bestnm = nm;
                     bestwp = wp;
@@ -328,11 +327,11 @@ public abstract class Waypoint {
             // if a RNAV distance given, wrap the waypoint with RNAV radial/distance info
             if (!rnavradlstr.equals ("") || !rnavdiststr.equals ("")) {
                 try {
-                    float rnavradlbin = Float.parseFloat (rnavradlstr);
-                    float rnavdistbin = Float.parseFloat (rnavdiststr);
+                    double rnavradlbin = Double.parseDouble (rnavradlstr);
+                    double rnavdistbin = Double.parseDouble (rnavdiststr);
                     if (rnavdistbin != 0) {
-                        rnavsuffix = Lib.FloatNTZ (rnavradlbin) + (magnetic ? "@" : "T@") +
-                                Lib.FloatNTZ (rnavdistbin);
+                        rnavsuffix = Lib.DoubleNTZ (rnavradlbin) + (magnetic ? "@" : "T@") +
+                                Lib.DoubleNTZ (rnavdistbin);
                         bestwp = new RNavOffset (bestwp, rnavdistbin, rnavradlbin, magnetic, rnavsuffix);
                     }
                 } catch (NumberFormatException nfe) {
@@ -388,8 +387,8 @@ public abstract class Waypoint {
                 int i = ident.indexOf ("/", 1);
                 SelfLL selfll = new SelfLL ();
                 selfll.ident = ident;
-                selfll.lat = Float.parseFloat (ident.substring (1, i));
-                selfll.lon = Float.parseFloat (ident.substring (++ i));
+                selfll.lat = Double.parseDouble (ident.substring (1, i));
+                selfll.lon = Double.parseDouble (ident.substring (++ i));
                 wplist.addLast (selfll);
                 return wplist;
             }
@@ -578,8 +577,8 @@ public abstract class Waypoint {
     public static class RNavParse {
         public String baseident;     // waypoint
         public String rnavsuffix;    // [... or null if missing
-        public float rnavdistance;   // parsed distance
-        public float rnavradial;     // parsed radial
+        public double rnavdistance;   // parsed distance
+        public double rnavradial;     // parsed radial
         public boolean magnetic;     // true: magnetic; false: true
 
         public RNavParse (String ident)
@@ -597,9 +596,9 @@ public abstract class Waypoint {
                 String radlstr = suffix.substring (++ i);
                 if (parseDistanceRadial (diststr, radlstr, false)) {
                     StringBuilder sb = new StringBuilder ();
-                    sb.append (Lib.FloatNTZ (rnavdistance));
+                    sb.append (Lib.DoubleNTZ (rnavdistance));
                     sb.append ('/');
-                    sb.append (Lib.FloatNTZ (rnavradial));
+                    sb.append (Lib.DoubleNTZ (rnavradial));
                     if (magnetic) sb.append ('M');
                     rnavsuffix = sb.toString ();
                 }
@@ -611,10 +610,10 @@ public abstract class Waypoint {
                 String diststr = suffix.substring (++ i);
                 if (parseDistanceRadial (diststr, radlstr, true)) {
                     StringBuilder sb = new StringBuilder ();
-                    sb.append (Lib.FloatNTZ (rnavradial));
+                    sb.append (Lib.DoubleNTZ (rnavradial));
                     if (!magnetic) sb.append ('T');
                     sb.append ('@');
-                    sb.append (Lib.FloatNTZ (rnavdistance));
+                    sb.append (Lib.DoubleNTZ (rnavdistance));
                     rnavsuffix = sb.toString ();
                 }
                 return;
@@ -625,7 +624,7 @@ public abstract class Waypoint {
         private boolean parseDistanceRadial (String diststr, String radlstr, boolean mag)
         {
             magnetic = mag;
-            rnavdistance = Float.parseFloat (diststr);
+            rnavdistance = Double.parseDouble (diststr);
             if (rnavdistance <= 0) {
                 rnavsuffix = null;
                 return false;
@@ -637,9 +636,9 @@ public abstract class Waypoint {
                 magnetic = false;
                 radlstr = radlstr.substring (0, radlstr.length () - 1);
             }
-            rnavradial = Float.parseFloat (radlstr);
-            while (rnavradial > 360.0F) rnavradial -= 360.0F;
-            while (rnavradial <   0.0F) rnavradial += 360.0F;
+            rnavradial = Double.parseDouble (radlstr);
+            while (rnavradial > 360.0) rnavradial -= 360.0;
+            while (rnavradial <   0.0) rnavradial += 360.0;
             return true;
         }
 
@@ -710,7 +709,7 @@ public abstract class Waypoint {
     }
 
     // get magnetic variation
-    public float GetMagVar (float altmsl)
+    public double GetMagVar (double altmsl)
     {
         if (magvar != VAR_UNKNOWN) return magvar;
         if (elev != ELEV_UNKNOWN) {
@@ -720,15 +719,15 @@ public abstract class Waypoint {
     }
 
     // DME is normally at same spot
-    public float GetDMEElev ()
+    public double GetDMEElev ()
     {
         return elev;
     }
-    public float GetDMELat ()
+    public double GetDMELat ()
     {
         return lat;
     }
-    public float GetDMELon ()
+    public double GetDMELon ()
     {
         return lon;
     }
@@ -737,7 +736,7 @@ public abstract class Waypoint {
      * Get waypoints within a lat/lon area.
      */
     public static class Within {
-        private float leftLon, riteLon, topLat, botLat;
+        private double leftLon, riteLon, topLat, botLat;
         private HashMap<String,Waypoint> found = new HashMap<> ();
 
         public Within ()
@@ -751,17 +750,17 @@ public abstract class Waypoint {
         public void clear ()
         {
             found.clear ();
-            botLat  =  1000.0F;
-            topLat  = -1000.0F;
-            leftLon =  1000.0F;
-            riteLon = -1000.0F;
+            botLat  =  1000.0;
+            topLat  = -1000.0;
+            leftLon =  1000.0;
+            riteLon = -1000.0;
         }
 
         /**
          * Return list of all waypoints within the given latitude & longitude.
          * May include waypoints outside that range as well.
          */
-        public Collection<Waypoint> Get (float bLat, float tLat, float lLon, float rLon)
+        public Collection<Waypoint> Get (double bLat, double tLat, double lLon, double rLon)
         {
             // if new box is completely separate from old box, wipe out everything and start over
             if ((bLat > topLat) || (tLat < botLat) || (lLon > riteLon) || (rLon < leftLon)) {
@@ -800,8 +799,8 @@ public abstract class Waypoint {
                                     dbtable, dbcols,
                                     "(" + prefix + "lat BETWEEN ? AND ?) AND (" +
                                             prefix + "lon BETWEEN ? AND ?)",
-                                    new String[] { Float.toString (bLat), Float.toString (tLat),
-                                            Float.toString (lLon), Float.toString (rLon) },
+                                    new String[] { Double.toString (bLat), Double.toString (tLat),
+                                            Double.toString (lLon), Double.toString (rLon) },
                                     null, null, null, null);
                             Constructor<? extends Waypoint> ctor = wpclass.getConstructor (Cursor.class);
                             try {
@@ -846,10 +845,10 @@ public abstract class Waypoint {
         {
             ident    = result.getString (0);  // ICAO identifier
             faaident = result.getString (1);  // FAA identifier
-            elev     = result.isNull (2) ? ELEV_UNKNOWN : result.getFloat (2);
+            elev     = result.isNull (2) ? ELEV_UNKNOWN : result.getDouble (2);
             name     = result.getString (3);
-            lat      = result.getFloat (4);
-            lon      = result.getFloat (5);
+            lat      = result.getDouble (4);
+            lon      = result.getDouble (5);
             state    = result.getString (7);  // two letters
         }
 
@@ -1072,10 +1071,10 @@ public abstract class Waypoint {
 
                 // not a runway, look up identifier as given
                 // see if it is closest so far to this airport
-                float bestnm = 999999.0F;
+                double bestnm = 999999.0;
                 LinkedList<Waypoint> wps = Waypoint.GetWaypointsByIdent (wayptid);
                 for (Waypoint wp : wps) {
-                    float nm = Lib.LatLonDist (wp.lat, wp.lon, lat, lon);
+                    double nm = Lib.LatLonDist (wp.lat, wp.lon, lat, lon);
                     if (bestnm > nm) {
                         bestnm = nm;
                         bestwp = wp;
@@ -1087,7 +1086,7 @@ public abstract class Waypoint {
                 if (wayptid.startsWith ("I") && !wayptid.startsWith ("I-")) {
                     wps = Waypoint.GetWaypointsByIdent ("I-" + wayptid.substring (1));
                     for (Waypoint wp : wps) {
-                        float nm = Lib.LatLonDist (wp.lat, wp.lon, lat, lon);
+                        double nm = Lib.LatLonDist (wp.lat, wp.lon, lat, lon);
                         if (bestnm > nm) {
                             bestnm = nm;
                             bestwp = wp;
@@ -1220,9 +1219,9 @@ public abstract class Waypoint {
      */
     public static class RNavOffset extends Waypoint {
         private boolean magnetic;  // rnavradl is magnetic
-        private float hdgtrue;
-        private float rnavdist;
-        private float rnavradl;
+        private double hdgtrue;
+        private double rnavdist;
+        private double rnavradl;
         public Waypoint basewp;
 
         /**
@@ -1233,7 +1232,7 @@ public abstract class Waypoint {
          * @param mag      = true: magnetic; false: true
          * @param suffix   = string to represent the RNAV portion
          */
-        public RNavOffset (Waypoint basewp, float rnavdist, float rnavradl, boolean mag, String suffix)
+        public RNavOffset (Waypoint basewp, double rnavdist, double rnavradl, boolean mag, String suffix)
         {
             if (rnavdist == 0) throw new IllegalArgumentException ("rnavdist zero");
             this.basewp   = basewp;
@@ -1259,7 +1258,7 @@ public abstract class Waypoint {
         @Override  // Waypoint
         public String GetDetailText ()
         {
-            return "RNAV offset " + Lib.FloatNTZ (rnavdist) + "nm on " + Lib.FloatNTZ (rnavradl) +
+            return "RNAV offset " + Lib.DoubleNTZ (rnavdist) + "nm on " + Lib.DoubleNTZ (rnavradl) +
                     (magnetic ? "\u00B0 magnetic from " : "\u00B0 true from ") +
                     basewp.GetDetailText ();
         }
@@ -1267,7 +1266,7 @@ public abstract class Waypoint {
         @Override  // Waypoint
         public String MenuKey ()
         {
-            return "RNAV " + Lib.FloatNTZ (rnavdist) + "nm " + Lib.FloatNTZ (rnavradl) +
+            return "RNAV " + Lib.DoubleNTZ (rnavdist) + "nm " + Lib.DoubleNTZ (rnavradl) +
                     (magnetic ? "\u00B0M from " : "\u00B0T from ") + basewp.MenuKey ();
         }
     }
@@ -1283,11 +1282,11 @@ public abstract class Waypoint {
         public String aptid;    // faa ident
         public String number;   // eg, "02L"
         public int    truehdg;  // published
-        public float  begLat;
-        public float  begLon;
-        public float  endLat;
-        public float  endLon;
-        public float  trueHdg;  // computed
+        public double  begLat;
+        public double  begLon;
+        public double  endLat;
+        public double  endLon;
+        public double  trueHdg;  // computed
 
         private int lengthFt = -1;
         private int widthFt  = -1;
@@ -1296,16 +1295,16 @@ public abstract class Waypoint {
         {
             aptid   = result.getString (0);
             number  = result.getString (1);
-            elev    = result.isNull (3) ? apt.elev : result.getFloat (3);
-            begLat  = result.getFloat (4);
-            begLon  = result.getFloat (5);
-            endLat  = result.getFloat (6);
-            endLon  = result.getFloat (7);
+            elev    = result.isNull (3) ? apt.elev : result.getDouble (3);
+            begLat  = result.getDouble (4);
+            begLon  = result.getDouble (5);
+            endLat  = result.getDouble (6);
+            endLon  = result.getDouble (7);
             airport = apt;
 
             trueHdg = Lib.LatLonTC (begLat, begLon, endLat, endLon);
             if (result.isNull (2)) {
-                truehdg = Math.round (trueHdg);
+                truehdg = (int) Math.round (trueHdg);
                 if (truehdg <= 0) truehdg += 360;
             } else {
                 truehdg = result.getInt (2);
@@ -1421,31 +1420,31 @@ public abstract class Waypoint {
         public String type;  // "ILS", "LOC/DME", "LOCALIZER", etc
         public String descr;
 
-        public float thdg;
-        public float gs_elev;
-        public float gs_tilt;
-        public float gs_lat;
-        public float gs_lon;
-        public float dme_elev;
-        public float dme_lat;
-        public float dme_lon;
+        public double thdg;
+        public double gs_elev;
+        public double gs_tilt;
+        public double gs_lat;
+        public double gs_lon;
+        public double dme_elev;
+        public double dme_lat;
+        public double dme_lon;
 
         public Localizer (Cursor result)
         {
             this.type     = result.getString (0);
             this.ident    = result.getString (1);
-            this.elev     = result.isNull    (2) ? ELEV_UNKNOWN : result.getFloat (2);
+            this.elev     = result.isNull    (2) ? ELEV_UNKNOWN : result.getDouble (2);
             this.descr    = result.getString (3);
-            this.lat      = result.getFloat  (4);
-            this.lon      = result.getFloat  (5);
-            this.thdg     = result.getFloat  (6);
-            this.gs_elev  = result.isNull    (7) ? ELEV_UNKNOWN : result.getFloat (7);
-            this.gs_tilt  = result.isNull    (8) ? 0 : result.getFloat (8);
-            this.gs_lat   = result.getFloat  (9);
-            this.gs_lon   = result.getFloat (10);
-            this.dme_elev = result.isNull   (11) ? ELEV_UNKNOWN : result.getFloat (11);
-            this.dme_lat  = result.getFloat (12);
-            this.dme_lon  = result.getFloat (13);
+            this.lat      = result.getDouble  (4);
+            this.lon      = result.getDouble  (5);
+            this.thdg     = result.getDouble  (6);
+            this.gs_elev  = result.isNull    (7) ? ELEV_UNKNOWN : result.getDouble (7);
+            this.gs_tilt  = result.isNull    (8) ? 0 : result.getDouble (8);
+            this.gs_lat   = result.getDouble  (9);
+            this.gs_lon   = result.getDouble (10);
+            this.dme_elev = result.isNull   (11) ? ELEV_UNKNOWN : result.getDouble (11);
+            this.dme_lat  = result.getDouble (12);
+            this.dme_lon  = result.getDouble (13);
         }
 
         @Override
@@ -1475,17 +1474,17 @@ public abstract class Waypoint {
         }
 
         @Override
-        public float GetDMEElev ()
+        public double GetDMEElev ()
         {
             return ((dme_lat != 0) || (dme_lon != 0)) ? dme_elev : elev;
         }
         @Override
-        public float GetDMELat ()
+        public double GetDMELat ()
         {
             return ((dme_lat != 0) || (dme_lon != 0)) ? dme_lat : lat;
         }
         @Override
-        public float GetDMELon ()
+        public double GetDMELon ()
         {
             return ((dme_lat != 0) || (dme_lon != 0)) ? dme_lon : lon;
         }
@@ -1508,10 +1507,10 @@ public abstract class Waypoint {
         {
             this.type   = result.getString (0);
             this.ident  = result.getString (1);
-            this.elev   = result.isNull (2) ? ELEV_UNKNOWN : result.getFloat (2);
+            this.elev   = result.isNull (2) ? ELEV_UNKNOWN : result.getDouble (2);
             this.descr  = result.getString (3);
-            this.lat    = result.getFloat (4);
-            this.lon    = result.getFloat (5);
+            this.lat    = result.getDouble (4);
+            this.lon    = result.getDouble (5);
             this.magvar = result.isNull (6) ? VAR_UNKNOWN : result.getInt (6);
         }
 
@@ -1549,8 +1548,8 @@ public abstract class Waypoint {
         public Fix (Cursor result)
         {
             this.ident = result.getString (0);
-            this.lat   = result.getFloat (1);
-            this.lon   = result.getFloat (2);
+            this.lat   = result.getDouble (1);
+            this.lon   = result.getDouble (2);
             this.descr = result.getString (3);
         }
 
@@ -1592,8 +1591,8 @@ public abstract class Waypoint {
         public Intersection (Cursor result)
         {
             this.ident = result.getString (0);
-            this.lat   = result.getFloat  (1);
-            this.lon   = result.getFloat  (2);
+            this.lat   = result.getDouble  (1);
+            this.lon   = result.getDouble  (2);
             this.type  = result.getString (3);
         }
 
@@ -1656,13 +1655,13 @@ public abstract class Waypoint {
                 int i = 0;
                 do {
                     String wpident  = cursor.getString (0);
-                    float  wplat    = cursor.getFloat (1);
-                    float  wplon    = cursor.getFloat (2);
-                    float bestnm    = 1.0F;
+                    double  wplat    = cursor.getDouble (1);
+                    double  wplon    = cursor.getDouble (2);
+                    double bestnm    = 1.0;
                     Waypoint bestwp = null;
                     LinkedList<Waypoint> wps = GetWaypointsByIdent (wpident);
                     for (Waypoint wp : wps) {
-                        float nm = Lib.LatLonDist (wplat, wplon, wp.lat, wp.lon);
+                        double nm = Lib.LatLonDist (wplat, wplon, wp.lat, wp.lon);
                         if (bestnm > nm) {
                             bestnm = nm;
                             bestwp = wp;

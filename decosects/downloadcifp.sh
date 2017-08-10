@@ -13,7 +13,12 @@ function mergeoldcifps
 {
     while read statecsv
     do
-        java MergeOldCifps datums/iapcifps_faa_$cycles28/$statecsv datums/iapcifps_save_20170302/$statecsv > datums/iapcifps_$cycles28.tmp/$statecsv.tmp
+        java MergeOldCifps \
+                datums/iapcifps_faa_$cycles28/$statecsv \
+                datums/iapcifps_save_20170302/$statecsv \
+                datums/aptplates_$cycles28/state/$statecsv \
+                datums/airports_$cycles28.csv \
+                > datums/iapcifps_$cycles28.tmp/$statecsv.tmp
         mv datums/iapcifps_$cycles28.tmp/$statecsv.tmp datums/iapcifps_$cycles28.tmp/$statecsv
     done
 }

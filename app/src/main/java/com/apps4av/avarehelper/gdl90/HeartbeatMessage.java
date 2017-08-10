@@ -44,9 +44,9 @@ public class HeartbeatMessage {
 
         mf.heartbeatPosVal = gpsPositionValid;
         mf.heartbeatTime   = TopDecoder.GetFullTime (msecs);
-        mf.ownSpeed        = Float.NaN;
-        mf.ownLatitude     = Float.NaN;
-        mf.ownLongitude    = Float.NaN;
-        mf.ownTrueAlt      = Float.NaN;
+        mf.ownSpeed        = Double.NaN;
+        mf.ownLatitude     = Double.NaN;
+        mf.ownLongitude    = Double.NaN;
+        mf.ownTrueAlt      = Double.NaN;
     }
 }

@@ -56,8 +56,8 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
     private EditText ptendTurnRt;
     private EditText toDistEdit;
     private EditText toHdgEdit;
-    private float lastPtendLat;
-    private float lastPtendLon;
+    private double lastPtendLat;
+    private double lastPtendLon;
     private LatLonView ptendLat;
     private LatLonView ptendLon;
     private LinearLayout linearLayout;
@@ -263,8 +263,8 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
         ptendHeading.setText ("212");
         ptendSpeed.setText ("360");
         ptendTurnRt.setText ("0");
-        lastPtendLat =  41.724F;    //   38.8F; // 42.5F;
-        lastPtendLon = -71.428224F; // -104.7F; // -71.0F;
+        lastPtendLat =  41.724;    //   38.8; // 42.5;
+        lastPtendLon = -71.428224; // -104.7; // -71.0;
         ptendLat.setVal (lastPtendLat);
         ptendLon.setVal (lastPtendLon);
         SetPretendEnabled (true);
@@ -293,14 +293,14 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
     public void OpenDisplay ()
     {
         displayOpen = true;
-        String format = wairToNow.optionsView.LatLonString (10.0F/3600.0F, 'N', 'S');
+        String format = wairToNow.optionsView.LatLonString (10.0/3600.0, 'N', 'S');
         ptendLat.setFormat (format);
         ptendLon.setFormat (format);
 
         // if PlanView display is open, next simulated lat/lon is to be taken
         // from the ptendLat,Lon boxes
-        lastPtendLat = -99999.0F;
-        lastPtendLon = -99999.0F;
+        lastPtendLat = -99999.0;
+        lastPtendLon = -99999.0;
     }
 
     @Override  // WairToNow.CanBeMainView
@@ -430,7 +430,7 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
                     Waypoint.Airport.dbtable, Waypoint.Airport.dbcols,
                     Waypoint.Airport.dbkeyid + "=?", new String[] { fromApt },
                     null, null, null, null);
-            float fromLat, fromLon;
+            double fromLat, fromLon;
             try {
                 if (!result1.moveToFirst ()) {
                     throw new Exception ("starting airport not defined");
@@ -453,8 +453,8 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
             try {
                 if (result2.moveToFirst ()) do {
                     Waypoint.Airport wp = new Waypoint.Airport (result2);
-                    float distNM  = Lib.LatLonDist (fromLat, fromLon, wp.lat, wp.lon);
-                    float trueDeg = Lib.LatLonTC (fromLat, fromLon, wp.lat, wp.lon);
+                    double distNM  = Lib.LatLonDist (fromLat, fromLon, wp.lat, wp.lon);
+                    double trueDeg = Lib.LatLonTC (fromLat, fromLon, wp.lat, wp.lon);
                     while (trueDeg < fromHdg) trueDeg += 360;
                     if ((distNM >= fromDist) && (distNM <= toDist) && (trueDeg <= toHdg)) {
                         waypoints.put (wp.ident, wp);
@@ -520,35 +520,35 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
              * use lastPtendLat,Lon from then on.
              */
             long  oldnow = ptendTime;
-            float oldlat = (lastPtendLat != -99999.0F) ? lastPtendLat : ptendLat.getVal ();
-            float oldlon = (lastPtendLon != -99999.0F) ? lastPtendLon : ptendLon.getVal ();
+            double oldlat = (lastPtendLat != -99999.0) ? lastPtendLat : ptendLat.getVal ();
+            double oldlon = (lastPtendLon != -99999.0) ? lastPtendLon : ptendLon.getVal ();
 
             /*
              * Get speed and heading input by the user.
              */
-            float spdkts = 0.0F;
-            float hdgdeg = 0.0F;
-            float altft  = 0.0F;
-            float turnrt = 0.0F;
-            float climrt = 0.0F;
-            try { spdkts = Float.parseFloat (ptendSpeed.getText ().toString ()); } catch (NumberFormatException nfe) { Lib.Ignored (); }
-            try { hdgdeg = Float.parseFloat (ptendHeading.getText ().toString ()); } catch (NumberFormatException nfe) { Lib.Ignored (); }
-            try { altft  = Float.parseFloat (ptendAltitude.getText ().toString ()); } catch (NumberFormatException nfe) { Lib.Ignored (); }
-            try { turnrt = Float.parseFloat (ptendTurnRt.getText ().toString ()); } catch (NumberFormatException nfe) { Lib.Ignored (); }
-            try { climrt = Float.parseFloat (ptendClimbRt.getText ().toString ()); } catch (NumberFormatException nfe) { Lib.Ignored (); }
+            double spdkts = 0.0;
+            double hdgdeg = 0.0;
+            double altft  = 0.0;
+            double turnrt = 0.0;
+            double climrt = 0.0;
+            try { spdkts = Double.parseDouble (ptendSpeed.getText ().toString ()); } catch (NumberFormatException nfe) { Lib.Ignored (); }
+            try { hdgdeg = Double.parseDouble (ptendHeading.getText ().toString ()); } catch (NumberFormatException nfe) { Lib.Ignored (); }
+            try { altft  = Double.parseDouble (ptendAltitude.getText ().toString ()); } catch (NumberFormatException nfe) { Lib.Ignored (); }
+            try { turnrt = Double.parseDouble (ptendTurnRt.getText ().toString ()); } catch (NumberFormatException nfe) { Lib.Ignored (); }
+            try { climrt = Double.parseDouble (ptendClimbRt.getText ().toString ()); } catch (NumberFormatException nfe) { Lib.Ignored (); }
 
             /*
              * Get updated lat/lon, heading and time.
              */
             long  newnow = oldnow + pretendInterval;
-            float distnm = spdkts * (newnow - oldnow) / 1000.0F / 3600.0F;
-            float newhdg = hdgdeg + (newnow - oldnow) / 1000.0F * turnrt;
-            float newlat = Lib.LatHdgDist2Lat (oldlat, newhdg, distnm);
-            float newlon = Lib.LatLonHdgDist2Lon (oldlat, oldlon, newhdg, distnm);
-            float newalt = altft + (newnow - oldnow) / 60000.0F * climrt;
+            double distnm = spdkts * (newnow - oldnow) / 1000.0 / 3600.0;
+            double newhdg = hdgdeg + (newnow - oldnow) / 1000.0 * turnrt;
+            double newlat = Lib.LatHdgDist2Lat (oldlat, newhdg, distnm);
+            double newlon = Lib.LatLonHdgDist2Lon (oldlat, oldlon, newhdg, distnm);
+            double newalt = altft + (newnow - oldnow) / 60000.0 * climrt;
 
-            while (newhdg <=  0.0F) newhdg += 360.0F;
-            while (newhdg > 360.0F) newhdg -= 360.0F;
+            while (newhdg <=  0.0) newhdg += 360.0;
+            while (newhdg > 360.0) newhdg -= 360.0;
 
             /*
              * Save the new values in the on-screen boxes.
@@ -556,8 +556,8 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
             ptendTime = newnow;
             ptendLat.setVal (newlat);
             ptendLon.setVal (newlon);
-            ptendHeading.setText (Float.toString (newhdg));
-            ptendAltitude.setText (Float.toString (newalt));
+            ptendHeading.setText (Double.toString (newhdg));
+            ptendAltitude.setText (Double.toString (newalt));
             lastPtendLat = newlat;
             lastPtendLon = newlon;
 

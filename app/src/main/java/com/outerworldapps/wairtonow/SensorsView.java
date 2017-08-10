@@ -352,18 +352,18 @@ public class SensorsView
 
             sb.append ('\n');
 
-            float latitude  = wairToNow.currentGPSLat;
-            float longitude = wairToNow.currentGPSLon;
+            double latitude  = wairToNow.currentGPSLat;
+            double longitude = wairToNow.currentGPSLon;
             sb.append (wairToNow.optionsView.LatLonString (latitude,  'N', 'S'));
             sb.append ("    ");
             sb.append (wairToNow.optionsView.LatLonString (longitude, 'E', 'W'));
 
             sb.append ('\n');
 
-            float altitude = wairToNow.currentGPSAlt;
-            float heading  = wairToNow.currentGPSHdg;
-            float speed    = wairToNow.currentGPSSpd;
-            sb.append (Integer.toString (Math.round (altitude * Lib.FtPerM)));
+            double altitude = wairToNow.currentGPSAlt;
+            double heading  = wairToNow.currentGPSHdg;
+            double speed    = wairToNow.currentGPSSpd;
+            sb.append (Long.toString (Math.round (altitude * Lib.FtPerM)));
             sb.append (" ft MSL    ");
             sb.append (wairToNow.optionsView.HdgString (heading, latitude, longitude, altitude));
             sb.append ("    ");

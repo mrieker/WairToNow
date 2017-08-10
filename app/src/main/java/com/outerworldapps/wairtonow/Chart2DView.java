@@ -29,7 +29,6 @@ import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Path;
-import android.graphics.PointF;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.os.SystemClock;
@@ -54,18 +53,18 @@ public class Chart2DView extends View
         implements ChartView.Backing, DisplayableChart.Invalidatable {
     public final static String TAG = "WairToNow";
 
-    private final static float nearbynm = 5.0F;
+    private final static double nearbynm = 5.0;
     private final static int waypointopentime = 1000;
-    private final static float rotatestep = Mathf.toRadians (5.0F);  // manual rotation stepping
-    private final static float[] scalesteps = new float[] {       // manual scale stepping
-        0.10F, 0.15F, 0.20F, 0.25F, 0.30F, 0.40F, 0.50F, 0.60F, 0.80F, 1.00F,
-        1.25F, 1.50F, 2.00F, 2.50F, 3.00F, 4.00F, 5.00F, 6.00F, 8.00F, 10.0F,
-        12.5F, 15.0F, 20.0F, 25.0F, 30.0F, 40.0F, 50.0F, 60.0F, 80.0F, 100.0F
+    private final static double rotatestep = Math.toRadians (5.0);  // manual rotation stepping
+    private final static double[] scalesteps = new double[] {       // manual scale stepping
+        0.10, 0.15, 0.20, 0.25, 0.30, 0.40, 0.50, 0.60, 0.80, 1.00,
+        1.25, 1.50, 2.00, 2.50, 3.00, 4.00, 5.00, 6.00, 8.00, 10.0,
+        12.5, 15.0, 20.0, 25.0, 30.0, 40.0, 50.0, 60.0, 80.0, 100.0
     };
     private final static boolean enablesteps = true;   // enables discrete steps
     private final static boolean blinknexrad = false;
 
-    private static final float scalebase  = 500000;    // chart scale factor (when scaling=1.0, using 500000
+    private static final double scalebase  = 500000;    // chart scale factor (when scaling=1.0, using 500000
                                                        // makes sectionals appear actual size theoretically)
 
     private static final int capGridColor = Color.DKGRAY;
@@ -75,27 +74,27 @@ public class Chart2DView extends View
 
     private static class Pointer {
         public int id;        // event pointer id
-        public float lx, ly;  // latest x,y on the canvas
-        public float sx, sy;  // starting x,y on the canvas
+        public double lx, ly;  // latest x,y on the canvas
+        public double sx, sy;  // starting x,y on the canvas
     }
 
-    private float userRotationRad;            // user applied rotation (only in finger-rotation mode)
-    private float pixelHeightM;               // how many chart metres high pixels are
-    private float pixelWidthM;                // how many chart metres wide pixels are
+    private double userRotationRad;            // user applied rotation (only in finger-rotation mode)
+    private double pixelHeightM;               // how many chart metres high pixels are
+    private double pixelWidthM;                // how many chart metres wide pixels are
 
     private ArrayList<DrawWaypoint> allDrawWaypoints = new ArrayList<> ();
     @SuppressWarnings("FieldCanBeLocal")
     private boolean reDrawQueued;
     private ChartView chartView;
-    private float canvasHdgRadOverride;
-    private float latStart, lonStart;
-    private float mappingCanvasHdgRads;
-    private float mappingCenterLat;
-    private float mappingCenterLon;
-    private float mappingPixelHeightM;
-    private float mappingPixelWidthM;
-    private float rotStart, scaStart;
-    private float mouseDownPosX, mouseDownPosY;
+    private double canvasHdgRadOverride;
+    private double latStart, lonStart;
+    private double mappingCanvasHdgRads;
+    private double mappingCenterLat;
+    private double mappingCenterLon;
+    private double mappingPixelHeightM;
+    private double mappingPixelWidthM;
+    private double rotStart, scaStart;
+    private double mouseDownPosX, mouseDownPosY;
     private float[] poly2polyFloats = new float[16];
     private LatLon drawCourseLineISect = new LatLon ();
     private LatLon newCtrLL = new LatLon ();
@@ -115,21 +114,22 @@ public class Chart2DView extends View
     private Paint currentTxPaint    = new Paint ();
     private Paint trailPaint        = new Paint ();
     private Paint wayptBGPaint      = new Paint ();
+    private Paint wsdPaint          = new Paint ();
     private Paint[] faaWPPaints     = new Paint[] { new Paint (), new Paint () };
     private Paint[] userWPPaints    = new Paint[] { new Paint (), new Paint () };
     private Path trailPath          = new Path ();
-    private PointF onDrawPt         = new PointF ();
-    private PointF canpix1          = new PointF ();
-    private PointF canpix2          = new PointF ();
-    private PointF canpix3          = new PointF ();
-    private PointF canpix4          = new PointF ();
-    private PointF drawCourseFilletCom = new PointF ();
-    private PointF drawCourseFilletFr  = new PointF ();
-    private PointF drawCourseFilletTo  = new PointF ();
+    private PointD onDrawPt         = new PointD ();
+    private PointD canpix1          = new PointD ();
+    private PointD canpix2          = new PointD ();
+    private PointD canpix3          = new PointD ();
+    private PointD canpix4          = new PointD ();
+    private PointD drawCourseFilletCom = new PointD ();
+    private PointD drawCourseFilletFr  = new PointD ();
+    private PointD drawCourseFilletTo  = new PointD ();
     private Pointer firstPointer;
     private Pointer secondPointer;
     private Pointer transPointer    = new Pointer ();
-    private PointF drawCourseFilletCp = new PointF ();
+    private PointD drawCourseFilletCp = new PointD ();
     private RectF drawCourseFilletOval = new RectF ();
     public  WairToNow wairToNow;
     private Waypoint.Within waypointsWithin = new Waypoint.Within ();
@@ -195,6 +195,9 @@ public class Chart2DView extends View
         wayptBGPaint.setTextSize (ts);
         wayptBGPaint.setTextAlign (Paint.Align.LEFT);
 
+        wsdPaint.setStrokeWidth (wairToNow.thickLine * 2);
+        wsdPaint.setStyle (Paint.Style.FILL_AND_STROKE);
+
         for (Paint p : faaWPPaints) {
             p.setStyle (Paint.Style.FILL);
             p.setStrokeWidth (2);
@@ -257,9 +260,9 @@ public class Chart2DView extends View
      * See how much to rotate chart by.
      */
     @Override  // Backing
-    public float GetCanvasHdgRads ()
+    public double GetCanvasHdgRads ()
     {
-        if (canvasHdgRadOverride != -99999.0F) return canvasHdgRadOverride;
+        if (canvasHdgRadOverride != -99999.0) return canvasHdgRadOverride;
 
         switch (wairToNow.optionsView.chartTrackOption.getVal ()) {
 
@@ -267,7 +270,7 @@ public class Chart2DView extends View
             // that is adjacent to the current position.  If no route, use track-up mode.
             case OptionsView.CTO_COURSEUP: {
                 if (chartView.clDest != null) {
-                    float courseUpRad = Mathf.toRadians (Lib.GCOnCourseHdg (
+                    double courseUpRad = Math.toRadians (Lib.GCOnCourseHdg (
                             chartView.orgLat, chartView.orgLon,
                             chartView.clDest.lat, chartView.clDest.lon,
                             wairToNow.currentGPSLat, wairToNow.currentGPSLon));
@@ -279,15 +282,15 @@ public class Chart2DView extends View
 
             // Track up : rotate charts counter-clockwise by the current heading
             case OptionsView.CTO_TRACKUP: {
-                float trackUpRad = Mathf.toRadians (wairToNow.currentGPSHdg);
+                double trackUpRad = Math.toRadians (wairToNow.currentGPSHdg);
                 userRotationRad = Math.round (trackUpRad / rotatestep) * rotatestep;
                 return trackUpRad;
             }
 
             // North Up : north is always up
             case OptionsView.CTO_NORTHUP: {
-                userRotationRad = 0.0F;
-                return 0.0F;
+                userRotationRad = 0.0;
+                return 0.0;
             }
 
             // Finger Rotation : leave chart rotated as per user's manual rotation
@@ -304,13 +307,13 @@ public class Chart2DView extends View
      * Set "UP" direction for next call to DrawChart().
      * @param canvasHdg = new "UP" direction for canvas (radians)
      */
-    public void SetCanvasHdgRad (float canvasHdg)
+    public void SetCanvasHdgRad (double canvasHdg)
     {
         canvasHdgRadOverride = canvasHdg;
     }
     public void UnSetCanvasHdgRad ()
     {
-        canvasHdgRadOverride = -99999.0F;
+        canvasHdgRadOverride = -99999.0;
     }
 
     /**
@@ -345,8 +348,8 @@ public class Chart2DView extends View
             case MotionEvent.ACTION_POINTER_DOWN: {
                 int   i = event.getActionIndex ();
                 int  id = event.getPointerId (i);
-                float x = event.getX (i);
-                float y = event.getY (i);
+                double x = event.getX (i);
+                double y = event.getY (i);
                 if (firstPointer == null) {
                     firstPointer = new Pointer ();
                     firstPointer.id = id;
@@ -379,8 +382,8 @@ public class Chart2DView extends View
                 int n = event.getPointerCount ();
                 for (int i = 0; i < n; i ++) {
                     int  id = event.getPointerId (i);
-                    float x = event.getX (i);
-                    float y = event.getY (i);
+                    double x = event.getX (i);
+                    double y = event.getY (i);
                     Pointer p = null;
                     if ((firstPointer  != null) && (firstPointer.id  == id)) p = firstPointer;
                     if ((secondPointer != null) && (secondPointer.id == id)) p = secondPointer;
@@ -393,7 +396,7 @@ public class Chart2DView extends View
                             p.ly = y;
 
                             // if moved by this much, don't open nearby waypoint menu
-                            if (Mathf.hypot (p.lx - p.sx, p.ly - p.sy) > 50.0) {
+                            if (Math.hypot (p.lx - p.sx, p.ly - p.sy) > 50.0) {
                                 waypointOpenAt = Long.MAX_VALUE;
                             }
                         } else if (thatptr == null) {
@@ -479,8 +482,8 @@ public class Chart2DView extends View
     /**
      * Update canvas <-> latlon transformation given user manual scaling/rotation/translation
      */
-    private void TransformView (float oldx1, float oldy1, float newx1, float newy1,
-                                float oldx2, float oldy2, float newx2, float newy2)
+    private void TransformView (double oldx1, double oldy1, double newx1, double newy1,
+                                double oldx2, double oldy2, double newx2, double newy2)
     {
         // canvasHdgRads = what true heading is up on display
         // scaling = scaling factor, < 1: zoomed out; > 1: zoomed in
@@ -499,21 +502,21 @@ public class Chart2DView extends View
         //    s = sine of rotation
         //    t = translation in x and y
 
-        float fold = Mathf.hypot (oldx2 - oldx1, oldy2 - oldy1);  // length of old line between 2 touch points
-        float fnew = Mathf.hypot (newx2 - newx1, newy2 - newy1);  // length of new line between 2 touch points
-        float f    = fold / fnew;                                // ratio of lengths
-        float rold = Mathf.atan2 (oldx2 - oldx1, oldy2 - oldy1);  // angle of old line, cw from up
-        float rnew = Mathf.atan2 (newx2 - newx1, newy2 - newy1);  // angle of new line, cw from up
-        float r    = rold - rnew;                                // difference of angles
+        double fold = Math.hypot (oldx2 - oldx1, oldy2 - oldy1);  // length of old line between 2 touch points
+        double fnew = Math.hypot (newx2 - newx1, newy2 - newy1);  // length of new line between 2 touch points
+        double f    = fold / fnew;                                // ratio of lengths
+        double rold = Math.atan2 (oldx2 - oldx1, oldy2 - oldy1);  // angle of old line, cw from up
+        double rnew = Math.atan2 (newx2 - newx1, newy2 - newy1);  // angle of new line, cw from up
+        double r    = rold - rnew;                                // difference of angles
 
-        float fc = f * Mathf.cos (r);  // scale/rotation cosine
-        float fs = f * Mathf.sin (r);  // scale/rotation sine
+        double fc = f * Math.cos (r);  // scale/rotation cosine
+        double fs = f * Math.sin (r);  // scale/rotation sine
 
         //  fc * newx + fs * newy + tx = oldx  =>  tx = oldx - fc * newx - fs * newy
         // -fs * newx + fc * newy + ty = oldy  =>  ty = oldy + fs * newx - fc * newy
 
-        float tx = oldx1 - fc * newx1 - fs * newy1;  // translation needed for old point
-        float ty = oldy1 - fc * newy1 + fs * newx1;
+        double tx = oldx1 - fc * newx1 - fs * newy1;  // translation needed for old point
+        double ty = oldy1 - fc * newy1 + fs * newx1;
 
         // tx,ty are in the old co-ordinate system
         // so find new center lat/lon by looking tx,ty pixels away from old center
@@ -526,10 +529,10 @@ public class Chart2DView extends View
         MapLatLonsToCanvasPixels (chartView.pmap.canvasWidth, chartView.pmap.canvasHeight);
 
         // figure out where new center point is in the old canvas
-        float newCtrX = chartView.pmap.canvasWidth  / 2;
-        float newCtrY = chartView.pmap.canvasHeight / 2;
-        float oldCtrX = fc * newCtrX + fs * newCtrY + tx;
-        float oldCtrY = fc * newCtrY - fs * newCtrX + ty;
+        double newCtrX = chartView.pmap.canvasWidth  / 2;
+        double newCtrY = chartView.pmap.canvasHeight / 2;
+        double oldCtrX = fc * newCtrX + fs * newCtrY + tx;
+        double oldCtrY = fc * newCtrY - fs * newCtrX + ty;
 
         // compute the lat/lon for that point using the old canvas transform
         chartView.pmap.CanPix2LatLonAprox (oldCtrX, oldCtrY, newCtrLL);
@@ -539,9 +542,9 @@ public class Chart2DView extends View
         chartView.centerLon = newCtrLL.lon;
 
         // rotate chart by this much counterclockwise
-        float rotInt = rotStart - r;
-        while (rotInt < -Mathf.PI) rotInt += Mathf.PI * 2.0F;
-        while (rotInt >= Mathf.PI) rotInt -= Mathf.PI * 2.0F;
+        double rotInt = rotStart - r;
+        while (rotInt < -Math.PI) rotInt += Math.PI * 2.0;
+        while (rotInt >= Math.PI) rotInt -= Math.PI * 2.0;
         if (enablesteps) rotInt = Math.round (rotInt / rotatestep) * rotatestep;
         userRotationRad = rotInt;
 
@@ -550,10 +553,10 @@ public class Chart2DView extends View
         int m = scalesteps.length - 1;
         if (enablesteps) {
             while (m > 0) {
-                float a = scalesteps[m-1];
-                float b = scalesteps[m];
-                float e = chartView.scaling / a;
-                float g = b / chartView.scaling;
+                double a = scalesteps[m-1];
+                double b = scalesteps[m];
+                double e = chartView.scaling / a;
+                double g = b / chartView.scaling;
                 if (e > g) break;  // scaling closer to scalesteps[m] than scalesteps[m-1]
                 -- m;
             }
@@ -569,7 +572,7 @@ public class Chart2DView extends View
      * @param x = canvas pixel tapped on
      * @param y = canvas pixel tapped on
      */
-    private void MouseDown (float x, float y)
+    private void MouseDown (double x, double y)
     {
         long now = System.currentTimeMillis ();
         mouseDownPosX  = x;
@@ -604,11 +607,11 @@ public class Chart2DView extends View
          */
         if (firstPointer != null) {
             float r = wairToNow.dotsPerInch * 0.25F;
-            canvas.drawCircle (firstPointer.lx, firstPointer.ly, r, currentLnPaint);
+            canvas.drawCircle ((float) firstPointer.lx, (float) firstPointer.ly, r, currentLnPaint);
         }
         if (secondPointer != null) {
             float r = wairToNow.dotsPerInch * 0.25F;
-            canvas.drawCircle (secondPointer.lx, secondPointer.ly, r, currentLnPaint);
+            canvas.drawCircle ((float) secondPointer.lx, (float) secondPointer.ly, r, currentLnPaint);
         }
     }
 
@@ -648,7 +651,7 @@ public class Chart2DView extends View
              */
             canvas.save ();
             canvas.translate (cw / 2, ch / 2);      // anything drawn below will be translated this much
-            wairToNow.DrawAirplaneSymbol (canvas, wairToNow.textSize * 1.5F);  // draw airplane symbol unrotated
+            wairToNow.DrawAirplaneSymbol (canvas, wairToNow.textSize * 1.5);  // draw airplane symbol unrotated
             canvas.restore ();                      // remove translation/scaling/rotation
 
             /*
@@ -697,6 +700,13 @@ public class Chart2DView extends View
         }
 
         /*
+         * Draw weather summary dots.
+         */
+        if (wairToNow.optionsView.showWxSumDot.checkBox.isChecked ()) {
+            DrawWxSumDots (canvas);
+        }
+
+        /*
          * Maybe draw CAP grid lines and numbers.
          */
         if (wairToNow.optionsView.capGridOption.checkBox.isChecked ()) {
@@ -706,37 +716,37 @@ public class Chart2DView extends View
         /*
          * Maybe draw crumbs trail.
          */
-        PointF pt = onDrawPt;
+        PointD pt = onDrawPt;
         LinkedList<Position> shownTrail = wairToNow.crumbsView.GetShownTrail ();
         if (shownTrail != null) {
             // set up arrow size when heading north
             // - go down 1mm, go right 1.5mm
-            float dy = wairToNow.dotsPerInch / Lib.MMPerIn;
-            float dx = dy * 1.5F;
+            double dy = wairToNow.dotsPerInch / Lib.MMPerIn;
+            double dx = dy * 1.5;
             // stroke width 0.3mm
-            float sw = dy * 0.3F;
+            double sw = dy * 0.3;
             // loop through each point and try to convert to canvas pixel
             for (Position pos : shownTrail) {
                 if (LatLon2CanPixExact (pos.latitude, pos.longitude, pt)) {
                     trailPath.rewind ();
                     // if standing still, draw a circle with our thinnest line
-                    float mps = pos.speed;
+                    double mps = pos.speed;
                     if (mps < WairToNow.gpsMinSpeedMPS) {
-                        trailPaint.setStrokeWidth (sw);
-                        trailPath.addCircle (pt.x, pt.y, dx, Path.Direction.CCW);
+                        trailPaint.setStrokeWidth ((float) sw);
+                        trailPath.addCircle ((float) pt.x, (float) pt.y, (float) dx, Path.Direction.CCW);
                     } else {
                         // if moving, draw arrow with thickness proportional to speed
-                        trailPaint.setStrokeWidth ((Mathf.log10 (mps) + 1.0F) * sw);
-                        float a = Mathf.toRadians (pos.heading) - GetCanvasHdgRads ();
-                        float s = Mathf.sin (a);
-                        float c = Mathf.cos (a);
-                        float dxr = dx * c - dy * s;
-                        float dyr = dy * c + dx * s;
-                        trailPath.moveTo (pt.x + dxr, pt.y + dyr);
-                        trailPath.rLineTo (- dxr, - dyr);
+                        trailPaint.setStrokeWidth ((float) ((Math.log10 (mps) + 1.0) * sw));
+                        double a = Math.toRadians (pos.heading) - GetCanvasHdgRads ();
+                        double s = Math.sin (a);
+                        double c = Math.cos (a);
+                        double dxr = dx * c - dy * s;
+                        double dyr = dy * c + dx * s;
+                        trailPath.moveTo ((float) (pt.x + dxr), (float) (pt.y + dyr));
+                        trailPath.rLineTo ((float) - dxr, (float) - dyr);
                         dxr = - dx * c - dy * s;
                         dyr =   dy * c - dx * s;
-                        trailPath.rLineTo (dxr, dyr);
+                        trailPath.rLineTo ((float) dxr, (float) dyr);
                     }
                     canvas.drawPath (trailPath, trailPaint);
                 }
@@ -776,9 +786,9 @@ public class Chart2DView extends View
          */
         if (wairToNow.chartView.stateView.showCenterInfo && chartView.holdPosition) {
             LatLon2CanPixExact (chartView.centerLat, chartView.centerLon, pt);
-            float len = wairToNow.textSize * 1.5F;
-            canvas.drawLine (pt.x - len, pt.y, pt.x + len, pt.y, centerLnPaint);
-            canvas.drawLine (pt.x, pt.y - len, pt.x, pt.y + len, centerLnPaint);
+            double len = wairToNow.textSize * 1.5;
+            canvas.drawLine ((float) (pt.x - len), (float) pt.y, (float) (pt.x + len), (float) pt.y, centerLnPaint);
+            canvas.drawLine ((float) pt.x, (float) (pt.y - len), (float) pt.x, (float) (pt.y + len), centerLnPaint);
         }
 
         /*
@@ -816,11 +826,11 @@ public class Chart2DView extends View
                                   // null: not part of intersector set, so txtBox position is final
                                   // else: part of intersector set, final txtBox position not yet determined
 
-        public DrawWaypoint (String id, PointF pt, Paint[] fgs)
+        public DrawWaypoint (String id, PointD pt, Paint[] fgs)
         {
             ident    = id;
-            x        = Math.round (pt.x);
-            y        = Math.round (pt.y);
+            x        = (int) Math.round (pt.x);
+            y        = (int) Math.round (pt.y);
             fgPaints = fgs;
 
             dotBox = new Rect (x-5, y-5, x+5, y+5);
@@ -986,15 +996,15 @@ public class Chart2DView extends View
      */
     private void DrawCourseLine (Canvas canvas)
     {
-        float orgLat   = chartView.orgLat;         // start point of course line
-        float orgLon   = chartView.orgLon;
-        float dstLat   = chartView.clDest.lat;     // end point of course line
-        float dstLon   = chartView.clDest.lon;
-        float arrowLat = wairToNow.currentGPSLat;  // aircraft current position
-        float arrowLon = wairToNow.currentGPSLon;
-        float heading  = wairToNow.currentGPSHdg;  // aircraft current heading
-        float speed    = wairToNow.currentGPSSpd;  // aircraft current speed
-        float scaling  = chartView.scaling;        // map display scaling factor
+        double orgLat   = chartView.orgLat;         // start point of course line
+        double orgLon   = chartView.orgLon;
+        double dstLat   = chartView.clDest.lat;     // end point of course line
+        double dstLon   = chartView.clDest.lon;
+        double arrowLat = wairToNow.currentGPSLat;  // aircraft current position
+        double arrowLon = wairToNow.currentGPSLon;
+        double heading  = wairToNow.currentGPSHdg;  // aircraft current heading
+        double speed    = wairToNow.currentGPSSpd;  // aircraft current speed
+        double scaling  = chartView.scaling;        // map display scaling factor
 
         // draw solid line from planned starting point to current destination waypoint
         DrawCourseLine (canvas, orgLat, orgLon, dstLat, dstLon, true);
@@ -1005,16 +1015,16 @@ public class Chart2DView extends View
         if (speed > WairToNow.gpsMinSpeedMPS) {
 
             // see how far away we are from the current course line and don't bother drawing fillet if close
-            float offcourse = Lib.GCOffCourseDist (orgLat, orgLon, dstLat, dstLon, arrowLat, arrowLon);
-            if (Math.abs (offcourse) > 0.1F / scaling) {
+            double offcourse = Lib.GCOffCourseDist (orgLat, orgLon, dstLat, dstLon, arrowLat, arrowLon);
+            if (Math.abs (offcourse) > 0.1 / scaling) {
 
                 // find point that the current heading intersects the course line at
                 // and make sure that the intersection point is ahead of us on the course line
                 if (Lib.GCIntersect (orgLat, orgLon, dstLat, dstLon, arrowLat, arrowLon, heading, isect)) {
 
                     // and make sure that intersection is not beyond end of the current segment
-                    float distFromCurrToISect  = Lib.LatLonDist (arrowLat, arrowLon, isect.lat, isect.lon);
-                    float distFromCurrToSegEnd = Lib.LatLonDist (arrowLat, arrowLon, dstLat, dstLon);
+                    double distFromCurrToISect  = Lib.LatLonDist (arrowLat, arrowLon, isect.lat, isect.lon);
+                    double distFromCurrToSegEnd = Lib.LatLonDist (arrowLat, arrowLon, dstLat, dstLon);
                     if (distFromCurrToISect < distFromCurrToSegEnd) {
 
                         // draw fillet to finish the turn that gets us on to the current course line
@@ -1040,17 +1050,17 @@ public class Chart2DView extends View
                 if (speed > WairToNow.gpsMinSpeedMPS) {
 
                     // make sure we are some minimal distance from next segment so we get a valid intersect point
-                    float offcourse = Lib.GCOffCourseDist (nextwp.lat, nextwp.lon, lastwp.lat, lastwp.lon, arrowLat, arrowLon);
-                    if (Math.abs (offcourse) > 0.1F / scaling) {
+                    double offcourse = Lib.GCOffCourseDist (nextwp.lat, nextwp.lon, lastwp.lat, lastwp.lon, arrowLat, arrowLon);
+                    if (Math.abs (offcourse) > 0.1 / scaling) {
 
                         // calculate where we would intersect the next segment if we kept on current
                         // heading from where we are now and make sure that point is in front of us
                         if (Lib.GCIntersect (nextwp.lat, nextwp.lon, lastwp.lat, lastwp.lon, arrowLat, arrowLon, heading, isect)) {
 
                             // make sure intersection point isn't way out at infinity
-                            float distFromCurrToDest = Lib.LatLonDist (arrowLat, arrowLon, lastwp.lat, lastwp.lon);
-                            float distFromISectToDest = Lib.LatLonDist (isect.lat, isect.lon, lastwp.lat, lastwp.lon);
-                            if (distFromISectToDest < distFromCurrToDest * 1.2F) {
+                            double distFromCurrToDest = Lib.LatLonDist (arrowLat, arrowLon, lastwp.lat, lastwp.lon);
+                            double distFromISectToDest = Lib.LatLonDist (isect.lat, isect.lon, lastwp.lat, lastwp.lon);
+                            if (distFromISectToDest < distFromCurrToDest * 1.2) {
 
                                 // draw fillet showing the turn from current course to next course
                                 DrawCourseFillet (canvas, arrowLat, arrowLon, isect.lat, isect.lon, nextwp.lat, nextwp.lon);
@@ -1074,83 +1084,83 @@ public class Chart2DView extends View
      * Draw turning radius starting on path from prev past curr ending on path to next.
      */
     private void DrawCourseFillet (Canvas canvas,
-            float prevlat, float prevlon,
-            float currlat, float currlon,
-            float nextlat, float nextlon)
+            double prevlat, double prevlon,
+            double currlat, double currlon,
+            double nextlat, double nextlon)
     {
         // two points on line being turned from
-        PointF fr  = drawCourseFilletFr;
-        PointF com = drawCourseFilletCom;
+        PointD fr  = drawCourseFilletFr;
+        PointD com = drawCourseFilletCom;
         LatLon2CanPixExact (prevlat, prevlon, fr);
         LatLon2CanPixExact (currlat, currlon, com);
 
         // two points on line being turned to (com is one of them)
-        PointF to  = drawCourseFilletTo;
+        PointD to  = drawCourseFilletTo;
         LatLon2CanPixExact (nextlat, nextlon, to);
 
         // get heading on current segment (ie, heading we are supposed to be on now)
-        float currsegtcdeg = Mathf.toDegrees (Mathf.atan2 (com.x - fr.x, fr.y - com.y));
+        double currsegtcdeg = Math.toDegrees (Math.atan2 (com.x - fr.x, fr.y - com.y));
 
         // get heading on next segment (ie, heading we want to turn to)
-        float nextsegtcdeg = Mathf.toDegrees (Mathf.atan2 (to.x - com.x, com.y - to.y));
+        double nextsegtcdeg = Math.toDegrees (Math.atan2 (to.x - com.x, com.y - to.y));
 
         // see how far we have to turn
-        float hdgdiffdeg = nextsegtcdeg - currsegtcdeg;
-        if (hdgdiffdeg < -180.0F) hdgdiffdeg += 360.0F;
-        if (hdgdiffdeg >= 180.0F) hdgdiffdeg -= 360.0F;
-        float hdgdiffdegabs = Math.abs (hdgdiffdeg);
+        double hdgdiffdeg = nextsegtcdeg - currsegtcdeg;
+        if (hdgdiffdeg < -180.0) hdgdiffdeg += 360.0;
+        if (hdgdiffdeg >= 180.0) hdgdiffdeg -= 360.0;
+        double hdgdiffdegabs = Math.abs (hdgdiffdeg);
 
         // don't bother with arc if less than 1 sec of turning to do
         // also don't bother if hairpin turn as we have already blown past it
         if ((hdgdiffdegabs > GlassView.STDRATETURN) && (hdgdiffdegabs < 180 - GlassView.STDRATETURN)) {
 
             // radius[met] = speed[met/sec] / turnrate[rad/sec]
-            float radiusmet = wairToNow.currentGPSSpd / Mathf.toRadians (GlassView.STDRATETURN);
-            float radiuspix = radiusmet / Mathf.sqrt (pixelWidthM * pixelHeightM);
+            double radiusmet = wairToNow.currentGPSSpd / Math.toRadians (GlassView.STDRATETURN);
+            double radiuspix = radiusmet / Math.sqrt (pixelWidthM * pixelHeightM);
 
             // find center of turn
-            PointF cp = drawCourseFilletCp;
+            PointD cp = drawCourseFilletCp;
             Lib.circleTangentToTwoLineSegs (fr.x, fr.y, com.x, com.y, to.x, to.y, radiuspix, cp);
 
             // draw arc along turn path
             RectF oval  = drawCourseFilletOval;
-            oval.left   = cp.x - radiuspix;
-            oval.top    = cp.y - radiuspix;
-            oval.right  = cp.x + radiuspix;
-            oval.bottom = cp.y + radiuspix;
-            float startAngle = currsegtcdeg + 180.0F;
-            if (hdgdiffdeg < 0.0F) {
+            oval.left   = (float) (cp.x - radiuspix);
+            oval.top    = (float) (cp.y - radiuspix);
+            oval.right  = (float) (cp.x + radiuspix);
+            oval.bottom = (float) (cp.y + radiuspix);
+            double startAngle = currsegtcdeg + 180.0;
+            if (hdgdiffdeg < 0.0) {
                 startAngle = nextsegtcdeg;
                 hdgdiffdeg = - hdgdiffdeg;
             }
-            canvas.drawArc (oval, startAngle, hdgdiffdeg, false, courseLnPaint);
+            canvas.drawArc (oval, (float) startAngle, (float) hdgdiffdeg, false, courseLnPaint);
         }
     }
 
     /**
      * Draw great circle course line from one point to the other.
      */
-    private void DrawCourseLine (Canvas canvas, float srcLat, float srcLon, float dstLat, float dstLon, boolean solid)
+    private void DrawCourseLine (Canvas canvas, double srcLat, double srcLon, double dstLat, double dstLon, boolean solid)
     {
-        float scaling = chartView.scaling;  // current map display scale factor
+        double scaling = chartView.scaling;  // current map display scale factor
         PixelMapper pmap = chartView.pmap;  // current lat/lon => screen pixel mapper
-        PointF pt = onDrawPt;
+        PointD pt = onDrawPt;
 
         /*
          * See if primarily east/west or north/south route.
          */
-        float tcquad = Lib.LatLonTC_rad (srcLat, srcLon, dstLat, dstLon);
+        double tcquad = Lib.LatLonTC_rad (srcLat, srcLon, dstLat, dstLon);
         tcquad = Math.abs (tcquad);
-        if (tcquad > Mathf.PI / 2.0F) tcquad = Mathf.PI - tcquad;
-        if (tcquad > Mathf.PI / 4.0F) {
+        if (tcquad > Math.PI / 2.0) tcquad = Math.PI - tcquad;
+        if (tcquad > Math.PI / 4.0) {
             // primarily east/west
 
             /*
              * Find east/west limits of course.  Wrap east to be .ge. west if necessary.
              */
-            float courseWestLon = Lib.Westmost (srcLon, dstLon);
-            float courseEastLon = Lib.Eastmost (srcLon, dstLon);
-            if (courseEastLon < courseWestLon) courseEastLon += 360.0F;
+            double courseWestLon = Lib.Westmost (srcLon, dstLon);
+            double courseEastLon = Lib.Eastmost (srcLon, dstLon);
+            if (courseEastLon < courseWestLon) courseEastLon += 360.0;
 
             /*
              * If canvas is completely west of course, try wrapping canvas eastbound.
@@ -1161,11 +1171,11 @@ public class Chart2DView extends View
              *    canvasEastLon=-171+360=189, canvasWestLon=-169+360=191
              *    ...so the canvas numbers end up between the course numbers
              */
-            float cwl = pmap.canvasWestLon;
-            float cel = pmap.canvasEastLon;
+            double cwl = pmap.canvasWestLon;
+            double cel = pmap.canvasEastLon;
             if (cel < courseWestLon) {
-                cwl += 360.0F;
-                cel += 360.0F;
+                cwl += 360.0;
+                cel += 360.0;
             }
 
             /*
@@ -1174,17 +1184,17 @@ public class Chart2DView extends View
             if (cwl < courseWestLon) cwl = courseWestLon;
             if (cel > courseEastLon) cel = courseEastLon;
 
-            float lonstep = Mathf.sin (tcquad) / scaling / Lib.NMPerDeg / Mathf.cos (Mathf.toRadians (pmap.centerLat) / 2.0);
+            double lonstep = Math.sin (tcquad) / scaling / Lib.NMPerDeg / Math.cos (Math.toRadians (pmap.centerLat) / 2.0);
 
-            float lastx = 0.0F;
-            float lasty = 0.0F;
+            double lastx = 0.0;
+            double lasty = 0.0;
             int nstep = 0;
-            for (float lon = cwl;; lon += lonstep) {
+            for (double lon = cwl;; lon += lonstep) {
                 if (lon > cel) lon = cel;
-                float lat = Lib.GCLon2Lat (srcLat, srcLon, dstLat, dstLon, lon);
+                double lat = Lib.GCLon2Lat (srcLat, srcLon, dstLat, dstLon, lon);
                 LatLon2CanPixExact (lat, lon, pt);
                 if ((nstep > 0) && (solid || ((nstep & 1) == 0))) {
-                    canvas.drawLine (lastx, lasty, pt.x, pt.y, courseLnPaint);
+                    canvas.drawLine ((float) lastx, (float) lasty, (float) pt.x, (float) pt.y, courseLnPaint);
                 }
                 lastx = pt.x;
                 lasty = pt.y;
@@ -1193,22 +1203,22 @@ public class Chart2DView extends View
             }
         } else {
             // primarily north/south
-            float csl = Math.min (srcLat, dstLat);
-            float cnl = Math.max (srcLat, dstLat);
+            double csl = Math.min (srcLat, dstLat);
+            double cnl = Math.max (srcLat, dstLat);
             if (csl < pmap.canvasSouthLat) csl = pmap.canvasSouthLat;
             if (cnl > pmap.canvasNorthLat) cnl = pmap.canvasNorthLat;
 
-            float latstep = Mathf.cos (tcquad) / scaling / Lib.NMPerDeg;
+            double latstep = Math.cos (tcquad) / scaling / Lib.NMPerDeg;
 
-            float lastx = 0.0F;
-            float lasty = 0.0F;
+            double lastx = 0.0;
+            double lasty = 0.0;
             int nstep = 0;
-            for (float lat = csl;; lat += latstep) {
+            for (double lat = csl;; lat += latstep) {
                 if (lat > cnl) lat = cnl;
-                float lon = Lib.GCLat2Lon (srcLat, srcLon, dstLat, dstLon, lat);
+                double lon = Lib.GCLat2Lon (srcLat, srcLon, dstLat, dstLon, lat);
                 LatLon2CanPixExact (lat, lon, pt);
                 if ((nstep > 0) && (solid || ((nstep & 1) == 0))) {
-                    canvas.drawLine (lastx, lasty, pt.x, pt.y, courseLnPaint);
+                    canvas.drawLine ((float) lastx, (float) lasty, (float) pt.x, (float) pt.y, courseLnPaint);
                 }
                 lastx = pt.x;
                 lasty = pt.y;
@@ -1275,14 +1285,14 @@ public class Chart2DView extends View
                 LatLon2CanPixExact (nexrad.southLat, nexrad.eastLon, canpix4);
 
                 // rotate, stretch, warp as needed
-                mapping[ 8] = canpix1.x;    // canvas northwest
-                mapping[ 9] = canpix1.y;
-                mapping[10] = canpix2.x;    // canvas northeast
-                mapping[11] = canpix2.y;
-                mapping[12] = canpix3.x;    // canvas southwest
-                mapping[13] = canpix3.y;
-                mapping[14] = canpix4.x;    // canvas southeast
-                mapping[15] = canpix4.y;
+                mapping[ 8] = (float) canpix1.x;    // canvas northwest
+                mapping[ 9] = (float) canpix1.y;
+                mapping[10] = (float) canpix2.x;    // canvas northeast
+                mapping[11] = (float) canpix2.y;
+                mapping[12] = (float) canpix3.x;    // canvas southwest
+                mapping[13] = (float) canpix3.y;
+                mapping[14] = (float) canpix4.x;    // canvas southeast
+                mapping[15] = (float) canpix4.y;
 
                 // draw it
                 if (matrix.setPolyToPoly (mapping, 0, mapping, 8, 4)) {
@@ -1310,6 +1320,42 @@ public class Chart2DView extends View
     };
 
     /**
+     * Draw all weather summary dots.
+     */
+    private void DrawWxSumDots (Canvas canvas)
+    {
+        synchronized (wairToNow.metarRepos) {
+            long nowms = System.currentTimeMillis ();
+
+            // go through all airports we have metars for
+            // will probably be just nearby ones anyway
+            for (String icaoid : wairToNow.metarRepos.keySet ()) {
+                MetarRepo repo = wairToNow.metarRepos.get (icaoid);
+
+                // only bother with reports less than 3 hours old
+                if (nowms - repo.ceilingms < 3 * 3600 * 1000) {
+                    int cigft = repo.ceilingft;
+                    if (cigft >= 0) {
+
+                        // get airport centerpoint on canvas
+                        LatLon2CanPixExact (repo.latitude, repo.longitude, canpix1);
+
+                        // get what color to make the dot
+                        wsdPaint.setColor (
+                                cigft >= 3000 ? Color.WHITE :
+                                cigft >= 1500 ? Color.GREEN :
+                                cigft >=  700 ? Color.BLUE :
+                                        Color.RED);
+
+                        // draw dot
+                        canvas.drawCircle ((float) canpix1.x, (float) canpix1.y, wairToNow.thickLine * 2.0F, wsdPaint);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
      * Draw CAP grid lines and numbers.
      */
     private void DrawCapGrid (Canvas canvas)
@@ -1332,22 +1378,22 @@ public class Chart2DView extends View
         }
 
         PixelMapper pmap = chartView.pmap;
-        float westlon  = Mathf.floor (pmap.canvasWestLon  * 4.0F) / 4.0F;
-        float eastlon  = Mathf.ceil  (pmap.canvasEastLon  * 4.0F) / 4.0F;
-        float southlat = Mathf.floor (pmap.canvasSouthLat * 4.0F) / 4.0F;
-        float northlat = Mathf.ceil  (pmap.canvasNorthLat * 4.0F) / 4.0F;
+        double westlon  = Math.floor (pmap.canvasWestLon  * 4.0) / 4.0;
+        double eastlon  = Math.ceil  (pmap.canvasEastLon  * 4.0) / 4.0;
+        double southlat = Math.floor (pmap.canvasSouthLat * 4.0) / 4.0;
+        double northlat = Math.ceil  (pmap.canvasNorthLat * 4.0) / 4.0;
 
-        if (eastlon < westlon) eastlon += 360.0F;
+        if (eastlon < westlon) eastlon += 360.0;
 
-        for (float lat = southlat; lat <= northlat; lat += 0.25F) {
-            for (float lon = westlon; lon <= eastlon; lon += 0.25F) {
+        for (double lat = southlat; lat <= northlat; lat += 0.25) {
+            for (double lon = westlon; lon <= eastlon; lon += 0.25) {
                 LatLon2CanPixExact (lat, lon, canpix1);
-                LatLon2CanPixExact (lat, lon + 0.25F, canpix2);
-                LatLon2CanPixExact (lat + 0.25F, lon, canpix3);
-                float x1 = canpix1.x;
-                float y1 = canpix1.y;
-                canvas.drawLine (x1, y1, canpix2.x, canpix2.y, capGridLnPaint);
-                canvas.drawLine (x1, y1, canpix3.x, canpix3.y, capGridLnPaint);
+                LatLon2CanPixExact (lat, lon + 0.25, canpix2);
+                LatLon2CanPixExact (lat + 0.25, lon, canpix3);
+                double x1 = canpix1.x;
+                double y1 = canpix1.y;
+                canvas.drawLine ((float) x1, (float) y1, (float) canpix2.x, (float) canpix2.y, capGridLnPaint);
+                canvas.drawLine ((float) x1, (float) y1, (float) canpix3.x, (float) canpix3.y, capGridLnPaint);
 
                 int bestn = 999;
                 String bestid = null;
@@ -1361,11 +1407,11 @@ public class Chart2DView extends View
                 if (bestid != null) {
                     canvas.save ();
                     try {
-                        float theta = Mathf.atan2 (canpix2.y - y1, canpix2.x - x1);
-                        canvas.rotate (Mathf.toDegrees (theta), x1, y1);
+                        double theta = Math.atan2 (canpix2.y - y1, canpix2.x - x1);
+                        canvas.rotate ((float) Math.toDegrees (theta), (float) x1, (float) y1);
                         String s = bestid + " " + bestn;
-                        canvas.drawText (s, x1 + 10, y1 - 10, capGridBGPaint);
-                        canvas.drawText (s, x1 + 10, y1 - 10, capGridTxPaint);
+                        canvas.drawText (s, (float) x1 + 10, (float) y1 - 10, capGridBGPaint);
+                        canvas.drawText (s, (float) x1 + 10, (float) y1 - 10, capGridTxPaint);
                     } finally {
                         canvas.restore ();
                     }
@@ -1379,9 +1425,9 @@ public class Chart2DView extends View
      */
     private void MapLatLonsToCanvasPixels (int cw, int ch)
     {
-        float centerLat = chartView.centerLat;
-        float centerLon = chartView.centerLon;
-        float scaling   = chartView.scaling;
+        double centerLat = chartView.centerLat;
+        double centerLon = chartView.centerLon;
+        double scaling   = chartView.scaling;
 
         /*
          * Compute how many charted metres fit in a pixel.
@@ -1418,35 +1464,35 @@ public class Chart2DView extends View
          * Compute the lat/lon of the four corners of the canvas such
          * that each pixel covers the same delta metres in X and Y.
          */
-        float metresFromCenterToRite   = canvasCenterX * pixelWidthM;
-        float metresFromCenterToBot    = canvasCenterY * pixelHeightM;
-        float metresFromCenterToCorner = Mathf.hypot (metresFromCenterToBot, metresFromCenterToRite);
+        double metresFromCenterToRite   = canvasCenterX * pixelWidthM;
+        double metresFromCenterToBot    = canvasCenterY * pixelHeightM;
+        double metresFromCenterToCorner = Math.hypot (metresFromCenterToBot, metresFromCenterToRite);
 
-        float angleFromCenterToBotRite   = Mathf.atan2 (metresFromCenterToBot, metresFromCenterToRite) + mappingCanvasHdgRads;
-        float metresFromCenterToBotRiteX = metresFromCenterToCorner * Mathf.cos (angleFromCenterToBotRite);
-        float metresFromCenterToBotRiteY = metresFromCenterToCorner * Mathf.sin (angleFromCenterToBotRite);
+        double angleFromCenterToBotRite   = Math.atan2 (metresFromCenterToBot, metresFromCenterToRite) + mappingCanvasHdgRads;
+        double metresFromCenterToBotRiteX = metresFromCenterToCorner * Math.cos (angleFromCenterToBotRite);
+        double metresFromCenterToBotRiteY = metresFromCenterToCorner * Math.sin (angleFromCenterToBotRite);
 
-        float metresFromCenterToTopLeftX = -metresFromCenterToBotRiteX;
-        float metresFromCenterToTopLeftY = -metresFromCenterToBotRiteY;
+        double metresFromCenterToTopLeftX = -metresFromCenterToBotRiteX;
+        double metresFromCenterToTopLeftY = -metresFromCenterToBotRiteY;
 
-        float angleFromCenterToBotLeft   = Mathf.atan2 (metresFromCenterToBot, -metresFromCenterToRite) + mappingCanvasHdgRads;
-        float metresFromCenterToBotLeftX = metresFromCenterToCorner * Mathf.cos (angleFromCenterToBotLeft);
-        float metresFromCenterToBotLeftY = metresFromCenterToCorner * Mathf.sin (angleFromCenterToBotLeft);
+        double angleFromCenterToBotLeft   = Math.atan2 (metresFromCenterToBot, -metresFromCenterToRite) + mappingCanvasHdgRads;
+        double metresFromCenterToBotLeftX = metresFromCenterToCorner * Math.cos (angleFromCenterToBotLeft);
+        double metresFromCenterToBotLeftY = metresFromCenterToCorner * Math.sin (angleFromCenterToBotLeft);
 
-        float metresFromCenterToTopRiteX = -metresFromCenterToBotLeftX;
-        float metresFromCenterToTopRiteY = -metresFromCenterToBotLeftY;
+        double metresFromCenterToTopRiteX = -metresFromCenterToBotLeftX;
+        double metresFromCenterToTopRiteY = -metresFromCenterToBotLeftY;
 
-        float brLat = centerLat - metresFromCenterToBotRiteY / Lib.MPerNM / Lib.NMPerDeg;
-        float brLon = centerLon + metresFromCenterToBotRiteX / Lib.MPerNM / Lib.NMPerDeg / Mathf.cos (brLat / 180.0 * Mathf.PI);
+        double brLat = centerLat - metresFromCenterToBotRiteY / Lib.MPerNM / Lib.NMPerDeg;
+        double brLon = centerLon + metresFromCenterToBotRiteX / Lib.MPerNM / Lib.NMPerDeg / Math.cos (brLat / 180.0 * Math.PI);
 
-        float blLat = centerLat - metresFromCenterToBotLeftY / Lib.MPerNM / Lib.NMPerDeg;
-        float blLon = centerLon + metresFromCenterToBotLeftX / Lib.MPerNM / Lib.NMPerDeg / Mathf.cos (blLat / 180.0 * Mathf.PI);
+        double blLat = centerLat - metresFromCenterToBotLeftY / Lib.MPerNM / Lib.NMPerDeg;
+        double blLon = centerLon + metresFromCenterToBotLeftX / Lib.MPerNM / Lib.NMPerDeg / Math.cos (blLat / 180.0 * Math.PI);
 
-        float trLat = centerLat - metresFromCenterToTopRiteY / Lib.MPerNM / Lib.NMPerDeg;
-        float trLon = centerLon + metresFromCenterToTopRiteX / Lib.MPerNM / Lib.NMPerDeg / Mathf.cos (trLat / 180.0 * Mathf.PI);
+        double trLat = centerLat - metresFromCenterToTopRiteY / Lib.MPerNM / Lib.NMPerDeg;
+        double trLon = centerLon + metresFromCenterToTopRiteX / Lib.MPerNM / Lib.NMPerDeg / Math.cos (trLat / 180.0 * Math.PI);
 
-        float tlLat = centerLat - metresFromCenterToTopLeftY / Lib.MPerNM / Lib.NMPerDeg;
-        float tlLon = centerLon + metresFromCenterToTopLeftX / Lib.MPerNM / Lib.NMPerDeg / Mathf.cos (tlLat / 180.0 * Mathf.PI);
+        double tlLat = centerLat - metresFromCenterToTopLeftY / Lib.MPerNM / Lib.NMPerDeg;
+        double tlLon = centerLon + metresFromCenterToTopLeftX / Lib.MPerNM / Lib.NMPerDeg / Math.cos (tlLat / 180.0 * Math.PI);
 
         tlLon = Lib.NormalLon (tlLon);
         trLon = Lib.NormalLon (trLon);
@@ -1464,7 +1510,7 @@ public class Chart2DView extends View
      * which is ignored since this is a 2D projection.
      */
     @Override  // ChartView.Backing
-    public boolean LatLonAlt2CanPixExact (float lat, float lon, float alt, PointF pix)
+    public boolean LatLonAlt2CanPixExact (double lat, double lon, double alt, PointD pix)
     {
         return LatLon2CanPixExact (lat, lon, pix);
     }
@@ -1473,7 +1519,7 @@ public class Chart2DView extends View
      * Use currently selected chart projection to compute exact canvas pixel for a given lat/lon.
      * If no chart selected, use linear interpolation from the four corners of the screen.
      */
-    public boolean LatLon2CanPixExact (float lat, float lon, PointF canpix)
+    public boolean LatLon2CanPixExact (double lat, double lon, PointD canpix)
     {
         PixelMapper pmap = chartView.pmap;
         DisplayableChart sc = chartView.selectedChart;
@@ -1487,7 +1533,7 @@ public class Chart2DView extends View
      * Use currently selected chart projection to compute exact lat/lon for a given canvas pixel.
      * If no chart selected, use linear interpolation from the four corners of the screen.
      */
-    public void CanPix2LatLonExact (float canvasPixX, float canvasPixY, LatLon ll)
+    public void CanPix2LatLonExact (double canvasPixX, double canvasPixY, LatLon ll)
     {
         DisplayableChart sc = chartView.selectedChart;
         if ((sc == null) || !sc.CanPix2LatLonExact (canvasPixX, canvasPixY, ll)) {
@@ -1499,10 +1545,10 @@ public class Chart2DView extends View
      * One of these per sectional giving CAP gridding.
      */
     private static class CapGrid {
-        public float east;      // east longitude
-        public float north;     // north latitude
-        public float south;     // south latitude
-        public float west;      // west longitude
+        public double east;      // east longitude
+        public double north;     // north latitude
+        public double south;     // south latitude
+        public double west;      // west longitude
         public String id;       // 3-letter chart id
         public String name;     // sectional name
 
@@ -1532,36 +1578,36 @@ public class Chart2DView extends View
          *    |                               |
          *    +-------------south-------------+
          */
-        public int number (float lon, float lat)
+        public int number (double lon, double lat)
         {
-            int w = (int) ((east - west) * 4.0F);  // width in 15' increments
-            int x = (int) ((lon  - west) * 4.0F);  // X to right of west in 15' increments
+            int w = (int) ((east - west) * 4.0);  // width in 15' increments
+            int x = (int) ((lon  - west) * 4.0);  // X to right of west in 15' increments
             if (w < 0) w += 360 * 4;
             if (x < 0) x += 360 * 4;
             if (x >= w) return -1;
 
-            int h = (int) ((north - south) * 4.0F);    // height in 15' increments
-            int y = (int) ((north - lat) * 4.0F) - 1;  // Y below north in 15' increments
+            int h = (int) ((north - south) * 4.0);    // height in 15' increments
+            int y = (int) ((north - lat) * 4.0) - 1;  // Y below north in 15' increments
             if ((y < 0) || (y >= h)) return -1;
 
             return w * y + x + 1;
         }
 
-        private static float decodelat (String str)
+        private static double decodelat (String str)
         {
             int i = str.indexOf ('-');
-            float deg = Integer.parseInt (str.substring (0, i ++));
-            float min = Integer.parseInt (str.substring (i, i + 2));
+            double deg = Integer.parseInt (str.substring (0, i ++));
+            double min = Integer.parseInt (str.substring (i, i + 2));
             deg += min / 60.0;
             if (str.endsWith ("S")) deg = -deg;
             return deg;
         }
 
-        private static float decodelon (String str)
+        private static double decodelon (String str)
         {
             int i = str.indexOf ('-');
-            float deg = Integer.parseInt (str.substring (0, i ++));
-            float min = Integer.parseInt (str.substring (i, i + 2));
+            double deg = Integer.parseInt (str.substring (0, i ++));
+            double min = Integer.parseInt (str.substring (i, i + 2));
             deg += min / 60.0;
             if (str.endsWith ("W")) deg = -deg;
             return deg;

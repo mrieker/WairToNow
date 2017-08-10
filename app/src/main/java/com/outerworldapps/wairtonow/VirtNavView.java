@@ -53,14 +53,14 @@ public class VirtNavView extends LinearLayout
     private Button modeButton;
     private Button orientButton;
     private CheckBox hsiCheckBox;
-    private float locObsSetting;   // for ILS/LOC waypoint, corresponding OBS setting
-    private float wpmagvar;
+    private double locObsSetting;   // for ILS/LOC waypoint, corresponding OBS setting
+    private double wpmagvar;
     private NavDialView navDial;
     private PlateCIFP selectedPlateCIFP;  // non-null: CIFP tracking mode
-    private PlateView selectedPlateView;  // plate to display in right-hand half of landscape mode
     private String label;
     private TextView wpIdent;
     private TextView wpStatus;
+    private View rightHalfView;     // plate to display in right-hand half of landscape mode
     private WairToNow wairToNow;
     private Waypoint dmeWaypoint;   // what waypoint to display in DME window
     private Waypoint waypoint;      // what waypoint we are navigating to
@@ -191,6 +191,30 @@ public class VirtNavView extends LinearLayout
     }
 
     /**
+     * The Chart button was clicked to use the destination point shown on the chart page.
+     */
+    private void useChartViewButtonClicked ()
+    {
+        // set dial to navigate to destination waypoint
+        // if landscape mode, put chart in right half
+        ChartView chartView = wairToNow.chartView;
+        rightHalfView = chartView;
+        useWaypointButtonClicked (chartView.clDest);
+
+        // set OBS setting to course line going into destination waypoint
+        switch (navDial.getMode ()) {
+            case ADF:
+            case VOR: {
+                double tcfrom = Lib.LatLonTC (waypoint.lat, waypoint.lon, chartView.orgLat, chartView.orgLon);
+                double magvar = waypoint.GetMagVar (wairToNow.currentGPSAlt);
+                navDial.obsSetting = tcfrom + magvar + 180.0;
+            }
+        }
+
+        computeRadial ();
+    }
+
+    /**
      * One of the FAAWP1, FAAWP2 buttons was clicked to select
      * the waypoint selected by that page.
      *
@@ -205,7 +229,7 @@ public class VirtNavView extends LinearLayout
     private void useWaypointViewButtonClicked (WaypointView wpv)
     {
         // assume we don't want a plate displayed in the right-hand part of landscape mode
-        selectedPlateView = null;
+        rightHalfView = null;
 
         // turn dial OFF so it doesn't have an incorrect mode selected for new waypoint
         // eg, old was in LOC mode when navving to a new VOR
@@ -225,13 +249,13 @@ public class VirtNavView extends LinearLayout
 
         // FAAWP1,2 has an airport selected, see if it is displaying an IAP plate
         // update this screen (right-hand part of landscape mode) with plate if so
-        selectedPlateView = wpv.selectedPlateView;
+        rightHalfView = wpv.selectedPlateView;
         orientationChanged ();  // update right-hand part of landscape mode
 
         // if it is an IAP plate, get associated navaid or selected CIFP route
-        if ((selectedPlateView != null) &&
-                (selectedPlateView.plateImage instanceof PlateView.IAPPlateImage)) {
-            PlateView.IAPPlateImage iappi = (PlateView.IAPPlateImage) selectedPlateView.plateImage;
+        if ((wpv.selectedPlateView != null) &&
+                (wpv.selectedPlateView.plateImage instanceof PlateView.IAPPlateImage)) {
+            PlateView.IAPPlateImage iappi = (PlateView.IAPPlateImage) wpv.selectedPlateView.plateImage;
             PlateCIFP plateCIFP = iappi.plateCIFP;
 
             // if CIFP selected, track the CIFP route
@@ -289,7 +313,7 @@ public class VirtNavView extends LinearLayout
             wpIdent.setText ("[OFF]");
             wpStatus.setText ("");
             navDial.setMode (NavDialView.Mode.OFF);
-            navDial.obsSetting = 0.0F;
+            navDial.obsSetting = 0.0;
         } else {
 
             // set up big yellow text so user can see what navaid is selected
@@ -310,11 +334,17 @@ public class VirtNavView extends LinearLayout
             // NDBs get the dial set to ADF mode
             else if (wpstr.startsWith ("NDB")) {
                 navDial.setMode (NavDialView.Mode.ADF);
+                navDial.obsSetting = wairToNow.currentGPSHdg +
+                        waypoint.GetMagVar (wairToNow.currentGPSAlt);
             }
 
             // VORs get the dial set to VOR mode
             else {
                 navDial.setMode (NavDialView.Mode.VOR);
+                navDial.obsSetting = Lib.LatLonTC (
+                        wairToNow.currentGPSLat, wairToNow.currentGPSLon,
+                        waypoint.lat, waypoint.lon) +
+                    waypoint.GetMagVar (wairToNow.currentGPSAlt);
             }
         }
 
@@ -324,12 +354,15 @@ public class VirtNavView extends LinearLayout
         // update button to show what mode was selected above
         modeButton.setText (navDial.getMode ().toString ());
 
+        // re-layout screen
+        orientationChanged ();
+
         // update the needles and DME
         computeRadial ();
     }
 
     @Override  // OBSChangedListener
-    public void obsChanged (float obs)
+    public void obsChanged (double obs)
     {
         computeRadial ();
     }
@@ -393,7 +426,7 @@ public class VirtNavView extends LinearLayout
          */
         String oldIdent = (wpIdent == null) ? "" : wpIdent.getText ().toString ();
         NavDialView.Mode oldMode = (navDial == null) ? NavDialView.Mode.OFF : navDial.getMode ();
-        float oldObsSetting = (navDial == null) ? 0.0F : navDial.obsSetting;
+        double oldObsSetting = (navDial == null) ? 0.0 : navDial.obsSetting;
         boolean oldHSIEnable = (navDial == null) ? getHSIPreference () : navDial.hsiEnable;
 
         /*
@@ -401,7 +434,7 @@ public class VirtNavView extends LinearLayout
          * Get all the widget pointers for whichever we load.
          * Only landscape orientation has the plate view frame.
          */
-        Button useFAAWP1, useFAAWP2, useUserWP;
+        Button useChart, useFAAWP1, useFAAWP2, useUserWP;
         FrameLayout plateViewFrame;
         if (oldLandscape) {
             @SuppressLint("InflateParams")
@@ -416,6 +449,7 @@ public class VirtNavView extends LinearLayout
             modeButton = (Button) findViewById (R.id.modebuttonland);
             hsiCheckBox = (CheckBox) findViewById (R.id.hsicheckboxland);
             orientButton = (Button) findViewById (R.id.orientland);
+            useChart  = (Button) findViewById (R.id.use_chartland);
             useFAAWP1 = (Button) findViewById (R.id.use_faawp1land);
             useFAAWP2 = (Button) findViewById (R.id.use_faawp2land);
             useUserWP = (Button) findViewById (R.id.use_userwpland);
@@ -438,6 +472,7 @@ public class VirtNavView extends LinearLayout
             modeButton = (Button) findViewById (R.id.modebuttonport);
             hsiCheckBox = (CheckBox) findViewById (R.id.hsicheckboxport);
             orientButton = (Button) findViewById (R.id.orientport);
+            useChart  = (Button) findViewById (R.id.use_chartport);
             useFAAWP1 = (Button) findViewById (R.id.use_faawp1port);
             useFAAWP2 = (Button) findViewById (R.id.use_faawp2port);
             useUserWP = (Button) findViewById (R.id.use_userwpport);
@@ -472,8 +507,7 @@ public class VirtNavView extends LinearLayout
         wairToNow.SetTextSize (hsiCheckBox);
         hsiCheckBox.setOnClickListener (new OnClickListener () {
             @Override
-            public void onClick (View view)
-            {
+            public void onClick (View view) {
                 navDial.hsiEnable = hsiCheckBox.isChecked ();
                 setHSIPreference (navDial.hsiEnable);
                 navDial.invalidate ();
@@ -487,6 +521,15 @@ public class VirtNavView extends LinearLayout
             public void onClick (View view)
             {
                 orientButtonClicked ();
+            }
+        });
+
+        wairToNow.SetTextSize (useChart);
+        useChart.setOnClickListener (new OnClickListener () {
+            @Override
+            public void onClick (View view)
+            {
+                useChartViewButtonClicked ();
             }
         });
 
@@ -522,14 +565,23 @@ public class VirtNavView extends LinearLayout
         navDial.obsChangedListener = this;
 
         /*
-         * If landscape mode, load most recent IAP plate on right-hand side, if any.
+         * Highlight button showing where right-hand view comes from.
          */
-        if ((plateViewFrame != null) && (selectedPlateView != null)) {
-            ViewParent p = selectedPlateView.getParent ();
+        String rhvtn = (rightHalfView instanceof WairToNow.CanBeMainView) ? ((WairToNow.CanBeMainView)rightHalfView).GetTabName () : null;
+        useChart.setTextColor  ("Chart".equals  (rhvtn) ? Color.RED : Color.BLACK);
+        useFAAWP1.setTextColor ("FAAWP1".equals (rhvtn) ? Color.RED : Color.BLACK);
+        useFAAWP2.setTextColor ("FAAWP2".equals (rhvtn) ? Color.RED : Color.BLACK);
+        useUserWP.setTextColor ("UserWP".equals (rhvtn) ? Color.RED : Color.BLACK);
+
+        /*
+         * If landscape mode, maybe display chart or IAP on right-hand side.
+         */
+        if ((plateViewFrame != null) && (rightHalfView != null)) {
+            ViewParent p = rightHalfView.getParent ();
             if (p instanceof ViewGroup) {
-                ((ViewGroup) p).removeView (selectedPlateView);
+                ((ViewGroup) p).removeView (rightHalfView);
             }
-            plateViewFrame.addView (selectedPlateView);
+            plateViewFrame.addView (rightHalfView);
         }
 
         /*
@@ -707,7 +759,7 @@ public class VirtNavView extends LinearLayout
                 // VOR mode - needle deflection is difference of magnetic course from waypoint to aircraft
                 //            and the OBS setting
                 case VOR: {
-                    float radial = Lib.LatLonTC (waypoint.lat, waypoint.lon, wairToNow.currentGPSLat, wairToNow.currentGPSLon);
+                    double radial = Lib.LatLonTC (waypoint.lat, waypoint.lon, wairToNow.currentGPSLat, wairToNow.currentGPSLon);
                     radial += wpmagvar;
                     navDial.setDeflect (navDial.obsSetting - radial);
                     status.append ("  Radial From: ");
@@ -722,7 +774,7 @@ public class VirtNavView extends LinearLayout
                 // ADF mode - needle deflection is difference of true course from waypoint to aircraft
                 //            and true heading
                 case ADF: {
-                    float radial = Lib.LatLonTC (waypoint.lat, waypoint.lon, wairToNow.currentGPSLat, wairToNow.currentGPSLon);
+                    double radial = Lib.LatLonTC (waypoint.lat, waypoint.lon, wairToNow.currentGPSLat, wairToNow.currentGPSLon);
                     radial -= wairToNow.currentGPSHdg;
                     navDial.setDeflect (radial + 180);
                     status.append ("  Rel Brng From: ");
@@ -748,15 +800,15 @@ public class VirtNavView extends LinearLayout
                 case ILS: {
                     Waypoint.Localizer loc = computeLocRadial (status);
                     status.append ("  GS Tilt: ");
-                    status.append (Float.toString (loc.gs_tilt));
+                    status.append (Double.toString (loc.gs_tilt));
                     status.append ('\u00B0');
-                    float descrate = Mathf.tan (Mathf.toRadians (loc.gs_tilt)) * wairToNow.currentGPSSpd * Lib.FtPerM * 60.0F;
-                    navDial.gsfpm  = - Math.round (descrate);
-                    float tctoloc  = Lib.LatLonTC (wairToNow.currentGPSLat, wairToNow.currentGPSLon, loc.lat, loc.lon);
-                    float factor   = Mathf.cos (Mathf.toRadians (tctoloc - loc.thdg));
-                    float horizfromant_nm = Lib.LatLonDist (wairToNow.currentGPSLat, wairToNow.currentGPSLon, loc.gs_lat, loc.gs_lon) * factor;
-                    float aboveantenna_ft = wairToNow.currentGPSAlt * Lib.FtPerM - loc.gs_elev;
-                    float degaboveantenna = Mathf.toDegrees (Mathf.atan2 (aboveantenna_ft, horizfromant_nm * Lib.MPerNM * Lib.FtPerM));
+                    double descrate = Math.tan (Math.toRadians (loc.gs_tilt)) * wairToNow.currentGPSSpd * Lib.FtPerM * 60.0;
+                    navDial.gsfpm   = (int) - Math.round (descrate);
+                    double tctoloc  = Lib.LatLonTC (wairToNow.currentGPSLat, wairToNow.currentGPSLon, loc.lat, loc.lon);
+                    double factor   = Math.cos (Math.toRadians (tctoloc - loc.thdg));
+                    double horizfromant_nm = Lib.LatLonDist (wairToNow.currentGPSLat, wairToNow.currentGPSLon, loc.gs_lat, loc.gs_lon) * factor;
+                    double aboveantenna_ft = wairToNow.currentGPSAlt * Lib.FtPerM - loc.gs_elev;
+                    double degaboveantenna = Math.toDegrees (Math.atan2 (aboveantenna_ft, horizfromant_nm * Lib.MPerNM * Lib.FtPerM));
                     navDial.setSlope (loc.gs_tilt - degaboveantenna);
                     break;
                 }
@@ -776,7 +828,7 @@ public class VirtNavView extends LinearLayout
         Waypoint.Localizer loc = (Waypoint.Localizer) waypoint;
         status.append ("  Loc Hdg: ");
         hdgString (status, loc.thdg + wpmagvar);
-        float tctoloc = Lib.LatLonTC (wairToNow.currentGPSLat, wairToNow.currentGPSLon, loc.lat, loc.lon);
+        double tctoloc = Lib.LatLonTC (wairToNow.currentGPSLat, wairToNow.currentGPSLon, loc.lat, loc.lon);
         navDial.setDeflect (tctoloc - loc.thdg);
         dmeDisplay ();
         currentHeading ();
@@ -789,7 +841,7 @@ public class VirtNavView extends LinearLayout
     private void currentHeading ()
     {
         if (wairToNow.currentGPSSpd > WairToNow.gpsMinSpeedMPS) {
-            float currentMH = wairToNow.currentGPSHdg + Lib.MagVariation (wairToNow.currentGPSLat,
+            double currentMH = wairToNow.currentGPSHdg + Lib.MagVariation (wairToNow.currentGPSLat,
                     wairToNow.currentGPSLon, wairToNow.currentGPSAlt);
             navDial.setHeading (currentMH - navDial.obsSetting);
         } else {
@@ -800,9 +852,9 @@ public class VirtNavView extends LinearLayout
     /**
      * Format the given value to proper nnn degrees.
      */
-    private static void hdgString (SpannableStringBuilder sb, float degs)
+    private static void hdgString (SpannableStringBuilder sb, double degs)
     {
-        int idegs = Math.round (degs);
+        int idegs = (int) Math.round (degs);
         while (idegs <=  0) idegs += 360;
         while (idegs > 360) idegs -= 360;
         sb.append (Integer.toString (idegs + 1000).substring (1));
@@ -817,13 +869,13 @@ public class VirtNavView extends LinearLayout
         if (dmeWaypoint == null) {
             navDial.setDistance (NavDialView.NODISTANCE, null, false);
         } else {
-            float elev = dmeWaypoint.GetDMEElev ();
-            float lat  = dmeWaypoint.GetDMELat ();
-            float lon  = dmeWaypoint.GetDMELon ();
-            float dist = Lib.LatLonDist (lat, lon, wairToNow.currentGPSLat, wairToNow.currentGPSLon);
+            double elev = dmeWaypoint.GetDMEElev ();
+            double lat  = dmeWaypoint.GetDMELat ();
+            double lon  = dmeWaypoint.GetDMELon ();
+            double dist = Lib.LatLonDist (lat, lon, wairToNow.currentGPSLat, wairToNow.currentGPSLon);
             boolean slant = elev != Waypoint.ELEV_UNKNOWN;
             if (slant) {
-                dist = Mathf.hypot (dist, (wairToNow.currentGPSAlt - elev / Lib.FtPerM) / Lib.MPerNM);
+                dist = Math.hypot (dist, (wairToNow.currentGPSAlt - elev / Lib.FtPerM) / Lib.MPerNM);
             }
             navDial.setDistance (dist, dmeWaypoint.ident, slant);
         }

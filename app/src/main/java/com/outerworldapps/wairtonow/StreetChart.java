@@ -23,7 +23,6 @@ package com.outerworldapps.wairtonow;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
-import android.graphics.PointF;
 import android.graphics.Rect;
 import android.support.annotation.NonNull;
 import android.util.TypedValue;
@@ -78,13 +77,13 @@ public class StreetChart implements DisplayableChart {
     { }
 
     @Override  // DisplayableChart
-    public boolean LatLon2CanPixExact (float lat, float lon, @NonNull PointF canpix)
+    public boolean LatLon2CanPixExact (double lat, double lon, @NonNull PointD canpix)
     {
         return false;
     }
 
     @Override  // DisplayableChart
-    public boolean CanPix2LatLonExact (float canpixx, float canpixy, @NonNull LatLon ll)
+    public boolean CanPix2LatLonExact (double canpixx, double canpixy, @NonNull LatLon ll)
     {
         return false;
     }
@@ -97,10 +96,10 @@ public class StreetChart implements DisplayableChart {
      * @param canvasHdgRads = 'up' heading on canvas
      */
     @Override  // DisplayableChart
-    public void DrawOnCanvas (@NonNull PixelMapper pmap, @NonNull Canvas canvas, @NonNull Invalidatable inval, float canvasHdgRads)
+    public void DrawOnCanvas (@NonNull PixelMapper pmap, @NonNull Canvas canvas, @NonNull Invalidatable inval, double canvasHdgRads)
     {
         osm = wairToNow.openStreetMap;
-        osm.Draw (canvas, pmap, inval, canvasHdgRads);
+        osm.Draw (canvas, pmap, inval);
     }
 
     /**
@@ -129,10 +128,10 @@ public class StreetChart implements DisplayableChart {
         //   360 / (1 << MAXZOOM) = lon
 
         // 0.33 mins per osm tile width at maxzoom
-        float mins_per_osm_tile_of_maxzoom = 360.0F * 60.0F / (1 << OpenStreetMap.MAXZOOM);
+        double mins_per_osm_tile_of_maxzoom = 360.0 * 60.0 / (1 << OpenStreetMap.MAXZOOM);
 
         // 0.66 mins per mbm tile width at maxzoom
-        float mins_per_mbm_tile_of_maxzoom = mins_per_osm_tile_of_maxzoom * EarthSector.MBMSIZE / OpenStreetMap.BitmapSize;
+        double mins_per_mbm_tile_of_maxzoom = mins_per_osm_tile_of_maxzoom * EarthSector.MBMSIZE / OpenStreetMap.BitmapSize;
 
         // so tell caller we can do 1min x 1min tiles (by returning a 0)
         limits[0] = (int) Math.ceil (Math.log (mins_per_mbm_tile_of_maxzoom) / Math.log (2));
@@ -151,14 +150,14 @@ public class StreetChart implements DisplayableChart {
      * @return corresponding bitmap
      */
     @Override  // DisplayableChart
-    public Bitmap GetMacroBitmap (float slat, float nlat, float wlon, float elon)
+    public Bitmap GetMacroBitmap (double slat, double nlat, double wlon, double elon)
     {
         /*
          * See how many tiles needed to span the macro bitmap.
          * One tile width => TILEWIDTH macro bitmap pixels.
          */
-        float numXTiles = (float) EarthSector.MBMSIZE / (float) TILEWIDTH;
-        float numYTiles = (float) EarthSector.MBMSIZE / (float) TILEHEIGHT;
+        double numXTiles = (double) EarthSector.MBMSIZE / (double) TILEWIDTH;
+        double numYTiles = (double) EarthSector.MBMSIZE / (double) TILEHEIGHT;
 
         /*
          * Find least zoomed-out level that requires fewer tiles
@@ -171,16 +170,16 @@ public class StreetChart implements DisplayableChart {
          * level 12 cuz since numXTiles is 2, 2 zoom 12 tiles
          * will more than cover the longitude range requested.
          */
-        float northTileY, southTileY;
-        float eastTileX, westTileX;
+        double northTileY, southTileY;
+        double eastTileX, westTileX;
         for (zoomLevel = OpenStreetMap.MAXZOOM;; -- zoomLevel) {
             northTileY = lat2MacroTileY (nlat);
             southTileY = lat2MacroTileY (slat);
             eastTileX  = lon2MacroTileX (elon);
             westTileX  = lon2MacroTileX (wlon);
             if (zoomLevel <= 0) break;
-            float diffTileX = eastTileX - westTileX;
-            if (diffTileX < 0.0F) diffTileX += 1 << zoomLevel;
+            double diffTileX = eastTileX - westTileX;
+            if (diffTileX < 0.0) diffTileX += 1 << zoomLevel;
             if ((diffTileX <= numXTiles) &&
                     (southTileY - northTileY <= numYTiles)) break;
         }
@@ -214,7 +213,7 @@ public class StreetChart implements DisplayableChart {
         for (int tileIY = northTileIY; tileIY < southTileIY; tileIY ++) {
             for (int tileIX = westTileIX; tileIX < eastTileIX; tileIX ++) {
                 int tileJX = tileIX & (zoommask - 1);
-                Bitmap tbm = OpenStreetMap.ReadTileBitmap (tileJX, tileIY, zoomLevel);
+                Bitmap tbm = OpenStreetMap.ReadTileBitmap (tileJX, tileIY, zoomLevel, true);
                 if (tbm != null) {
 
                     /*
@@ -222,8 +221,8 @@ public class StreetChart implements DisplayableChart {
                      */
                     // (someTileX - macroLeftTileX) * TILEWIDTH  = someBitmapX
                     // (someTileY - macroTopTileY)  * TILEHEIGHT = someBitmapY
-                    int bmX = Math.round ((tileIX - macroLeftTileX) * TILEWIDTH);
-                    int bmY = Math.round ((tileIY - macroTopTileY) * TILEHEIGHT);
+                    int bmX = (int) Math.round ((tileIX - macroLeftTileX) * TILEWIDTH);
+                    int bmY = (int) Math.round ((tileIY - macroTopTileY) * TILEHEIGHT);
 
                     /*
                      * Draw tile bitmap to macro bitmap, stretching it in X,Y to TILEWIDTH,HEIGHT.
@@ -244,8 +243,8 @@ public class StreetChart implements DisplayableChart {
     private final static int FUDGEFACTOR = 1;  // one osm tile pixel = FUDGEFACTOR**2 macro pixels
     private final static int TILEWIDTH   = OpenStreetMap.BitmapSize * FUDGEFACTOR;
     private final static int TILEHEIGHT  = OpenStreetMap.BitmapSize * FUDGEFACTOR;
-    private float macroLeftTileX;    // tile X at left edge of latest macro bitmap (might contain fractional part)
-    private float macroTopTileY;     // tile Y at top edge of latest macro bitmap (might contain fractional part)
+    private double macroLeftTileX;    // tile X at left edge of latest macro bitmap (might contain fractional part)
+    private double macroTopTileY;     // tile Y at top edge of latest macro bitmap (might contain fractional part)
     private int zoomLevel;           // zoom level used for this mapping
 
     /**
@@ -255,10 +254,10 @@ public class StreetChart implements DisplayableChart {
      * @param mbmpix = macro bitmap pixel number (might be out of range)
      */
     @Override  // DisplayableChart
-    public void LatLon2MacroBitmap (float lat, float lon, @NonNull PointF mbmpix)
+    public void LatLon2MacroBitmap (double lat, double lon, @NonNull PointD mbmpix)
     {
-        float tileX = lon2MacroTileX (lon) - macroLeftTileX;  // how many tiles east of left edge of macro bitmap
-        float tileY = lat2MacroTileY (lat) - macroTopTileY;   // how many tiles south of top edge of macro bitmap
+        double tileX = lon2MacroTileX (lon) - macroLeftTileX;  // how many tiles east of left edge of macro bitmap
+        double tileY = lat2MacroTileY (lat) - macroTopTileY;   // how many tiles south of top edge of macro bitmap
 
         mbmpix.x = tileX * TILEWIDTH;   // how many macro bitmap pixels east of left edge
         mbmpix.y = tileY * TILEHEIGHT;  // how many macro bitmap pixels south of top edge
@@ -269,10 +268,10 @@ public class StreetChart implements DisplayableChart {
      * @param lon = longitude
      * @return tile X number (might contain fractional part)
      */
-    private float lon2MacroTileX (float lon)
+    private double lon2MacroTileX (double lon)
     {
-        float n = 1 << zoomLevel;
-        return n * (lon + 180.0F) / 360.0F;
+        double n = 1 << zoomLevel;
+        return n * (lon + 180.0) / 360.0;
     }
 
     /**
@@ -280,10 +279,10 @@ public class StreetChart implements DisplayableChart {
      * @param lat = latitude
      * @return tile Y number (might contain fractional part)
      */
-    private float lat2MacroTileY (float lat)
+    private double lat2MacroTileY (double lat)
     {
-        float n = 1 << zoomLevel;
-        float latrad = lat / 180.0F * Mathf.PI;
-        return (float) (n * (1.0 - (Math.log (Math.tan (latrad) + 1.0 / Math.cos (latrad)) / Math.PI)) / 2.0);
+        double n = 1 << zoomLevel;
+        double latrad = lat / 180.0 * Math.PI;
+        return n * (1.0 - (Math.log (Math.tan (latrad) + 1.0 / Math.cos (latrad)) / Math.PI)) / 2.0;
     }
 }

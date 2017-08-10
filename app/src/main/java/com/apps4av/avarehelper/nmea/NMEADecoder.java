@@ -25,11 +25,11 @@ import com.apps4av.avarehelper.connections.MidDecoder;
  *
  */
 public class NMEADecoder extends MidDecoder {
-    public float ownHeading   = Float.NaN;
-    public float ownLatitude  = Float.NaN;
-    public float ownLongitude = Float.NaN;
-    public float ownSpeed     = Float.NaN;
-    public float ownTrueAlt   = Float.NaN;
+    public double ownHeading   = Double.NaN;
+    public double ownLatitude  = Double.NaN;
+    public double ownLongitude = Double.NaN;
+    public double ownSpeed     = Double.NaN;
+    public double ownTrueAlt   = Double.NaN;
     public long  reportTime   = -1;
 
     private GSVMessage gsvMessage = new GSVMessage (this);
@@ -194,24 +194,24 @@ public class NMEADecoder extends MidDecoder {
      * @param spd  = speed knots
      * @param alt  = true altitude feet MSL
      */
-    public void maybeReportOwnshipInfo (long time, float hdg, float spd, float alt)
+    public void maybeReportOwnshipInfo (long time, double hdg, double spd, double alt)
     {
         // message pairs have same time
         // so if this is first of a different time, reset everything
         if (reportTime != time) {
             reportTime = time;
-            ownHeading = Float.NaN;
-            ownSpeed   = Float.NaN;
-            ownTrueAlt = Float.NaN;
+            ownHeading = Double.NaN;
+            ownSpeed   = Double.NaN;
+            ownTrueAlt = Double.NaN;
         }
 
         // now fill in what this one is supplying
-        if (!Float.isNaN (hdg)) ownHeading = hdg;
-        if (!Float.isNaN (spd)) ownSpeed   = spd;
-        if (!Float.isNaN (alt)) ownTrueAlt = alt;
+        if (!Double.isNaN (hdg)) ownHeading = hdg;
+        if (!Double.isNaN (spd)) ownSpeed   = spd;
+        if (!Double.isNaN (alt)) ownTrueAlt = alt;
 
         // if we now know everything, report current location
-        if (!Float.isNaN (ownSpeed) && !Float.isNaN (ownTrueAlt)) {
+        if (!Double.isNaN (ownSpeed) && !Double.isNaN (ownTrueAlt)) {
             topDecoder.mReporter.adsbGpsOwnship (
                     reportTime,
                     ownTrueAlt,
@@ -227,7 +227,7 @@ public class NMEADecoder extends MidDecoder {
      */
     public static int milliseconds (String str)
     {
-        int hhmmssttt = Math.round (Float.parseFloat (str) * 1000.0F);
+        int hhmmssttt = (int) Math.round (Double.parseDouble (str) * 1000.0);
         int hours     = hhmmssttt / 10000000;
         int minutes   = (hhmmssttt / 100000) % 100;
         int msecs     = hhmmssttt % 100000;
@@ -242,12 +242,12 @@ public class NMEADecoder extends MidDecoder {
      * @param neg = what dir is negative ("S" or "W")
      * @return degrees
      */
-    public static float degrees (String num, String dir, String pos, String neg)
+    public static double degrees (String num, String dir, String pos, String neg)
     {
-        float degflt = Float.parseFloat (num) / 100.0F;
-        float degint = (int) degflt;
+        double degflt = Double.parseDouble (num) / 100.0;
+        double degint = (int) degflt;
         degflt -= degint;
-        degint += degflt * (100.0F / 60.0F);
+        degint += degflt * (100.0 / 60.0);
         if (dir.equals (neg)) degint = -degint;
         else if (!dir.equals (pos)) {
             throw new NumberFormatException ("bad direction " + dir);
@@ -258,9 +258,9 @@ public class NMEADecoder extends MidDecoder {
     /**
      * Parse floating-point number allowing a default value if string is empty.
      */
-    public static float parseFloat (String alt, float empty, float mult)
+    public static double parseDouble (String alt, double empty, double mult)
     {
         if (alt.length () == 0) return empty;
-        return Float.parseFloat (alt) * mult;
+        return Double.parseDouble (alt) * mult;
     }
 }

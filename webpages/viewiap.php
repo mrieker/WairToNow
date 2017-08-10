@@ -26,20 +26,6 @@
 
     $skippwcheck = TRUE;
     require_once 'iaputil.php';
-
-    if (!empty ($_GET['good'])) {
-        $goodname  = $_GET['good'];
-        $goodcyc28 = intval (substr ($goodname, 5, 8));
-        $goodpath  = "../webdata/iaputil/good_$goodcyc28.db";
-        header ("Content-description: file transfer");
-        header ("Content-disposition: attachment; filename=\"$goodname\"");
-        header ("Content-length: " . filesize ($goodpath));
-        header ("Content-type: application/x-sqlite3");
-        header ("Expires: 0");
-        flush ();
-        readfile ($goodpath);
-        exit;
-    }
 ?>
 <!DOCTYPE html>
 <HTML>
@@ -49,8 +35,6 @@
     <BODY>
         <?php
             $iapdirs = array ("FAA" => "datums/iapgeorefs2_$cycles28"); // FAA generated (DecodePlate2.java)
-
-            $tmpdir = "viewiap";
 
             if (isset ($_GET['iapid'])) {
                 gotIAPId ();
@@ -69,7 +53,7 @@
              */
             function gotNothing ()
             {
-                global $cycles28, $iapdirs, $tmpdir;
+                global $cycles28, $iapdirs;
 
                 echo "<P><A HREF=\"viewiap.php\">Top</A></P>";
 
@@ -90,20 +74,6 @@
                 $firsts = array ();
                 for ($i = 0; $i < strlen ($firstx); $i ++) $firsts[] = $firstx[$i];
                 outputLinkTable ("first", $firsts, 10);
-
-                //echo "<P><A HREF=\"generateavare.php\">Avare Compatible DB</A></P>\n";
-
-                $goodnames = scandir ("../webdata/iaputil");
-                $goodlatest = '';
-                foreach ($goodnames as $goodname) {
-                    if ((strlen ($goodname) == 16) && (substr ($goodname, 0, 5) == 'good_') &&
-                            (substr ($goodname, 13) == '.db') && ($goodlatest < $goodname)) {
-                        $goodlatest = $goodname;
-                    }
-                }
-                if ($goodlatest > '') {
-                    echo "<P><A HREF=\"viewiap.php?good=$goodlatest\">$goodlatest</A></P>\n";
-                }
             }
 
             /**
@@ -111,7 +81,7 @@
              */
             function gotState ()
             {
-                global $cycles28, $iapdirs, $tmpdir;
+                global $cycles28, $iapdirs;
 
                 $state = getStateCode ();
 
@@ -135,7 +105,7 @@
 
                 $goodiaps = array ();   // indexed via icaoid
                 foreach ($iapdirs as $iapdir) {
-                    $csvfile  = @fopen ("$iapdir/$state.csv", "r");
+                    $csvfile = @fopen ("$iapdir/$state.csv", "r");
                     if ($csvfile) {
                         while ($csvline = fgets ($csvfile)) {
                             $columns = explode (",", $csvline);
@@ -203,7 +173,7 @@
              */
             function gotFirst ()
             {
-                global $cycles28, $iapdirs, $tmpdir;
+                global $cycles28, $iapdirs;
 
                 $first = $_GET['first'];
 
@@ -291,7 +261,7 @@
              */
             function gotAirport ()
             {
-                global $cycles28, $iapdirs, $tmpdir;
+                global $cycles28, $iapdirs;
 
                 $state  = getStateCode ();
                 $icaoid = $_GET['icaoid'];
@@ -345,7 +315,7 @@
                                     }
                                     $iap_x = urlencode ($iapid);
                                     $iap_y = htmlspecialchars ($iapid);
-                                    echo "<LI><A HREF=\"viewiap.php?$sl&icaoid=$icaoid&faaid=$faaid&iapid=$iap_x\">$iap_y</A>\n";
+                                    echo "<LI>$iap_y";
                                     echoIAPGifLink ($state, $faaid, $iapid);
                                     $gotiaps[$iapid] = TRUE;
                                 }
@@ -372,73 +342,6 @@
                     }
                     fclose ($gifcsvfile);
                 }
-            }
-
-            /**
-             * Generate marked-up image and display it.
-             */
-            function gotIapId ()
-            {
-                global $cycles28, $iapdirs, $tmpdir;
-
-                $state  = getStateCode ();
-                $icaoid = $_GET['icaoid'];
-                $faaid  = $_GET['faaid'];
-                $iapid  = $_GET['iapid'];
-
-                $iapid_esa = escapeshellarg ($iapid);
-                $iapid_hsc = htmlspecialchars ($iapid);
-
-                $sl = getStateLink ();
-                $al = getAirportLink ($faaid, $icaoid);
-                echo "<P><A HREF=\"viewiap.php\">Top</A> $sl $al $iapid_hsc</P>";
-                echo "<SCRIPT> document.getElementById ('title').innerHTML += ': $faaid $iapid_hsc' </SCRIPT>\n";
-
-                $pdfname = FALSE;
-                $csvkey  = "$faaid,\"$iapid\",";
-                $csvfile = fopen ("datums/aptplates_$cycles28/state/$state.csv", "r");
-                while ($csvline = fgets ($csvfile)) {
-                    if (strpos ($csvline, $csvkey) === 0) {
-                        $gifname = trim (substr ($csvline, strlen ($csvkey)));
-                        $pdfname = "datums/aptplates_$cycles28/" . str_replace (".gif", ".pdf", str_replace ("gif_150", "pdftemp", $gifname));
-                        break;
-                    }
-                }
-                fclose ($csvfile);
-                if (!$pdfname) die ("approach not found");
-
-                $oldmask = umask (0022);
-                @mkdir ("$tmpdir/$state");
-                @mkdir ("$tmpdir/$state/$faaid");
-                umask ($oldmask);
-                $tmpnam = "$tmpdir/$state/$faaid/" . fixid ($iapid);
-
-                if (!file_exists ("$tmpnam.log") ||
-                    !file_exists ("$tmpnam.png") ||
-                    file_older_than ("$tmpnam.png", $pdfname) ||
-                    file_older_than ("$tmpnam.png", "../decosects/DecodePlate.jar")) {
-                    @unlink ("$tmpnam.log");
-                    @unlink ("$tmpnam.png");
-                    $cpaths = "../decosects/DecodePlate.jar:../decosects/pdfbox-1.8.10.jar:../decosects/commons-logging-1.2.jar";
-                    $dpcmnd = "java DecodePlate -basedir " . __DIR__ . " -cycles28 $cycles28 $faaid $iapid_esa -markedpng $tmpnam.png -verbose";
-                    $dpfile = popen ("CLASSPATH=$cpaths $dpcmnd 2>&1", "r");
-                    if (!$dpfile) die ("error starting DecodePlate");
-
-                    $dplog = "$dpcmnd\n";
-                    while ($dpline = fgets ($dpfile)) {
-                        $dplog .= $dpline;
-                    }
-                    pclose ($dpfile);
-                    file_put_contents ("$tmpnam.log", $dplog);
-
-                    @chmod ("$tmpnam.log", 0644);
-                    @chmod ("$tmpnam.png", 0644);
-                } else {
-                    $dplog = file_get_contents ("$tmpnam.log");
-                }
-
-                echo "<P><IMG SRC=\"$tmpnam.png\"></P>\n";
-                echo "<PRE>$dplog</PRE>\n";
             }
 
             /**

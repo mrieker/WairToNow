@@ -26,14 +26,14 @@ package com.apps4av.avarehelper.nmea;
 public class VTGMessage {
     public static void parse (String[] tokens, NMEADecoder mf)
     {
-        float track = Float.NaN;
-        float speed = Float.NaN;
+        double track = Double.NaN;
+        double speed = Double.NaN;
         if (tokens[2].equals ("T") && (tokens[1].length () > 0)) {
-            track = Float.parseFloat (tokens[1]);  // true track degrees
+            track = Double.parseDouble (tokens[1]);  // true track degrees
         }
         if (tokens[6].equals ("M") && (tokens[5].length () > 0)) {
-            speed = Float.parseFloat (tokens[5]);  // ground speed knots
+            speed = Double.parseDouble (tokens[5]);  // ground speed knots
         }
-        mf.maybeReportOwnshipInfo (mf.reportTime, track, speed, Float.NaN);
+        mf.maybeReportOwnshipInfo (mf.reportTime, track, speed, Double.NaN);
     }
 }

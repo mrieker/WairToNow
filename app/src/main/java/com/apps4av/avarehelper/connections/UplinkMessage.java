@@ -40,8 +40,8 @@ public class UplinkMessage {
         /*
         boolean positionValid = (msg[9] & 0x01) != 0;
 
-        float degLat = TopDecoder.calculateLatDegrees (msg, 4);
-        float degLon = TopDecoder.calculateLonDegrees (msg, 4);
+        double degLat = TopDecoder.calculateLatDegrees (msg, 4);
+        double degLon = TopDecoder.calculateLonDegrees (msg, 4);
 
         // byte 6, bits 4-8: slot ID
         int slotID = msg[skip + 6] & 0x1f;

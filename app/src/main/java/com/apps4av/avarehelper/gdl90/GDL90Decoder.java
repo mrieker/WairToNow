@@ -39,11 +39,11 @@ public class GDL90Decoder extends MidDecoder {
     private boolean gotOwnGeoAltThisCycle;
     public  boolean heartbeatPosVal;  // heartbeat says whether GPS position is valid or not
     private boolean stratuxAhrsValid;
-    public  float   ownHeading;
-    public  float   ownLatitude;
-    public  float   ownLongitude;
-    public  float   ownSpeed;
-    public  float   ownTrueAlt;
+    public  double   ownHeading;
+    public  double   ownLatitude;
+    public  double   ownLongitude;
+    public  double   ownSpeed;
+    public  double   ownTrueAlt;
     public  long    heartbeatTime;    // ms since 1970-01-01 0000Z of last heartbeat
     public  TopDecoder topDecoder;
 
@@ -195,13 +195,13 @@ public class GDL90Decoder extends MidDecoder {
                 ownLongitude = dot_lon;
 
                 // it might give us our speed and track
-                if (!Float.isNaN (dot_speed)) ownSpeed   = dot_speed;
-                if (!Float.isNaN (dot_track)) ownHeading = dot_track;
+                if (!Double.isNaN (dot_speed)) ownSpeed   = dot_speed;
+                if (!Double.isNaN (dot_track)) ownHeading = dot_track;
 
                 // if it gives us altitude, it was derived from pressure altitude
                 // and a nearby altimeter setting.  but if we are getting geometric
                 // altitude messages, ignore this altitude and use geometric altitude.
-                if (!Float.isNaN (dot_talt) && !gotOwnGeoAltLastCycle && !gotOwnGeoAltThisCycle) {
+                if (!Double.isNaN (dot_talt) && !gotOwnGeoAltLastCycle && !gotOwnGeoAltThisCycle) {
                     // 1) we were able to calculate true altitude from pressure altitude
                     // 2) we didn't get geom alt message last cycle so probably won't get one this cycle
                     // 3) we haven't received a geom alt message this cycle either
@@ -289,9 +289,9 @@ public class GDL90Decoder extends MidDecoder {
         if ((bufin[1] != 0x45) || (bufin[2] != 0x01) || (bufin[3] != 0x00)) return;
 
         if (stratuxAhrsValid) {
-            float bank  = ((bufin[4] << 8) + (bufin[5] & 0xFF)) / 10.0F;
-            float pitch = ((bufin[6] << 8) + (bufin[7] & 0xFF)) / 10.0F;
-            float headg = ((bufin[8] << 8) + (bufin[9] & 0xFF)) / 10.0F;
+            double bank  = ((bufin[4] << 8) + (bufin[5] & 0xFF)) / 10.0;
+            double pitch = ((bufin[6] << 8) + (bufin[7] & 0xFF)) / 10.0;
+            double headg = ((bufin[8] << 8) + (bufin[9] & 0xFF)) / 10.0;
             reporter.adsbGpsAHRS (bank, headg, pitch, System.currentTimeMillis ());
         }
     }
@@ -305,23 +305,23 @@ public class GDL90Decoder extends MidDecoder {
      */
     private void maybeReportOwnshipInfo ()
     {
-        if (heartbeatPosVal && !Float.isNaN (ownTrueAlt) && !Float.isNaN (ownLatitude)) {
+        if (heartbeatPosVal && !Double.isNaN (ownTrueAlt) && !Double.isNaN (ownLatitude)) {
             topDecoder.mReporter.adsbGpsOwnship (heartbeatTime, ownTrueAlt,
                     ownHeading, ownLatitude, ownLongitude, ownSpeed);
-            ownTrueAlt  = Float.NaN;
-            ownLatitude = Float.NaN;
+            ownTrueAlt  = Double.NaN;
+            ownLatitude = Double.NaN;
         }
     }
 
     /**
      * Decode common Ownship/Traffic message info.
      */
-    private float  dot_climb;  // feet per minute
-    private float  dot_lat;    // degrees
-    private float  dot_lon;    // degrees
-    private float  dot_speed;  // knots
-    private float  dot_talt;   // feet MSL
-    private float  dot_track;  // degrees
+    private double  dot_climb;  // feet per minute
+    private double  dot_lat;    // degrees
+    private double  dot_lon;    // degrees
+    private double  dot_speed;  // knots
+    private double  dot_talt;   // feet MSL
+    private double  dot_track;  // degrees
     private int    dot_addr;   // <26:34>: address type; <23:00>: icao address
     private String dot_call;
 
@@ -365,7 +365,7 @@ public class GDL90Decoder extends MidDecoder {
         /*
          * Altitude
          */
-        dot_talt = Float.NaN;
+        dot_talt = Double.NaN;
         int presalt = ((msg[11] & 0xFF) << 4) + ((msg[12] & 0xF0) >> 4);
         if (presalt != 0xFFF) {
             dot_talt = topDecoder.mReporter.adsbGpsPalt2Talt (
@@ -389,18 +389,18 @@ public class GDL90Decoder extends MidDecoder {
          * Horizontal Velocity (really just speed, knots).
          */
         int speed = ((msg[14] & 0xFF) << 4) + ((msg[15] & 0xF0) >> 4);
-        dot_speed = (speed == 0xFFF) ? Float.NaN : speed;
+        dot_speed = (speed == 0xFFF) ? Double.NaN : speed;
 
         /*
          * Next 12 bits are vertical velocity in units of 64 fpm. (0x800 = unknown)
          */
         int climb = ((msg[15] & 0x0F) << 8) + (msg[16] & 0xFF);
-        dot_climb = (climb == 0x800) ? Float.NaN : climb * 64;
+        dot_climb = (climb == 0x800) ? Double.NaN : climb * 64;
 
         /*
          * Track/heading
          */
-        float heading = (msg[17] & 0xFF) * (360.0F / 256);
+        double heading = (msg[17] & 0xFF) * (360.0 / 256);
         switch (msg[12] & 0x03) {
             case 1: {  // true track
                 dot_track = heading;
@@ -410,7 +410,7 @@ public class GDL90Decoder extends MidDecoder {
             case 2:    // magnetic heading
             case 3: {  // true heading
                 // we only handle track, not heading
-                dot_track = Float.NaN;
+                dot_track = Double.NaN;
                 break;
             }
         }
@@ -439,7 +439,7 @@ public class GDL90Decoder extends MidDecoder {
      * Convert a three-byte degree value to floatingpoint.
      * Format used by Ownship and Traffic Report messages.
      */
-    private static float calculateDegrees (byte highByte, byte midByte, byte lowByte)
+    private static double calculateDegrees (byte highByte, byte midByte, byte lowByte)
     {
         int position;
 
@@ -449,6 +449,6 @@ public class GDL90Decoder extends MidDecoder {
         position <<= 8;
         position  |= (lowByte & 0xFF);
 
-        return position * (360.0F / (1 << 24));
+        return position * (360.0 / (1 << 24));
     }
 }

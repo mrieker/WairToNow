@@ -77,7 +77,7 @@ public class Vector3 {
         mat[16] = this.x;
         mat[17] = this.y;
         mat[18] = this.z;
-        mat[19] = 1.0F;
+        mat[19] = 1.0;
 
         MatrixD.multiplyMV (mat, 20, mat, 0, mat, 16);
 

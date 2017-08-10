@@ -37,13 +37,13 @@ public class RTMMessage {
 
         int  addr = Integer.parseInt (tokens[2]);
 
-        float lat = NMEADecoder.degrees (tokens[3], tokens[4], "N", "S");
-        float lon = NMEADecoder.degrees (tokens[5], tokens[6], "E", "W");
+        double lat = NMEADecoder.degrees (tokens[3], tokens[4], "N", "S");
+        double lon = NMEADecoder.degrees (tokens[5], tokens[6], "E", "W");
 
-        float alt = NMEADecoder.parseFloat (tokens[7], Float.NaN, 3.28084F);  //TODO verify units & pressure vs true
-        float hdg = NMEADecoder.parseFloat (tokens[8], Float.NaN, 1.0F);
-        float spd = NMEADecoder.parseFloat (tokens[9], Float.NaN, 1.0F);
+        double alt = NMEADecoder.parseDouble (tokens[7], Double.NaN, 3.28084);  //TODO verify units & pressure vs true
+        double hdg = NMEADecoder.parseDouble (tokens[8], Double.NaN, 1.0);
+        double spd = NMEADecoder.parseDouble (tokens[9], Double.NaN, 1.0);
 
-        reporter.adsbGpsTraffic (time, alt, hdg, lat, lon, spd, Float.NaN, addr, "");
+        reporter.adsbGpsTraffic (time, alt, hdg, lat, lon, spd, Double.NaN, addr, "");
     }
 }

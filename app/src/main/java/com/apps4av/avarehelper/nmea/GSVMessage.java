@@ -52,11 +52,11 @@ public class GSVMessage {
             MyGpsSatellite sat = new MyGpsSatellite ();
             sat.pfx  = pfx;
             sat.prn  = Integer.parseInt (tokens[i++]);
-            sat.elev = NMEADecoder.parseFloat (tokens[i++], Float.NaN, 1.0F);
-            sat.azim = NMEADecoder.parseFloat (tokens[i++], Float.NaN, 1.0F);
+            sat.elev = NMEADecoder.parseDouble (tokens[i++], Double.NaN, 1.0);
+            sat.azim = NMEADecoder.parseDouble (tokens[i++], Double.NaN, 1.0);
             String snrstr = tokens[i++];
             if (snrstr.length () > 0) {
-                sat.snr  = Float.parseFloat (snrstr);
+                sat.snr  = Double.parseDouble (snrstr);
                 sat.used = true;
             }
             satellites.addLast (sat);

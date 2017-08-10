@@ -41,15 +41,15 @@ import java.util.Comparator;
 public class GlassView
         extends View
         implements WairToNow.CanBeMainView {
-    private static final float APPMODEGS   = 3.25F;   // approach mode glide slope degrees
-    private static final float GSFTABVTH   = 25.0F;   // glideslope feet above threshold
-    private static final float HSISCALEAPP = 0.5F;    // HSI scale full deflection = 0.5nm
-    private static final float HSISCALEENR = 2.0F;    // HSI scale full deflection = 2.0nm
+    private static final double APPMODEGS   = 3.25;   // approach mode glide slope degrees
+    private static final double GSFTABVTH   = 25.0;   // glideslope feet above threshold
+    private static final double HSISCALEAPP = 0.5;    // HSI scale full deflection = 0.5nm
+    private static final double HSISCALEENR = 2.0;    // HSI scale full deflection = 2.0nm
     public  static final int   STDRATETURN = 3;       // degrees per second
 
     private static final CompareRWNumbers compareRWNumbers = new CompareRWNumbers ();
 
-    private float magvariation;
+    private double magvariation;
     private int posIndex = 0;
     private int gsalt, tdze;
     private Paint dgPaintBack    = new Paint ();
@@ -251,17 +251,17 @@ public class GlassView
          * Heading comes directly from most recent GPS position report.
          * Units are degrees.
          */
-        float truehdg = currPos.heading;
+        double truehdg = currPos.heading;
 
         /*
          * Get current altitude in metres.
          */
-        float altitude = currPos.altitude;
+        double altitude = currPos.altitude;
 
         /*
          * Calculate magnetic heading.
          */
-        float maghdg = truehdg + magvariation;
+        double maghdg = truehdg + magvariation;
 
         /*
          * Fit the instruments to the page.
@@ -288,12 +288,12 @@ public class GlassView
 
         DrawChart (canvas, ahCentX, ahCentY, ahRadius, truehdg);
 
-        float spdflt = currPos.speed * Lib.KtPerMPS;
+        double spdflt = currPos.speed * Lib.KtPerMPS;
         if (wairToNow.optionsView.ktsMphOption.getAlt ()) spdflt *= Lib.SMPerNM;
-        int spdint = Math.round (spdflt);
+        int spdint = (int) Math.round (spdflt);
         DrawNumericStrip (canvas, aspCentX, aspCentY, aspHeight, aspWidth, spdint, 10, 8, 0, -1, -1);
 
-        int feet = Math.round (altitude * Lib.FtPerM);
+        int feet = (int) Math.round (altitude * Lib.FtPerM);
         DrawNumericStrip (canvas, altCentX, altCentY, altHeight, altWidth, feet, -100, 8, -999998, gsalt, tdze);
 
         Waypoint stepahead = DrawDestinationInfo (canvas, dstCentX, dstCentY, currPos);
@@ -322,7 +322,7 @@ public class GlassView
                         }
                         Arrays.sort (rwNumbers, 0, n, compareRWNumbers);
                         for (int i = 0; i < n; i ++) {
-                            rwNumbers[i].x = (int)(canvasWidth * (i + 0.5f) / n + 0.5F);
+                            rwNumbers[i].x = (int)(canvasWidth * (i + 0.5f) / n + 0.5);
                             rwNumbers[i].y = appRwayY;
                         }
                         appRunway = rwNumbers[0];  // default to enroute mode
@@ -347,7 +347,7 @@ public class GlassView
      * @param radius = half width & height to put on canvas
      * @param course = course line degrees ("UP" direction of chart)
      */
-    private void DrawChart (Canvas canvas, int centX, int centY, int radius, float course)
+    private void DrawChart (Canvas canvas, int centX, int centY, int radius, double course)
     {
         if (wairToNow.chartView.backing instanceof Chart2DView) {
             Chart2DView chart2DView = (Chart2DView) wairToNow.chartView.backing;
@@ -359,7 +359,7 @@ public class GlassView
                 int canCentY = canHeight / 2;
                 canvas.translate (centX - canCentX, centY + radius / 2 - canCentY);
                 chart2DView.ReCenter ();
-                chart2DView.SetCanvasHdgRad (Mathf.toRadians (course));
+                chart2DView.SetCanvasHdgRad (Math.toRadians (course));
                 chart2DView.DrawChart (canvas, canWidth, canHeight);
                 chart2DView.UnSetCanvasHdgRad ();
             }
@@ -383,8 +383,8 @@ public class GlassView
             StringBuilder sb = new StringBuilder ();
             sb.append (wairToNow.chartView.clDest.ident);
             sb.append (' ');
-            float distnm  = Lib.LatLonDist (currPos.latitude, currPos.longitude, destwp.lat, destwp.lon);
-            int dist10ths = Math.round (distnm * 10.0F);
+            double distnm  = Lib.LatLonDist (currPos.latitude, currPos.longitude, destwp.lat, destwp.lon);
+            int dist10ths = (int) Math.round (distnm * 10.0);
             sb.append (dist10ths / 10);
             if (dist10ths < 10000) {
                 sb.append ('.');
@@ -415,14 +415,14 @@ public class GlassView
 
                     // compute change in heading required from current to oncourse to next destination
                     Waypoint nextwp = ara[pai];
-                    float currhdg = currPos.heading;
-                    float nexthdg = Lib.LatLonTC (destwp.lat, destwp.lon, nextwp.lat, nextwp.lon);
-                    float hdgdiff = nexthdg - currhdg;
-                    if (hdgdiff < -180.0F) hdgdiff += 360.0F;
-                    if (hdgdiff >= 180.0F) hdgdiff -= 360.0F;
+                    double currhdg = currPos.heading;
+                    double nexthdg = Lib.LatLonTC (destwp.lat, destwp.lon, nextwp.lat, nextwp.lon);
+                    double hdgdiff = nexthdg - currhdg;
+                    if (hdgdiff < -180.0) hdgdiff += 360.0;
+                    if (hdgdiff >= 180.0) hdgdiff -= 360.0;
 
-                    float hdgdiffabs = Math.abs (hdgdiff);
-                    if ((hdgdiffabs > 1.0F) && (hdgdiffabs < 179.0F)) {
+                    double hdgdiffabs = Math.abs (hdgdiff);
+                    if ((hdgdiffabs > 1.0) && (hdgdiffabs < 179.0)) {
 
                         // find lat/lon where current heading would intersect the next course
                         LatLon intersect = new LatLon ();
@@ -431,7 +431,7 @@ public class GlassView
 
                         // how many seconds from current position to intersection point
                         // if we kept going straight
-                        float secfromcurrenttopoint = Lib.LatLonDist (currPos.latitude,
+                        double secfromcurrenttopoint = Lib.LatLonDist (currPos.latitude,
                                 currPos.longitude, intersect.lat, intersect.lon) * Lib.MPerNM /
                                 currPos.speed;
 
@@ -456,16 +456,16 @@ public class GlassView
                         //   disttopoint[met] = radius[met] * tan (hdgdiff / 2)
                         //   timetopoint[sec] = radius[met] / speed[met/sec] * tan (hdgdiff / 2)
                         //   timetopoint[sec] = tan (hdgdiff / 2) / turnrate[rad/sec]
-                        float secfromturntopoint = Mathf.tan (Math.toRadians (hdgdiffabs) / 2.0F) /
-                                Mathf.toRadians (STDRATETURN);
+                        double secfromturntopoint = Math.tan (Math.toRadians (hdgdiffabs) / 2.0) /
+                                Math.toRadians (STDRATETURN);
 
                         // see how many seconds from now the turn must begin
-                        int tostartsec = Math.round (secfromcurrenttopoint - secfromturntopoint);
+                        int tostartsec = (int) Math.round (secfromcurrenttopoint - secfromturntopoint);
                         if (tostartsec <= 10) {
 
                             // 10 or less, display arrow and new heading
                             // hollow if before turn should start, solid if at or past
-                            int maghdgbin = Math.round (nexthdg + magvariation + 359.0F) % 360 + 1;
+                            int maghdgbin = (int) Math.round (nexthdg + magvariation + 359.0) % 360 + 1;
                             String maghdgstr = Integer.toString (maghdgbin + 1000).substring (1);
                             boolean on = (tostartsec < 0) || ((tostartsec & 1) == 0);
                             if (hdgdiff > 0) {
@@ -498,7 +498,7 @@ public class GlassView
      * @param radius  = radius of the circle to draw
      * @param heading = numerical heading to draw gyro with (degrees)
      */
-    private void DrawDirectionalGyro (Canvas canvas, int centX, int centY, int radius, float heading, Waypoint stepahead)
+    private void DrawDirectionalGyro (Canvas canvas, int centX, int centY, int radius, double heading, Waypoint stepahead)
     {
         gsalt = -999999;
         tdze  = -999999;
@@ -516,7 +516,7 @@ public class GlassView
          */
         for (int i = 0; i < 360; i += 5) {
             canvas.save ();
-            canvas.rotate (360 - heading + i);
+            canvas.rotate ((float) (360 - heading + i));
             if (i % 30 == 0) {
                 canvas.drawText (Integer.toString (i / 10), 0, -radius * 10 / 16, dgPaintNum);
                 canvas.drawLine (0, -radius, 0, -radius * 13 / 16, dgPaintMaj);
@@ -538,8 +538,8 @@ public class GlassView
              * Our current position.
              */
             Position currPos = positions[posIndex];
-            float curLat = currPos.latitude;
-            float curLon = currPos.longitude;
+            double curLat = currPos.latitude;
+            double curLon = currPos.longitude;
 
             /*
              * Use approach mode if runway selected.
@@ -548,13 +548,13 @@ public class GlassView
             if ((appRunway != null) && ((rw = appRunway.rw) != null)) {
 
                 // true course degrees from current position to runway end
-                float tcDegCurToRWEnd = Lib.LatLonTC (curLat, curLon, rw.endLat, rw.endLon);
+                double tcDegCurToRWEnd = Lib.LatLonTC (curLat, curLon, rw.endLat, rw.endLon);
 
                 // true course degrees from runway beginning to runway end
-                float tcDegRWBegToEnd = rw.trueHdg;
+                double tcDegRWBegToEnd = rw.trueHdg;
 
                 // nautical miles of needle deflection to the right
-                float nmDeflectRite = Lib.GCOffCourseDist (rw.begLat, rw.begLon, rw.endLat, rw.endLon, curLat, curLon);
+                double nmDeflectRite = Lib.GCOffCourseDist (rw.begLat, rw.begLon, rw.endLat, rw.endLon, curLat, curLon);
 
                 // draw the HSI needles in approach mode for this runway
                 DrawHSINeedles (canvas,                  // canvas to draw HSI needles on
@@ -566,10 +566,10 @@ public class GlassView
                         HSISCALEAPP);                    // full scale right deflection
 
                 // nautical miles from current position to runway beginning
-                float nmCurToRWBeg = Lib.LatLonDist (curLat, curLon, rw.begLat, rw.begLon);
+                double nmCurToRWBeg = Lib.LatLonDist (curLat, curLon, rw.begLat, rw.begLon);
 
                 // for this far from the runway, compute altitude above runway where glideslope center is
-                float nmGSAboveRWBeg = Mathf.tan (APPMODEGS / 180.0F * Mathf.PI) * nmCurToRWBeg;
+                double nmGSAboveRWBeg = Math.tan (APPMODEGS / 180.0 * Math.PI) * nmCurToRWBeg;
 
                 // compute feet MSL where glideslope center is
                 gsalt = (int)(nmGSAboveRWBeg * Lib.MPerNM * Lib.FtPerM + rw.elev + GSFTABVTH);
@@ -582,10 +582,10 @@ public class GlassView
             if (gsalt == -999999) {
 
                 // current course origination and destination points.
-                float orgLat = wairToNow.chartView.orgLat;
-                float orgLon = wairToNow.chartView.orgLon;
-                float dstLat = clDest.lat;
-                float dstLon = clDest.lon;
+                double orgLat = wairToNow.chartView.orgLat;
+                double orgLon = wairToNow.chartView.orgLon;
+                double dstLat = clDest.lat;
+                double dstLon = clDest.lon;
 
                 if (stepahead != null) {
                     orgLat = dstLat;
@@ -595,13 +595,13 @@ public class GlassView
                 }
 
                 // find out how far off course we are
-                float offCourseDist = Lib.GCOffCourseDist (orgLat, orgLon, dstLat, dstLon, curLat, curLon);
+                double offCourseDist = Lib.GCOffCourseDist (orgLat, orgLon, dstLat, dstLon, curLat, curLon);
 
                 // find heading along course line adjacent to wherever we currently are
-                float onCourseHdg = Lib.GCOnCourseHdg (orgLat, orgLon, dstLat, dstLon, curLat, curLon);
+                double onCourseHdg = Lib.GCOnCourseHdg (orgLat, orgLon, dstLat, dstLon, curLat, curLon);
 
                 // this is heading to take to get great circle from wherever we currently are
-                float bearing = Lib.LatLonTC (curLat, curLon, dstLat, dstLon);
+                double bearing = Lib.LatLonTC (curLat, curLon, dstLat, dstLon);
 
                 DrawHSINeedles (canvas,                      // canvas to draw HSI needles on
                                 radius,                      // radius of dg circle on canvas
@@ -636,23 +636,23 @@ public class GlassView
      * @param fullScaleRite = how far off to the right full scale deflection is
      */
     private void DrawHSINeedles (Canvas canvas,
-                                 int    radius,      float heading,
-                                 float  course,      float bearing,
-                                 float  deflectRite, float fullScaleRite)
+                                 int    radius,      double heading,
+                                 double course,      double bearing,
+                                 double deflectRite, double fullScaleRite)
     {
         // draw HSI needle in the gyro circle
         canvas.save ();
-        canvas.rotate (course - heading);
+        canvas.rotate ((float) (course - heading));
         canvas.drawLine ( 0.0F * radius, -0.5F * radius, 0, -0.2F * radius, dgPaintHSI);
         canvas.drawLine ( 0.0F * radius,  0.2F * radius, 0,  0.5F * radius, dgPaintHSI);
         canvas.drawLine (-0.1F * radius, -0.4F * radius, 0, -0.5F * radius, dgPaintHSI);
         canvas.drawLine ( 0.1F * radius, -0.4F * radius, 0, -0.5F * radius, dgPaintHSI);
 
         // compute x-axis displacement of right/left needle
-        float offset = deflectRite / fullScaleRite;
+        double offset = deflectRite / fullScaleRite;
         if (offset < -1) offset = -1;
         if (offset >  1) offset =  1;
-        float xdisp = offset * -0.5F * radius;
+        double xdisp = offset * -0.5 * radius;
 
         // draw off course distance string along HSI needle
         String deflectRiteStr;
@@ -676,7 +676,7 @@ public class GlassView
 
         // use a line if lt 0.1 off course, otherwise use text
         if (deflectRiteStr.equals ("0")) {
-            canvas.drawLine (xdisp, -0.2F * radius, xdisp, 0.2F * radius, dgPaintHSI);
+            canvas.drawLine ((float) xdisp, -0.2F * radius, (float) xdisp, 0.2F * radius, dgPaintHSI);
         } else {
             if (xdisp >= 0) {
                 canvas.rotate (90);
@@ -691,12 +691,12 @@ public class GlassView
 
         // draw a little arrowhead on the bearing directly to the destination
         canvas.save ();
-        canvas.rotate (bearing - heading);
+        canvas.rotate ((float) (bearing - heading));
         canvas.drawLine (-0.1F * radius, -0.9F * radius, 0, -radius, dgPaintHSI);
         canvas.drawLine ( 0.1F * radius, -0.9F * radius, 0, -radius, dgPaintHSI);
 
         // draw another that is an intercept
-        canvas.rotate (bearing - course);
+        canvas.rotate ((float) (bearing - course));
         canvas.drawLine (-0.1F * radius, -0.9F * radius, 0, -radius, dgPaintHSI);
         canvas.drawLine ( 0.1F * radius, -0.9F * radius, 0, -radius, dgPaintHSI);
         canvas.restore ();
@@ -742,17 +742,17 @@ public class GlassView
         // note that the 87 will be drawn in the exact middle of the box
 
         // how many Y pixels are there between the 60,70,80,...
-        float yPerStep = (float)height / (float)numsteps;
+        double yPerStep = (double)height / (double)numsteps;
 
         // how many Y pixels are there between a 61,62,63,...
-        float yPerUnit = yPerStep / (float)perstep;
+        double yPerUnit = yPerStep / (double)perstep;
 
         // given val=87 and perstep is 10, we want the 7, ie, how much after the 80 we are
         int extraUnits = val % perstep;
 
         // now calculate how much above the center the first regular marking is,
         // eg, where does the 80 go?
-        int yAboveCenter = (int)(yPerUnit * (float)extraUnits);
+        int yAboveCenter = (int)(yPerUnit * (double)extraUnits);
 
         int valAboveCtr = val - extraUnits;
 
@@ -772,9 +772,9 @@ public class GlassView
 
         // maybe draw glideslope marker on altimeter indicating where glideslope is
         if (marker >= minallowed) {
-            float markerStepsBelowCenter = (float)(marker - val) / perstep;
-            if (markerStepsBelowCenter < -(float)numsteps / 2) markerStepsBelowCenter = -(float)numsteps / 2;
-            if (markerStepsBelowCenter >  (float)numsteps / 2) markerStepsBelowCenter =  (float)numsteps / 2;
+            double markerStepsBelowCenter = (double)(marker - val) / perstep;
+            if (markerStepsBelowCenter < -(double)numsteps / 2) markerStepsBelowCenter = -(double)numsteps / 2;
+            if (markerStepsBelowCenter >  (double)numsteps / 2) markerStepsBelowCenter =  (double)numsteps / 2;
             int markerPixBelowCenter = (int)(markerStepsBelowCenter / numsteps * height + 0.5);
 
             int d = width / 8;
@@ -788,7 +788,7 @@ public class GlassView
 
         // maybe draw line at altitude target
         if (target >= minallowed) {
-            float targetStepsBelowCenter = (float)(target - val) / perstep;
+            double targetStepsBelowCenter = (double)(target - val) / perstep;
             int targetPixBelowCenter = (int)(targetStepsBelowCenter / numsteps * height + 0.5);
             if ((targetPixBelowCenter >= -height / 2) && (targetPixBelowCenter <= height / 2)) {
                 canvas.drawLine (-width * 3 / 8, targetPixBelowCenter, width * 3 / 8, targetPixBelowCenter, dgPaintHSI);
@@ -843,9 +843,9 @@ public class GlassView
         }
     }
 
-    private static String DegString (float deg)
+    private static String DegString (double deg)
     {
-        int hdgnum = ((int)(deg + 1439.5F)) % 360 + 1;
+        int hdgnum = ((int)(deg + 1439.5)) % 360 + 1;
         String st = Integer.toString (hdgnum + 1000).substring (1);
         return st + (char)0xB0;
     }

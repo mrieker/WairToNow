@@ -21,10 +21,10 @@
 package com.outerworldapps.wairtonow;
 
 public class Position {
-    float altitude;    // metres MSL
-    float heading;     // degrees
-    float latitude;    // degrees
-    float longitude;   // degrees
-    float speed;       // metres per second
-    long  time;        // milliseconds since Jan 1, 1970 UTC
+    double altitude;    // metres MSL
+    double heading;     // degrees
+    double latitude;    // degrees
+    double longitude;   // degrees
+    double speed;       // metres per second
+    long   time;        // milliseconds since Jan 1, 1970 UTC
 }

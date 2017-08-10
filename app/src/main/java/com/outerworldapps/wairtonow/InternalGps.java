@@ -223,9 +223,8 @@ public class InternalGps extends GpsAdsbReceiver implements GpsStatus.Listener, 
     {
         if (selected) {
             wairToNow.LocationReceived (
-                    loc.getSpeed (), (float) loc.getAltitude (), loc.getBearing (),
-                    (float) loc.getLatitude (), (float) loc.getLongitude (),
-                    loc.getTime ()
+                    loc.getSpeed (), loc.getAltitude (), loc.getBearing (),
+                    loc.getLatitude (), loc.getLongitude (), loc.getTime ()
             );
             numLocations ++;
             updateStats ();

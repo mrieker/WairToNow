@@ -25,9 +25,9 @@ package com.outerworldapps.wairtonow;
  */
 public class MyGpsSatellite {
     public boolean used;
-    public float azim;
-    public float elev;
-    public float snr;
+    public double azim;
+    public double elev;
+    public double snr;
     public int prn;
     public String pfx;  // "$GL" or "$GP" or null
 }

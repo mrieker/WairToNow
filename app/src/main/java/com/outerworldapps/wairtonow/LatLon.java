@@ -21,6 +21,6 @@
 package com.outerworldapps.wairtonow;
 
 public class LatLon {
-    public float lat;
-    public float lon;
+    public double lat;
+    public double lon;
 }

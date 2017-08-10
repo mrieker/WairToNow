@@ -34,19 +34,19 @@ public class DeviceReportMessage {
         int vbat;
         vbat = ((int)msg[1] & 0xFF) << 8;
         vbat += ((int)msg[2]) & 0xFF;
-        float batLevel = (float)(vbat - 3500) / 600.0f;
-        if (batLevel > 1.0f) {
-            batLevel = 1.0f;
+        double batLevel = (double)(vbat - 3500) / 600.0;
+        if (batLevel > 1.0) {
+            batLevel = 1.0;
         }
-        if (batLevel < 0.0f) {
-            batLevel = 0.0f;
+        if (batLevel < 0.0) {
+            batLevel = 0.0;
         }
         
         /*
          * Charge
          */
         boolean isCharging = ( (msg[5] & 0x04) != 0);
-        String batlevel = Integer.toString (Math.round (batLevel * 100.0F)) + '%';
+        String batlevel = Long.toString (Math.round (batLevel * 100.0)) + '%';
         if (isCharging) batlevel += " charging";
         reporter.adsbGpsBattery (batlevel);
     }

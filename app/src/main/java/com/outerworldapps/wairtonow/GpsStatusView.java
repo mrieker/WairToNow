@@ -121,7 +121,7 @@ public class GpsStatusView
         if ((geomag != null) && (gravity != null)) {
             SensorManager.getRotationMatrix (rotmat, null, gravity, geomag);
             SensorManager.getOrientation (rotmat, orient);
-            compRotDeg = - Mathf.toDegrees (orient[0]);
+            compRotDeg = (float) - Math.toDegrees (orient[0]);
             geomag  = null;
             gravity = null;
             invalidate ();
@@ -141,12 +141,12 @@ public class GpsStatusView
         float textHeight    = textPaint.getTextSize ();
         float circleCenterX = getWidth ()  / 2.0F;
         float circleCenterY = getHeight () / 2.0F;
-        float circleRadius  = Math.min (circleCenterX, circleCenterY) - textHeight * 2;
+        float circleRadius  = Math.min (circleCenterX, circleCenterY) - textHeight * 2.0F;
 
         canvas.save ();
         try {
             if (compRotDeg != 99999) {
-                String cmphdgstr = Integer.toString (1360 - Math.round (compRotDeg + 360.0F) % 360).substring (1) + '\u00B0';
+                String cmphdgstr = Integer.toString (1360 - (int) Math.round (compRotDeg + 360.0) % 360).substring (1) + '\u00B0';
                 canvas.drawText (cmphdgstr, circleCenterX, textHeight, textPaint);
                 canvas.rotate (compRotDeg, circleCenterX, circleCenterY);
             }
@@ -165,13 +165,13 @@ public class GpsStatusView
             if (satellites != null) for (MyGpsSatellite sat : satellites) {
                 // hasAlmanac() and hasEphemeris() seem to always return false
                 // getSnr() in range 0..30 approx
-                float size = sat.snr / 3;
-                float radius = (90 - sat.elev) * circleRadius / 90;
-                float azideg = sat.azim;
-                float deltax = radius * Mathf.sindeg (azideg);
-                float deltay = radius * Mathf.cosdeg (azideg);
+                double size = sat.snr / 3;
+                double radius = (90 - sat.elev) * circleRadius / 90;
+                double azideg = sat.azim;
+                double deltax = radius * Mathf.sindeg (azideg);
+                double deltay = radius * Mathf.cosdeg (azideg);
                 Paint paint = sat.used ? usedSpotsPaint : ignoredSpotsPaint;
-                canvas.drawCircle (circleCenterX + deltax, circleCenterY - deltay, size, paint);
+                canvas.drawCircle ((float) (circleCenterX + deltax), (float) (circleCenterY - deltay), (float) size, paint);
             }
         } finally {
             canvas.restore ();

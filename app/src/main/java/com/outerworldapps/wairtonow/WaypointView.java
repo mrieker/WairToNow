@@ -399,16 +399,16 @@ public class WaypointView extends LinearLayout
     /**
      * Find waypoints near the given lat/lon and let user select one and open it.
      */
-    public void OpenWaypointAtLatLon (final float lat, final float lon, float radiusnm)
+    public void OpenWaypointAtLatLon (final double lat, final double lon, double radiusnm)
     {
         // get all waypoints within box from given lat/lon
-        float del = radiusnm / Lib.NMPerDeg;
+        double del = radiusnm / Lib.NMPerDeg;
         Collection<Waypoint> wpcollection = new Waypoint.Within ().Get (lat - del, lat + del, lon - del, lon + del);
 
         // remove all waypoints greater than radius from the collection
         for (Iterator<Waypoint> it = wpcollection.iterator (); it.hasNext ();) {
             Waypoint wp = it.next ();
-            float dist = Lib.LatLonDist (lat, lon, wp.lat, wp.lon);
+            double dist = Lib.LatLonDist (lat, lon, wp.lat, wp.lon);
             if (dist > radiusnm) {
                 it.remove ();
             }
@@ -424,16 +424,16 @@ public class WaypointView extends LinearLayout
     }
 
     private static class WPSorter implements Comparator<Waypoint> {
-        private float llat, llon;
-        public WPSorter (float lat, float lon)
+        private double llat, llon;
+        public WPSorter (double lat, double lon)
         {
             llat = lat;
             llon = lon;
         }
         public int compare (Waypoint a, Waypoint b)
         {
-            float dista = Lib.LatLonDist (llat, llon, a.lat, a.lon);
-            float distb = Lib.LatLonDist (llat, llon, b.lat, b.lon);
+            double dista = Lib.LatLonDist (llat, llon, a.lat, a.lon);
+            double distb = Lib.LatLonDist (llat, llon, b.lat, b.lon);
             if (dista < distb) return -1;
             if (dista > distb) return  1;
             return 0;
@@ -752,10 +752,10 @@ public class WaypointView extends LinearLayout
                 public void onClick (DialogInterface dialogInterface, int i) {
                     // parse numeric radial and distance values
                     // don't bother if distance is zero
-                    float rnavradl, rnavdist;
+                    double rnavradl, rnavdist;
                     try {
-                        rnavradl = Float.parseFloat (radial.getText ().toString ());
-                        rnavdist = Float.parseFloat (distance.getText ().toString ());
+                        rnavradl = Double.parseDouble (radial.getText ().toString ());
+                        rnavdist = Double.parseDouble (distance.getText ().toString ());
                         if (rnavdist == 0) return;
                     } catch (NumberFormatException nfe) {
                         return;
@@ -763,7 +763,7 @@ public class WaypointView extends LinearLayout
 
                     // make new waypoint at an offset from the current waypoint
                     boolean mag = magnetic.getMag ();
-                    String suffix = Lib.FloatNTZ (rnavradl) + (mag ? "@" : "T@") + Lib.FloatNTZ (rnavdist);
+                    String suffix = Lib.DoubleNTZ (rnavradl) + (mag ? "@" : "T@") + Lib.DoubleNTZ (rnavdist);
                     Waypoint.RNavOffset rnavwp = new Waypoint.RNavOffset (selectedWaypoint,
                             rnavdist, rnavradl, mag, suffix);
 

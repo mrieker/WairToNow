@@ -57,7 +57,7 @@ public class PlateDME {
     private final static int DMECB_RADL = 4;
 
     private boolean   dmeShowing;
-    private float     dmeCharWidth, dmeTextAscent, dmeTextHeight;
+    private double     dmeCharWidth, dmeTextAscent, dmeTextHeight;
     private long      dmeButtonDownAt = Long.MAX_VALUE;
     private Paint     dmeBGPaint      = new Paint ();
     private Paint     dmeTxPaint      = new Paint ();
@@ -103,9 +103,9 @@ public class PlateDME {
     /**
      * Mouse pressed on the plate somewhere.
      */
-    public void GotMouseDown (float x, float y)
+    public void GotMouseDown (double x, double y)
     {
-        if (dmeButtonBounds.contains (x, y)) {
+        if (dmeButtonBounds.contains ((float) x, (float) y)) {
             dmeButtonDownAt = SystemClock.uptimeMillis ();
             WairToNow.wtnHandler.runDelayed (500, new Runnable () {
                 @Override
@@ -170,14 +170,14 @@ public class PlateDME {
      * Draw DME strings in lower left corner.
      * If no DME strings enabled, draw a little button to open menu.
      */
-    public void DrawDMEs (Canvas canvas, float gpslat, float gpslon, float gpsalt, long gpstime)
+    public void DrawDMEs (Canvas canvas, double gpslat, double gpslon, double gpsalt, long gpstime)
     {
         int canvasHeight = plateView.getHeight ();
 
         // see if any checkboxes checked (or maybe whole thing is disabled with little triangle button)
         int allChecked = 0;
         int numchars = 0;
-        int dmex = (int) Mathf.ceil (dmeTextHeight / 2);
+        int dmex = (int) Math.ceil (dmeTextHeight / 2);
         int dmey = canvasHeight - dmex;
         if (dmeShowing) {
             dmeButtonBounds.bottom = dmey;
@@ -189,15 +189,15 @@ public class PlateDME {
                     nchars += ((checked / DMECB_TIME) & 1) * 6;
                     nchars += ((checked / DMECB_RADL) & 1) * 5;
                     allChecked |= checked;
-                    dmeButtonBounds.top = dmey - dmeTextAscent;
-                    dmey -= Mathf.ceil (dmeTextHeight);
+                    dmeButtonBounds.top = (float) (dmey - dmeTextAscent);
+                    dmey -= Math.ceil (dmeTextHeight);
                 }
                 if (numchars < nchars) {
                     numchars = nchars;
                 }
             }
             dmeButtonBounds.left  = dmex;
-            dmeButtonBounds.right = dmex + (int) Mathf.ceil (dmeCharWidth * numchars);
+            dmeButtonBounds.right = dmex + (int) Math.ceil (dmeCharWidth * numchars);
         }
 
         if (allChecked == 0) {
@@ -232,15 +232,15 @@ public class PlateDME {
                     while (sb.length () < 5) sb.append (' ');
 
                     // distance (in nautical miles) to DME station
-                    float dmeelev = wp.GetDMEElev ();
-                    float dmelat  = wp.GetDMELat  ();
-                    float dmelon  = wp.GetDMELon  ();
-                    float distBin = Lib.LatLonDist (gpslat, gpslon, dmelat, dmelon);
+                    double dmeelev = wp.GetDMEElev ();
+                    double dmelat  = wp.GetDMELat  ();
+                    double dmelon  = wp.GetDMELon  ();
+                    double distBin = Lib.LatLonDist (gpslat, gpslon, dmelat, dmelon);
                     boolean slantRange = false;
                     int slantRangeBeg = 0;
                     int slantRangeEnd = 0;
                     if (dmeelev != Waypoint.ELEV_UNKNOWN) {
-                        distBin = Mathf.hypot (distBin, (gpsalt - dmeelev / Lib.FtPerM) / Lib.MPerNM);
+                        distBin = Math.hypot (distBin, (gpsalt - dmeelev / Lib.FtPerM) / Lib.MPerNM);
                         slantRange = true;
                     }
                     if ((checked & DMECB_DIST) != 0) {
@@ -261,9 +261,9 @@ public class PlateDME {
                     // compute nautical miles per second we are closing in on the station
                     if (dmecb.dmeLastTime != 0) {
                         long dtms = gpstime - dmecb.dmeLastTime;
-                        if (dtms > 0) dmecb.dmeLastSpeed = (dmecb.dmeLastDist - distBin) * 1000.0F / dtms;
+                        if (dtms > 0) dmecb.dmeLastSpeed = (dmecb.dmeLastDist - distBin) * 1000.0 / dtms;
                     } else {
-                        dmecb.dmeLastSpeed = 0.0F;
+                        dmecb.dmeLastSpeed = 0.0;
                     }
 
                     // save the latest position
@@ -300,9 +300,9 @@ public class PlateDME {
 
                     // get what radial we are on from the navaid (should match what's on an IAP plate)
                     if ((checked & DMECB_RADL) != 0) {
-                        float hdgDeg = Lib.LatLonTC (wp.lat, wp.lon, gpslat, gpslon);
-                        float varDeg = (wp.magvar == Waypoint.VAR_UNKNOWN) ? Lib.MagVariation (wp.lat, wp.lon, wp.elev) : wp.magvar;
-                        int hdgMag = (Math.round (hdgDeg + varDeg) + 359) % 360 + 1;
+                        double hdgDeg = Lib.LatLonTC (wp.lat, wp.lon, gpslat, gpslon);
+                        double varDeg = (wp.magvar == Waypoint.VAR_UNKNOWN) ? Lib.MagVariation (wp.lat, wp.lon, wp.elev) : wp.magvar;
+                        int hdgMag = (int) (Math.round (hdgDeg + varDeg) + 359) % 360 + 1;
                         int len = sb.length ();
                         sb.append (Integer.toString (hdgMag + 1000).substring (1));
                         sb.append ((char) 0x00B0);
@@ -310,17 +310,17 @@ public class PlateDME {
                     }
 
                     // display resultant string
-                    dmey += Mathf.ceil (dmeTextHeight);
+                    dmey += Math.ceil (dmeTextHeight);
                     String str = sb.toString ();
                     if (slantRange) {
-                        float x = dmex;
-                        canvas.drawText (str, 0, slantRangeBeg, x, dmey, dmeTxPaint);
+                        double x = dmex;
+                        canvas.drawText (str, 0, slantRangeBeg, (float) x, (float) dmey, dmeTxPaint);
                         x += dmeTxPaint.measureText (str, 0, slantRangeBeg);
                         dmeTxPaint.setTextSkewX (-0.25F);
-                        canvas.drawText (str, slantRangeBeg, slantRangeEnd, x, dmey, dmeTxPaint);
+                        canvas.drawText (str, slantRangeBeg, slantRangeEnd, (float) x, (float) dmey, dmeTxPaint);
                         x += dmeTxPaint.measureText (str, slantRangeBeg, slantRangeEnd);
                         dmeTxPaint.setTextSkewX (0.0F);
-                        canvas.drawText (str, slantRangeEnd, str.length (), x, dmey, dmeTxPaint);
+                        canvas.drawText (str, slantRangeEnd, str.length (), (float) x, (float) dmey, dmeTxPaint);
                     } else {
                         canvas.drawText (str, dmex, dmey, dmeTxPaint);
                     }
@@ -466,8 +466,8 @@ public class PlateDME {
         public Waypoint waypoint;   // corresponding waypoint or null for input box
 
         public int   dmeWasChecked;
-        public float dmeLastDist;
-        public float dmeLastSpeed;
+        public double dmeLastDist;
+        public double dmeLastSpeed;
         public long  dmeLastTime;
 
         public DMECheckboxes (Waypoint wp)

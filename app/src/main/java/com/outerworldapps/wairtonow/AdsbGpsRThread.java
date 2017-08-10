@@ -190,9 +190,9 @@ public class AdsbGpsRThread extends Thread implements Reporter {
 
     @Override  // Reporter
     public void adsbGpsAHRS (
-            float bank,
-            float heading,
-            float pitch,
+            double bank,
+            double heading,
+            double pitch,
             long time)
     {
         //TODO pass to glass display
@@ -325,11 +325,11 @@ public class AdsbGpsRThread extends Thread implements Reporter {
     @Override  // Reporter
     public void adsbGpsOwnship (
             final long time,
-            final float taltitude,
-            final float heading,
-            final float latitude,
-            final float longitude,
-            final float speed)
+            final double taltitude,
+            final double heading,
+            final double latitude,
+            final double longitude,
+            final double speed)
     {
         ReportAdsbGpsOwnship r = reportAdsbGpsOwnship;
         if (r.bussy) return;
@@ -351,11 +351,11 @@ public class AdsbGpsRThread extends Thread implements Reporter {
         public volatile boolean bussy;
 
         public long time;
-        public float taltitude;
-        public float heading;
-        public float latitude;
-        public float longitude;
-        public float speed;
+        public double taltitude;
+        public double heading;
+        public double latitude;
+        public double longitude;
+        public double speed;
 
         @Override
         public void run () {
@@ -400,12 +400,12 @@ public class AdsbGpsRThread extends Thread implements Reporter {
     @Override  // Reporter
     public void adsbGpsTraffic (
             long time,
-            float taltitude,
-            float heading,
-            float latitude,
-            float longitude,
-            float speed,
-            float climb,
+            double taltitude,
+            double heading,
+            double latitude,
+            double longitude,
+            double speed,
+            double climb,
             int address,
             String callsign)
     {
@@ -443,15 +443,15 @@ public class AdsbGpsRThread extends Thread implements Reporter {
      * @return true altitude, feet MSL, or NaN if unknown
      */
     @Override  // Reporter
-    public float adsbGpsPalt2Talt (
-            float latitude,
-            float longitude,
-            float paltitude)
+    public double adsbGpsPalt2Talt (
+            double latitude,
+            double longitude,
+            double paltitude)
     {
-        float altsetting = MetarRepo.getAltSetting (wairToNow.metarRepos, latitude, longitude);
-        if (altsetting <= 0.0F) return Float.NaN;
+        double altsetting = MetarRepo.getAltSetting (wairToNow.metarRepos, latitude, longitude);
+        if (altsetting <= 0.0) return Double.NaN;
         // really indicated altitude but close enuf for traffic reports
-        return paltitude + 1000.0F * (altsetting - 29.92F);
+        return paltitude + 1000.0 * (altsetting - 29.92);
     }
 
     /**

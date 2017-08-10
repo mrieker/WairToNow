@@ -35,9 +35,9 @@ public class CurrentCloud {
     private boolean gpsInfoMphOpt;
     private boolean gpsInfoTrueOpt;
     public  boolean showGPSInfo   = true;
-    private float gpsInfoAltitude = Float.NaN;
-    private float gpsInfoHeading  = Float.NaN;
-    private float gpsInfoSpeed    = Float.NaN;
+    private double gpsInfoAltitude = Double.NaN;
+    private double gpsInfoHeading  = Double.NaN;
+    private double gpsInfoSpeed    = Double.NaN;
     private int gpsInfoSecond;
     private long downOnGPSInfo    = 0;
     private Paint currentBGPaint  = new Paint ();
@@ -105,11 +105,11 @@ public class CurrentCloud {
     private void DrawIt (Canvas canvas, Paint paint)
     {
         if (showGPSInfo) {
-            float altitude  = wairToNow.currentGPSAlt;
-            float heading   = wairToNow.currentGPSHdg;
-            float latitude  = wairToNow.currentGPSLat;
-            float longitude = wairToNow.currentGPSLon;
-            float speed     = wairToNow.currentGPSSpd;
+            double altitude  = wairToNow.currentGPSAlt;
+            double heading   = wairToNow.currentGPSHdg;
+            double latitude  = wairToNow.currentGPSLat;
+            double longitude = wairToNow.currentGPSLon;
+            double speed     = wairToNow.currentGPSSpd;
             long  time      = wairToNow.currentGPSTime;
 
             int second = (int) (time / 1000 % 86400);
@@ -135,7 +135,7 @@ public class CurrentCloud {
 
             if (gpsInfoAltitude != altitude) {
                 gpsInfoAltitude = altitude;
-                gpsInfoAltStr   = Integer.toString (Math.round (altitude * Lib.FtPerM)) + " ft";
+                gpsInfoAltStr   = Long.toString (Math.round (altitude * Lib.FtPerM)) + " ft";
             }
 
             if ((gpsInfoMphOpt != mphOpt) || (gpsInfoSpeed != speed)) {

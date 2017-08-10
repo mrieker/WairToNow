@@ -20,13 +20,12 @@
 
 package com.outerworldapps.wairtonow;
 
-import android.graphics.PointF;
 
 /**
  * Traffic report received from ADS-B.
  */
 public class Traffic {
-    public final static float MINTRAFAGLM = 300.0F / Lib.FtPerM;
+    public final static double MINTRAFAGLM = 300.0 / Lib.FtPerM;
 
     private final static char[] hdgarrows = {
             //'\u2B61', '\u2B67', '\u2B62', '\u2B68',
@@ -38,21 +37,21 @@ public class Traffic {
     };
 
     public long time;           // ms since 1970-01-01 00:00 UTC'
-    public float taltitude;     // TRUE altitude metres (or NaN)
-    public float heading;       // heading degrees (or NaN)
-    public float latitude;      // latitude degrees
-    public float longitude;     // longitude degrees
-    public float speed;         // speed metres per second (or NaN)
-    public float climb;         // climb feet per minute (or NaN)
+    public double taltitude;     // TRUE altitude metres (or NaN)
+    public double heading;       // heading degrees (or NaN)
+    public double latitude;      // latitude degrees
+    public double longitude;     // longitude degrees
+    public double speed;         // speed metres per second (or NaN)
+    public double climb;         // climb feet per minute (or NaN)
     public int address;         // <26:24>=addr type; <23:00>=ICAO address
     public String callsign;     // call sign
     public String squawk;       // transponder code
     public int seqno;           // reception sequence number
 
-    public float distaway;
-    public PointF canpix;
+    public double distaway;
+    public PointD canpix;
 
-    private float lastDistNM = -1.0F;
+    private double lastDistNM = -1.0;
     private int lastHdgIdx = -1;
     private String[] text;
 
@@ -85,20 +84,20 @@ public class Traffic {
     /**
      * Get text string to be displayed on the screen.
      */
-    public String[] getText (WairToNow wairToNow, float canuphdg)
+    public String[] getText (WairToNow wairToNow, double canuphdg)
     {
         // if distance changed, update text
-        float distnm = Lib.LatLonDist (latitude, longitude,
+        double distnm = Lib.LatLonDist (latitude, longitude,
                 wairToNow.currentGPSLat, wairToNow.currentGPSLon);
-        if (Math.abs (lastDistNM - distnm) > 0.01F) {
+        if (Math.abs (lastDistNM - distnm) > 0.01) {
             lastDistNM = distnm;
             text = null;
         }
 
         // get which arrow should be used to indicate relative heading
         // if different than last time, rebuild string
-        int hdgidx = Float.isNaN (heading) ? -1 :
-                Math.round ((heading - canuphdg) / 45.0F) & 7;
+        int hdgidx = Double.isNaN (heading) ? -1 :
+                (int) Math.round ((heading - canuphdg) / 45.0) & 7;
         if (lastHdgIdx != hdgidx) {
             lastHdgIdx = hdgidx;
             text = null;
@@ -109,16 +108,16 @@ public class Traffic {
             StringBuilder sb = new StringBuilder ();
 
             // true altitude / climb
-            if (!Float.isNaN (taltitude)) {
+            if (!Double.isNaN (taltitude)) {
 
                 // display altitude
-                int talt = Math.round (taltitude * Lib.FtPerM);
+                int talt = (int) Math.round (taltitude * Lib.FtPerM);
                 sb.append (talt);
                 sb.append (" ft");
 
                 // also indicate climbing or descending
-                if (!Float.isNaN (climb)) {
-                    int clmb = Math.round (climb / 128.0F);
+                if (!Double.isNaN (climb)) {
+                    int clmb = (int) Math.round (climb / 128.0);
                     if (clmb < 0) {
                         sb.append (" \u25BC");  // down arrow
                     }

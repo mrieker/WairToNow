@@ -22,7 +22,6 @@ package com.outerworldapps.wairtonow;
 
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
-import android.graphics.PointF;
 import android.support.annotation.NonNull;
 import android.view.View;
 
@@ -40,12 +39,12 @@ public interface DisplayableChart {
     interface Invalidatable {
         void postInvalidate ();
     }
-    void DrawOnCanvas (@NonNull PixelMapper pmap, @NonNull Canvas canvas, @NonNull Invalidatable inval, float canvasHdgRads);
-    boolean LatLon2CanPixExact (float lat, float lon, @NonNull PointF canpix);
-    boolean CanPix2LatLonExact (float canpixx, float canpixy, @NonNull LatLon ll);
+    void DrawOnCanvas (@NonNull PixelMapper pmap, @NonNull Canvas canvas, @NonNull Invalidatable inval, double canvasHdgRads);
+    boolean LatLon2CanPixExact (double lat, double lon, @NonNull PointD canpix);
+    boolean CanPix2LatLonExact (double canpixx, double canpixy, @NonNull LatLon ll);
 
     // used by Chart3DView - loads synchronously, called in EarthSector.LoaderThread
     void GetL2StepLimits (int[] limits);
-    Bitmap GetMacroBitmap (float slat, float nlat, float wlon, float elon);
-    void LatLon2MacroBitmap (float lat, float lon, @NonNull PointF mbmpix);
+    Bitmap GetMacroBitmap (double slat, double nlat, double wlon, double elon);
+    void LatLon2MacroBitmap (double lat, double lon, @NonNull PointD mbmpix);
 }

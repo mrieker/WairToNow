@@ -27,7 +27,6 @@ import android.content.DialogInterface;
 import android.content.SharedPreferences;
 import android.database.DataSetObserver;
 import android.graphics.Color;
-import android.graphics.PointF;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
@@ -48,9 +47,9 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
         void ChartSelected ();
         void SetGPSLocation ();
         void ReCenter ();
-        float GetCanvasHdgRads ();
+        double GetCanvasHdgRads ();
         void recycle ();
-        boolean LatLonAlt2CanPixExact (float lat, float lon, float alt, PointF pix);
+        boolean LatLonAlt2CanPixExact (double lat, double lon, double alt, PointD pix);
     }
 
     private boolean reselectLastChart = true;
@@ -67,9 +66,9 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
     public  WairToNow wairToNow;
 
     public boolean holdPosition;          // gps updates centering screen are blocked (eg, when screen has been panned)
-    public float centerLat, centerLon;    // lat/lon at center+displaceX,Y of canvas
-    public float orgLat, orgLon;          // course origination lat/lon
-    public float scaling = 1.0F;          // < 1 : zoomed out; > 1 : zoomed in
+    public double centerLat, centerLon;    // lat/lon at center+displaceX,Y of canvas
+    public double orgLat, orgLon;          // course origination lat/lon
+    public double scaling = 1.0;          // < 1 : zoomed out; > 1 : zoomed in
     public Waypoint clDest = null;        // course line destination waypoint
 
     public ChartView (WairToNow na)
@@ -165,7 +164,7 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
      * @param lat = latitude (degrees)
      * @param lon = longitude (degrees)
      */
-    public void SetCenterLatLon (float lat, float lon)
+    public void SetCenterLatLon (double lat, double lon)
     {
         // save the given lat/lon as the new screen center lat/lon
         // then don't allow GPS updates to change it
@@ -206,7 +205,7 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
      * @param oLon = origination longitude
      * @param dest = destination
      */
-    public void SetCourseLine (float oLat, float oLon, Waypoint dest)
+    public void SetCourseLine (double oLat, double oLon, Waypoint dest)
     {
         orgLat = oLat;
         orgLon = Lib.NormalLon (oLon);

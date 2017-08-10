@@ -1,55 +1,57 @@
-AK 140 282
-AL 315 200
-AR 260 185
-AS 12 312
-AZ 95 173
-CA 32 138
-CO 145 135
-CT 412 87
-DC 421 143
-DE 415 125
-FL 363 239
-GA 345 204
-HI 41 250
-IA 248 106
-ID 86 70
-IL 284 122
-IN 309 124
-KS 206 145
-KY 322 148
-LA 261 222
-MA 429 73
-MD 386 121
-ME 444 48
-MI 313 80
-MN 242 64
-MO 255 142
-MS 284 199
-MT 127 44
-NC 374 163
-ND 195 46
-NE 197 110
-NH 415 55
-NJ 417 106
-NM 142 186
-NV 62 114
-NY 370 80
-OH 334 116
-OK 220 176
-OR 44 61
-PA 376 102
-PR 426 286
-RI 439 90
-SC 366 184
-SD 196 78
-TN 314 169
-TX 201 218
-UT 102 124
-VA 382 140
-VI 412 198
-VT 388 50
-WA 53 26
-WI 274 76
-WV 354 133
-WY 137 90
-XX 285 285
+AK Alaska
+AL Alabama
+AR Arkansas
+AS American Samoa
+AZ Arizona
+CA California
+CO Colorado
+CT Connecticut
+CQ Northern Mariana Islands
+DC District of Columia
+DE Deleware
+FL Florida
+GA Georgia
+HI Hawaii
+IA Iowa
+ID Idaho
+IL Illinois
+IN Indiana
+KS Kansas
+KY Kentucky
+LA Louisiana
+MA Massachusetts
+MD Maryland
+ME Maine
+MI Michigan
+MN Minnesota
+MO Missouri
+MQ Midway Islands
+MS Mississippi
+MT Montana
+NC North Carolina
+ND Norta Dakota
+NE Nebraska
+NH New Hampshire
+NJ New Jersey
+NM New Mexico
+NV Nevada
+NY New York
+OH Ohio
+OK Oklahoma
+OR Oregon
+PA Pennsylvania
+PR Puerto Rico
+RI Rhode Island
+SC South Carolina
+SD South Dakota
+TN Tennesee
+TX Texas
+UT Utah
+VA Virginia
+VI Virgin Islands
+VT Vermont
+WA Washington
+WI Wisconsin
+WV West Virginia
+WY Wyoming
+XX Other

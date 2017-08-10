@@ -35,8 +35,8 @@ public abstract class PanAndZoom implements ScaleGestureDetector.OnScaleGestureL
     public  static final int panningblocktime = 200;
 
     private Context ctx;
-    private float mouse0LastX;
-    private float mouse0LastY;
+    private double mouse0LastX;
+    private double mouse0LastY;
     private long blockPanUntil;
     private ScaleGestureDetector scaleGestureDetector;
 
@@ -48,21 +48,21 @@ public abstract class PanAndZoom implements ScaleGestureDetector.OnScaleGestureL
 
     // called when mouse pressed
     //  x,y = absolute mouse position
-    public abstract void MouseDown (float x, float y);
+    public abstract void MouseDown (double x, double y);
 
     // called when mouse released
     //  x,y = absolute mouse position
-    public abstract void MouseUp (float x, float y);
+    public abstract void MouseUp (double x, double y);
 
     // called when panning
     //  x,y = absolute mouse position
     //  dx,dy = delta position
-    public abstract void Panning (float x, float y, float dx, float dy);
+    public abstract void Panning (double x, double y, double dx, double dy);
 
     // called when scaling
     //  fx,fy = absolute position of center of scaling
     //  sf = delta scaling factor
-    public abstract void Scaling (float fx, float fy, float sf);
+    public abstract void Scaling (double fx, double fy, double sf);
 
     /**
      * Callback for mouse events on the image.
@@ -98,8 +98,8 @@ public abstract class PanAndZoom implements ScaleGestureDetector.OnScaleGestureL
                 break;
             }
             case MotionEvent.ACTION_MOVE: {
-                float x = event.getX ();
-                float y = event.getY ();
+                double x = event.getX ();
+                double y = event.getY ();
 
                 // scaling blocks panning for a few milliseconds
                 // to eliminate spurious mouse panning events when
@@ -113,8 +113,8 @@ public abstract class PanAndZoom implements ScaleGestureDetector.OnScaleGestureL
                 break;
             }
             case MotionEvent.ACTION_UP: {
-                float x = event.getX ();
-                float y = event.getY ();
+                double x = event.getX ();
+                double y = event.getY ();
                 MouseUp (x, y);
                 break;
             }

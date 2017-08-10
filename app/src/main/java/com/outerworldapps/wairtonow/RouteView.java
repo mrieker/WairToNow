@@ -78,8 +78,8 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
     private EditText editTextF;
     private EditText editTextT;
     private EditText editTextN;
-    private float startingLat;
-    private float startingLon;
+    private double startingLat;
+    private double startingLon;
     private int goodColor;
     private RouteStep firstStep;
     private RouteStep lastStep;
@@ -568,7 +568,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
         /*
          * Find solution (combination of waypoint alternatives) of shortest distance.
          */
-        float bestdistance = 99999.0F;
+        double bestdistance = 99999.0;
         int bestsolution = -1;
         for (int solutionnum = 0; solutionnum < numsolutions; solutionnum ++) {
 
@@ -583,9 +583,9 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
             }
 
             // calculate total route distance using those selections
-            float lastlat  = 0.0F;
-            float lastlon  = 0.0F;
-            float distance = 0.0F;
+            double lastlat  = 0.0;
+            double lastlon  = 0.0;
+            double distance = 0.0;
             for (RouteStep rs = firstStep; rs != null; rs = rs.nextStep) {
 
                 // if step is airway, add distance from last point
@@ -593,7 +593,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
                 if (rs instanceof RouteStepAirwy) {
                     RouteStepAirwy rsawy = (RouteStepAirwy) rs;
                     for (Waypoint wp : rsawy.GetSelectedWaypoints ()) {
-                        if ((lastlat != 0.0F) || (lastlon != 0.0F)) {
+                        if ((lastlat != 0.0) || (lastlon != 0.0)) {
                             distance += Lib.LatLonDist (lastlat, lastlon, wp.lat, wp.lon);
                         }
                         lastlat = wp.lat;
@@ -605,7 +605,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
                 if (rs instanceof RouteStepWaypt) {
                     RouteStepWaypt rswpt = (RouteStepWaypt) rs;
                     Waypoint wp = rswpt.waypoints.get (rswpt.selectedsolution);
-                    if ((lastlat != 0.0F) || (lastlon != 0.0F)) {
+                    if ((lastlat != 0.0) || (lastlon != 0.0)) {
                         distance += Lib.LatLonDist (lastlat, lastlon, wp.lat, wp.lon);
                     }
                     lastlat = wp.lat;
@@ -714,7 +714,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
 
         // collect waypoints on airway near the given waypoint in case given waypoint not on airway
         // sort by ascenting distance from given waypoint
-        TreeMap<Float,Waypoint> nearbyWpsOnAirwy = new TreeMap<> ();
+        TreeMap<Double,Waypoint> nearbyWpsOnAirwy = new TreeMap<> ();
 
         // loop through all the given waypoints (there may be more than one of same name)
         for (Waypoint rswptwp : rswpt.waypoints) {
@@ -733,7 +733,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
                         // otherwise, save it sorted by ascending distance from given waypoint
                         // don't save any of the numbered airway intersection waypoints
                         // just things like VORs or fixes
-                        float dist = Lib.LatLonDist (rswptwp.lat, rswptwp.lon, rsawywp.lat, rsawywp.lon);
+                        double dist = Lib.LatLonDist (rswptwp.lat, rswptwp.lon, rsawywp.lat, rsawywp.lon);
                         nearbyWpsOnAirwy.put (dist, rsawywp);
                     }
                 }
@@ -827,11 +827,11 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
         if ((wp1.lat == wp2.lat) && (wp1.lon == wp2.lon)) return true;
         if ((wp2.lat == wp3.lat) && (wp2.lon == wp3.lon)) return true;
 
-        float tc12 = Lib.LatLonTC (wp1.lat, wp1.lon, wp2.lat, wp2.lon);
-        float tc23 = Lib.LatLonTC (wp2.lat, wp2.lon, wp3.lat, wp3.lon);
-        float tcdiff = Math.abs (tc12 - tc23);
-        if (tcdiff > 180.0F) tcdiff = 360.0F - tcdiff;
-        return tcdiff < 1.0F;  // all lined up within a degree
+        double tc12 = Lib.LatLonTC (wp1.lat, wp1.lon, wp2.lat, wp2.lon);
+        double tc23 = Lib.LatLonTC (wp2.lat, wp2.lon, wp3.lat, wp3.lon);
+        double tcdiff = Math.abs (tc12 - tc23);
+        if (tcdiff > 180.0) tcdiff = 360.0 - tcdiff;
+        return tcdiff < 1.0;  // all lined up within a degree
     }
 
     /**
@@ -1271,12 +1271,12 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
     private void CalcPointAhead ()
     {
         // scan route to find closest point
-        float destdist = 999999.0F;
+        double destdist = 999999.0;
         int   desti    = -1;
         int   npoints  = analyzedRouteArray.length;
         for (int i = npoints; -- i >= 0;) {
             Waypoint wp = analyzedRouteArray[i];
-            float dist = Lib.LatLonDist (wairToNow.currentGPSLat, wairToNow.currentGPSLon, wp.lat, wp.lon);
+            double dist = Lib.LatLonDist (wairToNow.currentGPSLat, wairToNow.currentGPSLon, wp.lat, wp.lon);
             if (destdist > dist) {
                 destdist = dist;
                 desti    = i;
@@ -1291,19 +1291,19 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
             else {
 
                 // somewhere in middle, get distances from segment behind the point and ahead of it
-                float distbehind = distFromRouteSeg (desti, desti - 1);
-                float distahead  = distFromRouteSeg (desti, desti + 1);
+                double distbehind = distFromRouteSeg (desti, desti - 1);
+                double distahead  = distFromRouteSeg (desti, desti + 1);
 
                 // if beyond segment behind point or if closer to segment ahead of point,
                 // then we are headed to the next point.
-                if ((distbehind < 0.0F) || (Math.abs (distahead) < distbehind)) desti ++;
+                if ((distbehind < 0.0) || (Math.abs (distahead) < distbehind)) desti ++;
             }
         }
 
         // draw course line from previous waypoint on route to the destination waypoint ahead
         pointAhead = desti;
-        float lastlat = startingLat;
-        float lastlon = startingLon;
+        double lastlat = startingLat;
+        double lastlon = startingLon;
         if (desti > 0) {
             Waypoint wp = analyzedRouteArray[desti-1];
             lastlat = wp.lat;
@@ -1321,13 +1321,13 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
      * @param j = farther of the two segment endpoints
      * @return nm distance from route segment (neg if before I, pos if along segment from I to J)
      */
-    private float distFromRouteSeg (int i, int j)
+    private double distFromRouteSeg (int i, int j)
     {
         Waypoint wpi = analyzedRouteArray[i];
         Waypoint wpj = analyzedRouteArray[j];
 
-        float lastlat = wairToNow.currentGPSLat;
-        float lastlon = wairToNow.currentGPSLon;
+        double lastlat = wairToNow.currentGPSLat;
+        double lastlon = wairToNow.currentGPSLon;
 
         // see if before segment from I to J.
         // if so, we are distance I from route segment.
@@ -1366,17 +1366,17 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
          * Display all points ahead of us and the heading and distance between them.
          * Also display ETA in Zulu for position reporting purposes.
          */
-        float lastGPSAlt = wairToNow.currentGPSAlt;
-        float lastGPSpeed = wairToNow.currentGPSSpd;
-        float lastlat = wairToNow.currentGPSLat;
-        float lastlon = wairToNow.currentGPSLon;
-        float totnm   = 0.0F;
+        double lastGPSAlt = wairToNow.currentGPSAlt;
+        double lastGPSpeed = wairToNow.currentGPSSpd;
+        double lastlat = wairToNow.currentGPSLat;
+        double lastlon = wairToNow.currentGPSLon;
+        double totnm   = 0.0;
         boolean mphOption = wairToNow.optionsView.ktsMphOption.getAlt ();
         for (int i = pointAhead; i < analyzedRouteArray.length; i ++) {
             sb.append ('\u25B6');
             Waypoint wp = analyzedRouteArray[i];
-            float tc = Lib.LatLonTC (lastlat, lastlon, wp.lat, wp.lon);
-            float nm = Lib.LatLonDist (lastlat, lastlon, wp.lat, wp.lon);
+            double tc = Lib.LatLonTC (lastlat, lastlon, wp.lat, wp.lon);
+            double nm = Lib.LatLonDist (lastlat, lastlon, wp.lat, wp.lon);
             totnm += nm;
             String hdgstr  = wairToNow.optionsView.HdgString (tc, lastlat, lastlon, lastGPSAlt);
             sb.append (hdgstr.replace (" ", "").replace ("Mag", "M").replace ("True", "T"));
@@ -1385,7 +1385,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
             sb.append ('\u25B6');
             sb.append (wp.ident);
             if (lastGPSpeed > WairToNow.gpsMinSpeedMPS) {
-                long etams = nowms + Math.round (totnm / lastGPSpeed / Lib.KtPerMPS * 3600000.0F);
+                long etams = nowms + Math.round (totnm / lastGPSpeed / Lib.KtPerMPS * 3600000.0);
                 int etamin = (int) ((etams / 60000) % 1440);
                 sb.append (' ');
                 sb.append (Integer.toString (etamin / 60 + 100).substring (1));
@@ -1400,12 +1400,12 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
         /*
          * Display total distance and estimated time enroute to final point.
          */
-        if (totnm > 0.0F) {
+        if (totnm > 0.0) {
             sb.append ("total: ");
             sb.append (Lib.DistString (totnm, mphOption));
             if (lastGPSpeed > WairToNow.gpsMinSpeedMPS) {
                 sb.append (" ete: ");
-                int seconds = Math.round (totnm / lastGPSpeed / Lib.KtPerMPS * 3600.0F);
+                int seconds = (int) Math.round (totnm / lastGPSpeed / Lib.KtPerMPS * 3600.0);
                 int minutes = seconds / 60;
                 int hours   = minutes / 60;
                 seconds %= 60;

@@ -1,5 +1,4 @@
-<?php
-//    Copyright (C) 2015, Mike Rieker, Beverly, MA USA
+//    Copyright (C) 2017, Mike Rieker, Beverly, MA USA
 //    www.outerworldapps.com
 //
 //    This program is free software; you can redistribute it and/or modify
@@ -19,27 +18,9 @@
 //
 //    http://www.gnu.org/licenses/gpl-2.0.html
 
-    /**
-     * Save manual IAP georeference records from the client.
-     */
+package com.outerworldapps.wairtonow;
 
-    /*
-     * Read csv line from post stream.
-     * It does not have a newline char on it.
-     */
-    $csvline = file_get_contents ("php://input");
-
-    /*
-     * Append record to existing georefs/manual.csv file.
-     * All previous records must remain intact, or at least their length.
-     */
-    $csvfile = fopen ('georefs/manual.csv', 'a');
-    if (!$csvfile) die ("fopen error\n");
-    if (!fputs ($csvfile, "$csvline\n")) die ("fwrite error\n");
-    if (!fclose ($csvfile)) die ("fclose error\n");
-
-    /*
-     * Tell app we sucuessfully saved it.
-     */
-    echo "OK\n";
-?>
+public class PointD {
+    public double x;
+    public double y;
+}

@@ -198,7 +198,7 @@ public class UserWPView extends LinearLayout
     public void OpenDisplay ()
     {
         // in case lat/lon format option was changed
-        String format = wairToNow.optionsView.LatLonString (10.0F/3600.0F, 'N', 'S');
+        String format = wairToNow.optionsView.LatLonString (10.0/3600.0, 'N', 'S');
         latView.setFormat (format);
         lonView.setFormat (format);
         for (UserWP wp : waypoints.values ()) {
@@ -508,8 +508,8 @@ public class UserWPView extends LinearLayout
              * Get values from editing boxes.
              */
             String ident = identTextView.getText ().toString ();
-            float  lat   = latView.getVal ();
-            float  lon   = lonView.getVal ();
+            double  lat   = latView.getVal ();
+            double  lon   = lonView.getVal ();
             String descr = descrEditText.getText ().toString ();
 
             /*
@@ -656,10 +656,10 @@ public class UserWPView extends LinearLayout
             button.setOnClickListener (this);
             button.setTag (this);
 
-            setVal (Float.parseFloat (tokens[1]), Float.parseFloat (tokens[2]), tokens[3]);
+            setVal (Double.parseDouble (tokens[1]), Double.parseDouble (tokens[2]), tokens[3]);
         }
 
-        public UserWP (String ident, float lat, float lon, String descr)
+        public UserWP (String ident, double lat, double lon, String descr)
         {
             button = new Button (wairToNow);
             wairToNow.SetTextSize (button);
@@ -689,7 +689,7 @@ public class UserWPView extends LinearLayout
         /**
          * Update user waypoint's value.
          */
-        public void setVal (float lat, float lon, String descr)
+        public void setVal (double lat, double lon, String descr)
         {
             this.lat   = lat;
             this.lon   = lon;

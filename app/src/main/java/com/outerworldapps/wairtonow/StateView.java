@@ -27,7 +27,6 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
-import android.graphics.PointF;
 import android.graphics.Rect;
 import android.support.annotation.NonNull;
 import android.view.MotionEvent;
@@ -60,13 +59,13 @@ public class StateView extends View {
     private boolean courseInfoMphOpt, courseInfoTrueOpt;
     private ChartView chartView;
     private DecimalFormat scalingFormat = new DecimalFormat ("#.##");
-    private float centerInfoAltitude;
-    private float centerInfoArrowLat, centerInfoArrowLon;
-    private float centerInfoCanvasHdgRads;
-    private float centerInfoCenterLat, centerInfoCenterLon;
-    private float centerInfoScaling;
-    private float courseInfoArrowLat, courseInfoArrowLon;
-    private float courseInfoDstLat, courseInfoDstLon;
+    private double centerInfoAltitude;
+    private double centerInfoArrowLat, centerInfoArrowLon;
+    private double centerInfoCanvasHdgRads;
+    private double centerInfoCenterLat, centerInfoCenterLon;
+    private double centerInfoScaling;
+    private double courseInfoArrowLat, courseInfoArrowLon;
+    private double courseInfoDstLat, courseInfoDstLon;
     private int canvasWidth, canvasHeight;
     private int centerInfoCanvasHeight;
     private int centerInfoLLOption;
@@ -279,10 +278,10 @@ public class StateView extends View {
          * Number of undrawn 3D tiles in lower-right corner.
          */
         if (chartView.undrawn != 0) {
-            float x = chartView.pmap.canvasWidth  - 20;
-            float y = chartView.pmap.canvasHeight - 20;
+            double x = chartView.pmap.canvasWidth  - 20;
+            double y = chartView.pmap.canvasHeight - 20;
             canvas.drawText (Integer.toString (chartView.undrawn),
-                    x, y, undrawnTxPaint);
+                    (float) x, (float) y, undrawnTxPaint);
         }
 
         /*
@@ -299,9 +298,9 @@ public class StateView extends View {
     private void DrawCenterInfo (Canvas canvas, Paint paint)
     {
         boolean holdPosition = chartView.holdPosition;
-        float centerLat = chartView.centerLat;
-        float centerLon = chartView.centerLon;
-        float scaling = chartView.scaling;
+        double centerLat = chartView.centerLat;
+        double centerLon = chartView.centerLon;
+        double scaling = chartView.scaling;
 
         if (showCenterInfo) {
             int cx = (int)(paint.getTextSize () * 3.125);
@@ -334,17 +333,17 @@ public class StateView extends View {
             if (holdPosition) {
 
                 // display heading/distance from airplane to center iff airplane not centered on screen
-                float altitude  = wairToNow.currentGPSAlt;
-                float latitude  = wairToNow.currentGPSLat;
-                float longitude = wairToNow.currentGPSLon;
+                double altitude  = wairToNow.currentGPSAlt;
+                double latitude  = wairToNow.currentGPSLat;
+                double longitude = wairToNow.currentGPSLon;
                 if ((centerInfoArrowLat != latitude) ||
                     (centerInfoArrowLon != longitude) ||
                     centerLLChanged ||
                     optionsChanged) {
                     centerInfoArrowLat = latitude;
                     centerInfoArrowLon = longitude;
-                    float distFromGPS = Lib.LatLonDist (latitude, longitude, centerLat, centerLon);
-                    float tcorFromGPS = Lib.LatLonTC (latitude, longitude, centerLat, centerLon);
+                    double distFromGPS = Lib.LatLonDist (latitude, longitude, centerLat, centerLon);
+                    double tcorFromGPS = Lib.LatLonTC (latitude, longitude, centerLat, centerLon);
                     centerInfoDistStr = Lib.DistString (distFromGPS, mphOption);
                     centerInfoMCToStr = wairToNow.optionsView.HdgString (tcorFromGPS, latitude, longitude, altitude);
                 }
@@ -363,8 +362,8 @@ public class StateView extends View {
             }
 
             // always display scaling and rotation
-            float altitude = wairToNow.currentGPSAlt;
-            float chr = wairToNow.chartView.backing.GetCanvasHdgRads ();
+            double altitude = wairToNow.currentGPSAlt;
+            double chr = wairToNow.chartView.backing.GetCanvasHdgRads ();
             if (centerLLChanged || optionsChanged ||
                     (centerInfoScaling       != scaling) ||
                     (centerInfoCanvasHdgRads != chr)     ||
@@ -373,7 +372,7 @@ public class StateView extends View {
                 centerInfoCanvasHdgRads = chr;
                 centerInfoAltitude      = altitude;
                 centerInfoScaStr = "x " + scalingFormat.format (scaling);
-                centerInfoRotStr = wairToNow.optionsView.HdgString (Mathf.toDegrees (chr), centerLat, centerLon, altitude);
+                centerInfoRotStr = wairToNow.optionsView.HdgString (Math.toDegrees (chr), centerLat, centerLon, altitude);
             }
             Lib.DrawBoundedString (canvas, centerInfoBounds, paint, cx, by - dy * 2, centerInfoScaStr);
             Lib.DrawBoundedString (canvas, centerInfoBounds, paint, cx, by - dy, centerInfoRotStr);
@@ -406,10 +405,10 @@ public class StateView extends View {
         Waypoint clDest = chartView.clDest;
 
         if (showCourseInfo) {
-            float altitude  = wairToNow.currentGPSAlt;
-            float latitude  = wairToNow.currentGPSLat;
-            float longitude = wairToNow.currentGPSLon;
-            float speed     = wairToNow.currentGPSSpd;
+            double altitude  = wairToNow.currentGPSAlt;
+            double latitude  = wairToNow.currentGPSLat;
+            double longitude = wairToNow.currentGPSLon;
+            double speed     = wairToNow.currentGPSSpd;
             boolean mphOpt  = wairToNow.optionsView.ktsMphOption.getAlt ();
             boolean trueOpt = wairToNow.optionsView.magTrueOption.getAlt ();
             if ((courseInfoArrowLat != latitude)   ||
@@ -425,15 +424,15 @@ public class StateView extends View {
                 courseInfoMphOpt   = mphOpt;
                 courseInfoTrueOpt  = trueOpt;
 
-                float dist = Lib.LatLonDist (latitude, longitude, courseInfoDstLat, courseInfoDstLon);
+                double dist = Lib.LatLonDist (latitude, longitude, courseInfoDstLat, courseInfoDstLon);
                 courseInfoDistStr = Lib.DistString (dist, mphOpt);
 
-                float tcto = Lib.LatLonTC (latitude, longitude, courseInfoDstLat, courseInfoDstLon);
+                double tcto = Lib.LatLonTC (latitude, longitude, courseInfoDstLat, courseInfoDstLon);
                 courseInfoMCToStr = wairToNow.optionsView.HdgString (tcto, latitude, longitude, altitude);
 
                 courseInfoEteStr = "";
                 if (speed >= WairToNow.gpsMinSpeedMPS) {
-                    int etesec = Math.round (dist * Lib.MPerNM / speed);
+                    int etesec = (int) Math.round (dist * Lib.MPerNM / speed);
                     int etemin = etesec / 60;
                     int etehrs = etemin / 60;
                     etesec %= 60;
@@ -499,20 +498,20 @@ public class StateView extends View {
                 }
 
                 // it must not be too far away
-                float distaway = Lib.LatLonDist (traffic.latitude, traffic.longitude,
+                double distaway = Lib.LatLonDist (traffic.latitude, traffic.longitude,
                         wairToNow.currentGPSLat, wairToNow.currentGPSLon);
                 if (distaway > TRAFDISTLIMNM) continue;
 
                 // it must map to a pixel within bounds of the screen
-                if (traffic.canpix == null) traffic.canpix = new PointF ();
-                float trafmsl = traffic.taltitude;
+                if (traffic.canpix == null) traffic.canpix = new PointD ();
+                double trafmsl = traffic.taltitude;
                 if (!backing.LatLonAlt2CanPixExact (
                         traffic.latitude, traffic.longitude, trafmsl, traffic.canpix)) continue;
 
                 // make sure it is a minimum AGL so we don't get a bunch
                 // of airplanes sitting on the ground (eg, as at KBOS)
-                if (!Float.isNaN (trafmsl)) {
-                    float trafagl = trafmsl - Topography.getElevMetres (traffic.latitude, traffic.longitude);
+                if (!Double.isNaN (trafmsl)) {
+                    double trafagl = trafmsl - Topography.getElevMetres (traffic.latitude, traffic.longitude);
                     if (trafagl < Traffic.MINTRAFAGLM) continue;
                 }
 
@@ -527,19 +526,19 @@ public class StateView extends View {
 
             // draw traffic starting with farthest away so nearby don't get overdrawn by far away
             float textSize = trafficTxPaint.getTextSize ();
-            float canvasUp = Mathf.toDegrees (backing.GetCanvasHdgRads ());
+            double canvasUp = Math.toDegrees (backing.GetCanvasHdgRads ());
             while (-- ntraf >= 0) {
                 Traffic traffic = trafficArray[ntraf];
 
                 for (int pass = 0; pass < 2; pass ++) {
                     Paint paint = (pass == 0) ? trafficBGPaint : trafficTxPaint;
 
-                    float x = traffic.canpix.x;
-                    float y = traffic.canpix.y;
+                    double x = traffic.canpix.x;
+                    double y = traffic.canpix.y;
 
                     // draw circle at that location
                     float radius = textSize * 0.25F;
-                    canvas.drawCircle (x, y, radius, paint);
+                    canvas.drawCircle ((float) x, (float) y, radius, paint);
                     x += radius;
                     y += radius;
 
@@ -547,7 +546,7 @@ public class StateView extends View {
                     String[] texts = traffic.getText (wairToNow, canvasUp);
                     for (String text : texts) {
                         y += textSize;
-                        canvas.drawText (text, x, y, paint);
+                        canvas.drawText (text, (float) x, (float) y, paint);
                     }
                 }
             }
