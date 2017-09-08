@@ -377,6 +377,7 @@ public class WiFiUDPGpsAdsb extends GpsAdsbReceiver {
      \**************************************************/
 
     private final InputStream receiverStream = new InputStream () {
+        private boolean first = true;
 
         @Override  // InputStream
         public int read () throws IOException
@@ -393,9 +394,35 @@ public class WiFiUDPGpsAdsb extends GpsAdsbReceiver {
                 pktReceivedQueued = true;
                 wairToNow.runOnUiThread (adsbPacketReceivedUI);
             }
+
+            // read a packet from ADS-B receiver
             DatagramPacket pkt = new DatagramPacket (buffer, offset, length);
             udpSocket.receive (pkt);
-            return pkt.getLength ();
+
+            // if time being requested, tell receiver what we think the current time is
+            // also send time in case we missed the request message
+            int pktlen = pkt.getLength ();
+            if ((pktlen > 9) && (buffer[offset] == 'W') && (buffer[offset+1] == 'T') &&
+                    (buffer[offset+2] == 'N') && (buffer[offset+3] == '-') &&
+                    (buffer[offset+4] == 'U') && (buffer[offset+5] == 'T') &&
+                    (buffer[offset+6] == 'I') && (buffer[offset+7] == 'M') &&
+                    (buffer[offset+8] == 'E') && (buffer[offset+9] == '?')) {
+                first = true;
+                buffer[offset] = 0;
+                pktlen = 1;
+            }
+            if (first) {
+                first = false;
+                long now = System.currentTimeMillis ();
+                String utimestr = "wtn-utime=" + (now / 1000) + "." + (now % 1000) + "000";
+                byte[] utimebyt = utimestr.getBytes ();
+                DatagramPacket utimepkt = new DatagramPacket (utimebyt, utimebyt.length);
+                utimepkt.setSocketAddress (pkt.getSocketAddress ());
+                udpSocket.send (utimepkt);
+            }
+
+            // tell caller how long the received packet is
+            return pktlen;
         }
 
         /**

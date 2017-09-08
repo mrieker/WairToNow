@@ -20,7 +20,8 @@
 
 package com.outerworldapps.wairtonow;
 
-import java.util.HashMap;
+import android.util.SparseArray;
+
 import java.util.TreeMap;
 
 /**
@@ -30,30 +31,10 @@ public class TrafficRepo {
     private final static int MAXIMAGES = 1000;
 
     public  volatile boolean amEmpty;
-    public  HashMap<Integer,Traffic> trafficAddr = new HashMap<> ();
+    public  SparseArray<Traffic> trafficAddr = new SparseArray<> ();
     public  TreeMap<Integer,Traffic> trafficAges = new TreeMap<> ();
 
     private int lastSeqno = Integer.MIN_VALUE;
-
-    /**
-     * Purge the given addresses from the repo.
-     * ** CALLER MUST HAVE the repo LOCKED **
-     */
-    public void deleteAddresses (int naddrs, int[] addrs)
-    {
-        HashMap<Integer,Traffic> hm = trafficAddr;
-
-        for (int i = 0; i < naddrs; i ++) {
-            int addr = addrs[i];
-            if (hm.containsKey (addr)) {
-                Traffic tr = hm.get (addr);
-                hm.remove (addr);
-                trafficAges.remove (tr.seqno);
-            }
-        }
-
-        amEmpty = trafficAges.isEmpty ();
-    }
 
     /**
      * Insert new traffic into the repo.

@@ -26,6 +26,7 @@ import android.database.sqlite.SQLiteDatabase;
 import android.util.Log;
 
 import java.io.File;
+import java.security.InvalidParameterException;
 import java.util.Iterator;
 import java.util.TreeMap;
 import java.util.concurrent.locks.ReentrantLock;
@@ -37,6 +38,7 @@ public class SQLiteDBs {
     private final static String TAG = "WairToNow";
 
     private final static String[] columns_name = new String[] { "name" };
+    private final static String[] columns_sql  = new String[] { "sql"  };
 
     // one pointer per thread accessing this database
     private ThreadLocal<SQLiteDatabase> tlsqldb = new ThreadLocal<> ();
@@ -180,6 +182,38 @@ public class SQLiteDBs {
                     null, null, null, null);
             try {
                 return result.getCount () > 0;
+            } finally {
+                result.close ();
+            }
+        } finally {
+            dblock.unlock ();
+        }
+    }
+
+    /**
+     * See if the given column exists within the given table of the database.
+     */
+    public boolean columnExists (String table, String column)
+    {
+        dblock.lock ();
+        try {
+            Cursor result = tlsqldb.get ().query (
+                    "sqlite_master", columns_sql,
+                    "type='table' AND name=?", new String[] { table },
+                    null, null, null, null);
+            try {
+                // CREATE TABLE intersections (int_num INTEGER PRIMARY KEY, int_lat REAL NOT NULL,
+                //   int_lon REAL NOT NULL, int_type TEXT NOT NULL)
+                if (!result.moveToFirst ()) {
+                    throw new InvalidParameterException ("table not found " + table);
+                }
+                String cretab = result.getString (0);
+                String[] words = cretab.split (" ");
+                String pcolumn = "(" + column;
+                for (String word : words) {
+                    if (word.equals (pcolumn) || word.equals (column)) return true;
+                }
+                return false;
             } finally {
                 result.close ();
             }

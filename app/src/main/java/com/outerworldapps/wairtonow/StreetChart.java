@@ -38,10 +38,21 @@ public class StreetChart implements DisplayableChart {
 
     private OpenStreetMap osm;
     private WairToNow wairToNow;
+    //private Paint rwyPaint;
+    //private Waypoint.Within waypointWithin = new Waypoint.Within ();
 
     public StreetChart (WairToNow wtn)
     {
         wairToNow = wtn;
+
+        /*
+        rwyPaint = new Paint ();
+        rwyPaint.setColor (Color.MAGENTA);
+        rwyPaint.setStrokeWidth (2);
+        rwyPaint.setStyle (Paint.Style.FILL_AND_STROKE);
+        rwyPaint.setTextAlign (Paint.Align.LEFT);
+        rwyPaint.setTextSize (wairToNow.textSize);
+        */
     }
 
     @Override  // DisplayableChart
@@ -100,6 +111,64 @@ public class StreetChart implements DisplayableChart {
     {
         osm = wairToNow.openStreetMap;
         osm.Draw (canvas, pmap, inval);
+
+        /* TODO too cluttered
+
+        // get list of waypoints in area being shown
+        Collection<Waypoint> waypoints = waypointWithin.Get (pmap.canvasSouthLat, pmap.canvasNorthLat,
+                pmap.canvasWestLon, pmap.canvasEastLon);
+
+        // get a list sorted by descending longest runway length
+        // only consider airports and navaids (ignoring fixes, localizers, etc)
+        // treat VORs as having 1200' runway and NDBs as having 1000' runway
+        TreeMap<Integer,Waypoint> topwps = new TreeMap<> ();
+        int seq = 0;
+        for (Waypoint wp : waypoints) {
+            if ((wp instanceof Waypoint.Airport) || (wp instanceof Waypoint.Navaid)) {
+                if (Lib.LatOverlap (pmap.canvasNorthLat, pmap.canvasSouthLat, wp.lat) &&
+                        Lib.LonOverlap (pmap.canvasEastLon, pmap.canvasWestLon, wp.lon)) {
+                    int idx = ++ seq;
+                    if (wp instanceof Waypoint.Airport) {
+                        HashMap<String,Waypoint.Runway> rwys = ((Waypoint.Airport) wp).GetRunways ();
+                        int longestrwy = 0;
+                        for (Waypoint.Runway rwy : rwys.values ()) {
+                            int len = rwy.getLengthFt ();
+                            if (longestrwy < len) longestrwy = len;
+                        }
+                        idx |= longestrwy << 16;
+                    }
+                    if (wp instanceof Waypoint.Navaid) {
+                        String type = ((Waypoint.Navaid) wp).type;
+                        if (type.startsWith ("NDB")) idx |= 1000 << 16;
+                        if (type.startsWith ("VOR")) idx |= 1200 << 16;
+                    }
+                    topwps.put (- idx, wp);
+                }
+            }
+        }
+
+        // display 10 waypoints with longest runway length
+        float qtrTextHeight = wairToNow.textSize / 4;
+        PointD canpix = new PointD ();
+        seq = 0;
+        for (Waypoint wp : topwps.values ()) {
+            if (++ seq > 10) break;
+            if ((wp instanceof Waypoint.Airport) || (wp instanceof Waypoint.Navaid)) {
+                pmap.LatLon2CanPixAprox (wp.lat, wp.lon, canpix);
+                String ident = wp.ident;
+                String type  = wp.GetTypeAbbr ();
+                double canX  = canpix.x;
+                double canY  = canpix.y;
+
+                canvas.drawCircle ((float) canX, (float) canY, qtrTextHeight, rwyPaint);
+                canX += qtrTextHeight * 2;
+                canY -= qtrTextHeight;
+                canvas.drawText (ident, 0, ident.length (), (float) canX, (float) canY, rwyPaint);
+                canY += qtrTextHeight * 4;
+                canvas.drawText (type, 0, type.length (), (float) canX, (float) canY, rwyPaint);
+            }
+        }
+        too cluttered TODO */
     }
 
     /**

@@ -38,7 +38,8 @@
             if (!empty ($_GET['faaid'])) {
                 $mydir   = __DIR__;
                 $exetime = filemtime ("$mydir/../decosects/ReadArptDgmPng.exe");
-                $icaoid  = getIcaoId ($_GET['faaid']);
+                $faaid   = $_GET['faaid'];
+                $icaoid  = getIcaoId ($faaid);
                 echo "<H3> Marked up $icaoid Airport Diagram </H3>\n";
                 @flush (); @ob_flush (); @flush ();
                 $cleanname = $_GET['gifname'];
@@ -49,8 +50,9 @@
                 $markdname = "$mydir/apdreview/$icaoid.markd.png";
                 $markdtime = 0 + @filemtime ($markdname);
                 if (($markdtime < $cleantime) || ($markdtime < $exetime)) {
+                    $rwyname = "$mydir/datums/runways_$cycles28.csv";
                     $csvname = "$mydir/apdreview/$icaoid.csv";
-                    $cvtfile = popen ("cd ../decosects ; umask 0002 ; mono --debug ReadArptDgmPng.exe $cleanname -markedpng $markdname -csvoutfile $csvname -csvoutid $icaoid 2>&1", "r");
+                    $cvtfile = popen ("cd ../decosects ; umask 0002 ; mono --debug ReadArptDgmPng.exe $cleanname -faaid $faaid -runways $rwyname -markedpng $markdname -csvoutfile $csvname -csvoutid $icaoid 2>&1", "r");
                     if (!$cvtfile) {
                         echo "<P>error starting ReadArptDgmPng.exe</P>\n";
                     } else {

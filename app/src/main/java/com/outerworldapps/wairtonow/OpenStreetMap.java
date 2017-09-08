@@ -100,9 +100,12 @@ public class OpenStreetMap {
         private Paint copyrtTxPaint = new Paint ();
         private Path canvasclip = new Path ();
 
-        private final LongSparseArray<TileBitmap> loadedBitmaps = new LongSparseArray<> ();
+        private final LongSparseArray<TileBitmap> openedBitmaps = new LongSparseArray<> ();
         private final LongSparseArray<TileBitmap> neededBitmaps = new LongSparseArray<> ();
-        private TileLoaderThread tileLoaderThread;
+        private TileOpenerThread tileOpenerThread;
+
+        private final LongSparseArray<DisplayableChart.Invalidatable> downloadBitmaps = new LongSparseArray<> ();
+        private TileDownloaderThread tileDownloaderThread;
 
         public MainTileDrawer ()
         {
@@ -129,11 +132,11 @@ public class OpenStreetMap {
                 canvas.drawText (copyrtMessage, 5, h - 5, copyrtTxPaint);
             }
 
-            synchronized (loadedBitmaps) {
-                for (int i = loadedBitmaps.size (); -- i >= 0;) {
-                    TileBitmap tbm = loadedBitmaps.valueAt (i);
+            synchronized (openedBitmaps) {
+                for (int i = openedBitmaps.size (); -- i >= 0;) {
+                    TileBitmap tbm = openedBitmaps.valueAt (i);
                     if (tbm.used < drawCycle) {
-                        loadedBitmaps.removeAt (i);
+                        openedBitmaps.removeAt (i);
                         if (tbm.bm != null) tbm.bm.recycle ();
                     }
                 }
@@ -145,7 +148,7 @@ public class OpenStreetMap {
         {
             /*
              * Try to draw the bitmap or start downloading it if we don't have it.
-             * Meanwhile, try to draw zoomed out tile if we have one.
+             * Meanwhile, try to draw zoomed out tile if we have one (but don't download them).
              */
             if (TryToDrawTile (canvas, zoom, tileX, tileY, true)) return true;
             int tileXOut = tileX;
@@ -171,23 +174,29 @@ public class OpenStreetMap {
         {
             TileBitmap tbm;
             long key = ((long) tileXOut << 36) | ((long) tileYOut << 8) | zoomOut;
-            synchronized (loadedBitmaps) {
-                tbm = loadedBitmaps.get (key);
+            synchronized (openedBitmaps) {
+
+                // see if we have the exact tile requested already opened and ready to display
+                tbm = openedBitmaps.get (key);
                 if (tbm == null) {
+
+                    // if not, request only if it is the most zoomed-in level
+                    // the TileOpenerThread will open an outer-zoom level if the zoomed-in one is not downloaded
                     if (startDownload) {
                         tbm = new TileBitmap ();
                         tbm.inval = redrawView;
-                        tbm.dwnld = true;
                         neededBitmaps.put (key, tbm);
-                        if (tileLoaderThread == null) {
-                            tileLoaderThread = new TileLoaderThread ();
-                            tileLoaderThread.start ();
+                        if (tileOpenerThread == null) {
+                            tileOpenerThread = new TileOpenerThread ();
+                            tileOpenerThread.start ();
                         }
                     }
                     return false;
                 }
             }
 
+            // it is opened, remember it is being used so it doesn't get recycled
+            // also it might be null meaning the bitmap file is corrupt
             tbm.used = drawCycle;
             Bitmap tile = tbm.bm;
             if (tile == null) return false;
@@ -249,57 +258,124 @@ public class OpenStreetMap {
         {
             redrawView = null;
             stopReadingTiles (true);
-            synchronized (loadedBitmaps) {
-                for (int i = loadedBitmaps.size (); -- i >= 0;) {
-                    TileBitmap tbm = loadedBitmaps.valueAt (i);
+            synchronized (openedBitmaps) {
+                for (int i = openedBitmaps.size (); -- i >= 0;) {
+                    TileBitmap tbm = openedBitmaps.valueAt (i);
                     if (tbm.bm != null) tbm.bm.recycle ();
                 }
-                loadedBitmaps.clear ();
+                openedBitmaps.clear ();
             }
         }
 
         private void stopReadingTiles (boolean wait)
         {
-            synchronized (loadedBitmaps) {
+            synchronized (openedBitmaps) {
                 neededBitmaps.clear ();
             }
-            if (wait && (tileLoaderThread != null)) {
-                try { tileLoaderThread.join (); } catch (InterruptedException ie) { Lib.Ignored (); }
+            if (wait && (tileOpenerThread != null)) {
+                try { tileOpenerThread.join (); } catch (InterruptedException ie) { Lib.Ignored (); }
+            }
+            synchronized (downloadBitmaps) {
+                downloadBitmaps.clear ();
+            }
+            if (wait && (tileDownloaderThread != null)) {
+                try { tileDownloaderThread.join (); } catch (InterruptedException ie) { Lib.Ignored (); }
             }
         }
 
         /**
-         * Get tiles to load from neededBitmaps and put in loadedBitmaps.
+         * Get tiles to open from neededBitmaps and put in openedBitmaps.
+         * If any need downloading from the server, put them in downloadBitmaps.
          */
-        private class TileLoaderThread extends Thread {
+        private class TileOpenerThread extends Thread {
             @Override
             public void run ()
             {
-                setName ("OpenStreetMap tile loader");
+                setName ("OpenStreetMap tile opener");
 
                 long key = 0;
                 TileBitmap tbm = null;
                 while (true) {
-                    synchronized (loadedBitmaps) {
+
+                    // queue previously opened bitmap into openedBitmaps
+                    // ...and dequeued needed bitmap from neededBitmaps
+                    // if nothing to dequeue, terminate thread
+                    synchronized (openedBitmaps) {
                         if (tbm != null) {
-                            loadedBitmaps.put (key, tbm);
+                            openedBitmaps.put (key, tbm);
                             tbm.inval.postInvalidate ();
                         }
                         do {
                             if (neededBitmaps.size () == 0) {
-                                tileLoaderThread = null;
+                                tileOpenerThread = null;
                                 return;
                             }
                             key = neededBitmaps.keyAt (0);
                             tbm = neededBitmaps.valueAt (0);
                             neededBitmaps.removeAt (0);
-                        } while (loadedBitmaps.indexOfKey (key) >= 0);
+                        } while (openedBitmaps.indexOfKey (key) >= 0);
                     }
+
+                    // open the requested tile or one at an outer zoom level
+                    // do not request any tile be downloaded from server yet
                     int tileIX = (int) (key >> 36) & 0x0FFFFFFF;
                     int tileIY = (int) (key >>  8) & 0x0FFFFFFF;
                     int zoomLevel = (int) key & 0xFF;
-                    tbm.bm = ReadTileBitmap (tileIX, tileIY, zoomLevel, tbm.dwnld);
-                    tbm.used = Long.MAX_VALUE;
+                    int zl;
+                    for (zl = zoomLevel; zl >= 0; -- zl) {
+                        tbm.bm = ReadTileBitmap (tileIX, tileIY, zl, false);
+                        if (tbm.bm != null) break;
+                        tileIX /= 2;
+                        tileIY /= 2;
+                    }
+
+                    // if an outer tile was found, ie, the inner tile not found on flash,
+                    // request that it be downloaded from server
+                    if (zl < zoomLevel) {
+                        synchronized (downloadBitmaps) {
+                            downloadBitmaps.put (key, tbm.inval);
+                            if (tileDownloaderThread == null) {
+                                tileDownloaderThread = new TileDownloaderThread ();
+                                tileDownloaderThread.start ();
+                            }
+                        }
+                    }
+
+                    // mark the possibly zoomed-out tile as now being opened
+                    // and prevent it from being recycled right away
+                    if (zl < 0) {
+                        tbm = null;
+                    } else {
+                        key = (((long) tileIX) << 36) | (((long) tileIY) << 8) | zl;
+                        tbm.used = Long.MAX_VALUE;
+                    }
+                }
+            }
+        }
+
+        private class TileDownloaderThread extends Thread {
+            @Override
+            public void run ()
+            {
+                setName ("OpenStreetMap tile downloader");
+                while (true) {
+                    long key;
+                    DisplayableChart.Invalidatable inval;
+                    synchronized (downloadBitmaps) {
+                        if (downloadBitmaps.size () == 0) {
+                            tileDownloaderThread = null;
+                            return;
+                        }
+                        key = downloadBitmaps.keyAt (0);
+                        inval = downloadBitmaps.valueAt (0);
+                        downloadBitmaps.removeAt (0);
+                    }
+
+                    int tileIX = (int) (key >> 36) & 0x0FFFFFFF;
+                    int tileIY = (int) (key >>  8) & 0x0FFFFFFF;
+                    int zoomLevel = (int) key & 0xFF;
+                    DownloadTileBitmap (tileIX, tileIY, zoomLevel, true);
+                    inval.postInvalidate ();
                 }
             }
         }
@@ -308,7 +384,6 @@ public class OpenStreetMap {
     private static class TileBitmap {
         public DisplayableChart.Invalidatable inval;  // callback when tile gets loaded
         public Bitmap bm;                             // bitmap (or null if not on flash or corrupt)
-        public boolean dwnld;                         // download if not on flash
         public long used;                             // cycle it was used on
     }
 
@@ -704,6 +779,36 @@ public class OpenStreetMap {
      */
     public static Bitmap ReadTileBitmap (int tileIX, int tileIY, int zoomLevel, boolean download)
     {
+        String permname = DownloadTileBitmap (tileIX, tileIY, zoomLevel, download);
+        if (permname == null) return null;
+        try {
+
+            /*
+             * Read flash file into memorie.
+             */
+            Bitmap bm = BitmapFactory.decodeFile (permname);
+            if (bm == null) throw new IOException ("bitmap corrupt");
+            if ((bm.getWidth () != BitmapSize) || (bm.getHeight () != BitmapSize)) {
+                throw new IOException ("bitmap bad size " + bm.getWidth () + "," + bm.getHeight ());
+            }
+            return bm;
+        } catch (Exception e) {
+            Log.e (TAG, "error reading tile: " + permname, e);
+            Lib.Ignored (new File (permname).delete ());
+            return null;
+        }
+    }
+
+    /**
+     * Synchronously download a tile's bitmap file from server onto flash.
+     * @param tileIX = x coord left edge of tile 0..(1<<zoomLevel)-1
+     * @param tileIY = y coord top edge of tile 0..(1<<zoomLevel)-1
+     * @param zoomLevel = tile zoom level
+     * @param download = false: return null if not on flash; true: download if not on flash
+     * @return null if not on flash; else: name of flash file
+     */
+    public static String DownloadTileBitmap (int tileIX, int tileIY, int zoomLevel, boolean download)
+    {
         String tilename = zoomLevel + "/" + tileIX + "/" + tileIY + ".png";
         String permname = WairToNow.dbdir + "/streets/" + tilename;
         String tempname = permname + ".tmp";
@@ -762,18 +867,9 @@ public class OpenStreetMap {
                  */
                 Lib.RenameFile (tempname, permname);
             }
-
-            /*
-             * Read flash file into memorie.
-             */
-            Bitmap bm = BitmapFactory.decodeFile (permname);
-            if (bm == null) throw new IOException ("bitmap corrupt");
-            if ((bm.getWidth () != BitmapSize) || (bm.getHeight () != BitmapSize)) {
-                throw new IOException ("bitmap bad size " + bm.getWidth () + "," + bm.getHeight ());
-            }
-            return bm;
+            return permname;
         } catch (Exception e) {
-            Log.e (TAG, "error reading tile: " + tilename, e);
+            Log.e (TAG, "error downloading tile: " + tilename, e);
             Lib.Ignored (permfile.delete ());
             return null;
         }

@@ -25,11 +25,11 @@ import android.graphics.Color;
 import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
 import android.util.Log;
+import android.util.SparseArray;
 import android.view.MotionEvent;
 import android.view.View;
 
 import java.nio.FloatBuffer;
-import java.util.HashMap;
 
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
@@ -357,7 +357,7 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
         private float[] mMVPMatrixF = new float[16];
         private EarthSector closeSectors;
         private EarthSector knownSectors;
-        private HashMap<Integer,Short> knownHighestElevations = new HashMap<> ();
+        private SparseArray<Short> knownHighestElevations = new SparseArray<> ();
         private int cameraPointed;
         private int slatMin, nlatMin, wlonMin, elonMin;
         public  int mWidth, mHeight;
@@ -730,6 +730,7 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
              * Set up camera frustum.
              */
             double scale  = mouseDispS * NEARDIST;
+            //noinspection UnnecessaryLocalVariable
             double near   = NEARDIST;
             //noinspection UnnecessaryLocalVariable
             double far    = fardist;
@@ -1010,7 +1011,7 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
         private short GetHighestElev (int ilatmin, int ilonmin, int l2stepmin)
         {
             int key = (l2stepmin << 29) + ((ilatmin & 0x3FFF) << 15) + (ilonmin & 0x7FFF);
-            if (knownHighestElevations.containsKey (key)) {
+            if (knownHighestElevations.indexOfKey (key) >= 0) {
                 return knownHighestElevations.get (key);
             }
             int stepmin = 1 << l2stepmin;

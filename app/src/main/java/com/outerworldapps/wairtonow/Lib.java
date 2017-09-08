@@ -88,6 +88,7 @@ public class Lib {
     /**
      * Create a quoted string suitable for QuotedCSVSplit().
      */
+    @SuppressWarnings("unused")
     public static String QuotedString (String unquoted)
     {
         int len = unquoted.length ();
@@ -690,6 +691,7 @@ public class Lib {
     /**
      * Perform matrix multiply:  pr[r][c] = lh[r][c] * rh[r][c]
      */
+    @SuppressWarnings("unused")
     public static void MatMul (double[][] pr, double[][] lh, double[][] rh)
     {
         int prRows = pr.length;
@@ -1166,7 +1168,6 @@ public class Lib {
      * Read a line from the given input stream
      * @param is = stream to read from
      * @return string up to but not including \n
-     * @throws IOException
      */
     public static String ReadStreamLine (InputStream is)
             throws IOException
@@ -1185,7 +1186,6 @@ public class Lib {
      * @param is = stream to read bytes from
      * @param bytelen = number of bytes to copy
      * @param filename = name of file to write to
-     * @throws IOException
      */
     public static void WriteStreamToFile (InputStream is, int bytelen, String filename)
             throws IOException
@@ -1212,7 +1212,7 @@ public class Lib {
      */
     public static String DoubleNTZ (double f)
     {
-        String s = String.format ("%.1f", f);
+        String s = String.format (Locale.US, "%.1f", f);
         if (s.endsWith (".0")) s = s.substring (0, s.length () - 2);
         return s;
     }

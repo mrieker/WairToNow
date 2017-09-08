@@ -31,6 +31,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Collection;
 import java.util.LinkedList;
+import java.util.Locale;
 import java.util.TreeMap;
 
 /**
@@ -155,7 +156,7 @@ public class AdsbGpsRThread extends Thread implements Reporter {
             sb.append (batteryLevel);
         }
         if (lengthReceived > 0) {
-            sb.append (String.format ("; %,d bytes", lengthReceived));
+            sb.append (String.format (Locale.US, "; %,d bytes", lengthReceived));
         }
         synchronized (instanceCounts) {
             for (String type : instanceCounts.keySet ()) {

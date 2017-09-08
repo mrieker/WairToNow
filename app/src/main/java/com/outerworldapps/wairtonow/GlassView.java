@@ -554,7 +554,7 @@ public class GlassView
                 double tcDegRWBegToEnd = rw.trueHdg;
 
                 // nautical miles of needle deflection to the right
-                double nmDeflectRite = Lib.GCOffCourseDist (rw.begLat, rw.begLon, rw.endLat, rw.endLon, curLat, curLon);
+                double nmDeflectRite = Lib.GCOffCourseDist (rw.lat, rw.lon, rw.endLat, rw.endLon, curLat, curLon);
 
                 // draw the HSI needles in approach mode for this runway
                 DrawHSINeedles (canvas,                  // canvas to draw HSI needles on
@@ -566,7 +566,7 @@ public class GlassView
                         HSISCALEAPP);                    // full scale right deflection
 
                 // nautical miles from current position to runway beginning
-                double nmCurToRWBeg = Lib.LatLonDist (curLat, curLon, rw.begLat, rw.begLon);
+                double nmCurToRWBeg = Lib.LatLonDist (curLat, curLon, rw.lat, rw.lon);
 
                 // for this far from the runway, compute altitude above runway where glideslope center is
                 double nmGSAboveRWBeg = Math.tan (APPMODEGS / 180.0 * Math.PI) * nmCurToRWBeg;

@@ -23,4 +23,7 @@ package com.outerworldapps.wairtonow;
 public class PointD {
     public double x;
     public double y;
+
+    public PointD () { }
+    public PointD (double xx, double yy) { x = xx; y = yy; }
 }

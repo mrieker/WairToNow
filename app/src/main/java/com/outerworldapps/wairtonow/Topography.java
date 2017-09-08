@@ -21,12 +21,12 @@
 package com.outerworldapps.wairtonow;
 
 import android.util.Log;
+import android.util.SparseArray;
 
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.util.HashMap;
 
 /**
  * Contains topography info (ground elevation at a given lat/lon).
@@ -35,7 +35,7 @@ public class Topography {
     public final static String TAG = "WairToNow";
     public final static short INVALID_ELEV = (short) -1;
 
-    private final static HashMap<Integer,short[]> loadedTopos = new HashMap<> ();
+    private final static SparseArray<short[]> loadedTopos = new SparseArray<> ();
 
     private static String topoZipName;
     private static TopoZipFile topoZipFile;
@@ -81,8 +81,9 @@ public class Topography {
         int key = (ilatdeg << 16) + (ilondeg & 0xFFFF);
         short[] topos;
         synchronized (loadedTopos) {
-            if (loadedTopos.containsKey (key)) {
-                topos = loadedTopos.get (key);
+            int i = loadedTopos.indexOfKey (key);
+            if (i >= 0) {
+                topos = loadedTopos.valueAt (i);
             } else {
                 topos = ReadFile (ilatdeg, ilondeg);
                 loadedTopos.put (key, topos);

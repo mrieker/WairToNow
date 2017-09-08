@@ -62,6 +62,7 @@ public class OptionsView
     public  IntOption    chartOrientOption;
     public  IntOption    gpsUpdateOption;
     public  IntOption    latLonOption;
+    public  IntOption    circCatOption;
     private WairToNow    wairToNow;
 
     private final static int LLO_DDMMMM = 0;
@@ -97,14 +98,14 @@ public class OptionsView
         magTrueOption     = new DefAltOption ("Magnetic", "True");
         ktsMphOption      = new DefAltOption ("Kts", "MPH");
 
-        latLonOption      = new IntOption (
+        latLonOption      = new IntOption ("LatLon Format",
             new String[] {
                 "ddd" + (char)0xB0 + "mm'ss.ss\"",
                 "ddd" + (char)0xB0 + "mm.mmmm'",
                 "ddd.dddddd" + (char)0xB0 },
             new int[] { LLO_DDMMSS, LLO_DDMMMM, LLO_DDDDDD });
 
-        chartOrientOption = new IntOption (
+        chartOrientOption = new IntOption ("Chart Screen Lock",
             new String[] {
                 "Chart orientation Unlocked",
                 "Chart locked in Portrait",
@@ -114,7 +115,7 @@ public class OptionsView
                 ActivityInfo.SCREEN_ORIENTATION_PORTRAIT,
                 ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE });
 
-        chartTrackOption = new IntOption (
+        chartTrackOption = new IntOption ("Chart Up",
             new String[] {
                 "Course Up",
                 "Finger Rotate",
@@ -126,13 +127,25 @@ public class OptionsView
                 CTO_NORTHUP,
                 CTO_TRACKUP });
 
-        gpsUpdateOption = new IntOption (
+        gpsUpdateOption = new IntOption ("GPS Update Rate",
                 new String[] {
                         "GPS updates 10 per sec",
                         "GPS updates 3 per sec",
                         "GPS updates 1 per sec"
                 },
                 new int[] { 10, 3, 1 }
+        );
+
+        circCatOption = new IntOption ("Circling Category",
+                new String[] {
+                        "Circle Category A (1-90kt)",
+                        "Circle Category B (91-120kt)",
+                        "Circle Category C (121-140kt)",
+                        "Circle Category D (141-165kt)",
+                        "Circle Category E (166+kt)",
+                        "Circle Shading Disabled"
+                },
+                new int[] { 0, 1, 2, 3, 4, -1 }
         );
 
         LinearLayout ll1 = new LinearLayout (ctx);
@@ -153,6 +166,7 @@ public class OptionsView
         ll1.addView (latLonOption);
         ll1.addView (ktsMphOption);
         ll1.addView (gpsUpdateOption);
+        ll1.addView (circCatOption);
 
         ScrollView sv1 = new ScrollView (ctx);
         sv1.addView (ll1);
@@ -300,6 +314,7 @@ public class OptionsView
                     if (name.equals ("latlonAlt"))    latLonOption.setKey      (valu);
                     if (name.equals ("ktsMphAlt"))    ktsMphOption.setAlt      (valu.equals (boolTrue));
                     if (name.equals ("gpsUpdate"))    gpsUpdateOption.setKey   (valu);
+                    if (name.equals ("circCat"))      circCatOption.setKey     (valu);
                 }
             } finally {
                 csvreader.close ();
@@ -333,6 +348,7 @@ public class OptionsView
                 csvwriter.write ("latlonAlt,"    + latLonOption.getKey ()                                    + "\n");
                 csvwriter.write ("ktsMphAlt,"    + Boolean.toString (ktsMphOption.getAlt ())                 + "\n");
                 csvwriter.write ("gpsUpdate,"    + gpsUpdateOption.getKey ()                                 + "\n");
+                csvwriter.write ("circCat,"      + circCatOption.getKey ()                                   + "\n");
             } finally {
                 csvwriter.close ();
             }
@@ -479,24 +495,20 @@ public class OptionsView
     /**
      * Present a spinner selection of several integer values.
      */
-    public class IntOption extends RadioGroup implements RadioGroup.OnCheckedChangeListener {
+    public class IntOption extends TextArraySpinner implements TextArraySpinner.OnItemSelectedListener {
         private int selection;
         private int[] vals;
         private String[] keys;
 
-        public IntOption (String[] kkeys, int[] vvals)
+        public IntOption (String title, String[] kkeys, int[] vvals)
         {
             super (wairToNow);
             keys = kkeys;
             vals = vvals;
-            for (int i = 0; i < kkeys.length; i ++) {
-                RadioButton rb = new RadioButton (wairToNow);
-                rb.setText (kkeys[i]);
-                wairToNow.SetTextSize (rb);
-                rb.setId (i);
-                addView (rb);
-            }
-            setOnCheckedChangeListener (this);
+
+            super.setLabels (keys, null, null, null);
+            super.setOnItemSelectedListener (this);
+            super.setTitle (title);
         }
 
         public int getVal ()
@@ -514,18 +526,31 @@ public class OptionsView
             for (int i = 0; i < keys.length; i ++) {
                 if (key.equals (keys[i])) {
                     selection = i;
-                    check (i);
+                    super.setIndex (i);
                     return;
                 }
             }
             throw new RuntimeException ("unknown key " + key);
         }
 
-        @Override
-        public void onCheckedChanged (RadioGroup group, int checkedId)
+        @Override  // TextArraySpinner.OnItemSelectedListener
+        public boolean onItemSelected (View view, int index)
         {
-            selection = checkedId;
+            selection = index;
             WriteOptionsCsvFile ();
+            return true;
+        }
+
+        @Override  // TextArraySpinner.OnItemSelectedListener
+        public boolean onNegativeClicked (View view)
+        {
+            return false;
+        }
+
+        @Override  // TextArraySpinner.OnItemSelectedListener
+        public boolean onPositiveClicked (View view)
+        {
+            return false;
         }
     }
 

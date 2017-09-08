@@ -38,6 +38,7 @@ import java.io.InputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.HashSet;
+import java.util.Locale;
 
 /**
  * WiFi TCP GPS/ADS-B receiver.
@@ -414,7 +415,7 @@ public class WiFiTCPGpsAdsb extends GpsAdsbReceiver {
                         for (ReceiveStream rs : receiveStreams) {
                             total += rs.rthread.lengthReceived;
                         }
-                        text = String.format ("Connections: %d; Bytes: %,d", numcons, total);
+                        text = String.format (Locale.US, "Connections: %d; Bytes: %,d", numcons, total);
                         break;
                     }
                 }

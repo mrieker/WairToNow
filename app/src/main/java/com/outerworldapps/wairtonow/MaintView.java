@@ -2404,7 +2404,11 @@ public class MaintView
         {
             SQLiteDBs sqldb = SQLiteDBs.create (dbname);
             if (!sqldb.tableExists ("apdgeorefs")) {
-                sqldb.execSQL ("CREATE TABLE apdgeorefs (gr_icaoid TEXT NOT NULL, gr_state TEXT NOT NULL, gr_tfwa REAL NOT NULL, gr_tfwb REAL NOT NULL, gr_tfwc REAL NOT NULL, gr_tfwd REAL NOT NULL, gr_tfwe REAL NOT NULL, gr_tfwf REAL NOT NULL, gr_wfta REAL NOT NULL, gr_wftb REAL NOT NULL, gr_wftc REAL NOT NULL, gr_wftd REAL NOT NULL, gr_wfte REAL NOT NULL, gr_wftf REAL NOT NULL);");
+                sqldb.execSQL ("CREATE TABLE apdgeorefs (gr_icaoid TEXT NOT NULL, gr_state TEXT NOT NULL, " +
+                        "gr_tfwa REAL NOT NULL, gr_tfwb REAL NOT NULL, gr_tfwc REAL NOT NULL, " +
+                        "gr_tfwd REAL NOT NULL, gr_tfwe REAL NOT NULL, gr_tfwf REAL NOT NULL, " +
+                        "gr_wfta REAL NOT NULL, gr_wftb REAL NOT NULL, gr_wftc REAL NOT NULL, " +
+                        "gr_wftd REAL NOT NULL, gr_wfte REAL NOT NULL, gr_wftf REAL NOT NULL);");
                 sqldb.execSQL ("CREATE UNIQUE INDEX apdgeorefbyicaoid ON apdgeorefs (gr_icaoid);");
             }
 
@@ -2542,7 +2546,6 @@ public class MaintView
      * @param servername = name of csv file on server
      * @param expdate = IAP plate expiration date
      * @param statecode = state the plates belong to
-     * @throws IOException
      */
     private void DownloadMachineIAPGeoRefs2 (String servername, int expdate, String statecode)
             throws IOException
@@ -2562,10 +2565,11 @@ public class MaintView
         {
             SQLiteDBs sqldb = SQLiteDBs.create (dbname);
             if (! sqldb.tableExists ("iapgeorefs2")) {
+                // gr_circ added dynamically in PlateView.java
                 sqldb.execSQL ("CREATE TABLE iapgeorefs2 (gr_icaoid TEXT NOT NULL, gr_state TEXT NOT NULL, gr_plate TEXT NOT NULL, " +
                         "gr_clat REAL NOT NULL, gr_clon REAL NOT NULL, gr_stp1 REAL NOT NULL, gr_stp2 REAL NOT NULL, " +
                         "gr_rada REAL NOT NULL, gr_radb REAL NOT NULL, gr_tfwa REAL NOT NULL, gr_tfwb REAL NOT NULL, " +
-                        "gr_tfwc REAL NOT NULL, gr_tfwd REAL NOT NULL, gr_tfwe REAL NOT NULL, gr_tfwf);");
+                        "gr_tfwc REAL NOT NULL, gr_tfwd REAL NOT NULL, gr_tfwe REAL NOT NULL, gr_tfwf REAL NOT NULL);");
                 sqldb.execSQL ("CREATE INDEX iapgeorefbyplate2 ON iapgeorefs2 (gr_icaoid,gr_plate);");
             }
 

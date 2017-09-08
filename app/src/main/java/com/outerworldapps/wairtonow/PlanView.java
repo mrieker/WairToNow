@@ -22,9 +22,13 @@ package com.outerworldapps.wairtonow;
 
 import android.annotation.SuppressLint;
 import android.app.AlertDialog;
+import android.content.DialogInterface;
+import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.database.Cursor;
+import android.net.Uri;
 import android.text.InputType;
+import android.util.Log;
 import android.util.TypedValue;
 import android.view.View;
 import android.widget.Button;
@@ -34,12 +38,21 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.Locale;
 import java.util.TreeMap;
 
+import static android.widget.LinearLayout.VERTICAL;
+
 @SuppressLint("ViewConstructor")
 public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
-    private static final long pretendInterval = 1000;
+    private final static String TAG = "WairToNow";
+    private final static long pretendInterval = 1000;
 
     private boolean displayOpen;
     private boolean pretendEnabled;
@@ -251,7 +264,7 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
          * Layout the screen and display it.
          */
         linearLayout = new LinearLayout (ctx);
-        linearLayout.setOrientation (LinearLayout.VERTICAL);
+        linearLayout.setOrientation (VERTICAL);
 
         Reset ();
 
@@ -329,6 +342,18 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
 
         linearLayout.removeAllViews ();
 
+        // Links ...
+
+        linearLayout.addView (TextString ("----------------------------"), llpwc);
+        linearLayout.addView (TextString ("Opens page in web browser."), llpwc);
+        linearLayout.addView (TextString ("Internet access required."), llpwc);
+        TreeMap<String,String> alllines = ReadWholeLinkFile ();
+        for (String title : alllines.keySet ()) {
+            linearLayout.addView (new OpenLinkButton (title, alllines.get (title)), llpwc);
+        }
+        linearLayout.addView (TextString ("Long-click above button to customize."), llpwc);
+        linearLayout.addView (new AddLinkButton (), llpwc);
+
         // Pretend ...
 
         linearLayout.addView (tp0, llpwc);
@@ -357,6 +382,189 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
         tv.setText (str);
         wairToNow.SetTextSize (tv);
         return tv;
+    }
+
+    /**
+     * Click on the link button and it opens the corresponding web page.
+     * Long click allows editing link button.
+     */
+    private class OpenLinkButton extends Button implements OnClickListener, OnLongClickListener {
+        private String link;
+        private String title;
+
+        public OpenLinkButton (String title, String link)
+        {
+            super (wairToNow);
+
+            this.link = link;
+            this.title = title;
+
+            setOnClickListener (this);
+            setOnLongClickListener (this);
+            setText (title);
+            wairToNow.SetTextSize (this);
+        }
+
+        @Override
+        public void onClick (View v)
+        {
+            try {
+                Intent intent = new Intent (Intent.ACTION_VIEW);
+                intent.setData (Uri.parse (link));
+                wairToNow.startActivity (intent);
+            } catch (Throwable e) {
+                AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
+                adb.setTitle ("Error fetching " + title + " web page " + link);
+                adb.setMessage (e.getMessage ());
+                adb.create ().show ();
+            }
+        }
+
+        @Override
+        public boolean onLongClick (View v)
+        {
+            final EditText editTitle = new EditText (wairToNow);
+            editTitle.setSingleLine ();
+            editTitle.setText (title);
+
+            final EditText editLink  = new EditText (wairToNow);
+            editLink.setSingleLine ();
+            editLink.setText (link);
+
+            LinearLayout ll = new LinearLayout (wairToNow);
+            ll.setOrientation (VERTICAL);
+            ll.addView (editTitle);
+            ll.addView (editLink);
+
+            AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
+            adb.setTitle ("Customize " + title);
+            adb.setView (ll);
+
+            adb.setPositiveButton ("Apply", new DialogInterface.OnClickListener () {
+                @Override
+                public void onClick (DialogInterface dialogInterface, int i) {
+                    TreeMap<String,String> alllines = ReadWholeLinkFile ();
+                    alllines.remove (title);
+                    alllines.put (editTitle.getText ().toString (), editLink.getText ().toString ());
+                    WriteWholeLinkFile (alllines);
+                    Reset ();
+                }
+            });
+
+            adb.setNeutralButton ("Cancel", null);
+
+            adb.setNegativeButton ("Delete", new DialogInterface.OnClickListener () {
+                @Override
+                public void onClick (DialogInterface dialogInterface, int i) {
+                    TreeMap<String,String> alllines = ReadWholeLinkFile ();
+                    alllines.remove (title);
+                    WriteWholeLinkFile (alllines);
+                    Reset ();
+                }
+            });
+
+            adb.show ();
+
+            return true;
+        }
+    }
+
+    /**
+     * Click on add link button allows addition of a new button.
+     */
+    private class AddLinkButton extends Button implements OnClickListener {
+        @SuppressLint("SetTextI18n")
+        public AddLinkButton ()
+        {
+            super (wairToNow);
+
+            setOnClickListener (this);
+            setText ("Add Button");
+            wairToNow.SetTextSize (this);
+        }
+
+        @Override
+        public void onClick (View v)
+        {
+            final EditText editTitle = new EditText (wairToNow);
+            editTitle.setSingleLine ();
+            editTitle.setHint ("button title");
+
+            final EditText editLink  = new EditText (wairToNow);
+            editLink.setSingleLine ();
+            editLink.setHint ("web page link");
+
+            LinearLayout ll = new LinearLayout (wairToNow);
+            ll.setOrientation (VERTICAL);
+            ll.addView (editTitle);
+            ll.addView (editLink);
+
+            AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
+            adb.setTitle ("Add Button");
+            adb.setView (ll);
+
+            adb.setPositiveButton ("Apply", new DialogInterface.OnClickListener () {
+                @Override
+                public void onClick (DialogInterface dialogInterface, int i) {
+                    TreeMap<String,String> alllines = ReadWholeLinkFile ();
+                    alllines.put (editTitle.getText ().toString (), editLink.getText ().toString ());
+                    WriteWholeLinkFile (alllines);
+                    Reset ();
+                }
+            });
+
+            adb.setNeutralButton ("Cancel", null);
+
+            adb.show ();
+        }
+    }
+
+    /**
+     * Read link buttons file.
+     * If not present, fill in default buttons.
+     */
+    private static TreeMap<String,String> ReadWholeLinkFile ()
+    {
+        TreeMap<String,String> alllines = new TreeMap<> ();
+        try {
+            BufferedReader br = new BufferedReader (new FileReader (WairToNow.dbdir + "/linkbuttons.txt"), 4096);
+            try {
+                for (String line; (line = br.readLine ()) != null;) {
+                    String[] parts = line.split (",,,,,");
+                    alllines.put (parts[0], parts[1]);
+                }
+            } finally {
+                br.close ();
+            }
+        } catch (FileNotFoundException fnfe) {
+            alllines.put ("ADDS - Aviation Weather", "https://www.aviationweather.gov/adds/");
+            alllines.put ("AirNav - Fuel Prices", "https://www.airnav.com/fuel/local.html");
+            alllines.put ("DUATS - File Flight Plan", "https://www.duats.com/index.php?mobile=true");
+            alllines.put ("SkyVector - Planning", "https://skyvector.com/");
+        } catch (Exception e) {
+            Log.w (TAG, "error reading linkbuttons.txt", e);
+        }
+        return alllines;
+    }
+
+    /**
+     * Write modified link buttons to text file.
+     */
+    private static void WriteWholeLinkFile (TreeMap<String,String> alllines)
+    {
+        try {
+            BufferedWriter bw = new BufferedWriter (new FileWriter (WairToNow.dbdir + "/linkbuttons.txt.tmp"));
+            try {
+                for (String title : alllines.keySet ()) {
+                    bw.write (title + ",,,,," + alllines.get (title) + "\n");
+                }
+            } finally {
+                bw.close ();
+            }
+            Lib.RenameFile (WairToNow.dbdir + "/linkbuttons.txt.tmp", WairToNow.dbdir + "/linkbuttons.txt");
+        } catch (IOException ioe) {
+            Log.w (TAG, "error writing linkbuttons.txt", ioe);
+        }
     }
 
     /**

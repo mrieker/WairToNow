@@ -71,6 +71,8 @@ public abstract class Waypoint {
     public int    magvar = VAR_UNKNOWN;  // magnetic variation (+=West; -=East)
     public String ident;                 // for airports, ICAO identifier
 
+    private String typeabbr;
+
     private final static String[] columns_apt_desc = new String[] { "apt_desc" };
     private final static String[] columns_kw_rowid = new String[] { "kw_rowid" };
     private final static String[] columns_pl_descrip_pl_filename = new String[] { "pl_descrip", "pl_filename" };
@@ -663,6 +665,16 @@ public abstract class Waypoint {
     // eg, "AIRPORT", "NAVAID:NDB", "LOCALIZER:ILS/DME", "FIX", etc.
     public abstract String GetType ();
 
+    // type string used on Street tiles
+    public String GetTypeAbbr ()
+    {
+        if (typeabbr == null) {
+            String type = "(" + GetType ().toLowerCase (Locale.US) + ")";
+            typeabbr = type.replace ("(localizer:", "(").replace ("(navaid:", "(");
+        }
+        return typeabbr;
+    }
+
     // full-page description
     public void GetDetailViews (WaypointView wpv, LinearLayout ll)
     {
@@ -838,6 +850,7 @@ public abstract class Waypoint {
         public  final String state;      // eg, "MA"
 
         private HashMap<String,Runway> runways;
+        private LinkedList<Runway> runwayPairs;
         private String details;
         private String menuKey;
 
@@ -1012,6 +1025,8 @@ public abstract class Waypoint {
             wtn.maintView.StateDwnld (state, done);
         }
 
+        // get list of all runways for this airport
+        // gets separate entries for each direction
         public HashMap<String,Runway> GetRunways ()
         {
             if (runways == null) {
@@ -1046,6 +1061,26 @@ public abstract class Waypoint {
                 }
             }
             return runways;
+        }
+
+        // get list of runways for this airport
+        // just gives one entry per pair
+        public LinkedList<Runway> GetRunwayPairs ()
+        {
+            if (runwayPairs == null) {
+                LinkedList<Runway> ll = new LinkedList<> ();
+                for (Runway rwy : GetRunways ().values ()) {
+                    for (Runway r : ll) {
+                        if ((r.lat == rwy.endLat) && (r.lon == rwy.endLon) && (rwy.lat == r.endLat) && (rwy.lon == r.endLon)) {
+                            rwy = null;
+                            break;
+                        }
+                    }
+                    if (rwy != null) ll.addLast (rwy);
+                }
+                runwayPairs = ll;
+            }
+            return runwayPairs;
         }
 
         /**
@@ -1279,11 +1314,9 @@ public abstract class Waypoint {
                 "rwy_truehdg", "rwy_tdze", "rwy_beglat", "rwy_beglon", "rwy_endlat", "rwy_endlon" };
 
         public Airport airport;
-        public String aptid;    // faa ident
-        public String number;   // eg, "02L"
-        public int    truehdg;  // published
-        public double  begLat;
-        public double  begLon;
+        public String  aptid;    // faa ident
+        public String  number;   // eg, "02L"
+        public int     truehdg;  // published
         public double  endLat;
         public double  endLon;
         public double  trueHdg;  // computed
@@ -1296,13 +1329,13 @@ public abstract class Waypoint {
             aptid   = result.getString (0);
             number  = result.getString (1);
             elev    = result.isNull (3) ? apt.elev : result.getDouble (3);
-            begLat  = result.getDouble (4);
-            begLon  = result.getDouble (5);
+            lat     = result.getDouble (4);
+            lon     = result.getDouble (5);
             endLat  = result.getDouble (6);
             endLon  = result.getDouble (7);
             airport = apt;
 
-            trueHdg = Lib.LatLonTC (begLat, begLon, endLat, endLon);
+            trueHdg = Lib.LatLonTC (lat, lon, endLat, endLon);
             if (result.isNull (2)) {
                 truehdg = (int) Math.round (trueHdg);
                 if (truehdg <= 0) truehdg += 360;
@@ -1312,8 +1345,6 @@ public abstract class Waypoint {
 
             // set up Waypoint values
             ident = "RW" + number;
-            lat = begLat;
-            lon = begLon;
         }
 
         @Override

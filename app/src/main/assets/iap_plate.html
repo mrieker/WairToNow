@@ -4,7 +4,15 @@
 
         <P>The plates are the images as provided by the FAA.  Be sure to
             validate that the ones you will be using are current and correct
-            before using them in flight.
+            before using them in flight.</P>
+
+        <UL>
+            <LI><A HREF="#cifp">CIFP</A></LI>
+            <LI><A HREF="#circling">Circling</A></LI>
+            <LI><A HREF="#dme">DME</A></LI>
+            <LI><A HREF="#georefing">Georeferencing</A></LI>
+            <LI><A HREF="#timer">Timer</A></LI>
+        </UL>
 
         <P><FONT COLOR=RED>Always be skeptical regarding any information provided
             by WairToNow.  Accept it only if and when it is confirmed by your
@@ -13,14 +21,14 @@
             these plates, <B><I>immediately execute your missed approach
             instructions!</I></B></FONT></P>
 
-        <H3>Timer</H3>
+        <A NAME="timer"></A><H3>Timer</H3>
         <P>In the upper-right corner is a yellow triangle button.  Clicking
             on it will start a count-up timer that can be of use during a
             non-precision approach.  To reset the time to 0:00, click the
             numbers and it will collapse back to the triangle button, then
             click the button again to start the counter back up.</P>
 
-        <H3>DME</H3>
+        <A NAME="dme"></A><H3>DME</H3>
         <P>The button in the lower-left corner can be used to obtain DME and radial
             information.  Needless to say, the DME and radial information is calculated
             by using the latest GPS position and the lat/lon of the waypoint
@@ -53,7 +61,7 @@
             or the triangle button.  You may select as many waypoints as you like,
             provided there is sufficient area on the screen to display them.</P>
 
-        <H3>CIFP</H3>
+        <A NAME="cifp"></A><H3>CIFP</H3>
         <P>The yellow button in the lower right corner displays FAA-provided Coded Instrument
             Flight Procedure information.  In a nutshell, it steps you through the approach.</P>
         <P>There are two ways to select the IAF for an approach.  One is using the buttons that
@@ -136,20 +144,52 @@
             discontinue use of the CIFP information!</I>  A long click on the yellow button or
             the textual display will remove the dots and text from the display.</FONT></P>
         <P><IMG WIDTH=400 HEIGHT=640 SRC="cifp-sample-400.png"></P>
-        <H3>Georeferencing</H3>
-        <P>The FAA is providing georeference information for most approach procedures.
-            WairToNow will attempt to use this information where available.  It will be
-            indicated by the airport runways being overdrawn with magenta lines for the
-            first ten seconds of display.  If the magenta
+
+        <A NAME="georefing"></A><H3>Georeferencing</H3>
+        <P><IMG WIDTH=128 HEIGHT=128 SRC="iap_rwy_verify_example.png" ALIGN=LEFT>
+            The FAA is providing georeference information for most approach procedures.
+            WairToNow will attempt to use this information where available to do things like
+            identify the aircraft's current position on the plate.  The presence of the georeference
+            information will be indicated by the airport runways being overdrawn with magenta
+            lines for the first ten seconds of display.  If the magenta
             lines are in the correct position, ie, they overlay the black FAA-drawn
             runway lines, the georeference information is most likely valid.  Note that
             all runways may not be lined over, but some are.  The important thing is that
             for those that are lined over, the lines are in the correct position.  The
-            positions do not have to be exact but should be very close.
-            <BR><IMG WIDTH=128 HEIGHT=128 SRC="iap_rwy_verify_example.png"></P>
+            positions do not have to be exact but should be very close.</P>
         <P>Note that not everything on the plate is drawn to scale.  Many navaids and intersections
-            used for the approach would be off the chart if drawn to scale.  Such a condition is
-            <I>usually</I> indicated on the chart but sometimes is not.  <I>ALWAYS use your
+            used for the approach would be off the plate if drawn to scale.  Such a condition is
+            <I>usually</I> indicated on the plate but sometimes is not.  <I>ALWAYS use your
             aircraft's approved navigation systems to verify your position!</I></P>
+
+        <A NAME="circling"></A><H3>Circling</H3>
+        <P><IMG WIDTH=160 HEIGHT=160 SRC="circle_A.png" ALIGN=LEFT>
+            The plates have a shaded area surrounding the airport indicating the
+            circling approach protected area.  The size shown is based on the circling
+            category selected on the <A HREF="p_options.html">Options</A> page.  Again,
+            <I>be skeptical</I> of the area indicated and accept it only after you have
+            verified it, ie, it looks of reasonable shape and radius compared to runway
+            length.</P>
+        <P>For newer plates with a <IMG SRC="circletag.png"> tag next to the word <TT>CIRCLING</TT>
+            in the table indicating circling MDA, the circling radius (in nm) from runway endpoints
+            based on altitude (in ft) and speed category can be found in this table:</P>
+        <TABLE>
+            <TR><TH>Alt MSL  </TH><TH>Cat A</TH><TH>Cat B</TH><TH>Cat C</TH><TH>Cat D</TH><TH>Cat E</TH></TR>
+            <TR><TH>   1-1000</TH><TD ALIGN=CENTER>1.3</TD><TD ALIGN=CENTER>1.7</TD><TD ALIGN=CENTER>2.7</TD><TD ALIGN=CENTER>3.6</TD><TD ALIGN=CENTER>4.5</TD></TR>
+            <TR><TH>1001-3000</TH><TD ALIGN=CENTER>1.3</TD><TD ALIGN=CENTER>1.8</TD><TD ALIGN=CENTER>2.8</TD><TD ALIGN=CENTER>3.7</TD><TD ALIGN=CENTER>4.6</TD></TR>
+            <TR><TH>3001-5000</TH><TD ALIGN=CENTER>1.3</TD><TD ALIGN=CENTER>1.8</TD><TD ALIGN=CENTER>2.9</TD><TD ALIGN=CENTER>3.8</TD><TD ALIGN=CENTER>4.8</TD></TR>
+            <TR><TH>5001-7000</TH><TD ALIGN=CENTER>1.3</TD><TD ALIGN=CENTER>1.9</TD><TD ALIGN=CENTER>3.0</TD><TD ALIGN=CENTER>4.0</TD><TD ALIGN=CENTER>5.0</TD></TR>
+            <TR><TH>7001-9000</TH><TD ALIGN=CENTER>1.4</TD><TD ALIGN=CENTER>2.0</TD><TD ALIGN=CENTER>3.2</TD><TD ALIGN=CENTER>4.2</TD><TD ALIGN=CENTER>5.3</TD></TR>
+            <TR><TH>9001+    </TH><TD ALIGN=CENTER>1.4</TD><TD ALIGN=CENTER>2.1</TD><TD ALIGN=CENTER>3.3</TD><TD ALIGN=CENTER>4.4</TD><TD ALIGN=CENTER>5.5</TD></TR>
+        </TABLE>
+        <P>Note:  The above altitudes are supposed to be based on approach MDA for the category
+            but the app uses the airport elevation + 200 ft instead (it assumes no MDA could
+            possibly be lower than 200 ft AGL).</P>
+        <P>For older plates (ie, they do not have the <IMG SRC="circletag.png"> tag), this table
+            applies, with no increases in radius for increases in altitude:</P>
+        <TABLE>
+            <TR><TH>Cat A</TH><TH>Cat B</TH><TH>Cat C</TH><TH>Cat D</TH><TH>Cat E</TH></TR>
+            <TR><TD ALIGN=CENTER>1.3</TD><TD ALIGN=CENTER>1.5</TD><TD ALIGN=CENTER>1.7</TD><TD ALIGN=CENTER>2.3</TD><TD ALIGN=CENTER>4.5</TD></TR>
+        </TABLE>
     </BODY>
 </HTML>

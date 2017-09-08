@@ -21,6 +21,7 @@
 package com.outerworldapps.wairtonow;
 
 import android.annotation.SuppressLint;
+import android.content.ContentValues;
 import android.content.pm.ActivityInfo;
 import android.database.Cursor;
 import android.graphics.Bitmap;
@@ -29,6 +30,8 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffXfermode;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.os.SystemClock;
@@ -43,6 +46,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -59,6 +63,26 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
     private final static int MAXZOOMIN = 16;
     private final static int MAXZOOMOUT = 8;
 
+    // https://www.nbaa.org/ops/airspace/issues/20130418-faa-expands-size-of-protected-airspace-for-circling-approaches.php
+    // https://aviation.stackexchange.com/questions/973/when-conducting-a-circling-approach-how-close-do-you-have-to-stay-to-the-airpor
+    private final static int[][] newcircrad10ths = new int[][] {
+        new int[] { 13, 17, 27, 36, 45 },   //    0-1000 ft msl
+        new int[] { 13, 18, 28, 37, 46 },   // 1001-3000 ft msl
+        new int[] { 13, 18, 29, 38, 48 },   // 3001-5000 ft msl
+        new int[] { 13, 19, 30, 40, 50 },   // 5001-7000 ft msl
+        new int[] { 14, 20, 32, 42, 53 },   // 7001-9000 ft msl
+        new int[] { 14, 21, 33, 44, 55 }    // 9001+     ft msl
+    };
+    private final static int[] oldcircrad10ths = new int[] {
+                    13, 15, 17, 23, 45
+    };
+
+    private final static byte CRT_UNKN = 0;  // circling radius type unknown
+    private final static byte CRT_NEW  = 1;  // circling radius type new style (newcircrad10ths)
+    private final static byte CRT_OLD  = 2;  // circling radius type old style (oldcircrad10ths)
+    private final static Object shadeCirclingAreaLock = new Object ();
+    private static ShadeCirclingAreaThread shadeCirclingAreaThread;
+
     private boolean full;
     private int expdate;                // plate expiration date, eg, 20150917
     private int screenOrient;
@@ -71,7 +95,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
 
     private final static String[] columns_apdgeorefs1 = new String[] { "gr_wfta", "gr_wftb", "gr_wftc", "gr_wftd", "gr_wfte", "gr_wftf" };
     private final static String[] columns_georefs21 = new String[] { "gr_clat", "gr_clon", "gr_stp1", "gr_stp2", "gr_rada", "gr_radb",
-            "gr_tfwa", "gr_tfwb", "gr_tfwc", "gr_tfwd", "gr_tfwe", "gr_tfwf" };
+            "gr_tfwa", "gr_tfwb", "gr_tfwc", "gr_tfwd", "gr_tfwe", "gr_tfwf", "gr_circ" };
 
     public PlateView (WaypointView wv, String fn, Waypoint.Airport aw, String pd, int ex, boolean fu)
     {
@@ -183,9 +207,9 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
      */
     private abstract class PlateImage extends View {
         private ADVPanAndZoom advPanAndZoom;
-        private double         unzoomedCanvasWidth;
-        private Rect          bitmapRect = new Rect ();    // biggest centered square completely filled by bitmap
-        private RectF         canvasRect = new RectF ();   // initially biggest centered square completely filled by display area
+        private double        unzoomedCanvasWidth;
+        protected Rect        bitmapRect = new Rect ();    // biggest centered square completely filled by bitmap
+        protected RectF       canvasRect = new RectF ();   // initially biggest centered square completely filled by display area
                                                            // ... but gets panned/zoomed by user
 
         protected PlateImage ()
@@ -425,6 +449,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         protected double xfmwfta, xfmwftb, xfmwftc, xfmwftd, xfmwfte, xfmwftf;
         protected double mPerBmpPix;
 
+        private Paint  rwclPaint;
         private PointD canPoint   = new PointD ();
         private RectF  canTmpRect = new RectF  ();
 
@@ -598,6 +623,31 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         {
             return xfmtfwa * bmx + xfmtfwc * bmy + xfmtfwe;
         }
+
+        /**
+         * Draw lines down the centerline of runways.
+         */
+        protected void DrawRunwayCenterlines (Canvas canvas)
+        {
+            if (rwclPaint == null) {
+                rwclPaint = new Paint ();
+                rwclPaint.setColor (Color.MAGENTA);
+                rwclPaint.setStrokeWidth (wairToNow.thinLine / 2.0F);
+                rwclPaint.setStyle (Paint.Style.FILL_AND_STROKE);
+            }
+
+            for (Waypoint.Runway rwy : airport.GetRunwayPairs ()) {
+                double begBmpX = LatLon2BitmapX (rwy.lat, rwy.lon);
+                double begBmpY = LatLon2BitmapY (rwy.lat, rwy.lon);
+                double endBmpX = LatLon2BitmapX (rwy.endLat, rwy.endLon);
+                double endBmpY = LatLon2BitmapY (rwy.endLat, rwy.endLon);
+                double begCanX = BitmapX2CanvasX (begBmpX);
+                double begCanY = BitmapY2CanvasY (begBmpY);
+                double endCanX = BitmapX2CanvasX (endBmpX);
+                double endCanY = BitmapY2CanvasY (endBmpY);
+                canvas.drawLine ((float) begCanX, (float) begCanY, (float) endCanX, (float) endCanY, rwclPaint);
+            }
+        }
     }
 
     /**
@@ -605,17 +655,13 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
      */
     private class APDPlateImage extends GRPlateImage {
         private Bitmap bitmap;    // single plate page
-        private Paint rwPaint;
+        private long   plateLoadedUptime;
         private String filename;  // name of gif on flash, without ".p<pageno>" suffix
 
         public APDPlateImage (String fn)
         {
             filename = fn;
-
-            rwPaint = new Paint ();
-            rwPaint.setColor (Color.MAGENTA);
-            rwPaint.setStrokeWidth (wairToNow.thinLine / 2.0F);
-            rwPaint.setStyle (Paint.Style.FILL_AND_STROKE);
+            plateLoadedUptime = SystemClock.uptimeMillis ();
 
             /*
              * Get georeference points downloaded from server.
@@ -682,18 +728,8 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
              * Also draw runway centerlines on airport diagrams
              * so user can easily verify georeference info.
              */
-            if (DrawLocationArrow (canvas, true)) {
-                for (Waypoint.Runway rwy : airport.GetRunways ().values ()) {
-                    double begBmX = LatLon2BitmapX (rwy.begLat, rwy.begLon);
-                    double begBmY = LatLon2BitmapY (rwy.begLat, rwy.begLon);
-                    double endBmX = LatLon2BitmapX (rwy.endLat, rwy.endLon);
-                    double endBmY = LatLon2BitmapY (rwy.endLat, rwy.endLon);
-                    double begCanX = BitmapX2CanvasX (begBmX);
-                    double begCanY = BitmapY2CanvasY (begBmY);
-                    double midCanX = (BitmapX2CanvasX (endBmX) + begCanX) / 2.0;
-                    double midCanY = (BitmapY2CanvasY (endBmY) + begCanY) / 2.0;
-                    canvas.drawLine ((float) begCanX, (float) begCanY, (float) midCanX, (float) midCanY, rwPaint);
-                }
+            if (DrawLocationArrow (canvas, true) && (SystemClock.uptimeMillis () - plateLoadedUptime < 10000)) {
+                DrawRunwayCenterlines (canvas);
             }
 
             if (full) wairToNow.drawGPSAvailable (canvas, this);
@@ -794,9 +830,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                 bmpX  = LatLon2BitmapX (wp.lat, wp.lon);
                 bmpY  = LatLon2BitmapY (wp.lat, wp.lon);
                 ident = wp.ident;
-                type  = "(" + wp.GetType ().toLowerCase (Locale.US) + ")";
-                type  = type.replace ("(localizer:", "(");
-                type  = type.replace ("(navaid:", "(");
+                type  = wp.GetTypeAbbr ();
             }
         }
 
@@ -1157,32 +1191,26 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             }
         }
 
-        private Bitmap      bitmap;                 // single plate page
-        private boolean     hasDMEArcs;
-        private double      bitmapLat, bitmapLon;
-        private double      bmxy2llx = Double.NaN;
-        private double      bmxy2lly = Double.NaN;
-        private Lambert     lccmap;                 // non-null: FAA-provided georef data
-        private LatLon      bmxy2latlon = new LatLon ();
+        private Bitmap       fgbitmap;              // single plate page
+        private boolean      hasDMEArcs;
+        private byte         circradtype;
+        private double       bitmapLat, bitmapLon;
+        private double       bmxy2llx = Double.NaN;
+        private double       bmxy2lly = Double.NaN;
+        private int          circradopt;
+        private Lambert      lccmap;                // non-null: FAA-provided georef data
+        private LatLon       bmxy2latlon = new LatLon ();
         private LinkedList<DMEArc> dmeArcs;
-        private long        plateLoadedUptime;
-        private Paint       runwayPaint;            // paints georef stuff on plate image
-        public  PlateCIFP   plateCIFP;
-        private PlateDME    plateDME;
-        private PlateTimer  plateTimer;
-        private PointD      bitmapPt = new PointD ();
-        private String      filename;               // name of gifs on flash, without ".p<pageno>" suffix
+        private long         plateLoadedUptime;
+        public  PlateCIFP    plateCIFP;
+        private PlateDME     plateDME;
+        private PlateTimer   plateTimer;
+        private PointD       bitmapPt = new PointD ();
+        private String       filename;              // name of gifs on flash, without ".p<pageno>" suffix
 
         public IAPPlateImage (String fn)
         {
             filename = fn;
-
-            runwayPaint = new Paint ();
-            runwayPaint.setColor (Color.MAGENTA);
-            runwayPaint.setStrokeWidth (wairToNow.thinLine / 2.0F);
-            runwayPaint.setStyle (Paint.Style.FILL_AND_STROKE);
-            runwayPaint.setTextAlign (Paint.Align.CENTER);
-            runwayPaint.setTextSize (wairToNow.textSize);
 
             plateDME   = new PlateDME (wairToNow, this, airport.ident, plateid);
             plateTimer = new PlateTimer (wairToNow, this);
@@ -1244,6 +1272,9 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             String machinedbname = "plates_" + expdate + ".db";
             SQLiteDBs machinedb = SQLiteDBs.create (machinedbname);
             if (machinedb.tableExists ("iapgeorefs2")) {
+                if (!machinedb.columnExists ("iapgeorefs2", "gr_circ")) {
+                    machinedb.execSQL ("ALTER TABLE iapgeorefs2 ADD COLUMN gr_circ INTEGER NOT NULL DEFAULT " + CRT_UNKN);
+                }
                 Cursor result = machinedb.query ("iapgeorefs2", columns_georefs21,
                         "gr_icaoid=? AND gr_plate=?", grkey,
                         null, null, null, null);
@@ -1265,6 +1296,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                                     result.getDouble (11)
                                 }
                         );
+                        circradtype = (byte) result.getInt (12);
                     }
                 } finally {
                     result.close ();
@@ -1277,9 +1309,9 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
          */
         public void CloseBitmaps ()
         {
-            if (bitmap != null) {
-                bitmap.recycle ();
-                bitmap = null;
+            if (fgbitmap != null) {
+                fgbitmap.recycle ();
+                fgbitmap = null;
             }
         }
 
@@ -1309,35 +1341,39 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             /*
              * Get single page's bitmap.
              */
-            if (bitmap == null) {
-                bitmap = OpenFirstPage (filename);
-                if (hasDMEArcs && (bitmap != null)) {
+            if (fgbitmap == null) {
+
+                // get original page
+                Bitmap bm = OpenFirstPage (filename);
+                if (bm == null) return;
+                if (bm.isMutable ()) {
+                    fgbitmap = bm;
+                } else {
+                    fgbitmap = bm.copy (Bitmap.Config.ARGB_8888, true);
+                    bm.recycle ();
+                }
+
+                // add DME arcs if any defined
+                if (hasDMEArcs) {
                     DrawDMEArcsOnBitmap ();
                 }
-                if (bitmap == null) return;
+
+                // shade circling area
+                if (lccmap != null) {
+                    ShadeCirclingArea ();
+                }
             }
 
             /*
              * Display bitmap to canvas.
              */
-            ShowSinglePage (canvas, bitmap);
+            ShowSinglePage (canvas, fgbitmap);
 
             /*
              * Draw runways if FAA-provided georef present.
              */
             if ((lccmap != null) && (SystemClock.uptimeMillis () - plateLoadedUptime < 10000)) {
-                HashMap<String,Waypoint.Runway> runways = airport.GetRunways ();
-                for (Waypoint.Runway runway : runways.values ()) {
-                    double begbmx = LatLon2BitmapX (runway.lat, runway.lon);
-                    double begbmy = LatLon2BitmapY (runway.lat, runway.lon);
-                    double endbmx = LatLon2BitmapX (runway.endLat, runway.endLon);
-                    double endbmy = LatLon2BitmapY (runway.endLat, runway.endLon);
-                    double begx = BitmapX2CanvasX (begbmx);
-                    double begy = BitmapY2CanvasY (begbmy);
-                    double endx = BitmapX2CanvasX (endbmx);
-                    double endy = BitmapY2CanvasY (endbmy);
-                    canvas.drawLine ((float) begx, (float) begy, (float) endx, (float) endy, runwayPaint);
-                }
+                DrawRunwayCenterlines (canvas);
             }
 
             /*
@@ -1426,11 +1462,9 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
          */
         private void DrawDMEArcsOnBitmap ()
         {
-            // draw DME arc(s) on a mutable copy of bitmap
-            Bitmap bm = bitmap.copy (Bitmap.Config.RGB_565, true);
-            Canvas bmcan = new Canvas (bm);
+            // draw DME arc(s) on bitmap
+            Canvas bmcan = new Canvas (fgbitmap);
             for (DMEArc dmeArc : dmeArcs) dmeArc.drawIt (bmcan);
-            bitmap = bm;
 
             // if we don't already have an image file, create one
             File csvfile = new File (WairToNow.dbdir + "/dmearcs.txt");
@@ -1441,7 +1475,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                     File tmpfile = new File (imgfile.getPath () + ".tmp");
                     FileOutputStream tmpouts = new FileOutputStream (tmpfile);
                     try {
-                        if (!bitmap.compress (Bitmap.CompressFormat.PNG, 0, tmpouts)) {
+                        if (!fgbitmap.compress (Bitmap.CompressFormat.PNG, 0, tmpouts)) {
                             throw new IOException ("bitmap.compress failed");
                         }
                     } finally {
@@ -1455,6 +1489,279 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                     Lib.Ignored (imgfile.delete ());
                 }
             }
+        }
+
+        /**
+         * Set up fgbitmap with circling area shaded in.
+         */
+        private void ShadeCirclingArea ()
+        {
+            // get speed category selected by user
+            // don't do anything more if user has disabled circling area shading
+            circradopt = wairToNow.optionsView.circCatOption.getVal ();
+            if (circradopt < 0) return;
+
+            // fill in shading in background thread
+            // make sure we only have one thread so we don't run out of memory
+            synchronized (shadeCirclingAreaLock) {
+                ShadeCirclingAreaThread scat = shadeCirclingAreaThread;
+                if (scat == null) {
+                    shadeCirclingAreaThread = scat = new ShadeCirclingAreaThread ();
+                    scat.start ();
+                }
+                scat.nextPlateImage = this;
+            }
+        }
+
+        /**
+         * This runs in the ShadeCirclingAreaThread to scan bitmap for the inverse [C] if necessary
+         * then shade in the circling area on the bitmap.
+         */
+        @SuppressWarnings("ConstantConditions")  // method too complex
+        public void ShadeCirclingAreaWork ()
+        {
+            try {
+
+                // maybe need to compute circling area type
+                if (circradtype == CRT_UNKN) {
+
+                    // read bitmap containing prototype white C on black background
+                    InputStream tagstream = wairToNow.getAssets ().open ("circletag.png");
+                    Bitmap tagbmp = BitmapFactory.decodeStream (tagstream);
+                    tagstream.close ();
+                    int tagwidth  = tagbmp.getWidth  ();
+                    int tagheight = tagbmp.getHeight ();
+                    int[] tagpixs = new int[tagwidth*tagheight];
+                    tagbmp.getPixels (tagpixs, 0, tagwidth, 0, 0, tagwidth, tagheight);
+                    tagbmp.recycle ();
+                    boolean[] tagblacks = new boolean[tagwidth*tagheight];
+                    for (int i = tagwidth * tagheight; -- i >= 0;) {
+                        tagblacks[i] = Color.red (tagpixs[i]) < 128;
+                    }
+
+                    // get lower left quadrant of plate image
+                    int bmpwidth  = fgbitmap.getWidth  () / 2;
+                    int bmpheight = fgbitmap.getHeight () / 2;
+                    int[] pixels = new int[bmpwidth*bmpheight];
+                    fgbitmap.getPixels (pixels, 0, bmpwidth, 0, bmpheight, bmpwidth, bmpheight);
+                    boolean[] blacks = new boolean[bmpwidth*bmpheight];
+                    for (int i = bmpwidth * bmpheight; -- i >= 0;) {
+                        blacks[i] = Color.red (pixels[i]) < 128;
+                    }
+
+                    // search lower left quadrant for inverse [C]
+                    circradtype = CRT_OLD;
+                    for (int y = 0; y < bmpheight - tagheight; y ++) {
+                        for (int x = 0; x < bmpwidth - tagwidth; x ++) {
+                            int matches = 0;
+                            for (int yy = 0; yy < tagheight;) {
+                                for (int xx = 0; xx < tagwidth; xx ++) {
+                                    boolean black = blacks[(y+yy)*bmpwidth+(x+xx)];
+                                    if (black == tagblacks[yy*tagwidth+xx]) matches ++;
+                                }
+                                if (matches * 8 < ++ yy * tagwidth * 7) break;
+                            }
+                            if (matches * 8 > tagheight * tagwidth * 7) {
+                                circradtype = CRT_NEW;
+                                x = bmpwidth;
+                                y = bmpheight;
+                            }
+                        }
+                    }
+
+                    // write value to database so we don't have to scan this plate again
+                    ContentValues values = new ContentValues (1);
+                    values.put ("gr_circ", circradtype);
+                    String[] whargs = new String[] { airport.ident, plateid };
+                    String machinedbname = "plates_" + expdate + ".db";
+                    SQLiteDBs machinedb = SQLiteDBs.create (machinedbname);
+                    machinedb.update ("iapgeorefs2", values, "gr_icaoid=? AND gr_plate=?", whargs);
+                }
+
+                // fill shading in on plate
+                // get radius in tenths of a nautical mile
+                // we don't have circling MDA so use airport elev + 200 which is conservative
+                int circrad10ths;
+                String type;
+                if (circradtype == CRT_NEW) {
+                    int aptelevidx = (airport.elev == Waypoint.ELEV_UNKNOWN) ? 0 : ((int) airport.elev + 1200) / 2000;
+                    if (aptelevidx > 5) aptelevidx = 5;
+                    circrad10ths = newcircrad10ths[aptelevidx][circradopt];
+                    type = "new";
+                } else {
+                    circrad10ths = oldcircrad10ths[circradopt];
+                    type = "old";
+                }
+                Log.i (TAG, airport.ident + " " + plateid + " using " + type + " circling radii of " + (circrad10ths / 10.0));
+
+                // make array of runway endpoints
+                // also compute circling radius in bitmap pixels
+                Collection<Waypoint.Runway> runways = airport.GetRunways ().values ();
+                int nrwyeps     = runways.size ();
+                if (nrwyeps == 0) return;
+                PointD[] rwyeps = new PointD[nrwyeps];
+                double circradbmp = Double.NaN;
+                double minrwybmpx = Double.MAX_VALUE;
+                double minrwybmpy = Double.MAX_VALUE;
+                double maxrwybmpx = Double.MIN_VALUE;
+                double maxrwybmpy = Double.MIN_VALUE;
+                int i = 0;
+                for (Waypoint.Runway runway : runways) {
+                    double rwybmpx = LatLon2BitmapX (runway.lat, runway.lon);
+                    double rwybmpy = LatLon2BitmapY (runway.lat, runway.lon);
+                    rwyeps[i++]    = new PointD (rwybmpx, rwybmpy);
+                    if (minrwybmpx > rwybmpx) minrwybmpx = rwybmpx;
+                    if (minrwybmpy > rwybmpy) minrwybmpy = rwybmpy;
+                    if (maxrwybmpx < rwybmpx) maxrwybmpx = rwybmpx;
+                    if (maxrwybmpy < rwybmpy) maxrwybmpy = rwybmpy;
+                    if (Double.isNaN (circradbmp)) {
+                        double offbmpx = LatLon2BitmapX (runway.lat + 0.1 / Lib.NMPerDeg, runway.lon);
+                        double offbmpy = LatLon2BitmapY (runway.lat + 0.1 / Lib.NMPerDeg, runway.lon);
+                        double bmpixper10th = Math.hypot (rwybmpx - offbmpx, rwybmpy - offbmpy);
+                        circradbmp = bmpixper10th * circrad10ths;
+                    }
+                }
+
+                // make a clockwise convex polygon out of the points,
+                // ignoring any on the interior
+                if (nrwyeps > 2) {
+                    PointD[] temp = new PointD[nrwyeps];
+                    i = 0;
+
+                    // find westmost point, guaranteed to be an outie
+                    int bestj = 0;
+                    for (int j = 0; ++ j < nrwyeps;) {
+                        if (rwyeps[bestj].x > rwyeps[j].x) bestj = j;
+                    }
+                    temp[i++] = rwyeps[bestj];
+                    rwyeps[bestj] = rwyeps[--nrwyeps];
+
+                    // find next point of lowest heading from that
+                    // due north is 0, east is 90, south is 180, west is 270
+                    // repeat until the answer is the starting point
+                    // since we are at westmost point to start, next point will be east of it
+                    double lasth = 0.0;
+                    while (true) {
+                        PointD lastep = temp[i-1];
+                        double besth = Double.MAX_VALUE;
+                        bestj = -1;
+                        for (int j = 0; j < nrwyeps; j ++) {
+                            PointD rwyep = rwyeps[j];
+
+                            // get heading from last point to this point
+                            // range is -PI .. +PI
+                            double h = Math.atan2 (rwyep.x - lastep.x, lastep.y - rwyep.y);
+
+                            // lasth is in range 0 .. +2*PI
+                            // compute how much we have to turn right
+                            // so resultant range of h is -3*PI .. +PI
+                            h -= lasth;
+
+                            // wrap to range -PI/10 .. +PI*19/10
+                            // the -PI/10 allows for a little turning left for rounding errors
+                            if (h < - Math.PI / 10.0) h += Math.PI * 2.0;
+
+                            // save it if it is the least amount of right turn
+                            // (this includes saving if it is a little bit of a left turn
+                            //  from rounding errors)
+                            if (besth > h) {
+                                besth = h;
+                                bestj = j;
+                            }
+                        }
+
+                        // if made it all the way back to westmost point, we're done
+                        if (rwyeps[bestj] == temp[0]) break;
+
+                        // otherwise save point, remove from list, and continue on
+                        temp[i++] = rwyeps[bestj];
+                        rwyeps[bestj] = (i == 2) ? temp[0] : rwyeps[--nrwyeps];
+                        lasth += besth;
+                    }
+
+                    // replace old list with new one
+                    // it may have fewer points (some were on interior)
+                    rwyeps = temp;
+                    nrwyeps = i;
+                }
+
+                // draw outline circradbmp outside that polygon, rounding the corners
+                Path  path = new Path  ();
+                RectF oval = new RectF ();
+                PointD q = rwyeps[(nrwyeps*2-2)%nrwyeps];
+                PointD r = rwyeps[nrwyeps-1];
+                double tcqr = Math.toDegrees (Math.atan2 (r.x - q.x, q.y - r.y));
+                for (i = 0; i < nrwyeps; i ++) {
+
+                    // three points going clockwise around the perimeter P -> Q -> R
+                    q = r;
+                    r = rwyeps[i];
+
+                    // standing at Q looking at R:
+                    //  draw arc from Q of displaced PQ to Q of displaced QR
+                    // we can assume it is a right turn at Q from PQ to QR
+                    //  the turn amount to the right should be -1..+181 degrees
+                    //  (the extra degree on each end is for rounding errors)
+                    // the Path object will fill in a line from the last arc to this one
+                    oval.bottom  = (float) (q.y + circradbmp);
+                    oval.left    = (float) (q.x - circradbmp);
+                    oval.right   = (float) (q.x + circradbmp);
+                    oval.top     = (float) (q.y - circradbmp);
+                    double tcpq  = tcqr;
+                    tcqr         = Math.toDegrees (Math.atan2 (r.x - q.x, q.y - r.y));
+                    double start = tcpq + 180.0;
+                    double sweep = tcqr - tcpq;
+                    if (sweep < -10.0) sweep += 360.0;
+                    if (sweep > 0.0) {  // slight left turn from rounding errors gets no curve
+                        path.arcTo (oval, (float) start, (float) sweep);
+                    }
+                }
+
+                // close the path by joining the end of the last arc to the beginning of the first arc
+                path.close ();
+
+                // draw the path and fill it in
+                // use darken mode to leave black stuff fully black
+                Canvas canvas = new Canvas (fgbitmap);
+                Paint  paint  = new Paint  ();
+                paint.setColor (Color.argb (255, 255, 215, 0));
+                paint.setStrokeWidth (0);
+                paint.setStyle (Paint.Style.FILL_AND_STROKE);
+                paint.setXfermode (new PorterDuffXfermode (PorterDuff.Mode.DARKEN));
+                canvas.drawPath (path, paint);
+            } catch (Exception e) {
+                Log.w (TAG, "error shading circling area", e);
+            }
+        }
+    }
+
+    /**
+     * If we don't know if the plate uses the old or new circling area definitions,
+     * scan it and write the tag to the database.  Then draw the circling area.
+     * If we erroneously don't find the inverse C, then we assume old-style circling
+     * radii which are more conservative than the new ones which is OK.
+     */
+    private static class ShadeCirclingAreaThread extends Thread {
+        public IAPPlateImage nextPlateImage;
+
+        @Override
+        public void run ()
+        {
+            setName ("ShadeCirclingAreaThread");
+            setPriority (MIN_PRIORITY);
+            while (true) {
+                IAPPlateImage iapPlateImage;
+                synchronized (shadeCirclingAreaLock) {
+                    iapPlateImage = nextPlateImage;
+                    if (iapPlateImage == null) {
+                        shadeCirclingAreaThread = null;
+                        break;
+                    }
+                    nextPlateImage = null;
+                }
+                iapPlateImage.ShadeCirclingAreaWork ();
+            }
+            SQLiteDBs.CloseAll ();
         }
     }
 

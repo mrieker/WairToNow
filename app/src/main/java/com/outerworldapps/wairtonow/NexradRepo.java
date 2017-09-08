@@ -20,7 +20,8 @@
 
 package com.outerworldapps.wairtonow;
 
-import java.util.HashMap;
+import android.util.SparseArray;
+
 import java.util.Iterator;
 import java.util.TreeMap;
 
@@ -33,8 +34,8 @@ public class NexradRepo implements Iterable<NexradImage> {
 
     private volatile boolean amEmpty;
 
-    private HashMap<Integer,NexradImage> imageConus = new HashMap<> ();
-    private HashMap<Integer,NexradImage> imageRegnl = new HashMap<> ();
+    private SparseArray<NexradImage> imageConus = new SparseArray<> ();
+    private SparseArray<NexradImage> imageRegnl = new SparseArray<> ();
     private int lastSeqno = Integer.MIN_VALUE;
     private TreeMap<Integer,NexradImage> imageAges  = new TreeMap<> ();
 
@@ -119,12 +120,13 @@ public class NexradRepo implements Iterable<NexradImage> {
      */
     public void deleteBlocks (boolean conus, int nblocks, int[] blocks)
     {
-        HashMap<Integer,NexradImage> hm = conus ? imageConus : imageRegnl;
+        SparseArray<NexradImage> hm = conus ? imageConus : imageRegnl;
 
         for (int i = 0; i < nblocks; i ++) {
             int block = blocks[i];
-            if (hm.containsKey (block)) {
-                NexradImage ni = hm.get (block);
+            int j = hm.indexOfKey (block);
+            if (j >= 0) {
+                NexradImage ni = hm.valueAt (j);
                 ni.recycle ();
                 hm.remove (block);
                 imageAges.remove (ni.seqno);
@@ -142,7 +144,7 @@ public class NexradRepo implements Iterable<NexradImage> {
     {
         newni.seqno = ++ lastSeqno;
 
-        HashMap<Integer,NexradImage> hm = newni.conus ? imageConus : imageRegnl;
+        SparseArray<NexradImage> hm = newni.conus ? imageConus : imageRegnl;
 
         // delete old bitmap for same lat/lon and resolution
         NexradImage oldni = hm.get (newni.block);
@@ -165,15 +167,14 @@ public class NexradRepo implements Iterable<NexradImage> {
         // if just added an high-res (conus=false) image, make
         // any overlapping low-res (conus=true) pixels transparent
         if (!newni.conus) {
-            for (Iterator<Integer> it = imageConus.keySet ().iterator (); it.hasNext ();) {
-                int block = it.next ();
-                NexradImage lores = imageConus.get (block);
+            for (int i = imageConus.size (); -- i >= 0;) {
+                NexradImage lores = imageConus.valueAt (i);
                 if (Lib.LatOverlap (newni.southLat, newni.northLat,
                         lores.southLat, lores.northLat) &&
                         Lib.LonOverlap (newni.westLon, newni.eastLon,
                                 lores.westLon, lores.eastLon)) {
                     if (!lores.blockout (newni)) {
-                        it.remove ();
+                        imageConus.remove (imageConus.keyAt (i));
                         lores.recycle ();
                         imageAges.remove (lores.seqno);
                     }
@@ -185,7 +186,8 @@ public class NexradRepo implements Iterable<NexradImage> {
         // make any of its pixels that are overlapped by an high-res
         // (conus=false) image transparent
         else {
-            for (NexradImage hires : imageRegnl.values ()) {
+            for (int i = imageRegnl.size (); -- i >= 0;) {
+                NexradImage hires = imageRegnl.valueAt (i);
                 if (Lib.LatOverlap (newni.southLat, newni.northLat,
                         hires.southLat, hires.northLat) &&
                         Lib.LonOverlap (newni.westLon, newni.eastLon,

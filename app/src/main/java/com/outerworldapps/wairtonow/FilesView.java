@@ -236,7 +236,7 @@ public class FilesView
                 try {
                     char[] data = new char[(int)currentFile.length()];
                     FileReader reader = new FileReader (name);
-                    reader.read (data, 0, data.length);
+                    Lib.Ignored (reader.read (data, 0, data.length));
                     reader.close ();
 
                     EditText editor = new EditText (wairToNow);

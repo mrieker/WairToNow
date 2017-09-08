@@ -47,6 +47,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.Locale;
 import java.util.TreeMap;
 
 /**
@@ -477,14 +478,14 @@ public class PlateCIFP {
         if ((sectoturn > TURNWRNSEC) || (nextTurn.direction == null)) {
             // it will be a while, display distance and time to turn
             double nm = bmptoturn / bmpixpernm;
-            turntoline = String.format ("%.1fnm  %02d:%02d", nm, sectoturn / 60, sectoturn % 60);
+            turntoline = String.format (Locale.US, "%.1fnm  %02d:%02d", nm, sectoturn / 60, sectoturn % 60);
         } else {
             // near or in the turn, display message saying to turn
             int maghdg = (int) ((Math.round (nextTurn.truecourse + aptmagvar) + 719) % 360) + 1;
             if (sectoturn > 0) {
-                turntoline = String.format ("%s %03d\u00B0 in %d sec", nextTurn.direction, maghdg, sectoturn);
+                turntoline = String.format (Locale.US, "%s %03d\u00B0 in %d sec", nextTurn.direction, maghdg, sectoturn);
             } else {
-                turntoline = String.format ("%s %03d\u00B0 now", nextTurn.direction, maghdg);
+                turntoline = String.format (Locale.US, "%s %03d\u00B0 now", nextTurn.direction, maghdg);
             }
         }
 
@@ -969,7 +970,9 @@ public class PlateCIFP {
 
             // make array from the list
             cifpSteps = steps.toArray (new CIFPStep[steps.size()]);
-            for (int di = cifpSteps.length; -- di >= 0;) cifpSteps[di].drawIndex = di;
+            for (int di = cifpSteps.length; -- di >= 0;) {
+                cifpSteps[di].drawIndex = di;
+            }
 
             // this array will have the displayable strings
             cifpTextLines = new String[cifpSteps.length+1];

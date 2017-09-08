@@ -35,6 +35,7 @@
  *        -sOutputFile=<pngname> <pdfname>
  *
  *    mono --debug ReadArptDgmPng.exe -verbose datums/aptplates_20160303/pngtemp/006/21ad.png.p1 \
+ *        -faaid BPT -runways datums/runways_20170914.csv \
  *        -csvoutfile KBPT.csv -csvoutid KBPT
  */
 
@@ -338,6 +339,8 @@ public class ReadArptDgmPng {
     public static SortedDictionary<char,int> counts = new SortedDictionary<char,int> ();
     public static SortedDictionary<char,int[,]> learnt = new SortedDictionary<char,int[,]> ();
     public static string pngname;                   // original .png filename
+    public static string faaid;                     // airport FAA id
+    public static string rwyname;                   // runway data file name
 
     public static void Main (string[] args)
     {
@@ -352,6 +355,11 @@ public class ReadArptDgmPng {
             if (arg == "-csvoutid") {
                 if (++ i >= args.Length) goto usage;
                 csvoutid = args[i];
+                continue;
+            }
+            if (arg == "-faaid") {
+                if (++ i >= args.Length) goto usage;
+                faaid = args[i];
                 continue;
             }
             if (arg == "-givens") {
@@ -373,6 +381,11 @@ public class ReadArptDgmPng {
             if (arg == "-markedpng") {
                 if (++ i >= args.Length) goto usage;
                 markedpng = args[i];
+                continue;
+            }
+            if (arg == "-runways") {
+                if (++ i >= args.Length) goto usage;
+                rwyname = args[i];
                 continue;
             }
             if (arg == "-stages") {
@@ -2492,6 +2505,31 @@ public class ReadArptDgmPng {
                 }
             }
 
+            /*
+             * If we have FAA id and runway datafile, draw runway outlines.
+             */
+            if ((faaid != null) && (rwyname != null)) {
+                StreamReader file = new StreamReader (rwyname);
+                char[] splits = new char[] { ',' };
+                for (string line; (line = file.ReadLine ()) != null;) {
+                    string[] parts = line.Split (splits);
+                    if (parts[0] == faaid) {
+                        double lat1 = double.Parse (parts[4]);
+                        double lon1 = double.Parse (parts[5]);
+                        double lat2 = double.Parse (parts[6]);
+                        double lon2 = double.Parse (parts[7]);
+
+                        int x1 = (int)(wftA * lon1 + wftC * lat1 + wftE + 0.5);
+                        int y1 = (int)(wftB * lon1 + wftD * lat1 + wftF + 0.5);
+                        int x2 = (int)(wftA * lon2 + wftC * lat2 + wftE + 0.5);
+                        int y2 = (int)(wftB * lon2 + wftD * lat2 + wftF + 0.5);
+
+                        DrawLine (x1, y1, x2, y2, 2, Color.Magenta);
+                    }
+                }
+                file.Close ();
+            }
+
             bmp.Save (markedpng);
         }
     }
@@ -2741,6 +2779,10 @@ public class ReadArptDgmPng {
      */
     public static void DrawLine (int x1, int y1, int x2, int y2, Color c)
     {
+        DrawLine (x1, y1, x2, y2, 0, c);
+    }
+    public static void DrawLine (int x1, int y1, int x2, int y2, int thick, Color c)
+    {
         int x, y;
 
         if (x2 != x1) {
@@ -2754,7 +2796,11 @@ public class ReadArptDgmPng {
             }
             for (x = x1; x <= x2; x ++) {
                 y = (int)((float)(y2 - y1) / (float)(x2 - x1) * (float)(x - x1)) + y1;
-                SetPixel (x, y, c);
+                for (int xt = x - thick; xt <= x + thick; xt ++) {
+                    for (int yt = y - thick; yt <= y + thick; yt ++) {
+                        SetPixel (xt, yt, c);
+                    }
+                }
             }
         }
 
@@ -2769,7 +2815,11 @@ public class ReadArptDgmPng {
             }
             for (y = y1; y <= y2; y ++) {
                 x = (int)((float)(x2 - x1) / (float)(y2 - y1) * (float)(y - y1)) + x1;
-                SetPixel (x, y, c);
+                for (int xt = x - thick; xt <= x + thick; xt ++) {
+                    for (int yt = y - thick; yt <= y + thick; yt ++) {
+                        SetPixel (xt, yt, c);
+                    }
+                }
             }
         }
     }
