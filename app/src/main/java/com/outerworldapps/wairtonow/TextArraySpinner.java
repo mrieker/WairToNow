@@ -213,7 +213,7 @@ public class TextArraySpinner extends Button implements View.OnClickListener {
         dialog = adb.show ();
     }
 
-    // one of the normal selecton buttons was clicked
+    // one of the normal selection buttons was clicked
     private void selected (int i)
     {
         dialog.dismiss ();

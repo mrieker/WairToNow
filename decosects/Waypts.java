@@ -25,8 +25,6 @@ import java.util.HashMap;
 import java.util.LinkedList;
 
 public class Waypts {
-    public final static char dmeMark = '[';
-
     public static HashMap<String,Airport> allAirports = new HashMap<> ();
     public static HashMap<String,Airport> allIcaoApts = new HashMap<> ();
     public static LinkedList<DBFix> allDBFixes = new LinkedList<> ();
@@ -199,47 +197,12 @@ public class Waypts {
     /**
      * A fix as defined in database (including navaids).
      */
-    public interface GetDBFix {
-        DBFix getDBFix ();
-    }
-
-    public static class DBFix implements GetDBFix {
+    public static class DBFix {
         public final static double MAGVAR_MISSING = 999999.0;
 
         public String name;
         public String type;
         public double lat, lon;
         public double magvar = MAGVAR_MISSING;  // magnetic = true + magvar
-        public boolean mentioned;
-
-        @Override  // GetDBFix
-        public DBFix getDBFix () { return this; }
-    }
-
-    public static class DMEDBFix extends DBFix {
-        public DBFix navaid;
-        public float distnm;
-
-        // make up the dme fix's name given that the lat/lon and navaid are filled in
-        public void makeName ()
-        {
-            // get base navaid
-            DBFix nav = navaid;
-            while (nav instanceof DMEDBFix) {
-                nav = ((DMEDBFix) nav).navaid;
-            }
-
-            // get distance and heading from the base navaid to this dme fix
-            double dist = Lib.LatLonDist (nav.lat, nav.lon, lat, lon);
-            double hdg  = Lib.LatLonTC   (nav.lat, nav.lon, lat, lon);
-            if (hdg < 0.0) hdg += 360.0;
-
-            // make our name from the base navaid, distance and heading
-            String diststr = String.format ("%3.1f", dist);
-            String hdgstr  = String.format ("%3.1f", hdg);
-            if (diststr.endsWith (".0")) diststr = diststr.substring (0, diststr.length () - 2);
-            if (hdgstr.endsWith  (".0")) hdgstr  = hdgstr.substring  (0, hdgstr.length  () - 2);
-            name = nav.name + dmeMark + diststr + "/" + hdgstr;
-        }
     }
 }

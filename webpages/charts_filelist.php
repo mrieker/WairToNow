@@ -61,7 +61,6 @@
         $stateid = substr ($undername, 6);
 
         // find latest aptplates_<expdate> directory (28-day cycle)
-        // find latest aptinfo_<expdate> directory (56-day cycle)
         $dir_entries = scandir ('datums');
         $cycles28 = 0;
         foreach ($dir_entries as $dir_entry) {
@@ -75,23 +74,27 @@
         // .gif files needed for all airports in the state
         // the .gif files have multiple pages, eg. blabla.gif.p<pageno>
         $csvname = "datums/aptplates_$cycles28/state/$stateid.csv";
-        $csvfile = fopen ($csvname, 'r');
-        while ($csvline = fgets ($csvfile)) {
-            $filename = strrpos ($csvline, ',');
-            $filename = trim (substr ($csvline, $filename + 1));
-            for ($pageno = 1;; $pageno ++) {
-                $fn = "datums/aptplates_$cycles28/$filename.p$pageno";
-                if (!file_exists ($fn)) break;
-                echo "$fn\n";
+        if (file_exists ($csvname)) {
+            $csvfile = fopen ($csvname, 'r');
+            while ($csvline = fgets ($csvfile)) {
+                $filename = strrpos ($csvline, ',');
+                $filename = trim (substr ($csvline, $filename + 1));
+                for ($pageno = 1;; $pageno ++) {
+                    $fn = "datums/aptplates_$cycles28/$filename.p$pageno";
+                    if (!file_exists ($fn)) break;
+                    echo "$fn\n";
+                }
             }
-        }
-        fclose ($csvfile);
+            fclose ($csvfile);
 
-        // send name of .csv file itself that says which .gif files go with which airports
-        echo "$csvname\n";
+            // send name of .csv file itself that says which .gif files go with which airports
+            echo "$csvname\n";
+        }
 
         // send names of machine-detected georef info files
-        echo "datums/apdgeorefs_$cycles28/$stateid.csv\n";
+        if (file_exists ("datums/apdgeorefs_$cycles28/$stateid.csv")) {
+            echo "datums/apdgeorefs_$cycles28/$stateid.csv\n";
+        }
 
         // IAP FAA-provided georef info
         if (file_exists ("datums/iapgeorefs2_$cycles28/$stateid.csv")) {
@@ -106,18 +109,20 @@
         // send names of all the airport information .html.gz files
         // for airports in this state
         $airportscsvname = "datums/airports_$cycles28.csv";
-        $airportscsvfile = fopen ($airportscsvname, 'r');
-        while ($csvline = fgets ($airportscsvfile)) {
-            $csvparts = explode (',', trim ($csvline));
-            $lastpart = $csvparts[count($csvparts)-2];
-            if ($lastpart == $stateid) {
-                $faaid  = $csvparts[1];
-                $faaid0 = $faaid[0];
-                $faaid1 = substr ($faaid, 1);
-                echo "datums/aptinfo_$cycles28/$faaid0/$faaid1.html.gz\n";
+        if (file_exists ($airportscsvname)) {
+            $airportscsvfile = fopen ($airportscsvname, 'r');
+            while ($csvline = fgets ($airportscsvfile)) {
+                $csvparts = explode (',', trim ($csvline));
+                $lastpart = $csvparts[count($csvparts)-2];
+                if ($lastpart == $stateid) {
+                    $faaid  = $csvparts[1];
+                    $faaid0 = $faaid[0];
+                    $faaid1 = substr ($faaid, 1);
+                    echo "datums/aptinfo_$cycles28/$faaid0/$faaid1.html.gz\n";
+                }
             }
+            fclose ($airportscsvfile);
         }
-        fclose ($airportscsvfile);
     } else {
 
         /*

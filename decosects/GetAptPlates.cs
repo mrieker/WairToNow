@@ -19,8 +19,18 @@
 //    http://www.gnu.org/licenses/gpl-2.0.html
 
 /**
- * Given file stdin containing lines of form:
- *    <icaoid>,<faaid>,...
+ * Given file stdin containing lines of form (from datums/airports_<cycles28>.csv):
+ *    <icaoid>,<faaid>,<elev>,<name>,<lat>,<lon>,<magvar>,<descr>,<state>,<publib/private>
+ *      [0] KBVY,
+ *      [1] BVY,
+ *      [2] 107.3,
+ *      [3] "BEVERLY RGNL",
+ *      [4] 42.5841388888889,
+ *      [5] -70.9161388888889,
+ *      [6] 16,
+ *      [7] "3 NW of BEVERLY, MA..."
+ *      [8] MA,
+ *      [9] PU
  * Write lines to stdout of form:
  *    <flag> <state> <faaid> <aptdiagpdfurl> <type>
  *    <title>
@@ -50,13 +60,14 @@ public class GetAptPlates {
 
         string airac = args[0];
 
+        string[] comsplit = new string[] { "," };
         string[] tdsplit = new string[] { "<td>" };
 
         while ((line = Console.In.ReadLine ()) != null) {
-            i = line.IndexOf (',');
-            string icaoid = line.Substring (0, i);
-            j = line.IndexOf (',', ++ i);
-            string faaid  = line.Substring (i, j - i);
+            string[] parts = line.Split (comsplit, StringSplitOptions.None);
+            string icaoid  = parts[0];
+            string faaid   = parts[1];
+            string stateid = parts[parts.Length-2];
 
             string datname = "datums/getaptplates_" + airac + "/" + faaid + ".dat";
             if (!File.Exists (datname)) {
@@ -67,7 +78,7 @@ public class GetAptPlates {
                 do {
                     string url      = searchUrl + "results/?cycle=" + airac + "&ident=" + faaid + "&page=" + page;
                     string diagpage = MakeRequest (url).Replace ("\r", "").Replace ("\n", "");
-                    string[] parts  = diagpage.Split (tdsplit, StringSplitOptions.None);
+                    parts           = diagpage.Split (tdsplit, StringSplitOptions.None);
                     for (k = 0; k < parts.Length; k ++) {
                         string apidpart = parts[k];  // BVY (KBVY)
                         i  = apidpart.IndexOf ("</td>");
@@ -75,7 +86,7 @@ public class GetAptPlates {
                         apidpart = apidpart.Substring (0, i).Trim ();
                         if ((apidpart == faaid + " (" + icaoid + ")") || (apidpart == faaid + " ()")) {
                             try {
-                                string statpart = parts[k-3];    // MA
+                                //string statpart = parts[k-3];  // MA
                                 //string citypart = parts[k-2];  // BEVERLY
                                 //string namepart = parts[k-1];  // BEVERLY MUNI
 
@@ -84,10 +95,7 @@ public class GetAptPlates {
                                 string typepart = parts[k+3];    // APD, IAP, ...
                                 string linkpart = parts[k+4];    // <a href="http://aeronav.faa.gov/d-tpp/1503/05039ad.pdf">AIRPORT DIAGRAM</a>
 
-                                //Console.WriteLine ("stat=" + statpart + " flag=" + flagpart + " type=" + typepart + " link=" + linkpart);
-
-                                i  = statpart.IndexOf ("</td>");
-                                statpart = statpart.Substring (0, i).Trim ();
+                                //Console.WriteLine ("state=" + stateid + " flag=" + flagpart + " type=" + typepart + " link=" + linkpart);
 
                                 i  = flagpart.IndexOf ("</td>");
                                 flagpart = flagpart.Substring (0, i).Trim ();
@@ -109,9 +117,9 @@ public class GetAptPlates {
                                     title  = linkpart.Substring (0, i);
                                 }
 
-                                datfile.WriteLine (flagpart + " " + statpart + " " + faaid + " " + pdfurl + " " + typepart);
+                                datfile.WriteLine (flagpart + " " + stateid + " " + faaid + " " + pdfurl + " " + typepart);
                                 datfile.WriteLine (title);
-                                Console.WriteLine (flagpart + " " + statpart + " " + faaid + " " + pdfurl + " " + typepart);
+                                Console.WriteLine (flagpart + " " + stateid + " " + faaid + " " + pdfurl + " " + typepart);
                                 Console.WriteLine (title);
                             } catch (ArgumentOutOfRangeException) {
                             }

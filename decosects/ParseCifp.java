@@ -780,7 +780,12 @@ public class ParseCifp {
                             appbad = true;
                         } else {
                             StringBuilder sb = new StringBuilder ();
-                            firstleg.print (sb, true);
+                            try {
+                                firstleg.print (sb, true);
+                            } catch (Exception e) {
+                                System.out.println (airport.icaoid + "." + approach.appid + ": exception " + e.getMessage ());
+                                appbad = true;
+                            }
                             String st = sb.toString ();
                             if (!st.startsWith ("CF,")) {
                                 System.out.println (airport.icaoid + "." + approach.appid + ": final seg starts with " + st.substring (0, 3));
@@ -790,21 +795,23 @@ public class ParseCifp {
                                 System.out.println (airport.icaoid + "." + approach.appid + ": final segment missing FAF <" + st + ">");
                                 appbad = true;
                             }
-                            sb.delete (0, sb.length ());
-                            try {
-                                lastleg.print (sb, false);
-                                st = sb.toString ();
-                                if (!st.startsWith ("CF")) {
-                                    System.out.println (airport.icaoid + "." + approach.appid + ": final segment doesn't end with CF");
+                            if (!appbad) {
+                                sb.delete (0, sb.length ());
+                                try {
+                                    lastleg.print (sb, false);
+                                    st = sb.toString ();
+                                    if (!st.startsWith ("CF")) {
+                                        System.out.println (airport.icaoid + "." + approach.appid + ": final segment doesn't end with CF");
+                                        appbad = true;
+                                    }
+                                    if (!st.contains (",a=")) {
+                                        System.out.println (airport.icaoid + "." + approach.appid + ": final segment doesn't end with altitude");
+                                        appbad = true;
+                                    }
+                                } catch (BadWayptException bwe) {
+                                    System.out.println (airport.icaoid + "." + approach.appid + ": final segment has bad waypoint " + bwe.wp);
                                     appbad = true;
                                 }
-                                if (!st.contains (",a=")) {
-                                    System.out.println (airport.icaoid + "." + approach.appid + ": final segment doesn't end with altitude");
-                                    appbad = true;
-                                }
-                            } catch (BadWayptException bwe) {
-                                System.out.println (airport.icaoid + "." + approach.appid + ": final segment has bad waypoint " + bwe.wp);
-                                appbad = true;
                             }
                         }
 

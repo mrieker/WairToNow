@@ -697,9 +697,9 @@ public abstract class Waypoint {
     }
 
     // maybe there is an info page available
-    public boolean HasInfo ()
+    public File HasInfo ()
     {
-        return false;
+        return null;
     }
 
     // maybe there is a METAR available
@@ -999,13 +999,15 @@ public abstract class Waypoint {
         }
 
         @Override
-        public boolean HasInfo ()
+        public File HasInfo ()
         {
             char subdir = faaident.charAt (0);
             String subnam = faaident.substring (1);
-            String name = WairToNow.dbdir + "/datums/aptinfo_" + MaintView.GetWaypointExpDate ();
+            String name = WairToNow.dbdir + "/datums/aptinfo_" + MaintView.GetPlatesExpDate (state);
             name += "/" + subdir + "/" + subnam + ".html.gz";
-            return new File (name).exists ();
+            File file = new File (name);
+            if (!file.exists ()) file = null;
+            return file;
         }
 
         // maybe there is something that needs downloading

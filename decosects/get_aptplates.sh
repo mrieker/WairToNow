@@ -1,4 +1,4 @@
-#!/bin/bash -v
+#!/bin/bash
 #
 #  Download all airport PDF files and convert to GIF files
 #

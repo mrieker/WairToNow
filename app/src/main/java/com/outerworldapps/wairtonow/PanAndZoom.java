@@ -78,7 +78,7 @@ public abstract class PanAndZoom implements ScaleGestureDetector.OnScaleGestureL
             scaleGestureDetector.onTouchEvent (event);
             if (scaleGestureDetector.isInProgress ()) {
                 // block panning for a little time after done scaling
-                // to eliminate surious jumps at end of scaling
+                // to eliminate spurious jumps at end of scaling
                 blockPanUntil  = System.currentTimeMillis () + panningblocktime;
                 return true;
             }
@@ -123,7 +123,7 @@ public abstract class PanAndZoom implements ScaleGestureDetector.OnScaleGestureL
     }
 
     /**
-     * ScaleGestoreDetector.OnScaleGestureListener implementation methods.
+     * ScaleGestureDetector.OnScaleGestureListener implementation methods.
      */
     @Override
     public boolean onScaleBegin (ScaleGestureDetector detector)

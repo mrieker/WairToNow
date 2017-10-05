@@ -518,7 +518,7 @@ public class WaypointView extends LinearLayout
             locationButton.setEnabled (true);
             rnavOffsetButton.setEnabled (true);
             metarButton.setEnabled (wp.HasMetar ());
-            infoButton.setEnabled (wp.HasInfo ());
+            infoButton.setEnabled (wp.HasInfo () != null);
             downloadButton.setEnabled (wp.NeedsDwnld ());
         }
         wairToNow.SetCurrentTab (this);
@@ -852,19 +852,14 @@ public class WaypointView extends LinearLayout
         @Override
         public void onClick (View v)
         {
-            if (selectedWaypoint.HasInfo ()) {
+            File info = selectedWaypoint.HasInfo ();
+            if (info != null) {
                 try {
 
                     /*
                      * Display using a WebView.
                      */
-                    int waypointexpdate = MaintView.GetWaypointExpDate ();
-                    String faaident = ((Waypoint.Airport)selectedWaypoint).faaident;
-                    char subdir = faaident.charAt (0);
-                    String subnam = faaident.substring (1);
-                    String name = WairToNow.dbdir + "/datums/aptinfo_" + waypointexpdate + '/' +
-                            subdir + '/' + subnam + ".html.gz";
-                    FileInputStream fis = new FileInputStream (name);
+                    FileInputStream fis = new FileInputStream (info);
                     BufferedInputStream bis = new BufferedInputStream (fis, 4096);
                     GZIPInputStream zis = new GZIPInputStream (bis);
                     InputStreamReader isr = new InputStreamReader (zis);

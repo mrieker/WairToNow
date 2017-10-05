@@ -62,7 +62,7 @@ public class NexradImage {
 
         int blockno = block & 0xFFFFF;  // <19:00> contains block number
 
-        int scale = scalefactors[(block>>20)&3];  // <22:20> contains scale factor
+        int scale = scalefactors[(block>>20)&3];  // <21:20> contains scale factor
 
         // block 0's west edge is on prime meridian
         // low numbered blocks are 48*scale minutes wide
@@ -71,7 +71,7 @@ public class NexradImage {
         eastLon = Lib.NormalLon (westLon + (blockno >= 405000 ? 96.0 : 48.0) * scale / 60.0);
 
         // all blocks are 4*scale minutes high
-        if ((block & 0x400000) != 0) {  // <23> contains hemisphere flag
+        if ((block & 0x400000) != 0) {  // <22> contains hemisphere flag
             // southern hemisphere - block 0's northern edge is on the equator
             northLat = (blockno / 450) * -4.0 / 60.0;
             southLat = northLat - 4.0 * scale / 60.0;

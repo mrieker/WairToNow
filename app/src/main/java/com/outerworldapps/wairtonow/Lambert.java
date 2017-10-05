@@ -184,7 +184,7 @@ public class Lambert {
         double lam = theta / e_n + e_lam0;
 
         // v108: equation 14-4
-        double costheta = Math.cos (e_n * (lam - e_lam0));
+        double costheta = Math.cos (theta);
 
         // must calculate phi (latitude) with successive approximation
         // usually takes 3 or 4 iterations to resolve latitude within one pixel
