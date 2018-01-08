@@ -1,4 +1,4 @@
-#!/bin/bash -v
+#!/bin/bash
 #
 #  Create a .csv file for every chart.
 #  It summarizes the .htm and .tfw data.

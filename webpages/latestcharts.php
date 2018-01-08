@@ -9,7 +9,7 @@
             </TR>
             <?php
                 $sortby = "chart";
-                if (isset ($_GET["sortby"])) $sortby = $_GET["sortby"];
+                if (isset ($_REQUEST["sortby"])) $sortby = $_REQUEST["sortby"];
                 $chartfiles = scandir ("charts");
                 $chartnames = array ();
                 $effdates = array ();

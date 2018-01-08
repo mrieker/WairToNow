@@ -22,9 +22,9 @@
     $thisscript = $_SERVER['PHP_SELF'];
 
     if (!isset ($skippwcheck) || !$skippwcheck) {
-        if (isset ($_POST['password'])) {
+        if (isset ($_REQUEST['password'])) {
             $pw = trim (file_get_contents ("../webdata/password.dat"));
-            $_SESSION['isok'] = ($pw != '') && ($_POST['password'] == $pw);
+            $_SESSION['isok'] = ($pw != '') && ($_REQUEST['password'] == $pw);
         }
         if (!isset ($argv[1]) && empty ($_SESSION['isok'])) {
             echo <<<END

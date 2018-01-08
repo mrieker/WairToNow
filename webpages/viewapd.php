@@ -35,14 +35,14 @@
     </HEAD>
     <BODY>
         <?php
-            if (!empty ($_GET['faaid'])) {
+            if (!empty ($_REQUEST['faaid'])) {
                 $mydir   = __DIR__;
                 $exetime = filemtime ("$mydir/../decosects/ReadArptDgmPng.exe");
-                $faaid   = $_GET['faaid'];
+                $faaid   = $_REQUEST['faaid'];
                 $icaoid  = getIcaoId ($faaid);
                 echo "<H3> Marked up $icaoid Airport Diagram </H3>\n";
                 @flush (); @ob_flush (); @flush ();
-                $cleanname = $_GET['gifname'];
+                $cleanname = $_REQUEST['gifname'];
                 $cleanname = str_replace ("gif_150", "pngtemp", $cleanname);
                 $cleanname = str_replace (".gif",    ".png.p1", $cleanname);
                 $cleanname = "$mydir/datums/aptplates_$cycles28/$cleanname";

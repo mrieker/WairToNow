@@ -1,4 +1,4 @@
-#!/bin/bash -v
+#!/bin/bash
 #
 #  Go to FAA website and get list of airports
 #  then get AFD-like info from the FAA and put
@@ -26,7 +26,7 @@ function getzip
     if [ ! -f datums/$1_$expdate.zip ]
     then
         rm -f $1.zip
-        wget --no-check-certificate https://nfdc.faa.gov/webContent/28DaySub/$effdate/$1.zip
+        wget -nv --no-check-certificate https://nfdc.faa.gov/webContent/28DaySub/$effdate/$1.zip
         mv -f $1.zip datums/$1_$expdate.zip
     fi
 }

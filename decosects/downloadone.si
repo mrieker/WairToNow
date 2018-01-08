@@ -43,7 +43,6 @@ function downloadone
         ##  MIN- alternate/takeoff minimums
         ##  STAR- standard approach routes
         APD|DP|IAP|MIN|ODP|STAR)
-            echo "$faaid $type $title"
 
             ## Maybe we already have the corresponding PDF file
             ## If not, fetch from the FAA website

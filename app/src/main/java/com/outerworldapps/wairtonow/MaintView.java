@@ -130,8 +130,6 @@ public class MaintView
 
     private final static String[] columns_apt_faaid_faciluse = new String[] { "apt_faaid", "apt_faciluse" };
     private final static String[] columns_count_rp_faaid     = new String[] { "COUNT(rp_faaid)" };
-    private final static String[] columns_pl_state           = new String[] { "pl_state" };
-    private final static String[] columns_name               = new String[] { "name" };
     private final static String[] columns_pl_faaid           = new String[] { "pl_faaid" };
     private final static String[] columns_cp_legs            = new String[] { "cp_legs" };
 
@@ -192,8 +190,11 @@ public class MaintView
 
         waypointsCheckBox = new WaypointsCheckBox ();
         TopographyCheckBox topographyCheckBox = new TopographyCheckBox ();
+
         miscCategory.addView (waypointsCheckBox);
         miscCategory.addView (topographyCheckBox);
+        miscCategory.addView (new TextView (wairToNow));
+        miscCategory.addView (new UpdateAllButton ());
 
         runwayDiagramDownloadStatus = new TextView (ctx);
         wairToNow.SetTextSize (runwayDiagramDownloadStatus);
@@ -210,6 +211,8 @@ public class MaintView
         GetChartNames ();
 
         miscCategory.onClick (null);
+
+        startPurging ();
     }
 
     private void GetChartNames ()
@@ -529,9 +532,7 @@ public class MaintView
         switch (msg.what) {
             case MaintViewHandlerWhat_OPENDLPROG: {
                 updateDLProgSent = false;
-                if (downloadProgress != null) {
-                    downloadProgress.dismiss ();
-                }
+                Lib.dismiss (downloadProgress);
                 downloadProgress = new ProgressDialog (wairToNow);
                 downloadProgress.setProgressStyle (ProgressDialog.STYLE_HORIZONTAL);
                 downloadProgress.setOnCancelListener (this);
@@ -550,10 +551,8 @@ public class MaintView
                 break;
             }
             case MaintViewHandlerWhat_CLOSEDLPROG: {
-                if (downloadProgress != null) {
-                    downloadProgress.dismiss ();
-                    downloadProgress = null;
-                }
+                Lib.dismiss (downloadProgress);
+                downloadProgress = null;
                 break;
             }
             case MaintViewHandlerWhat_DLCOMPLETE: {
@@ -588,10 +587,8 @@ public class MaintView
                 break;
             }
             case MaintViewHandlerWhat_UNLDDONE: {
-                if (unloadButton.unloadAlertDialog != null) {
-                    unloadButton.unloadAlertDialog.dismiss ();
-                    unloadButton.unloadAlertDialog = null;
-                }
+                Lib.dismiss (unloadButton.unloadAlertDialog);
+                unloadButton.unloadAlertDialog = null;
                 wairToNow.chartView.DownloadComplete ();
                 UpdateAllButtonColors ();
 
@@ -607,7 +604,7 @@ public class MaintView
                 builder.setNegativeButton ("Cancel", new DialogInterface.OnClickListener () {
                     public void onClick (DialogInterface dialog, int which)
                     {
-                        dialog.dismiss ();
+                        Lib.dismiss (dialog);
                     }
                 });
                 AlertDialog dialog = builder.create ();
@@ -626,7 +623,7 @@ public class MaintView
             case MaintViewHandlerWhat_OPENDELPROG: {
                 updateDLProgSent = false;
                 if (downloadProgress != null) {
-                    downloadProgress.dismiss ();
+                    Lib.dismiss (downloadProgress);
                 }
                 downloadProgress = new ProgressDialog (wairToNow);
                 downloadProgress.setProgressStyle (ProgressDialog.STYLE_SPINNER);
@@ -793,6 +790,33 @@ public class MaintView
     {
         downloadButton.UpdateEnabled ();
         unloadButton.UpdateEnabled ();
+    }
+
+    /**
+     * Clicking the 'Update All' button downloads the latest rev
+     * of charts that are already downloaded with an older rev.
+     */
+    private class UpdateAllButton extends Button implements OnClickListener {
+        @SuppressLint("SetTextI18n")
+        public UpdateAllButton ()
+        {
+            super (wairToNow);
+            setText ("Update All");
+            wairToNow.SetTextSize (this);
+            setOnClickListener (this);
+        }
+
+        @Override
+        public void onClick (View v)
+        {
+            // check all items that already have something on them
+            for (Downloadable downloadable : allDownloadables) {
+                if (downloadable.GetEndDate () > 0) downloadable.CheckBox ();
+            }
+
+            // make like we checked the Download button
+            downloadButton.onClick (null);
+        }
     }
 
     /**
@@ -1427,7 +1451,7 @@ public class MaintView
                         if (unloadThread == null) {
                             setEnabled (false);
                             downloadButton.setEnabled (false);
-                            unloadAlertDialog.dismiss ();
+                            Lib.dismiss (unloadAlertDialog);
                             AlertDialog.Builder builder = new AlertDialog.Builder (wairToNow);
                             builder.setTitle ("Unloading charts");
                             builder.setMessage ("Please wait...");
@@ -1442,7 +1466,7 @@ public class MaintView
                 builder.setNegativeButton ("Cancel", new DialogInterface.OnClickListener () {
                     public void onClick (DialogInterface dialog, int which)
                     {
-                        unloadAlertDialog.dismiss ();
+                        Lib.dismiss (unloadAlertDialog);
                         unloadAlertDialog = null;
                     }
                 });
@@ -1461,6 +1485,7 @@ public class MaintView
         /**
          * Runs in a separate thread to download all files selected by the corresponding checkbox.
          */
+        @Override
         public void run ()
         {
             setName ("MaintView downloader");
@@ -1539,7 +1564,6 @@ public class MaintView
                         if (newFileName.startsWith ("datums/waypoints_") && newFileName.endsWith (".db.gz")) {
                             int expdate = Integer.parseInt (newFileName.substring (17, newFileName.length () - 6));
                             DownloadWaypoints (newFileName, expdate);
-                            MaybeDeleteOldWaypointsDB ();
                             UpdateDownloadProgress ();
                             continue;
                         }
@@ -1548,7 +1572,6 @@ public class MaintView
                             int expdate = Integer.parseInt (newFileName.substring (18, i));
                             String statecode = newFileName.substring (i + 1, newFileName.length () - 4);
                             DownloadMachineAPDGeoRefs (newFileName, expdate, statecode);
-                            MaybeDeleteOldPlatesDB ();
                             UpdateDownloadProgress ();
                             continue;
                         }
@@ -1557,7 +1580,6 @@ public class MaintView
                             int expdate = Integer.parseInt (newFileName.substring (16, i));
                             String statecode = newFileName.substring (i + 1, newFileName.length () - 4);
                             DownloadIAPCifps (newFileName, expdate, statecode);
-                            MaybeDeleteOldPlatesDB ();
                             UpdateDownloadProgress ();
                         }
                         if (newFileName.startsWith ("datums/iapgeorefs2_") && newFileName.endsWith (".csv") &&
@@ -1565,7 +1587,6 @@ public class MaintView
                             int expdate = Integer.parseInt (newFileName.substring (19, i));
                             String statecode = newFileName.substring (i + 1, newFileName.length () - 4);
                             DownloadMachineIAPGeoRefs2 (newFileName, expdate, statecode);
-                            MaybeDeleteOldPlatesDB ();
                             UpdateDownloadProgress ();
                             continue;
                         }
@@ -1574,7 +1595,6 @@ public class MaintView
                             int expdate = Integer.parseInt (newFileName.substring (17, i));
                             String statecode = newFileName.substring (i + 7, newFileName.length () - 4);
                             DownloadPlates (newFileName, expdate, statecode);
-                            MaybeDeleteOldPlatesDB ();
                             UpdateDownloadProgress ();
                             wairToNow.openStreetMap.StartPrefetchingRunwayTiles ();
                             UpdateRunwayDiagramDownloadStatus ();
@@ -1616,25 +1636,8 @@ public class MaintView
                         for (Map.Entry<String,String> entry : sameoldfiles.entrySet ()) {
                             Lib.RenameFile (entry.getKey (), entry.getValue ());
                         }
-                        maintViewHandler.sendEmptyMessage (MaintViewHandlerWhat_CLOSEDLPROG);
                     }
 
-                    dlmsg = maintViewHandler.obtainMessage (MaintViewHandlerWhat_OPENDELPROG, 0, 0, "Deleting old " + dcbspacename);
-                    maintViewHandler.sendMessage (dlmsg);
-                    try {
-                        filelistReader = new BufferedReader (new FileReader (permlistname), 4096);
-                        while ((filelistLine = filelistReader.readLine ()) != null) {
-                            String newFileName = filelistLine;
-                            int i = filelistLine.indexOf ('=');
-                            if (i > 0) newFileName = filelistLine.substring (0, i);
-                            if (!newfilelist.contains (newFileName)) {
-                                DeleteChartFile (dcb, newFileName);
-                            }
-                        }
-                        filelistReader.close ();
-                    } catch (FileNotFoundException fnfe) {
-                        Lib.Ignored ();
-                    }
                     maintViewHandler.sendEmptyMessage (MaintViewHandlerWhat_CLOSEDLPROG);
 
                     /*
@@ -1675,6 +1678,9 @@ public class MaintView
                 maintViewHandler.sendEmptyMessage (MaintViewHandlerWhat_DLCOMPLETE);
                 SQLiteDBs.CloseAll ();
             }
+
+            // maybe there is some old stuff we can delete
+            startPurging ();
         }
 
         private void UpdateDownloadProgress ()
@@ -1824,7 +1830,6 @@ public class MaintView
             int expdate = Integer.parseInt (filelistline.substring (18, i));
             String statecode = filelistline.substring (i + 1, filelistline.length () - 4);
             DeleteMachineAPDGeoRefs (expdate, statecode);
-            MaybeDeleteOldPlatesDB ();
             plainfile = false;
         }
         if (filelistline.startsWith ("datums/iapcifps_") && filelistline.endsWith (".csv") &&
@@ -1832,7 +1837,6 @@ public class MaintView
             int expdate = Integer.parseInt (filelistline.substring (16, i));
             String statecode = filelistline.substring (i + 1, filelistline.length () - 4);
             DeleteIAPCifps (expdate, statecode);
-            MaybeDeleteOldPlatesDB ();
             plainfile = false;
         }
         if (filelistline.startsWith ("datums/iapgeorefs2_") && filelistline.endsWith (".csv") &&
@@ -1840,7 +1844,6 @@ public class MaintView
             int expdate = Integer.parseInt (filelistline.substring (19, i));
             String statecode = filelistline.substring (i + 1, filelistline.length () - 4);
             DeleteMachineIAPGeoRefs2 (expdate, statecode);
-            MaybeDeleteOldPlatesDB ();
             plainfile = false;
         }
         if (filelistline.startsWith ("datums/aptplates_") && filelistline.endsWith (".csv") &&
@@ -1848,7 +1851,6 @@ public class MaintView
             int expdate = Integer.parseInt (filelistline.substring (17, i));
             String statecode = filelistline.substring (i + 7, filelistline.length () - 4);
             DeletePlates (expdate, statecode);
-            MaybeDeleteOldPlatesDB ();
             plainfile = false;
         }
 
@@ -2218,50 +2220,6 @@ public class MaintView
                 }
                 Lib.RenameFile (dbpath + ".tmp", dbpath);
                 SQLiteDBs.created (dbname);
-            }
-        }
-    }
-
-    /**
-     * Delete older waypoints_<expdate>.db files.
-     */
-    private static void MaybeDeleteOldWaypointsDB ()
-    {
-        String[] dbnames = SQLiteDBs.Enumerate ();
-        for (int i = 0; i < dbnames.length; i ++) {
-            String dbnamei = dbnames[i];
-            if (dbnamei == null) continue;
-            if (!dbnamei.startsWith ("waypoints_")) continue;
-            for (int j = 0; j < dbnames.length; j ++ ) {
-                String dbnamej = dbnames[j];
-                if (dbnamej == null) continue;
-                if (!dbnamej.startsWith ("waypoints_")) continue;
-                if (dbnamei.compareTo (dbnamej) > 0) {
-                    SQLiteDBs sqldbi = SQLiteDBs.open (dbnamei);
-                    if (sqldbi == null) continue;
-                    SQLiteDBs sqldbj = SQLiteDBs.open (dbnamej);
-                    if (sqldbj == null) continue;
-                    Cursor cursorj = sqldbj.query (
-                            "sqlite_master", columns_name,
-                            "type='table'", null,
-                            null, null, null, null);
-                    boolean killj = true;
-                    try {
-                        if (cursorj.moveToFirst ()) {
-                            do {
-                                String tablej = cursorj.getString (0);
-                                killj &= sqldbi.tableExists (tablej);
-                            } while (cursorj.moveToNext ());
-                        }
-                    } finally {
-                        cursorj.close ();
-                    }
-                    if (killj) {
-                        sqldbj.markForDelete ();
-                        SQLiteDBs.CloseAll ();
-                        dbnames[j] = null;
-                    }
-                }
             }
         }
     }
@@ -2642,80 +2600,6 @@ public class MaintView
     }
 
     /**
-     * If we have all the new tables and states of the plates_expdate.db file,
-     * delete any old versions.
-     */
-    private static void MaybeDeleteOldPlatesDB ()
-    {
-        String[] dbnames = SQLiteDBs.Enumerate ();
-        for (int i = 0; i < dbnames.length; i ++) {
-            String dbnamei = dbnames[i];
-            if (dbnamei == null) continue;
-            if (!dbnamei.startsWith ("plates_")) continue;
-            for (int j = 0; j < dbnames.length; j ++ ) {
-                String dbnamej = dbnames[j];
-                if (dbnamej == null) continue;
-                if (!dbnamej.startsWith ("plates_")) continue;
-                if (dbnamei.compareTo (dbnamej) > 0) {
-                    SQLiteDBs sqldbi = SQLiteDBs.open (dbnamei);
-                    if (sqldbi == null) continue;
-                    SQLiteDBs sqldbj = SQLiteDBs.open (dbnamej);
-                    if (sqldbj == null) continue;
-
-                    // it's ok to kill J if I has all the tables that J has
-                    Cursor cursorj = sqldbj.query (
-                            "sqlite_master", columns_name,
-                            "type='table'", null,
-                            null, null, null, null);
-                    boolean killj = true;
-                    try {
-                        if (cursorj.moveToFirst ()) {
-                            do {
-                                String tablej = cursorj.getString (0);
-                                killj &= sqldbi.tableExists (tablej);
-                            } while (cursorj.moveToNext ());
-                        }
-                    } finally {
-                        cursorj.close ();
-                    }
-
-                    // and I must have all the states that J has in order to kill J
-                    if (killj && sqldbi.tableExists ("plates") && sqldbj.tableExists ("plates")) {
-                        cursorj = sqldbj.query (
-                                true, "plates", columns_pl_state,
-                                null, null, null, null, null, null);
-                        try {
-                            if (cursorj.moveToFirst ()) {
-                                do {
-                                    String statej = cursorj.getString (0);
-                                    Cursor cursori = sqldbi.query (
-                                            "plates", columns_pl_faaid,
-                                            "pl_state=?", new String[] { statej },
-                                            null, null, null, "1");
-                                    try {
-                                        killj &= cursori.moveToFirst ();
-                                    } finally {
-                                        cursori.close ();
-                                    }
-                                } while (cursorj.moveToNext ());
-                            }
-                        } finally {
-                            cursorj.close ();
-                        }
-                    }
-
-                    // I contains everything J has, so kill J
-                    if (killj) {
-                        sqldbj.markForDelete ();
-                        SQLiteDBs.CloseAll ();
-                        dbnames[j] = null;
-                    }
-                }
-            }
-        }
-    }
-
-    /**
      * Download a file from web server and do various things with it
      */
     private abstract class DownloadStuff extends InputStream {
@@ -2805,6 +2689,206 @@ public class MaintView
             int rc = inputStream.read (buff, offs, size);
             if (rc > 0) numBytesRead += rc;
             return rc;
+        }
+    }
+
+    /**
+     * Downloading or Unloading has taken place,
+     * run a background thread to delete unreferenced files.
+     */
+    private void startPurging ()
+    {
+        synchronized (purgeLock) {
+            if (purgeThread == null) {
+                purgeThread = new PurgeThread ();
+                purgeThread.start ();
+            } else {
+                purgeThread.keepgoing = true;
+            }
+        }
+    }
+
+    private final Object purgeLock = new Object ();
+    private PurgeThread purgeThread;
+
+    private class PurgeThread extends Thread {
+        public boolean keepgoing;
+
+        private int nowexpdate;
+
+        @Override
+        public void run ()
+        {
+            setName ("MaintView purge thread");
+            setPriority (Thread.MIN_PRIORITY);
+
+            while (true) {
+                GregorianCalendar nowgc = new GregorianCalendar ();
+                nowexpdate = nowgc.get (Calendar.YEAR) * 10000 +
+                        (nowgc.get (Calendar.MONTH) - Calendar.JANUARY + 1) * 100 +
+                        nowgc.get (Calendar.DAY_OF_MONTH);
+
+                // these database files are numbered by their expiration date in form yyyymmdd
+                // so purge any that don't have one of the state/waypoints buttons with that date
+                // also don't purge if they expire in the future cuz that could be a current download in progress
+                File dbdir = new File (WairToNow.dbdir);
+                purgeunrefddb ("waypoints_");
+                purgeunrefddb ("plates_");
+                SQLiteDBs.CloseAll ();
+
+                // likewise with these subdirectories
+                File datadir = new File (dbdir, "datums");
+                purgeunrefddir (datadir, "aptinfo_", "");
+                purgeunrefddir (datadir, "aptplates_", "");
+                purgeunrefddir (datadir, "iapcifps_", "");
+
+                // the charts directory has files called <chartname>.filelist.txt
+                // they name the current revision's files
+                // the lines start with charts/<chartname_revno>/...
+                // there are also .filelist.txt files for stuff in datums directory
+                // ...but we ignore them cuz that was purged above
+                // so first get a list of chartnames and the revno to keep
+                HashMap<String,Integer> keepchartdirs = new HashMap<> ();
+                File chartdir = new File (dbdir, "charts");
+                for (File chartfile : chartdir.listFiles ()) {
+                    String name = chartfile.getName ();
+                    if (name.endsWith (".filelist.txt")) {
+                        try {
+                            BufferedReader br = new BufferedReader (new FileReader (chartfile), 512);
+                            try {
+                                String line = br.readLine ();
+                                if (line.startsWith ("charts/")) {
+                                    String[] parts = line.split ("/");
+                                    String namerev = parts[1];
+                                    int i = namerev.lastIndexOf ('_');
+                                    int revno = Integer.parseInt (namerev.substring (++ i));
+                                    keepchartdirs.put (namerev.substring (0, i), revno);
+                                }
+                            } finally {
+                                br.close ();
+                            }
+                        } catch (Exception e) {
+                            Log.w (TAG, "error reading " + chartfile.getPath (), e);
+                        }
+                    }
+                }
+
+                // purge out any chart directories not listed therein
+                // but keep any numbered higher in case of download in progress
+                for (File chartfile : chartdir.listFiles ()) {
+                    String name = chartfile.getName ();
+                    if (chartfile.isDirectory ()) {
+                        maybeDeleteChartFile (keepchartdirs, chartfile, name);
+                    } else if (name.endsWith (".csv")) {
+                        // there is also a .csv file named <chartname>_<revno>.csv
+                        maybeDeleteChartFile (keepchartdirs, chartfile, name.substring (0, name.length () - 4));
+                    }
+                }
+
+                // see if we were re-triggered whilst running
+                // quit if not, otherwise loop back to run again
+                synchronized (purgeLock) {
+                    if (!keepgoing) {
+                        purgeThread = null;
+                        break;
+                    }
+                    keepgoing = false;
+                }
+            }
+        }
+
+        // purge unreferenced versions of a database file
+        // database files are named <prefix><expdate>.db
+        // if any checkbox has the file's expdate, then the file is kept
+        // otherwise since no button references it, the file is deleted
+        // also, the file is kept if it is being downloaded even if no button references it
+        private void purgeunrefddb (String prefix)
+        {
+            int prefixlen = prefix.length ();
+            String[] dbnames = SQLiteDBs.Enumerate ();
+            for (String dbname : dbnames) {
+                if (dbname.startsWith (prefix) && dbname.endsWith (".db")) {
+                    try {
+                        int expdate = Integer.parseInt (dbname.substring (prefixlen, dbname.length () - 3));
+                        if (!expdateRefdByAnyState (expdate)) {
+                            SQLiteDBs db = SQLiteDBs.open (dbname);
+                            if (db != null) db.markForDelete ();
+                        }
+                    } catch (Exception e) {
+                        Log.w (TAG, "error deleting " + dbname, e);
+                    }
+                }
+            }
+        }
+
+        // delete the given directory if it is not referenced by any state checkbox
+        private void purgeunrefddir (File dir, String prefix, String suffix)
+        {
+            int prefixlen = prefix.length ();
+            int suffixlen = suffix.length ();
+            File[] files = dir.listFiles ();
+            for (File file : files) {
+                String name = file.getName ();
+                if (name.startsWith (prefix) && name.endsWith (suffix)) {
+                    int expdate = Integer.parseInt (name.substring (prefixlen, name.length () - suffixlen));
+                    if (!expdateRefdByAnyState (expdate)) {
+                        recursiveDelete (file);
+                    }
+                }
+            }
+        }
+
+        // maybe delete the given chart file
+        //  keepchartdires = list of <chartname> => <goodrevno> to keep
+        //  file = chart file to possibly delete
+        //  namerev = <chartname>_<revno> of chart file to possibly delete
+        private void maybeDeleteChartFile (HashMap<String,Integer> keepchartdirs, File file, String namerev)
+        {
+            try {
+                // split given <chartname>_<revno> into <chartname>_ and <revno>
+                int i = namerev.lastIndexOf ('_');
+                int chartrev = Integer.parseInt (namerev.substring (++ i));
+                String chartname = namerev.substring (0, i);
+
+                // see if listed in keepchartdirs.  if not, delete it.
+                // if so but is earlier rev than in keepchartdirs, delete it.
+                // keep only those listed in keepchartdirs at same or higher rev.
+                Integer keeprev = keepchartdirs.get (chartname);
+                if ((keeprev == null) || (chartrev < keeprev)) {
+                    recursiveDelete (file);
+                }
+            } catch (Exception e) {
+                Log.w (TAG, "error purging " + file.getPath (), e);
+            }
+        }
+
+        // delete the given file.
+        // if it is a directory, delete its contents too
+        private void recursiveDelete (File file)
+        {
+            if (file.isDirectory ()) {
+                for (File child : file.listFiles ()) {
+                    recursiveDelete (child);
+                }
+            }
+            Lib.Ignored (file.delete ());
+        }
+
+        // see if any of the downloadable checkboxes reference the given expdate
+        private boolean expdateRefdByAnyState (int expdate)
+        {
+            // make sure we don't purge anything that is being downloaded
+            // anything being downloaded will have expdate in the future
+            if (expdate >= nowexpdate) return true;
+
+            // scan through all the checkboxes
+            // if any of them lists the given expdate, keep the file
+            for (Downloadable downloadable : allDownloadables) {
+                if (downloadable.GetEndDate () == expdate) return true;
+            }
+
+            // nothing references the given expdate, it's ok to purge the file
+            return false;
         }
     }
 }

@@ -20,10 +20,12 @@
 
 package com.outerworldapps.wairtonow;
 
+import android.content.DialogInterface;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.hardware.GeomagneticField;
+import android.util.Log;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -1253,6 +1255,22 @@ public class Lib {
                 paint.getTextBounds (st, 0, st.length (), drawBoundedStringBounds);
                 drawBoundedStringBounds.offset (cx - drawBoundedStringBounds.width () / 2, ty);
                 overallBounds.union (drawBoundedStringBounds);
+            }
+        }
+    }
+
+    /**
+     * Dismiss a dialog box.
+     */
+    public static void dismiss (DialogInterface dialog)
+    {
+        if (dialog != null) {
+            try {
+                dialog.dismiss ();
+            } catch (Exception e) {
+                // got IllegalArgumentException in PhoneWindow$DecorView
+                // ... not attached to window manager
+                Log.w ("WairToNow", "exception dismissing dialog", e);
             }
         }
     }

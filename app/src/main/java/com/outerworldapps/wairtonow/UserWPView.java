@@ -283,7 +283,7 @@ public class UserWPView extends LinearLayout
             builder.setNegativeButton ("Cancel", new DialogInterface.OnClickListener () {
                 public void onClick (DialogInterface dialog, int which)
                 {
-                    dialog.dismiss ();
+                    Lib.dismiss (dialog);
                 }
             });
             AlertDialog dialog = builder.create ();

@@ -19,17 +19,13 @@
 //    http://www.gnu.org/licenses/gpl-2.0.html
 
 /**
- * Decode lat/lon of an approach plate and generate georef info.
+ * Attempt to print PDF geo-ref information
  *
- *  export CLASSPATH=pdfbox-1.8.10.jar:commons-logging-1.2.jar
+ *  export CLASSPATH=:pdfbox-1.8.10.jar:commons-logging-1.2.jar
  *
- *  javac -Xlint:deprecation DecodePlate2.java Lib.java
+ *  javac -Xlint:deprecation PDFGeoRef.java Lib.java
  *
- *  java DecodePlate2 [ BVY 'IAP-RNAV (GPS) RWY 27' ]
- *      [ -cycles28 expdate_yyyymmdd ]
- *      [ -csvout bvygps27.csv ]
- *      [ -rejects bvygps27.rej ]
- *      [ -verbose ]
+ *  java PDFGeoRef <pdffile>
  */
 
 import java.io.BufferedReader;
@@ -61,239 +57,26 @@ import org.apache.pdfbox.pdmodel.PDDocumentCatalog;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageNode;
 
-public class DecodePlate2 {
+public class PDFGeoRef {
     private final static int pdfDpi =  72;  // PDFs are defined with 72dpi units
     private final static int csvDpi = 300;  // database is set up for 300dpi pixels
 
-    private static Airport airport;
-    private static boolean verbose;
-    private static HashMap<String,Airport> allAirports = new HashMap<> ();
     private static PDPage pdPage;
-    private static PrintWriter csvoutfile;
-    private static PrintWriter rejectsfile;
-    private static String basedir;
-    private static String csvoutname;
-    private static String cycles28expdate;
-    private static String faaid;
-    private static String pdfName;
-    private static String plateid;
-    private static String rejectsname;
 
-    public static void main (String[] args)
+    public static void main (String[] args) throws Exception
     {
-        try {
-            basedir = new File (DecodePlate2.class.getProtectionDomain ().getCodeSource ().getLocation ().toURI ()).getParent ().toString ();
+        String pdfName = args[0];
 
-            // Decode command line
-
-            for (int i = 0; i < args.length;) {
-                String arg = args[i++];
-                if (arg.startsWith ("-")) {
-                    if (arg.equals ("-csvout") && (i < args.length)) {
-                        csvoutname = args[i++];
-                        continue;
-                    }
-                    if (arg.equals ("-cycles28") && (i < args.length)) {
-                        cycles28expdate = args[i++];
-                        continue;
-                    }
-                    if (arg.equals ("-rejects") && (i < args.length)) {
-                        rejectsname = args[i++];
-                        continue;
-                    }
-                    if (arg.equals ("-verbose")) {
-                        verbose = true;
-                        continue;
-                    }
-                    System.err.println ("unknown option " + arg);
-                    System.exit (1);
-                }
-                if (faaid == null) {
-                    faaid = arg;
-                    continue;
-                }
-                if (plateid == null) {
-                    plateid = arg;
-                    continue;
-                }
-                System.err.println ("unknown parameter " + arg);
-                System.exit (1);
-            }
-
-            // Read in airports to get their FAAids and ICAOids.
-            // 2B2,2B2,...
-            // KBVY,BVY,...
-
-            BufferedReader br4 = new BufferedReader (new FileReader (basedir + "/datums/airports_" + cycles28expdate + ".csv"), 4096);
-            String line;
-            while ((line = br4.readLine ()) != null) {
-                String[] csvs = Lib.QuotedCSVSplit (line);
-                Airport apt = new Airport ();
-                apt.icaoid  = csvs[0];
-                apt.faaid   = csvs[1];
-                allAirports.put (apt.faaid, apt);
-            }
-            br4.close ();
-
-            // If plate given on command line, process just that one plate
-
-            if ((faaid != null) && (plateid != null)) {
-                File[] stateFiles = new File (basedir + "/datums/aptplates_" + cycles28expdate + "/state").listFiles ();
-                for (File stateFile : stateFiles) {
-                    String statePath = stateFile.getPath ();
-                    if (statePath.endsWith (".csv")) {
-                        BufferedReader br2 = new BufferedReader (new FileReader (stateFile), 4096);
-                        while ((line = br2.readLine ()) != null) {
-                            String[] csvs = Lib.QuotedCSVSplit (line);
-                            if (csvs[0].equals (faaid) && csvs[1].equals (plateid)) {
-                                br2.close ();
-                                airport = allAirports.get (faaid);
-                                if (airport == null) throw new Exception ("airport " + faaid + " not found");
-                                ProcessPlate (csvs[2]);
-                                if (csvoutfile != null) csvoutfile.close ();
-                                return;
-                            }
-                        }
-                        br2.close ();
-                    }
-                }
-                throw new Exception ("plate not found");
-            }
-
-            // Otherwise, read state file csv lines from stdin and process all those plates
-
-            if ((faaid == null) && (plateid == null)) {
-
-                // see what plates have already been done
-                // then set up to append onto the file
-                HashMap<String,Boolean> existingDecodes = new HashMap<> ();
-                try {
-                    BufferedReader br9 = new BufferedReader (new FileReader (csvoutname), 4096);
-                    while ((line = br9.readLine ()) != null) {
-                        String[] csvs = Lib.QuotedCSVSplit (line);
-                        String key = csvs[0] + ":" + csvs[1];
-                        existingDecodes.put (key, true);
-                    }
-                    br9.close ();
-                    csvoutfile = new PrintWriter (new FileOutputStream (csvoutname, true));
-                } catch (FileNotFoundException fnfe) {
-                }
-
-                // process plates given in stdin that aren't already in the csvoutfile
-                BufferedReader br7 = new BufferedReader (new InputStreamReader (System.in), 4096);
-                while ((line = br7.readLine ()) != null) {
-                    String[] csvs = Lib.QuotedCSVSplit (line);
-                    faaid   = csvs[0];
-                    plateid = csvs[1];
-                    airport = allAirports.get (faaid);
-                    if (airport == null) throw new Exception ("airport " + faaid + " not found");
-                    String key = airport.icaoid + ":" + plateid;
-                    if (!existingDecodes.containsKey (key)) {
-                        existingDecodes.put (key, true);
-                        if (verbose) {
-                            System.out.println ("");
-                            System.out.print ("---------------- " + faaid + " " + plateid + "\n");
-                        }
-                        long started = System.nanoTime ();
-                        try {
-                            ProcessPlate (csvs[2]);
-                        } catch (Throwable t) {
-                            System.out.println ("error processing plate " + faaid + " " + plateid);
-                            t.printStackTrace (System.out);
-                            WriteRejectsRecord ();
-                        }
-                        long finished = System.nanoTime ();
-                        if (verbose) System.out.println ("---------------- " + ((finished - started + 500000) / 1000000) + " ms");
-                    } else {
-                        if (verbose) System.out.println ("---------------- " + key + " already done");
-                    }
-                }
-                br7.close ();
-                if (csvoutfile != null) csvoutfile.close ();
-                if (rejectsfile != null) rejectsfile.close ();
-                return;
-            }
-
-            System.err.println ("missing required parameters");
-            System.exit (1);
-        } catch (Exception e) {
-            e.printStackTrace ();
-            System.exit (1);
-        }
-    }
-
-    public static void ProcessPlate (String gifName) throws Exception
-    {
-        // Get PDF file name from <state>.csv
-        //   datums/aptplates_20150917/state
-        //   BVY,"IAP-RNAV (GPS) RWY 27",gif_150/050/39r27.gif
-
-        if (!gifName.startsWith ("gif_") || !gifName.endsWith (".gif")) {
-            throw new Exception ("bad gif name " + gifName);
-        }
-        pdfName = basedir + "/datums/aptplates_" + cycles28expdate + "/pdftemp" +
-                gifName.substring (gifName.indexOf ('/'), gifName.length () - 4) + ".pdf";
-
-        // Process the plate
-
-        ProcessPlateWork ();
-    }
-
-    // Input:
-    //   airport = airport the approach is for
-    //   plateid = which plate is being processed (for messages and csv/rej file record)
-    //   pdfName = name of PDF file as downloaded from FAA
-    //   csvoutname = where to write .csv info to (if successful)
-    //   rejectsname = where to write .rej info to (if unable to resolve)
-    // Output:
-    //   writes csvoutname and rejectsname files
-    public static void ProcessPlateWork () throws Exception
-    {
-        /*
-         * Open PDF and get its only page.
-         */
         PDDocument pddoc = PDDocument.load (pdfName);
-        try {
-            PDDocumentCatalog doccat = pddoc.getDocumentCatalog ();
-            PDPageNode pages = doccat.getPages ();
-            LinkedList<Object> kids = new LinkedList<Object> ();
-            pages.getAllKids (kids);
-            if (kids.size () != 1) throw new Exception ("pdf not a single Page");
-            pdPage = (PDPage) kids.get (0);
-            ////if (verbose) printCOSObject ("", "pdPage", pdPage.getCOSObject ());
 
-            // Analyze PDF to locate waypoints depicted thereon.
+        PDDocumentCatalog doccat = pddoc.getDocumentCatalog ();
+        PDPageNode pages = doccat.getPages ();
+        LinkedList<Object> kids = new LinkedList<Object> ();
+        pages.getAllKids (kids);
+        if (kids.size () != 1) throw new Exception ("pdf not a single Page");
+        pdPage = (PDPage) kids.get (0);
+        printCOSObject ("", "pdPage", pdPage.getCOSObject ());
 
-            ResolveFixes ();
-        } finally {
-            pddoc.close ();
-        }
-    }
-
-    /**
-     * Write plate info to rejects file.
-     * Input:
-     *   rejectsname = name of rejects file (or null to not bother)
-     *   rejectsfile = file if already open
-     *   airport = airport the plate is for
-     *   plateid = plate id
-     *   pdfName = name of pdf file containing plate
-     */
-    public static void WriteRejectsRecord () throws IOException
-    {
-        if (rejectsname != null) {
-            if (rejectsfile == null) rejectsfile = new PrintWriter (rejectsname);
-            String quotedplateid = Lib.QuotedString (plateid);
-            rejectsfile.println (airport.faaid + "," + quotedplateid + "," + pdfName + ",");
-            rejectsfile.flush ();
-        }
-    }
-
-    /**
-     * Resolve positions on the plate of named fixes.
-     */
-    public static void ResolveFixes () throws Exception
-    {
         /*
          * See if PDF contains FAA-supplied geo-referencing info
          *
@@ -337,30 +120,10 @@ public class DecodePlate2 {
         /*
          * Write result to datums/iapgeorefs2_<expdate>.csv
          */
-        if (csvoutname != null) {
-            String quotedplateid = Lib.QuotedString (plateid);
-            if (csvoutfile == null) csvoutfile = new PrintWriter (csvoutname);
-            csvoutfile.println (airport.icaoid + "," + quotedplateid + "," +
-                lcc.centerLat + "," + lcc.centerLon + "," + lcc.stanPar1 + "," + lcc.stanPar2 + "," +
-                lcc.rada + "," + lcc.radb + "," + lcc.tfw_a + "," + lcc.tfw_b + "," +
-                lcc.tfw_c + "," + lcc.tfw_d + "," + lcc.tfw_e + "," + lcc.tfw_f);
-            csvoutfile.flush ();
-        }
-    }
-
-    /**
-     * Airports from database.
-     */
-    private static class Airport {
-        public String icaoid;
-        public String faaid;
-    }
-
-    /**
-     * A position on the Earth.
-     */
-    private static class LatLon {
-        public double lat, lon;
+        System.out.println (
+            lcc.centerLat + "," + lcc.centerLon + "," + lcc.stanPar1 + "," + lcc.stanPar2 + "," +
+            lcc.rada + "," + lcc.radb + "," + lcc.tfw_a + "," + lcc.tfw_b + "," +
+            lcc.tfw_c + "," + lcc.tfw_d + "," + lcc.tfw_e + "," + lcc.tfw_f);
     }
 
     /**

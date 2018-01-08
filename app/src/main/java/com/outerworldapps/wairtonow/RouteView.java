@@ -1013,10 +1013,9 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
         OnClickListener clicked = new OnClickListener () {
             @Override
             public void onClick (View view) {
-                if (loadButtonMenu != null) {
-                    loadButtonMenu.dismiss ();
-                    loadButtonMenu = null;
-                }
+                Lib.dismiss (loadButtonMenu);
+                loadButtonMenu = null;
+
                 File file = (File) view.getTag ();
                 String name = ((TextView) view).getText ().toString ();
                 int i = name.lastIndexOf (ntsep);
@@ -1029,10 +1028,9 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
             @Override
             public boolean onLongClick (View view)
             {
-                if (loadButtonMenu != null) {
-                    loadButtonMenu.dismiss ();
-                    loadButtonMenu = null;
-                }
+                Lib.dismiss (loadButtonMenu);
+                loadButtonMenu = null;
+
                 File file = (File) view.getTag ();
                 String name = ((TextView) view).getText ().toString ();
                 int i = name.lastIndexOf (ntsep);

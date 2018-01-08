@@ -79,7 +79,7 @@ public class MagTrueSpinner extends Spinner implements View.OnClickListener {
     {
         Context ctx = getContext ();
 
-        if (alert != null) alert.dismiss ();
+        Lib.dismiss (alert);
 
         RadioButton rbmag = new RadioButton (ctx);
         rbmag.setText (items[0]);
@@ -108,7 +108,7 @@ public class MagTrueSpinner extends Spinner implements View.OnClickListener {
     public void onClick (View v)
     {
         setMag ((Boolean) v.getTag ());
-        alert.dismiss ();
+        Lib.dismiss (alert);
         alert = null;
     }
 }

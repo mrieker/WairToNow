@@ -25,8 +25,8 @@
      */
 
     // single download
-    if (isset ($_GET['tile'])) {
-        $tile = $_GET['tile'];
+    if (isset ($_REQUEST['tile'])) {
+        $tile = $_REQUEST['tile'];
         $newpath = download ($tile);
         header ('Content-Type: image/png');
         readfile ($newpath);
@@ -34,8 +34,8 @@
     }
 
     // bulk download
-    for ($i = 1; isset ($_POST["tile_$i"]); $i ++) {
-        $tile = $_POST["tile_$i"];
+    for ($i = 1; isset ($_REQUEST["tile_$i"]); $i ++) {
+        $tile = $_REQUEST["tile_$i"];
         $newpath = download ($tile);
         $size = filesize ($newpath);
         echo "@@tile=$tile\n";

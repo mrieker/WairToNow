@@ -122,8 +122,8 @@ public class TextArraySpinner extends Button implements View.OnClickListener {
         super.setEnabled (enabled);
 
         // if disabled, make sure dialog box is closed
-        if (!enabled && (dialog != null)) {
-            dialog.dismiss ();
+        if (!enabled) {
+            Lib.dismiss (dialog);
             dialog = null;
         }
     }
@@ -149,10 +149,8 @@ public class TextArraySpinner extends Button implements View.OnClickListener {
         }
 
         // shouldn't think there's a dialog up but clear it off if so
-        if (dialog != null) {
-            dialog.dismiss ();
-            dialog = null;
-        }
+        Lib.dismiss (dialog);
+        dialog = null;
 
         // make a group of radio buttons for the selection
         Context ctx = getContext ();
@@ -216,7 +214,7 @@ public class TextArraySpinner extends Button implements View.OnClickListener {
     // one of the normal selection buttons was clicked
     private void selected (int i)
     {
-        dialog.dismiss ();
+        Lib.dismiss (dialog);
         dialog = null;
         if ((clicked == null) || clicked.onItemSelected (this, i)) {
             setIndex (i);

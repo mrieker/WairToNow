@@ -399,7 +399,7 @@ public class FilesView
                 }
             } else {
                 deleteFileThread = null;
-                progress.dismiss ();
+                Lib.dismiss (progress);
                 progress = null;
                 if (completed && (currentFileList != null)) {
                     currentFileList.removeView (fileButton);
@@ -486,7 +486,7 @@ public class FilesView
         @Override  // DialogInterface.OnClickListener
         public void onClick (DialogInterface dialog, int which)
         {
-            dialog.dismiss ();
+            Lib.dismiss (dialog);
             switch (which) {
                 case 0: {
                     Message msg = filesViewHandler.obtainMessage (FilesViewHandlerWhat_OPENFILE, 0, 0, file.getPath ());

@@ -574,10 +574,9 @@ public class BluetoothGpsAdsb extends GpsAdsbReceiver {
         private void continuing ()
         {
             wairToNow.unregisterReceiver (this);
-            if (pleaseWait != null) {
-                pleaseWait.dismiss ();
-                pleaseWait = null;
-            }
+            Lib.dismiss (pleaseWait);
+            pleaseWait = null;
+
             Log.d (TAG, "BluetoothGpsAdsb: continuing...");
 
             sdpComplete = true;

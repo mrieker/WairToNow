@@ -261,7 +261,7 @@ public abstract class Waypoint {
             public boolean onEditorAction (TextView textView, int i, KeyEvent keyEvent)
             {
                 if (i == EditorInfo.IME_ACTION_DONE) {
-                    ad.dismiss ();
+                    Lib.dismiss (ad);
                     waypointEntered (wtn, title, wpsel, nearlat, nearlon,
                             ident, rnavradl, magTrue, rnavdist);
                 }

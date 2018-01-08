@@ -38,12 +38,12 @@
             /*
              * Check for callback link to display single marked-up diagram.
              */
-            if (!empty ($_GET['icaoid'])) {
-                $icaoid  = $_GET['icaoid'];
+            if (!empty ($_REQUEST['icaoid'])) {
+                $icaoid  = $_REQUEST['icaoid'];
                 echo "<SCRIPT LANGUAGE=JAVASCRIPT> document.getElementById ('title').innerHTML = 'APD Review $icaoid'</SCRIPT>\n";
                 echo "<H3> Marked up $icaoid Airport Diagram </H3>\n";
                 @flush (); @ob_flush (); @flush ();
-                $cleanname = $_GET['pngname'];
+                $cleanname = $_REQUEST['pngname'];
                 $markdname = "../webpages/apdreview/$icaoid.markd.png";
                 $csvname   = "../webpages/apdreview/$icaoid.csv";
                 $cvtfile = popen ("cd ../decosects ; umask 002 ; mono --debug ReadArptDgmPng.exe $cleanname -markedpng $markdname -csvoutfile $csvname -csvoutid $icaoid 2>&1", "r");

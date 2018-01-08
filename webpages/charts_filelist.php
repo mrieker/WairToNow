@@ -27,7 +27,7 @@
      */
 
     // get name from chartlimits.csv with underscores instead of spaces
-    $undername = $_GET["undername"];
+    $undername = $_REQUEST["undername"];
 
     if ($undername == 'Waypoints') {
 

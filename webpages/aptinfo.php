@@ -30,7 +30,7 @@
             if ($expdate < $i) $expdate = $i;
         }
     }
-    $faaid     = strtoupper ($_GET['faaid']);
+    $faaid     = strtoupper ($_REQUEST['faaid']);
     $firstchar = $faaid[0];
     $restchars = substr ($faaid, 1);
     system ("zcat datums/aptinfo_$expdate/$firstchar/$restchars.html.gz");

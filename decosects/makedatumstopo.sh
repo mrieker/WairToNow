@@ -1,4 +1,4 @@
-#!/bin/bash -v
+#!/bin/bash
 #
 #  Build the datums/topo directory contents
 #
@@ -28,7 +28,7 @@ fi
 if [ ! -f datums/topo/0.zip.save ]
 then
     rm -f ETOPO1_Ice_g_int.xyz.gz*
-    wget http://www.ngdc.noaa.gov/mgg/global/relief/ETOPO1/data/ice_surface/grid_registered/xyz/ETOPO1_Ice_g_int.xyz.gz
+    wget -nv http://www.ngdc.noaa.gov/mgg/global/relief/ETOPO1/data/ice_surface/grid_registered/xyz/ETOPO1_Ice_g_int.xyz.gz
 
     rm -rf datums/topo
     mkdir datums/topo

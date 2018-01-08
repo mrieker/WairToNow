@@ -32,8 +32,8 @@
      *    @@done\n
      */
     $n = 0;
-    while (isset ($_POST["f$n"])) {
-        $name = $_POST["f$n"];
+    while (isset ($_REQUEST["f$n"])) {
+        $name = $_REQUEST["f$n"];
         if ($name[0] == '/') {
             die ("name $name cannot start with /\n");
         }

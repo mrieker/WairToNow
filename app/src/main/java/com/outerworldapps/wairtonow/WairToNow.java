@@ -977,7 +977,7 @@ public class WairToNow extends Activity {
             @Override
             public void onClick (View view)
             {
-                ad.dismiss ();
+                Lib.dismiss (ad);
                 TabButton tb = (TabButton) view.getTag ();
                 tb.onClick (tb);
             }

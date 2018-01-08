@@ -36,13 +36,13 @@
         <?php
             $iapdirs = array ("FAA" => "datums/iapgeorefs2_$cycles28"); // FAA generated (DecodePlate2.java)
 
-            if (isset ($_GET['iapid'])) {
+            if (isset ($_REQUEST['iapid'])) {
                 gotIAPId ();
-            } elseif (isset ($_GET['icaoid'])) {
+            } elseif (isset ($_REQUEST['icaoid'])) {
                 gotAirport ();
-            } elseif (isset ($_GET['first'])) {
+            } elseif (isset ($_REQUEST['first'])) {
                 gotFirst ();
-            } elseif (isset ($_GET['state'])) {
+            } elseif (isset ($_REQUEST['state'])) {
                 gotState ();
             } else {
                 gotNothing ();
@@ -175,7 +175,7 @@
             {
                 global $cycles28, $iapdirs;
 
-                $first = $_GET['first'];
+                $first = $_REQUEST['first'];
 
                 echo "<P><A HREF=\"viewiap.php\">Top</A> $first</P>";
                 echo "<SCRIPT> document.getElementById ('title').innerHTML += ': $first' </SCRIPT>\n";
@@ -264,16 +264,16 @@
                 global $cycles28, $iapdirs;
 
                 $state  = getStateCode ();
-                $icaoid = $_GET['icaoid'];
-                $faaid  = $_GET['faaid'];
+                $icaoid = $_REQUEST['icaoid'];
+                $faaid  = $_REQUEST['faaid'];
 
                 $sl = getStateLink ();
                 echo "<P><A HREF=\"viewiap.php\">Top</A> $sl $faaid ($icaoid)</P>";
                 echo "<SCRIPT> document.getElementById ('title').innerHTML += ': $faaid' </SCRIPT>\n";
 
                 $sl = "state=$state";
-                if (isset ($_GET['first'])) {
-                    $first = $_GET['first'];
+                if (isset ($_REQUEST['first'])) {
+                    $first = $_REQUEST['first'];
                     $sl = "first=$first&state=$state";
                 }
 
@@ -378,11 +378,11 @@
              */
             function getStateLink ()
             {
-                if (isset ($_GET['first'])) {
-                    $first = $_GET['first'];
+                if (isset ($_REQUEST['first'])) {
+                    $first = $_REQUEST['first'];
                     return "<A HREF=\"viewiap.php?first=$first\">$first</A>";
                 }
-                $state = $_GET['state'];
+                $state = $_REQUEST['state'];
                 return "<A HREF=\"viewiap.php?state=$state\">$state</A>";
             }
 
@@ -391,10 +391,10 @@
              */
             function getAirportLink ($faaid, $icaoid)
             {
-                $state = $_GET['state'];
+                $state = $_REQUEST['state'];
                 $link  = "state=$state";
-                if (isset ($_GET['first'])) {
-                    $first = $_GET['first'];
+                if (isset ($_REQUEST['first'])) {
+                    $first = $_REQUEST['first'];
                     $link  = "first=$first&state=$state";
                 }
                 return "<A HREF=\"viewiap.php?$link&icaoid=$icaoid&faaid=$faaid\">$faaid ($icaoid)</A>";
@@ -428,7 +428,7 @@
             {
                 global $iapdirs;
 
-                $state = $_GET['state'];
+                $state = $_REQUEST['state'];
                 if (strlen ($state) != 2) die ("bad state code");
                 foreach ($iapdirs as $iapdir) {
                     if (file_exists ("$iapdir/$state.csv")) return $state;

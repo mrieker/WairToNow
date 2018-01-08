@@ -63,7 +63,7 @@ function scanifrchartshtm
         if [ ! -f $zipname ]
         then
             rm -rf zip.tmp
-            if wget $zipurl -O zip.tmp
+            if wget -nv $zipurl -O zip.tmp
             then
                 mv -f zip.tmp $zipname
             else
@@ -149,7 +149,7 @@ echo expdate_mmm $expdate_mmm
 mkdir -p charts
 cd charts
 
-wget https://www.faa.gov/air_traffic/flight_info/aeronav/digital_products/ifr/ -O ifrcharts.htm
+wget -nv https://www.faa.gov/air_traffic/flight_info/aeronav/digital_products/ifr/ -O ifrcharts.htm
 
 mono --debug ../GetIFRChartNames.exe $effdate_mm < ifrcharts.htm | scanifrchartshtm
 

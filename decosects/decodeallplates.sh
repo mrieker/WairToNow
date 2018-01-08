@@ -38,7 +38,7 @@ function processstate
         rm -f $iap2outdir/$stateid.rej.tmp
         if [ ! -f $iap2outdir/$stateid.csv ]
         then
-            java DecodePlate2 -verbose \
+            java DecodePlate2 \
                 -csvout $iap2outdir/$stateid.csv.tmp \
                 -cycles28 $cycles28 \
                 -rejects $iap2outdir/$stateid.rej.tmp \
@@ -71,24 +71,16 @@ export CLASSPATH=DecodePlate2.jar:pdfbox-1.8.10.jar:commons-logging-1.2.jar
 #
 if [ ! -f pdfbox-1.8.10.jar ]
 then
-    wget http://archive.apache.org/dist/pdfbox/1.8.10/pdfbox-1.8.10.jar
+    wget -nv http://archive.apache.org/dist/pdfbox/1.8.10/pdfbox-1.8.10.jar
 fi
 
 if [ ! -f commons-logging-1.2.jar ]
 then
-    wget http://apache.mirrors.lucidnetworks.net//commons/logging/binaries/commons-logging-1.2-bin.tar.gz
+    wget -nv http://apache.mirrors.lucidnetworks.net//commons/logging/binaries/commons-logging-1.2-bin.tar.gz
     tar xzfO commons-logging-1.2-bin.tar.gz \
             commons-logging-1.2/commons-logging-1.2.jar > \
             commons-logging-1.2.jar
     rm commons-logging-1.2-bin.tar.gz
-fi
-
-if [ DecodePlate.jar -ot DecodePlate.java ]
-then
-    rm -f DecodePlate.jar DecodePlate*.class Lib*.class
-    javac -Xlint:deprecation DecodePlate.java Lib.java
-    jar cf DecodePlate.jar DecodePlate*.class Lib*.class
-    rm -f DecodePlate*.class Lib*.class
 fi
 
 if [ DecodePlate2.jar -ot DecodePlate2.java ]

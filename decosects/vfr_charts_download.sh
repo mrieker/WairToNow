@@ -1,4 +1,4 @@
-#!/bin/bash -v
+#!/bin/bash
 #
 # http://aeronav.faa.gov/content/aeronav/sectional_files/New_York_86.zip
 # http://aeronav.faa.gov/content/aeronav/tac_files/Boston_TAC_81.zip
@@ -35,7 +35,7 @@ function downloadfiles
         if [ ! -f $zipname ]
         then
             rm -rf zip.tmp
-            if wget -q $link -O zip.tmp
+            if wget -nv $link -O zip.tmp
             then
                 mv -f zip.tmp $zipname
             else
@@ -60,7 +60,7 @@ export CLASSPATH=$pwd:$pwd/jsoup-1.9.2.jar
 
 if [ ! -f jsoup-1.9.2.jar ]
 then
-    wget https://jsoup.org/packages/jsoup-1.9.2.jar
+    wget -nv https://jsoup.org/packages/jsoup-1.9.2.jar
 fi
 
 if [ ParseChartList.class -ot ParseChartList.java ]
@@ -72,7 +72,7 @@ fi
 mkdir -p charts
 cd charts
 
-wget -q http://www.faa.gov/air_traffic/flight_info/aeronav/digital_products/vfr/ -O chartlist_all.htm
+wget -nv http://www.faa.gov/air_traffic/flight_info/aeronav/digital_products/vfr/ -O chartlist_all.htm
 downloadgroup helicopter
 downloadgroup sectional
 downloadgroup terminalArea

@@ -941,10 +941,8 @@ public class PlateCIFP {
         selectButtons = null;
 
         // don't want the select menu shown any more
-        if (selectMenu != null) {
-            selectMenu.dismiss ();
-            selectMenu = null;
-        }
+        Lib.dismiss (selectMenu);
+        selectMenu = null;
 
         for (CIFPLeg leg : segment.legs) {
             if (leg.isOptional ()) return;

@@ -602,7 +602,11 @@ public class ParseCifp {
                 case 'J':     // not in spec - KLWM I05-Y <final> TEWKS altone=02000 alttwo=01900
                 case 'V': {   // alttwo for glideslope; altone for localizer
                               // alttwo is slightly above altone while on vertical descent on final
-                    sb.append (",a=" + altdesc + Integer.parseInt (altone) + ":" + Integer.parseInt (alttwo));
+                    if (!altone.equals ("") && !alttwo.equals ("")) {
+                        sb.append (",a=" + altdesc + Integer.parseInt (altone) + ":" + Integer.parseInt (alttwo));
+                    } else {
+                        System.out.println (segment.approach.airport.icaoid + "." + segment.approach.appid + "." + segment.segid + ": blank altitudes");
+                    }
                     break;
                 }
                 default: {
