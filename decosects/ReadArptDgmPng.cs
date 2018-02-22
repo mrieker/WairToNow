@@ -25,7 +25,7 @@
  *  yum install libexif-0.6.21-6.el7.x86_64 giflib-4.1.6-9.el7.x86_64
  *  rpm -ihv libgdiplus-2.10-9.el7.x86_64.rpm
  *  ln -s /lib64/libgdiplus.so.0 /lib64/libgdiplus.so
- *  gmcs -debug -out:ReadArptDgmPng.exe -reference:System.Drawing.dll ReadArptDgmPng.cs
+ *  mcs -debug -out:ReadArptDgmPng.exe -reference:System.Drawing.dll ReadArptDgmPng.cs
  *
  *  Download airport diagram PDF file from http://www.faa.gov/airports/runway_safety/diagrams/
  *
@@ -408,6 +408,11 @@ public class ReadArptDgmPng {
          */
         badStrings = new Dictionary<string,string> ();
         badStrings["KAVL:86^32.0'W"]  = "82^32.0'W";
+        badStrings["KAVP:41^20.0\"N"] = "41^20.0'N";
+        badStrings["KAVP:41^20.5\"N"] = "41^20.5'N";
+        badStrings["KAVP:75^43.0\"W"] = "75^43.0'W";
+        badStrings["KAVP:75^43.5\"W"] = "75^43.5'W";
+        badStrings["KAVP:75^44.0\"W"] = "75^44.0'W";
         badStrings["KBAZ:29^42'5'N"]  = "29^42.5'N";
         badStrings["KBNA:36^06'W"]    = "36^06'N";
         badStrings["KBNA:36^07'W"]    = "36^07'N";

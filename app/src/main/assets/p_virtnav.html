@@ -43,9 +43,26 @@
         </OL>
         <P>Similarly, you can tune in a localizer or ILS.  It will by default set the display to
             LOC or ILS mode, depending on the beacon type.  When the display is in LOC or ILS mode,
-            the OBS dial will be locked to the localizer heading.  If you set the display to VOR or
-            ADF mode, WairToNow will behave as if there was a VOR or ADF at the same spot as the
-            localizer and you can rotate the dial freely.</P>
+            the OBS dial will be locked to the localizer heading.  If you set the display to LOCBC
+            mode, the OBS dial will be locked to the reciprocal of the localizer heading.  If you
+            set the display to VOR or ADF mode, WairToNow will behave as if there was a VOR or ADF
+            at the same spot as the localizer and you can rotate the dial freely.</P>
+        <P>When doing a LOC BC approach, there are two options:</P>
+        <UL>
+            <LI>LOC mode - the OBS will lock to the localizer forward heading and the needle will
+                reverse sense just like a real localizer needle.
+            <LI>LOCBC mode - the OBS will lock to the approach runway heading and the needle will
+                forward sensing, ie, will behave as if the approach were a normal localizer approach.
+            <LI>If HSI enabled, it won't matter if it is LOC or LOCBC mode, just the DME display
+                will be flipped over.
+            <LI>You can practice reverse sensing needle <FONT COLOR=RED>in VMC</FONT> with a
+                normal front-side localizer approach by using LOCBC mode, in which case the needle
+                will show reverse sensing.  Make sure HSI is disabled so it doesn't flip the dial
+                back around.  Use the same runway as the original front-side approach is for.  Eg,
+                if using a LOC RWY 16 approach plate, the back-course approach will also be to RWY
+                16, not RWY 34, so you can use the same transitions and step-downs as the front-side
+                approach.
+        </UL>
         <P>When in ILS mode, the dial will calculate what your descent rate should be to stay on
             the glideslope, in feet per minute.  This calculation is based on what the device's GPS
             is showing for the aircraft's ground speed and the glideslope antenna tilt as provided

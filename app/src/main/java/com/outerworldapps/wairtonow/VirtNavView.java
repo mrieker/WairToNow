@@ -167,13 +167,17 @@ public class VirtNavView extends LinearLayout
                     mode = NavDialView.Mode.LOC;
                     break;
                 case LOC:
+                    mode = NavDialView.Mode.LOCBC;
+                    break;
+                case LOCBC:
                     mode = NavDialView.Mode.ILS;
                     break;
                 case ILS:
                     mode = NavDialView.Mode.OFF;
                     break;
             }
-            if (mode == NavDialView.Mode.LOC && !(waypoint instanceof Waypoint.Localizer)) {
+            if (((mode == NavDialView.Mode.LOC) || (mode == NavDialView.Mode.LOCBC)) &&
+                    !(waypoint instanceof Waypoint.Localizer)) {
                 mode = NavDialView.Mode.OFF;
             }
             if (mode == NavDialView.Mode.ILS && (!(waypoint instanceof Waypoint.Localizer) ||
@@ -691,6 +695,9 @@ public class VirtNavView extends LinearLayout
             if ((mode == NavDialView.Mode.ILS) || (mode == NavDialView.Mode.LOC)) {
                 navDial.obsSetting = locObsSetting;
             }
+            if (mode == NavDialView.Mode.LOCBC) {
+                navDial.obsSetting = locObsSetting + 180.0;
+            }
             navDial.setMode (mode);
             modeButton.setText (mode.toString ());
             computeRadial ();
@@ -789,7 +796,11 @@ public class VirtNavView extends LinearLayout
                 // LOC mode - needle deflection is difference of true course from aircraft to waypoint
                 //            and alignment of localizer antenna
                 case LOC: {
-                    computeLocRadial (status);
+                    computeLocRadial (status,  1);
+                    break;
+                }
+                case LOCBC: {
+                    computeLocRadial (status, -1);
                     break;
                 }
 
@@ -798,7 +809,7 @@ public class VirtNavView extends LinearLayout
                 //            gs needle deflection is difference of angle from aircraft to gs antenna
                 //            and tilt angle of gs antenna
                 case ILS: {
-                    Waypoint.Localizer loc = computeLocRadial (status);
+                    Waypoint.Localizer loc = computeLocRadial (status, 1);
                     status.append ("  GS Tilt: ");
                     status.append (Double.toString (loc.gs_tilt));
                     status.append ('\u00B0');
@@ -823,13 +834,13 @@ public class VirtNavView extends LinearLayout
      * Assuming we are in localizer/ILS mode, set needle deflection accordingly.
      * Also append info to status string.
      */
-    private Waypoint.Localizer computeLocRadial (SpannableStringBuilder status)
+    private Waypoint.Localizer computeLocRadial (SpannableStringBuilder status, int bc)
     {
         Waypoint.Localizer loc = (Waypoint.Localizer) waypoint;
         status.append ("  Loc Hdg: ");
         hdgString (status, loc.thdg + wpmagvar);
         double tctoloc = Lib.LatLonTC (wairToNow.currentGPSLat, wairToNow.currentGPSLon, loc.lat, loc.lon);
-        navDial.setDeflect (tctoloc - loc.thdg);
+        navDial.setDeflect ((tctoloc - loc.thdg) * bc);
         dmeDisplay ();
         currentHeading ();
         return loc;

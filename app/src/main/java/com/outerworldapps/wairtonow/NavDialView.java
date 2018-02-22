@@ -38,7 +38,7 @@ public class NavDialView extends View {
     private final static int GSFPMTEXTSIZE = 80;
 
     public enum Mode {
-        OFF, VOR, ADF, LOC, ILS
+        OFF, VOR, ADF, LOC, LOCBC, ILS
     }
 
     public interface DMEClickedListener {
@@ -220,7 +220,7 @@ public class NavDialView extends View {
      */
     public boolean isHSIAble ()
     {
-        return (mode == Mode.VOR) || (mode == Mode.LOC) || (mode == Mode.ILS);
+        return (mode == Mode.VOR) || (mode == Mode.LOC) || (mode == Mode.LOCBC) || (mode == Mode.ILS);
     }
 
     /**
@@ -373,7 +373,7 @@ public class NavDialView extends View {
         drawDMEInfo (canvas, dmeDigitPaint, dmeIdentPaint);
 
         // VOR/LOC-style deflection dots and needle
-        if ((mode == Mode.VOR) || (mode == Mode.LOC) || (mode == Mode.ILS)) {
+        if ((mode == Mode.VOR) || (mode == Mode.LOC) || (mode == Mode.LOCBC) || (mode == Mode.ILS)) {
 
             // draw inner ring
             canvas.drawCircle (0, 0, 412.0F / 5, innerRingPaint);
