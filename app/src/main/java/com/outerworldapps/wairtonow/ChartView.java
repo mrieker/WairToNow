@@ -328,14 +328,18 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
              */
             int ncharts = displayableCharts.size ();
             int nviews = (ncharts < 2) ? (ncharts + 1) : ncharts;
+            TextView awaitgps = null;
             chartViews = new View[nviews];
             int i = 0;
             if (ncharts < 2) {
-                TextView tv = new TextView (wairToNow);
-                wairToNow.SetTextSize (tv);
-                tv.setText ("You may need to wait for GPS positioning to " +
-                        "get a list of available charts for this area.");
-                chartViews[i++] = tv;
+                awaitgps = new TextView (wairToNow);
+                wairToNow.SetTextSize (awaitgps);
+                awaitgps.setBackgroundColor (Color.BLACK);
+                awaitgps.setTextColor (Color.WHITE);
+                awaitgps.setText ("You may need to wait for GPS positioning to " +
+                        "get a list of available charts for this area.  " +
+                        "Click this text to go to Sensors page to see GPS status.");
+                chartViews[i++] = awaitgps;
             }
             for (String spacename : displayableCharts.keySet ()) {
                 DisplayableChart dc = displayableCharts.get (spacename);
@@ -384,7 +388,19 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
                 }
             });
             adb.setNegativeButton ("Cancel", null);
-            adb.show ();
+            final AlertDialog ad = adb.show ();
+
+            if (awaitgps != null) {
+                awaitgps.setOnClickListener (new OnClickListener ()
+                {
+                    @Override
+                    public void onClick (View view)
+                    {
+                        ad.dismiss ();
+                        wairToNow.sensorsButton.DisplayNewTab ();
+                    }
+                });
+            }
         }
 
         /********************************\
@@ -534,17 +550,19 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
      * Select the given chart.  Remember it in case we are restarted so we can reselect it.
      * @param dc = null: show splash screen; else: show given chart if it is in range
      */
-    private void SelectChart (DisplayableChart dc)
+    public void SelectChart (DisplayableChart dc)
     {
         if (selectedChart != null) {
             selectedChart.CloseBitmaps ();
         }
         selectedChart = dc;
-        selectedChart.UserSelected ();
+        if (selectedChart != null) {
+            selectedChart.UserSelected ();
+            SharedPreferences prefs = wairToNow.getPreferences (Activity.MODE_PRIVATE);
+            SharedPreferences.Editor editr = prefs.edit ();
+            editr.putString ("selectedChart", dc.GetSpacenameSansRev ());
+            editr.commit ();
+        }
         if (backing != null) backing.ChartSelected ();
-        SharedPreferences prefs = wairToNow.getPreferences (Activity.MODE_PRIVATE);
-        SharedPreferences.Editor editr = prefs.edit ();
-        editr.putString ("selectedChart", dc.GetSpacenameSansRev ());
-        editr.commit ();
     }
 }

@@ -191,6 +191,24 @@ public class SQLiteDBs {
     }
 
     /**
+     * See if the given table is empty.
+     */
+    public boolean tableEmpty (String table)
+    {
+        dblock.lock ();
+        try {
+            Cursor result = tlsqldb.get ().rawQuery ("SELECT * FROM " + table + " LIMIT 1", null);
+            try {
+                return result.getCount () <= 0;
+            } finally {
+                result.close ();
+            }
+        } finally {
+            dblock.unlock ();
+        }
+    }
+
+    /**
      * See if the given column exists within the given table of the database.
      */
     public boolean columnExists (String table, String column)

@@ -643,7 +643,7 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
                 if (!result1.moveToFirst ()) {
                     throw new Exception ("starting airport not defined");
                 }
-                Waypoint.Airport wp = new Waypoint.Airport (result1);
+                Waypoint.Airport wp = new Waypoint.Airport (result1, wairToNow);
                 fromLat = wp.lat;
                 fromLon = wp.lon;
             } finally {
@@ -660,7 +660,7 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
                     null, null, null, null, null, null);
             try {
                 if (result2.moveToFirst ()) do {
-                    Waypoint.Airport wp = new Waypoint.Airport (result2);
+                    Waypoint.Airport wp = new Waypoint.Airport (result2, wairToNow);
                     double distNM  = Lib.LatLonDist (fromLat, fromLon, wp.lat, wp.lon);
                     double trueDeg = Lib.LatLonTC (fromLat, fromLon, wp.lat, wp.lon);
                     while (trueDeg < fromHdg) trueDeg += 360;

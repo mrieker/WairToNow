@@ -630,7 +630,7 @@ public class OpenStreetMap {
                                 String faaid = result.getString (0);
 
                                 // get airport information
-                                Waypoint.Airport apt = Waypoint.Airport.GetByFaaID (faaid);
+                                Waypoint.Airport apt = Waypoint.Airport.GetByFaaID (faaid, wairToNow);
                                 if (apt != null) {
                                     Log.i (TAG, "preloading runway diagram background for " + apt.ident);
 

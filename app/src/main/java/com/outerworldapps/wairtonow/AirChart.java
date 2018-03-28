@@ -40,14 +40,17 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import java.io.BufferedReader;
+import java.io.EOFException;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.zip.ZipFile;
 
 /**
  * Contains one aeronautical chart, whether or not it is downloaded.
@@ -83,7 +86,7 @@ public abstract class AirChart implements DisplayableChart {
     private int scaling;        // 1=full scale, 2=half sized, 3=third sized, etc
     private int wstep;          // widthwise pixel step for each tile
     private int[] expiredpixels;
-    private LinkedList<AirTile>  loadedBitmaps = new LinkedList<> ();
+    private LinkedList<AirTile> loadedBitmaps = new LinkedList<> ();
     private long viewDrawCycle = 0;  // incremented each drawing cycle
     private MaintView maintView;
     private Matrix drawOnCanvasChartMat   = new Matrix ();
@@ -96,7 +99,6 @@ public abstract class AirChart implements DisplayableChart {
     private Rect canvasBounds       = new Rect (0, 0, 0, 0);
     public  String spacenamewr; // eg, "New York SEC 92"
     public  String spacenamenr; // eg, "New York SEC"
-    private String revision;    // eg, "92"
     private WairToNow wairToNow;
 
     private int leftMacroChartPix;
@@ -116,6 +118,8 @@ public abstract class AirChart implements DisplayableChart {
     public  int chartheight, chartwidth;  // pixel width & height of this chart including legend areas
 
     private PointD[] outline;
+    private String tileZipName;   // name of the tileZipFile
+    private ZipFile tileZipFile;  // original unscaled untrimmed tiles from server
 
     // methods a projection-specific implementation must provide
     protected abstract String ParseParams (String csvLine);
@@ -138,8 +142,6 @@ public abstract class AirChart implements DisplayableChart {
         this.maintView = maintView;
         wairToNow = maintView.wairToNow;
 
-        ParseChartLimitsLine (csvLine);
-
         expiredpaint = new Paint ();
         expiredpaint.setColor (Color.RED);
         expiredpaint.setStrokeWidth (2);
@@ -160,6 +162,13 @@ public abstract class AirChart implements DisplayableChart {
             stntxpaint.setTextSize (wairToNow.textSize / 2);
             stntxpaint.setTextAlign (Paint.Align.CENTER);
         }
+
+        // in case not downloaded, use generic line for chartwidth, height etc
+        ParseCSVLine (csvLine);
+
+        // find latest downloaded revision if any
+        // ...and set up parameters to access it
+        StartUsingLatestDownloadedRevision ();
     }
 
     @Override  // DisplayableChart
@@ -193,6 +202,7 @@ public abstract class AirChart implements DisplayableChart {
 
     /**
      * Get entry for chart selection menu.
+     * This is called whether or not the chart is downloaded.
      */
     @SuppressLint("SetTextI18n")
     @Override  // DisplayableChart
@@ -239,13 +249,17 @@ public abstract class AirChart implements DisplayableChart {
         ChartPixel2GMSPixel (pt);
         bmrect.right  = (int) Math.round (pt.x);
         bmrect.bottom = (int) Math.round (pt.y);
-        String undername = spacenamenr.replace (' ', '_') + '_' + revision;
-        String iconname = WairToNow.dbdir + "/charts/" + undername + "/icon.png";
-        if (new File (iconname).exists ()) {
-            Bitmap iconbm = BitmapFactory.decodeFile (iconname);
-            can.drawBitmap (iconbm, null, bmrect, null);
-            iconbm.recycle ();
-        } else {
+        try {
+            openTileZipFile ();
+            InputStream icon = tileZipFile.getInputStream (tileZipFile.getEntry ("icon.png"));
+            try {
+                Bitmap iconbm = BitmapFactory.decodeStream (icon);
+                can.drawBitmap (iconbm, null, bmrect, null);
+                iconbm.recycle ();
+            } finally {
+                icon.close ();
+            }
+        } catch (Exception e) {
             paint.setColor (Color.WHITE);
             can.drawRect (bmrect, paint);
         }
@@ -377,7 +391,7 @@ public abstract class AirChart implements DisplayableChart {
             }
         }
 
-        /**
+        /*
          * Unload any unreferenced tiles.
          */
         for (Iterator<AirTile> it = loadedBitmaps.iterator (); it.hasNext ();) {
@@ -396,11 +410,16 @@ public abstract class AirChart implements DisplayableChart {
     @Override  // DisplayableChart
     public void CloseBitmaps ()
     {
-        for (Iterator<AirTile> it = loadedBitmaps.iterator (); it.hasNext ();) {
-            AirTile tile = it.next ();
-            it.remove ();
-            tile.tileDrawCycle = 0;
-            tile.recycle ();
+        if (tilez != null) {
+            for (AirTile tile : tilez) {
+                if (tile != null) tile.recycle ();
+            }
+            tilez = null;
+        }
+        loadedBitmaps.clear ();
+        if (tileZipFile != null) {
+            try { tileZipFile.close (); } catch (IOException ioe) { Lib.Ignored (); }
+            tileZipFile = null;
         }
     }
 
@@ -710,15 +729,21 @@ public abstract class AirChart implements DisplayableChart {
         // get dimensions of unscaled tile 0,0 and assume that all tiles are the same
         // (except that the ones on the right and bottom edges may be smaller)
         if ((wstep == 0) || (hstep == 0)) {
-            AirTile at0 = new AirTile (null, 0, 0, 1, true);
-            String name0 = at0.getPngName ();
+            InputStream is;
+            try {
+                openTileZipFile ();
+                is = tileZipFile.getInputStream (tileZipFile.getEntry ("0/0.png"));
+            } catch (IOException ioe) {
+                Log.e (TAG, "error reading 0/0.png from " + tileZipName, ioe);
+                return false;
+            }
             BitmapFactory.Options bfo = new BitmapFactory.Options ();
             bfo.inJustDecodeBounds = true;
-            BitmapFactory.decodeFile (name0, bfo);
+            BitmapFactory.decodeStream (is, null, bfo);
             wstep = bfo.outWidth;
             hstep = bfo.outHeight;
             if ((wstep <= 0) || (hstep <= 0)) {
-                Log.e (TAG, "error sizing tile " + name0);
+                Log.e (TAG, "error sizing tiles in " + spacenamewr);
                 wstep = 0;
                 hstep = 0;
                 return false;
@@ -795,14 +820,18 @@ public abstract class AirChart implements DisplayableChart {
         bm.compress (Bitmap.CompressFormat.PNG, 0, os);
         os.close ();
         Lib.RenameFile (pngName + ".tmp", pngName);
+    }
 
-        // write filename to filelist file so it will be deleted on next revision
-        String fn = WairToNow.dbdir + "/charts/" +
-                spacenamenr.replace (' ', '_') + ".filelist.txt";
-        FileWriter fw = new FileWriter (fn, true);
-        int i = pngName.indexOf ("charts/");
-        fw.write (pngName.substring (i) + "\n");
-        fw.close ();
+    /**
+     * Make sure the tile zip file is open.
+     * It contains all the original unscaled untrimmed tiles from server.
+     */
+    private void openTileZipFile ()
+            throws IOException
+    {
+        if (tileZipFile == null) {
+            tileZipFile = new ZipFile (tileZipName);
+        }
     }
 
     /**
@@ -824,7 +853,7 @@ public abstract class AirChart implements DisplayableChart {
 
         private Bitmap bitmap;         // bitmap that contains the image
         private boolean legends;       // include legend pixels
-        private File pngFile;          // name of bitmap file
+        private File pngFile;          // name of bitmap file (null if in tileZipFile)
         private int scaling;           // scaling factor used to fetch bitmap with
         private Invalidatable inval;   // callback when tile gets loaded
         private String pngName;        // name of bitmap file
@@ -907,37 +936,50 @@ public abstract class AirChart implements DisplayableChart {
          */
         private Bitmap ReadScaledBitmap (BitmapFactory.Options bfo) throws IOException
         {
-            // make image filename if we haven't already
-            getPngName ();
-
-            // see if we already have exact tile needed
             Bitmap bm = null;
-            if (!pngFile.exists ()) {
 
-                // unscaled files (unless caller wants legends chopped off) can only come from server
-                if ((scaling == 1) && (legends || isChartedOnly)) {
-                    throw new FileNotFoundException (pngName);
+            // unscaled files (unless caller wants legends chopped off) are in zip file
+            if ((scaling == 1) && (legends || isChartedOnly)) {
+
+                // make name within zip file if we don't already have it
+                if (pngName == null) {
+                    StringBuilder sb = new StringBuilder ();
+                    basePngName (sb);
+                    pngName = sb.toString ();
                 }
 
-                // if not, create it
-                Log.d (TAG, "creating " + pngName);
-                int[] pixels = new int[width*height];
-                if (scaling == 1) MakePartialBitmap (pixels);
-                else MakeScaledBitmap (pixels);
+                // read tile from zip and make bitmap
+                openTileZipFile ();
+                InputStream is = tileZipFile.getInputStream (tileZipFile.getEntry (pngName));
+                bm = BitmapFactory.decodeStream (is, null, bfo);
+            } else {
 
-                // write to flash for next time
-                bm = Bitmap.createBitmap (pixels, width, height, Bitmap.Config.ARGB_8888);
-                WritePngFile (pngFile, bm);
+                // some tile we manufacture, make image filename if we haven't already
+                getPngName ();
 
-                // caller wants undersampling, throw this one away
-                if (bfo != null) {
-                    bm.recycle ();
-                    bm = null;
+                // see if we already have exact tile needed
+                if (!pngFile.exists ()) {
+
+                    // if not, create it
+                    Log.d (TAG, "creating " + pngName);
+                    int[] pixels = new int[width * height];
+                    if (scaling == 1) MakePartialBitmap (pixels);
+                    else MakeScaledBitmap (pixels);
+
+                    // write to flash for next time
+                    bm = Bitmap.createBitmap (pixels, width, height, Bitmap.Config.ARGB_8888);
+                    WritePngFile (pngFile, bm);
+
+                    // caller wants undersampling, throw this one away
+                    if (bfo != null) {
+                        bm.recycle ();
+                        bm = null;
+                    }
                 }
+
+                // read tile, possibly undersampling
+                if (bm == null) bm = BitmapFactory.decodeFile (pngName, bfo);
             }
-
-            // read tile, possibly undersampling
-            if (bm == null) bm = BitmapFactory.decodeFile (pngName, bfo);
 
             // draw hash if expired
             if (enddate < MaintView.deaddate) {
@@ -962,7 +1004,11 @@ public abstract class AirChart implements DisplayableChart {
             return bm;
         }
 
-        public String getPngName ()
+        /**
+         * Get pathname for a .png file that we create on-the-fly.
+         * These tiles are either scaled or have legend areas trimmed to transparent.
+         */
+        public void getPngName ()
         {
             // make image filename if we haven't already
             if (pngFile == null) {
@@ -974,20 +1020,30 @@ public abstract class AirChart implements DisplayableChart {
                     sb.append ("/S");
                     sb.append (scaling);
                 }
-                if ((topPixel == 0) && (leftPixel == 0)) {
-                    sb.append ("/0/0");
-                } else {
-                    sb.append ('/');
-                    sb.append (topPixel / hstep);
-                    sb.append ('/');
-                    sb.append (leftPixel / wstep);
-                }
-                if (!legends && !isChartedOnly) sb.append ('@');
-                sb.append (".png");
+                sb.append ('/');
+                basePngName (sb);
                 pngName = sb.toString ();
                 pngFile = new File (pngName);
             }
-            return pngName;
+        }
+
+        /**
+         * Create base .png name, ie, y/x.png
+         * @param sb = string to append the name to
+         */
+        private void basePngName (StringBuilder sb)
+        {
+            if ((topPixel == 0) && (leftPixel == 0)) {
+                // special case in case we don't know hstep,wstep yet
+                sb.append ("0/0");
+            } else {
+                // we should know hstep,wstep by now
+                sb.append (topPixel / hstep);
+                sb.append ('/');
+                sb.append (leftPixel / wstep);
+            }
+            if (!legends && !isChartedOnly) sb.append ('@');
+            sb.append (".png");
         }
 
         /**
@@ -1180,9 +1236,74 @@ public abstract class AirChart implements DisplayableChart {
     }
 
     /**
-     * Update mapping values based on data provided in csv file.
+     * Update mapping values based on data provided in latest .wtn.zip file.
+     * Returns:
+     *  if not downloaded:
+     *   begdate = 0
+     *   enddate = 0
+     *   spacenamewr = null
+     *   tileZipName
+     *  if downloaded:
+     *   begdate = actual yyyymmdd
+     *   enddate = actual yyyymmdd
+     *   spacenamewr = actual eg 'Boston TAC 91'
+     *   tileZipName = actual eg '.../Boston_TAC_91.wtn.zip'
      */
-    public void ParseChartLimitsLine (String csvLine)
+    public void StartUsingLatestDownloadedRevision ()
+    {
+        // assume no rev of chart is currently downloaded
+        begdate = enddate = 0;
+        spacenamewr = null;
+        tileZipName = null;
+        CloseBitmaps ();
+
+        // get latest revision that we have completely downloaded if any
+        int latestrevno = 0;
+        File[] files = new File (WairToNow.dbdir + "/charts/").listFiles ();
+        String undername = spacenamenr.replace (' ', '_') + "_";
+        for (File file : files) {
+            String name = file.getName ();
+            if (name.startsWith (undername) && name.endsWith (".wtn.zip")) {
+                int revno = Integer.parseInt (name.substring (undername.length (), name.length () - 8));
+                if (latestrevno < revno) {
+                    latestrevno = revno;
+                    spacenamewr = spacenamenr + " " + latestrevno;
+                    tileZipName = file.getAbsolutePath ();
+                }
+            }
+        }
+        if (spacenamewr == null) return;
+
+        /*
+         * Read the csv line from the .wtn.zip file's undernamewr.csv file.
+         */
+        String csvLine;
+        String entname = spacenamewr.replace (' ', '_') + ".csv";
+        try {
+            openTileZipFile ();
+            InputStream csr = tileZipFile.getInputStream (tileZipFile.getEntry (entname));
+            BufferedReader reader = new BufferedReader (new InputStreamReader (csr), 256);
+            try {
+                csvLine = reader.readLine ();
+                if (csvLine == null) throw new EOFException ("empty file");
+            } finally {
+                reader.close ();
+            }
+        } catch (FileNotFoundException fnfe) {
+            // .wtn.zip file does not exist, chart not downloaded
+            return;
+        } catch (IOException ioe) {
+            Log.w (TAG, "error reading " + entname + " from " + tileZipName, ioe);
+            return;
+        }
+
+        ParseCSVLine (csvLine);
+    }
+
+    /**
+     * Parse parameters from the csvLine
+     */
+    private void ParseCSVLine (String csvLine)
     {
         /*
          * Handle projection-specific parameters.
@@ -1197,9 +1318,8 @@ public abstract class AirChart implements DisplayableChart {
         chartheight     = Integer.parseInt (values[1]);
         begdate         = Integer.parseInt (values[2]);
         enddate         = Integer.parseInt (values[3]);
-        spacenamewr     = values[4];                      // eg, "New York SEC 87"
-        int i           = spacenamewr.lastIndexOf (' ');  // remove revision number from the end
-        revision        = spacenamewr.substring (i + 1);
+        spacenamewr     = values[4];
+        int i           = spacenamewr.lastIndexOf (' ');
         spacenamenr     = spacenamewr.substring (0, i);
 
         /*

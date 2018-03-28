@@ -30,6 +30,7 @@ mkdir -p $outroot/streets
 mkdir -p $outroot/viewiap
 ln -fs $PWD/../app/src/main/assets $outroot
 ln -fs $PWD/datums/topo $outroot/datums
+ln -fs $PWD/datums/topo.zip $outroot/datums
 touch $outroot/streets/lock.file
 
 # Copy chart directory and .csv softlink to output
@@ -43,8 +44,9 @@ function processchartdir
         if [ -s $1$2.csv ]
         then
             rm -f $outroot/$1*
-            ln -s $PWD/$1$2 $outroot/$1$2
-            ln -s $PWD/$1$2.csv $outroot/$1$2.csv
+            ln -s $PWD/$1$2         $outroot/$1$2
+            ln -s $PWD/$1$2.csv     $outroot/$1$2.csv
+            ln -s $PWD/$1$2.wtn.zip $outroot/$1$2.wtn.zip
         fi
     fi
 }
@@ -125,6 +127,7 @@ processdatums datums/intersections_  .csv
 processdatums datums/localizers_     .csv
 processdatums datums/navaids_        .csv
 processdatums datums/runways_        .csv
+processdatums datums/statezips_
 processdatums datums/waypoints_      .db.gz
 
 find . -mindepth 1 -maxdepth 1 -type f -exec cp -au {} $outroot/../decosects/ \;

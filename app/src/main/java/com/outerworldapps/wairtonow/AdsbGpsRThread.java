@@ -242,7 +242,7 @@ public class AdsbGpsRThread extends Thread implements Reporter {
             String data)
     {
         Log.d (TAG, "adsbGpsMetar: type=" + type + " loc=" + location + " data=" + data);
-        Waypoint apt = Waypoint.GetAirportByIdent (location);
+        Waypoint apt = Waypoint.GetAirportByIdent (location, wairToNow);
         if (apt != null) {
             String icaoid = apt.ident;
             Metar metar = new Metar ();

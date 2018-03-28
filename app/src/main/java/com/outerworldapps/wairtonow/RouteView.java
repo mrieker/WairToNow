@@ -415,7 +415,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
             // @ anything else is an airport
             if (word.startsWith ("@")) {
                 String aptid = word.substring (1);
-                Waypoint aptwp = Waypoint.GetAirportByIdent (aptid);
+                Waypoint aptwp = Waypoint.GetAirportByIdent (aptid, wairToNow);
                 if (aptwp == null) {
                     appendErrorMessage ("unknown airport " + aptid + "\n");
                 } else {
@@ -434,14 +434,14 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
                 insertOnEnd (new RouteStepWaypt (uwp.ident, pps));
                 continue;
             }
-            LinkedList<Waypoint> wps = Waypoint.GetWaypointsByIdent (word);
+            LinkedList<Waypoint> wps = Waypoint.GetWaypointsByIdent (word, wairToNow);
             if ((wps != null) && !wps.isEmpty ()) {
                 insertOnEnd (new RouteStepWaypt (wps.iterator ().next ().ident, wps));
                 continue;
             }
 
             // see if given an valid airway name
-            Collection<Waypoint.Airway> awys = Waypoint.Airway.GetAirways (word);
+            Collection<Waypoint.Airway> awys = Waypoint.Airway.GetAirways (word, wairToNow);
             if (awys != null) {
                 insertOnEnd (new RouteStepAirwy (word, awys));
                 continue;
@@ -464,7 +464,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
         editTextD.setText (destid);
         if (!destid.equals ("")) {
             Waypoint destwp = wairToNow.userWPView.waypoints.get (destid);
-            if (destwp == null) destwp = Waypoint.GetAirportByIdent (destid);
+            if (destwp == null) destwp = Waypoint.GetAirportByIdent (destid, wairToNow);
             if (destwp == null) {
                 appendErrorMessage ("unknown destination " + destid + "\n");
             } else {

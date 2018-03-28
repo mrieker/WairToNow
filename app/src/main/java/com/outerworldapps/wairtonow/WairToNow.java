@@ -20,6 +20,7 @@
 
 package com.outerworldapps.wairtonow;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
@@ -50,8 +51,14 @@ import android.widget.TableRow;
 import android.widget.TextView;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.PrintWriter;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 public class WairToNow extends Activity {
@@ -65,6 +72,7 @@ public class WairToNow extends Activity {
 
     private final static int airplaneHeight = 313 - 69;
 
+    public  volatile boolean downloadCancelled;
     private boolean gpsAvailable;
     private boolean hasAgreed;
     private boolean lastLocQueued;
@@ -82,10 +90,12 @@ public class WairToNow extends Activity {
     public  float textSize, thickLine, thinLine;
     private GlassView glassView;
     public  final HashMap<String,MetarRepo> metarRepos = new HashMap<> ();
+    public  volatile InputStream downloadStream;
     public  int displayWidth;
     public  int displayHeight;
     public  int gpsDisabled;
     private int gpsLastInterval;
+    public  LinearLayout downloadStatusRow;
     private LinearLayout tabButtonLayout;
     private LinearLayout tabViewLayout;
     private LinearLayout.LayoutParams ctvllp = new LinearLayout.LayoutParams (
@@ -105,13 +115,15 @@ public class WairToNow extends Activity {
     public  RouteView routeView;
     public  SensorsView sensorsView;
     private TabButton agreeButton;
-    private TabButton chartButton;
+    public  TabButton chartButton;
     private TabButton crumbsButton;
     public  TabButton currentTabButton;
     private TabButton glassButton;
     public  TabButton maintButton;
+    public  TabButton sensorsButton;
     private TabButton virtNav1Button;
     private TabButton virtNav2Button;
+    public  TextView downloadStatusText;
     public  final TrafficRepo trafficRepo = new TrafficRepo ();
     public  UserWPView userWPView;
     private VirtNavView virtNav1View, virtNav2View;
@@ -309,6 +321,20 @@ public class WairToNow extends Activity {
         virtNav2Button = new TabButton (virtNav2View);
 
         /*
+         * Download status box at top of screen.
+         */
+        downloadStatusRow = new LinearLayout (this);
+        downloadStatusRow.setOrientation (LinearLayout.HORIZONTAL);
+        downloadStatusRow.setVisibility (View.GONE);
+
+        DownloadStopButton dsb = new DownloadStopButton ();
+        downloadStatusRow.addView (dsb);
+
+        downloadStatusText = new TextView (this);
+        SetTextSize (downloadStatusText);
+        downloadStatusRow.addView (downloadStatusText);
+
+        /*
          * Set up tab system.
          */
         agreeButton               = new TabButton (agreeView);
@@ -322,7 +348,7 @@ public class WairToNow extends Activity {
         TabButton planButton      = new TabButton (planView);
         TabButton optionsButton   = new TabButton (optionsView);
         maintButton               = new TabButton (maintView);
-        TabButton sensorsButton   = new TabButton (sensorsView);
+        sensorsButton             = new TabButton (sensorsView);
         TabButton filesButton     = new TabButton (filesView);
         TabButton helpButton      = new TabButton (helpView);
         tabButtonLayout = new LinearLayout (this);
@@ -351,6 +377,7 @@ public class WairToNow extends Activity {
 
         tabViewLayout = new LinearLayout (this);
         tabViewLayout.setOrientation (LinearLayout.VERTICAL);
+        tabViewLayout.addView (downloadStatusRow);
         tabViewLayout.addView (tabButtonScroller);
 
         setContentView (tabViewLayout);
@@ -439,6 +466,31 @@ public class WairToNow extends Activity {
         crumbsView.CloseFiles ();
         SQLiteDBs.CloseAll ();
         super.onDestroy ();
+    }
+
+    /**
+     * Stop any downloading in progress.
+     */
+    private class DownloadStopButton extends Button implements View.OnClickListener {
+        @SuppressLint("SetTextI18n")
+        public DownloadStopButton ()
+        {
+            super (WairToNow.this);
+            setText ("Stop");
+            SetTextSize (this);
+            setOnClickListener (this);
+        }
+
+        @Override
+        public void onClick (View v)
+        {
+            downloadCancelled = true;
+            try {
+                downloadStream.close ();
+            } catch (Exception e) {
+                Lib.Ignored ();
+            }
+        }
     }
 
     /**
@@ -541,6 +593,7 @@ public class WairToNow extends Activity {
     private void SetCurrentView ()
     {
         tabViewLayout.removeAllViews ();
+        tabViewLayout.addView (downloadStatusRow);
         if (currentTabButton != null) {
             View v = currentTabButton.view;
             ViewParent p = v.getParent ();
@@ -689,12 +742,13 @@ public class WairToNow extends Activity {
         if (MaintView.GetWaypointExpDate () <= 0) {
             AlertDialog.Builder adb = new AlertDialog.Builder (this);
             adb.setTitle ("Chart Maint");
-            adb.setMessage ("At a minimum you should download the waypoint database and a nearby chart.");
+            adb.setMessage ("At a minimum you should download a nearby chart.");
             adb.setPositiveButton ("OK", new DialogInterface.OnClickListener () {
                 @Override
                 public void onClick (DialogInterface dialogInterface, int i)
                 {
-                    SetCurrentTab (maintView);
+                    chartButton.DisplayNewTab ();  // display chart page
+                    chartView.ReClicked ();        // display chart select menu
                 }
             });
             adb.setNegativeButton ("Not Now", null);
@@ -717,6 +771,24 @@ public class WairToNow extends Activity {
         // maybe some database files marked for delete
         // so close our handles so they will be deleted
         SQLiteDBs.CloseAll ();
+    }
+
+    /**
+     * Write simple log file for debugging.
+     * @param str = line to write
+     */
+    @SuppressWarnings("unused")
+    public static void WriteLog (String str)
+    {
+        SimpleDateFormat sdf = new SimpleDateFormat ("yyyy-MM-dd@HH:mm:ss", Locale.US);
+        Date now = new Date ();
+        try {
+            PrintWriter pw = new PrintWriter (new FileOutputStream (WairToNow.dbdir + "/log.txt", true), true);
+            pw.println (sdf.format (now) + " " + str);
+            pw.close ();
+        } catch (Exception e) {
+            Lib.Ignored ();
+        }
     }
 
     /***************************************\

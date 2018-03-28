@@ -587,7 +587,7 @@ public class PlateCIFP {
                     } else {
 
                         // named segment, look for waypoint to see where to put button
-                        LinkedList<Waypoint> waypts = Waypoint.GetWaypointsByIdent (seg.segid);
+                        LinkedList<Waypoint> waypts = Waypoint.GetWaypointsByIdent (seg.segid, wairToNow);
                         double bestdist = 200.0;
                         for (Waypoint wp : waypts) {
                             double dist = Lib.LatLonDist (wp.lat, wp.lon, airport.lat, airport.lon);

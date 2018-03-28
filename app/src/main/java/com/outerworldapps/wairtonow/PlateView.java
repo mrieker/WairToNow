@@ -48,9 +48,12 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collection;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Locale;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 
 /**
  * This view presents the plate to the user (apt diagram, iap, sid, star, etc),
@@ -202,6 +205,34 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
     }
 
     /**
+     * Read gif bitmap from state-specific zip file
+     * @param fn = name of gif file within the zip file
+     */
+    private Bitmap readGif (String fn)
+            throws IOException
+    {
+        if (fn.startsWith ("gif_150/")) fn = fn.substring (8);
+        ZipFile zf = wairToNow.maintView.getStateZipFile (airport.state);
+        if (zf == null) {
+            throw new FileNotFoundException ("state " + airport.state + " not downloaded");
+        }
+        ZipEntry ze = zf.getEntry (fn);
+        if (ze == null) {
+            throw new FileNotFoundException ("gif " + fn + " not found in state " + airport.state);
+        }
+        InputStream is = zf.getInputStream (ze);
+        try {
+            Bitmap bm = BitmapFactory.decodeStream (is);
+            if (bm == null) {
+                throw new IOException ("bitmap " + fn + " corrupt in state " + airport.state);
+            }
+            return bm;
+        } finally {
+            is.close ();
+        }
+    }
+
+    /**
      * Display the plate image file.
      * Allows panning and zooming.
      */
@@ -284,10 +315,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         {
             Bitmap bm;
             try {
-                if (!new File (filename + ".p1").exists ()) {
-                    throw new FileNotFoundException (filename + ".p1 not found");
-                }
-                bm = BitmapFactory.decodeFile (filename + ".p1");
+                bm = readGif (filename + ".p1");
             } catch (Throwable e) {
                 Log.w (TAG, "onDraw: bitmap load error", e);
                 return null;
@@ -908,7 +936,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
 
             // find waypoints within the area depicted
             // we don't want fixes as there are a lot of them adding clutter
-            Collection<Waypoint> wps = new Waypoint.Within ().Get (minlat, maxlat, minlon, maxlon);
+            Collection<Waypoint> wps = new Waypoint.Within (wairToNow).Get (minlat, maxlat, minlon, maxlon);
             for (Waypoint wp : wps) {
                 String type = wp.GetType ();
                 if (!type.startsWith ("FIX")) waypoints.put (wp.ident, new WpInfo (wp));
@@ -1779,6 +1807,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
 
         public NGRPlateImage (String fn)
         {
+            if (fn.startsWith ("gif_150/")) fn = fn.substring (8);
             filename = fn;
 
             /*
@@ -1786,10 +1815,20 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
              * But the files are multiple pages ending in .gif.p<pageno>.
              * So count how many pages we actually have for this plate.
              */
-            for (int pageno = 1;; pageno ++) {
-                File f = new File (filename + ".p" + pageno);
-                if (!f.exists ()) break;
-                numPages = pageno;
+            String fndotp = fn + ".p";
+            int fndotplen = fndotp.length ();
+            try {
+                ZipFile zf = wairToNow.maintView.getStateZipFile (airport.state);
+                for (Enumeration<? extends ZipEntry> it = zf.entries (); it.hasMoreElements ();) {
+                    ZipEntry ze = it.nextElement ();
+                    String en = ze.getName ();
+                    if (en.startsWith (fndotp)) {
+                        int p = Integer.parseInt (en.substring (fndotplen));
+                        if (numPages < p) numPages = p;
+                    }
+                }
+            } catch (IOException ioe) {
+                Log.w (TAG, "error scanning state " + airport.state + " zip file", ioe);
             }
             bitmaps = new Bitmap[numPages];
         }
@@ -1864,10 +1903,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                     if (bm == null) {
                         String fn = filename + ".p" + (pi + 1);
                         try {
-                            if (!new File (fn).exists ()) {
-                                throw new FileNotFoundException (fn + " not found");
-                            }
-                            bm = BitmapFactory.decodeFile (fn);
+                            bm = readGif (fn);
                         } catch (Throwable e1) {
                             for (int i = 0; i < numPages; i ++) {
                                 bm = bitmaps[i];
@@ -1875,10 +1911,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                                 bitmaps[i] = null;
                             }
                             try {
-                                if (!new File (fn).exists ()) {
-                                    throw new FileNotFoundException (fn + " not found");
-                                }
-                                bm = BitmapFactory.decodeFile (fn);
+                                bm = readGif (fn);
                             } catch (Throwable e2) {
                                 Log.w (TAG, "NGRPlateImage.onDraw: bitmap load error", e2);
                                 continue;

@@ -132,7 +132,7 @@ public class Chart2DView extends View
     private PointD drawCourseFilletCp = new PointD ();
     private RectF drawCourseFilletOval = new RectF ();
     public  WairToNow wairToNow;
-    private Waypoint.Within waypointsWithin = new Waypoint.Within ();
+    private Waypoint.Within waypointsWithin;
 
     public Chart2DView (ChartView cv)
     {
@@ -140,6 +140,7 @@ public class Chart2DView extends View
 
         chartView = cv;
         wairToNow = cv.wairToNow;
+        waypointsWithin = new Waypoint.Within (wairToNow);
         float ts = wairToNow.textSize;
 
         UnSetCanvasHdgRad ();

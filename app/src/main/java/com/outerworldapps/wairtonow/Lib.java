@@ -1167,6 +1167,19 @@ public class Lib {
     }
 
     /**
+     * Delete the given file.
+     * If it is a directory, delete everything in it first.
+     */
+    public static void RecursiveDelete (File f)
+    {
+        if (f.isDirectory ()) {
+            File[] fs = f.listFiles ();
+            for (File x : fs) RecursiveDelete (x);
+        }
+        Ignored (f.delete ());
+    }
+
+    /**
      * Read a line from the given input stream
      * @param is = stream to read from
      * @return string up to but not including \n

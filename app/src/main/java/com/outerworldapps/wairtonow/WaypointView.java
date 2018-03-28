@@ -42,21 +42,19 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
-import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.LinkedList;
-import java.util.zip.GZIPInputStream;
 
 /**
  * This view presents a menu so the user can select a FAA waypoint by name.
@@ -188,7 +186,7 @@ public class WaypointView extends LinearLayout
         /*
          * Reset waypoint area search database.
          */
-        waypointsWithin = new Waypoint.Within ();
+        waypointsWithin = new Waypoint.Within (wairToNow);
     }
 
     /**
@@ -403,7 +401,7 @@ public class WaypointView extends LinearLayout
     {
         // get all waypoints within box from given lat/lon
         double del = radiusnm / Lib.NMPerDeg;
-        Collection<Waypoint> wpcollection = new Waypoint.Within ().Get (lat - del, lat + del, lon - del, lon + del);
+        Collection<Waypoint> wpcollection = new Waypoint.Within (wairToNow).Get (lat - del, lat + del, lon - del, lon + del);
 
         // remove all waypoints greater than radius from the collection
         for (Iterator<Waypoint> it = wpcollection.iterator (); it.hasNext ();) {
@@ -601,7 +599,7 @@ public class WaypointView extends LinearLayout
             try {
                 Waypoint.RNavParse rnavParse = new Waypoint.RNavParse (key);
                 if (rnavParse.rnavsuffix != null) {
-                    matches = Waypoint.GetWaypointsByIdent (key);
+                    matches = Waypoint.GetWaypointsByIdent (key, wairToNow);
                 }
             } catch (Exception e) {
                 Lib.Ignored ();
@@ -611,7 +609,7 @@ public class WaypointView extends LinearLayout
             if (matches == null) {
                 key = Waypoint.NormalizeKey (key);
                 searchTextView.setText (key);
-                matches = Waypoint.GetWaypointsMatchingKey (key);
+                matches = Waypoint.GetWaypointsMatchingKey (key, wairToNow);
             }
 
             // let user select from the matches, if any
@@ -852,16 +850,13 @@ public class WaypointView extends LinearLayout
         @Override
         public void onClick (View v)
         {
-            File info = selectedWaypoint.HasInfo ();
-            if (info != null) {
+            InputStream zis = selectedWaypoint.HasInfo ();
+            if (zis != null) {
                 try {
 
                     /*
                      * Display using a WebView.
                      */
-                    FileInputStream fis = new FileInputStream (info);
-                    BufferedInputStream bis = new BufferedInputStream (fis, 4096);
-                    GZIPInputStream zis = new GZIPInputStream (bis);
                     InputStreamReader isr = new InputStreamReader (zis);
                     StringBuilder sb = new StringBuilder ();
                     char[] buf = new char[4096];
@@ -875,7 +870,10 @@ public class WaypointView extends LinearLayout
                 } catch (Throwable e) {
                     AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
                     adb.setTitle ("Error fetching info web page");
-                    adb.setMessage (e.getMessage ());
+                    String msg = e.getMessage ();
+                    if (msg == null) msg = e.getClass ().getSimpleName ();
+                    adb.setMessage (msg);
+                    adb.setPositiveButton ("OK", null);
                     adb.create ().show ();
                 }
             }

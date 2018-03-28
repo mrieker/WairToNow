@@ -38,7 +38,8 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
-import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -49,6 +50,7 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Locale;
 import java.util.TreeMap;
+import java.util.zip.ZipFile;
 
 /**
  * Each individual waypoint in the database (airport, localizer, navaid, fix)
@@ -300,7 +302,7 @@ public abstract class Waypoint {
         } else {
 
             // something in ident box, look it up in waypoint database
-            LinkedList<Waypoint> wplist = GetWaypointsByIdent (newid);
+            LinkedList<Waypoint> wplist = GetWaypointsByIdent (newid, wtn);
 
             // look for the one so named that is closest to given lat/lon
             Waypoint bestwp = null;
@@ -353,7 +355,7 @@ public abstract class Waypoint {
      * Find waypoints by identifier (airport icaoid, localizer ident, navaid identifier, fix name).
      * May include a RNAV offset, ie, bearing and distance.
      */
-    public static LinkedList<Waypoint> GetWaypointsByIdent (String ident)
+    public static LinkedList<Waypoint> GetWaypointsByIdent (String ident, WairToNow wairToNow)
     {
         LinkedList<Waypoint> wplist = new LinkedList<> ();
 
@@ -371,7 +373,7 @@ public abstract class Waypoint {
             /*
              * Look for all instances of the base identifier waypoint.
              */
-            LinkedList<Waypoint> basewps = GetWaypointsByIdent (rnavParse.baseident);
+            LinkedList<Waypoint> basewps = GetWaypointsByIdent (rnavParse.baseident, wairToNow);
 
             /*
              * Add the RNAV offset to each of those for the resultant value.
@@ -418,8 +420,8 @@ public abstract class Waypoint {
                         try {
                             if (result.moveToFirst ()) {
                                 do {
-                                    Constructor<? extends Waypoint> ctor = wpclass.getConstructor (Cursor.class);
-                                    Waypoint wpe = ctor.newInstance (result);
+                                    Constructor<? extends Waypoint> ctor = wpclass.getConstructor (Cursor.class, WairToNow.class);
+                                    Waypoint wpe = ctor.newInstance (result, wairToNow);
                                     wplist.addLast (wpe);
                                 } while (result.moveToNext ());
                             }
@@ -431,7 +433,7 @@ public abstract class Waypoint {
                     Log.e (TAG, "error reading " + dbname, e);
                 }
                 if (wplist.isEmpty () && ident.startsWith ("I") && !ident.startsWith ("I-")) {
-                    return GetWaypointsByIdent ("I-" + ident.substring (1));
+                    return GetWaypointsByIdent ("I-" + ident.substring (1), wairToNow);
                 }
             }
         }
@@ -441,7 +443,7 @@ public abstract class Waypoint {
     /**
      * Find airport by identifier (icaoid or faaid).
      */
-    public static Airport GetAirportByIdent (String ident)
+    public static Airport GetAirportByIdent (String ident, WairToNow wtn)
     {
         int waypointexpdate = MaintView.GetWaypointExpDate ();
         String dbname = "waypoints_" + waypointexpdate + ".db";
@@ -454,7 +456,7 @@ public abstract class Waypoint {
                         null, null, null, null);
                 try {
                     if (result.moveToFirst ()) {
-                        return new Airport (result);
+                        return new Airport (result, wtn);
                     }
                 } finally {
                     result.close ();
@@ -498,7 +500,7 @@ public abstract class Waypoint {
         return out;
     }
 
-    public static LinkedList<Waypoint> GetWaypointsMatchingKey (String key)
+    public static LinkedList<Waypoint> GetWaypointsMatchingKey (String key, WairToNow wtn)
     {
         String[] keys = key.split (" ");
         LinkedList<Waypoint> matches = new LinkedList<> ();
@@ -534,8 +536,8 @@ public abstract class Waypoint {
                                     null, null, null, null);
                             try {
                                 if (result2.moveToFirst ()) {
-                                    Constructor<? extends Waypoint> ctor = wpclass.getConstructor (Cursor.class);
-                                    Waypoint wp = ctor.newInstance (result2);
+                                    Constructor<? extends Waypoint> ctor = wpclass.getConstructor (Cursor.class, WairToNow.class);
+                                    Waypoint wp = ctor.newInstance (result2, wtn);
                                     matches.add (wp);
                                 }
                             } finally {
@@ -697,7 +699,7 @@ public abstract class Waypoint {
     }
 
     // maybe there is an info page available
-    public File HasInfo ()
+    public InputStream HasInfo ()
     {
         return null;
     }
@@ -750,9 +752,11 @@ public abstract class Waypoint {
     public static class Within {
         private double leftLon, riteLon, topLat, botLat;
         private HashMap<String,Waypoint> found = new HashMap<> ();
+        private WairToNow wairToNow;
 
-        public Within ()
+        public Within (WairToNow wtn)
         {
+            wairToNow = wtn;
             clear ();
         }
 
@@ -814,10 +818,10 @@ public abstract class Waypoint {
                                     new String[] { Double.toString (bLat), Double.toString (tLat),
                                             Double.toString (lLon), Double.toString (rLon) },
                                     null, null, null, null);
-                            Constructor<? extends Waypoint> ctor = wpclass.getConstructor (Cursor.class);
+                            Constructor<? extends Waypoint> ctor = wpclass.getConstructor (Cursor.class, WairToNow.class);
                             try {
                                 if (result.moveToFirst ()) do {
-                                    Waypoint wp = ctor.newInstance (result);
+                                    Waypoint wp = ctor.newInstance (result, wairToNow);
                                     found.put (wp.ident, wp);
                                 } while (result.moveToNext ());
                             } finally {
@@ -853,8 +857,9 @@ public abstract class Waypoint {
         private LinkedList<Runway> runwayPairs;
         private String details;
         private String menuKey;
+        private WairToNow wairToNow;
 
-        public Airport (Cursor result)
+        public Airport (Cursor result, WairToNow wtn)
         {
             ident    = result.getString (0);  // ICAO identifier
             faaident = result.getString (1);  // FAA identifier
@@ -863,9 +868,11 @@ public abstract class Waypoint {
             lat      = result.getDouble (4);
             lon      = result.getDouble (5);
             state    = result.getString (7);  // two letters
+
+            wairToNow = wtn;
         }
 
-        public static Airport GetByFaaID (String faaid)
+        public static Airport GetByFaaID (String faaid, WairToNow wtn)
         {
             int waypointexpdate = MaintView.GetWaypointExpDate ();
             String db56name = "waypoints_" + waypointexpdate + ".db";
@@ -877,7 +884,7 @@ public abstract class Waypoint {
                     null, null, null, null);
             try {
                 if (!resultapt.moveToFirst ()) return null;
-                return new Airport (resultapt);
+                return new Airport (resultapt, wtn);
             } finally {
                 resultapt.close ();
             }
@@ -999,15 +1006,16 @@ public abstract class Waypoint {
         }
 
         @Override
-        public File HasInfo ()
+        public InputStream HasInfo ()
         {
-            char subdir = faaident.charAt (0);
-            String subnam = faaident.substring (1);
-            String name = WairToNow.dbdir + "/datums/aptinfo_" + MaintView.GetPlatesExpDate (state);
-            name += "/" + subdir + "/" + subnam + ".html.gz";
-            File file = new File (name);
-            if (!file.exists ()) file = null;
-            return file;
+            try {
+                ZipFile zf = wairToNow.maintView.getStateZipFile (state);
+                if (zf == null) return null;
+                return zf.getInputStream (zf.getEntry (faaident + ".html"));
+            } catch (IOException ioe) {
+                Log.w (TAG, "error opening " + state + " zip file " + faaident + ".html", ioe);
+            }
+            return null;
         }
 
         // maybe there is something that needs downloading
@@ -1109,7 +1117,7 @@ public abstract class Waypoint {
                 // not a runway, look up identifier as given
                 // see if it is closest so far to this airport
                 double bestnm = 999999.0;
-                LinkedList<Waypoint> wps = Waypoint.GetWaypointsByIdent (wayptid);
+                LinkedList<Waypoint> wps = Waypoint.GetWaypointsByIdent (wayptid, wairToNow);
                 for (Waypoint wp : wps) {
                     double nm = Lib.LatLonDist (wp.lat, wp.lon, lat, lon);
                     if (bestnm > nm) {
@@ -1121,7 +1129,7 @@ public abstract class Waypoint {
                 // maybe it is a localizer witout the _ after the I
                 // see if it is closest so far to this airport
                 if (wayptid.startsWith ("I") && !wayptid.startsWith ("I-")) {
-                    wps = Waypoint.GetWaypointsByIdent ("I-" + wayptid.substring (1));
+                    wps = Waypoint.GetWaypointsByIdent ("I-" + wayptid.substring (1), wairToNow);
                     for (Waypoint wp : wps) {
                         double nm = Lib.LatLonDist (wp.lat, wp.lon, lat, lon);
                         if (bestnm > nm) {
@@ -1166,7 +1174,7 @@ public abstract class Waypoint {
         private static class PlateButton extends Button implements View.OnClickListener {
             private Airport aw;  // eg, "KBVY"
             private int ex;      // eg, 20150527
-            private String fn;   // eg, "gifperm/050/39l16.gif"
+            private String fn;   // eg, "gif_150/050/39l16.gif"
             private String pd;   // eg, "IAP-LOC RWY 16", "APD-AIRPORT DIAGRAM", etc
             private WaypointView wpv;
 
@@ -1186,7 +1194,7 @@ public abstract class Waypoint {
             @Override  // OnClickListener
             public void onClick (View button)
             {
-                PlateView pv = new PlateView (wpv, WairToNow.dbdir + "/datums/aptplates_" + ex + "/" + fn, aw, pd, ex, true);
+                PlateView pv = new PlateView (wpv, fn, aw, pd, ex, true);
                 wpv.selectedPlateView = pv;
                 wpv.wairToNow.SetCurrentTab (pv);
             }
@@ -1462,7 +1470,7 @@ public abstract class Waypoint {
         public double dme_lat;
         public double dme_lon;
 
-        public Localizer (Cursor result)
+        public Localizer (Cursor result, WairToNow wtn)
         {
             this.type     = result.getString (0);
             this.ident    = result.getString (1);
@@ -1536,7 +1544,7 @@ public abstract class Waypoint {
         public String type;  // "NDB", "VOR", "VOR/DME", etc
         public String descr;
 
-        public Navaid (Cursor result)
+        public Navaid (Cursor result, WairToNow wtn)
         {
             this.type   = result.getString (0);
             this.ident  = result.getString (1);
@@ -1578,7 +1586,7 @@ public abstract class Waypoint {
 
         private String descr;
 
-        public Fix (Cursor result)
+        public Fix (Cursor result, WairToNow wtn)
         {
             this.ident = result.getString (0);
             this.lat   = result.getDouble (1);
@@ -1621,7 +1629,7 @@ public abstract class Waypoint {
 
         private String type;
 
-        public Intersection (Cursor result)
+        public Intersection (Cursor result, WairToNow wtn)
         {
             this.ident = result.getString (0);
             this.lat   = result.getDouble  (1);
@@ -1659,17 +1667,17 @@ public abstract class Waypoint {
         public String ident;            // includes region
         public Waypoint[] waypoints;    // points in order
 
-        public static Collection<Airway> GetAirways (String ident)
+        public static Collection<Airway> GetAirways (String ident, WairToNow wairToNow)
         {
             LinkedList<Airway> airways = new LinkedList<> ();
             for (String region : regions) {
-                Airway awy = GetAirway (ident, region);
+                Airway awy = GetAirway (ident, region, wairToNow);
                 if (awy != null) airways.addLast (awy);
             }
             return airways.isEmpty () ? null : airways;
         }
 
-        public static Airway GetAirway (String ident, String region)
+        public static Airway GetAirway (String ident, String region, WairToNow wairToNow)
         {
             Airway awy = new Airway ();
             awy.ident = ident + " " + region;
@@ -1692,7 +1700,7 @@ public abstract class Waypoint {
                     double  wplon    = cursor.getDouble (2);
                     double bestnm    = 1.0;
                     Waypoint bestwp = null;
-                    LinkedList<Waypoint> wps = GetWaypointsByIdent (wpident);
+                    LinkedList<Waypoint> wps = GetWaypointsByIdent (wpident, wairToNow);
                     for (Waypoint wp : wps) {
                         double nm = Lib.LatLonDist (wplat, wplon, wp.lat, wp.lon);
                         if (bestnm > nm) {

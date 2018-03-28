@@ -34,6 +34,7 @@ import android.widget.TextView;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -319,6 +320,24 @@ public class OptionsView
             } finally {
                 csvreader.close ();
             }
+        } catch (FileNotFoundException fnfe) {
+            Log.i (TAG, "no options file yet");
+            capGridOption.checkBox.setChecked    (false);
+            faaWPOption.checkBox.setChecked      (false);
+            userWPOption.checkBox.setChecked     (true);
+            typeBOption.checkBox.setChecked      (false);
+            powerLockOption.checkBox.setChecked  (true);
+            gpsCompassOption.checkBox.setChecked (true);
+            showNexrad.checkBox.setChecked       (true);
+            showTraffic.checkBox.setChecked      (true);
+            showWxSumDot.checkBox.setChecked     (true);
+            chartOrientOption.setKey (chartOrientOption.keys[0]);
+            chartTrackOption.setKey  (chartTrackOption.keys[0]);
+            magTrueOption.setAlt     (false);
+            latLonOption.setKey      (latLonOption.keys[0]);
+            ktsMphOption.setAlt      (false);
+            gpsUpdateOption.setKey   (gpsUpdateOption.keys[0]);
+            circCatOption.setKey     (circCatOption.keys[0]);
         } catch (Exception e) {
             Log.w (TAG, "error reading options.csv", e);
         }

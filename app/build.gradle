@@ -21,7 +21,6 @@ def getGitStatus = { ->
 
 android {
     compileSdkVersion 8
-    buildToolsVersion '25.0.0'
 
     defaultConfig {
         minSdkVersion 8

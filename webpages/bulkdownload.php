@@ -19,6 +19,43 @@
 //
 //    http://www.gnu.org/licenses/gpl-2.0.html
 
+    if (isset ($argv[1])) {
+        switch ($argv[1]) {
+
+            // command line: hash <filename> <hashtype>
+            case "hash": {
+                $name = $argv[2];
+                $hash = $argv[3];
+                switch ($hash) {
+                    case "md5": {
+                        $md5 = md5_file ($name);
+                        echo "@@md5=$md5\n";
+                        break;
+                    }
+                    case "sum": {
+                        $sum  = 0;
+                        $file = fopen ($name, "r");
+                        if (!$file) die ("error opening $name\n");
+                        while (!feof ($file)) {
+                            $buf = fread ($file, 8192);
+                            $len = strlen ($buf);
+                            for ($i = 0; $i < $len; $i ++) {
+                                $sum += ord ($buf[$i]) & 0xFF;
+                            }
+                        }
+                        fclose ($file);
+                        echo "@@sum=$sum\n";
+                        break;
+                    }
+                    default: {
+                        die ("bad hash type $hash\n");
+                    }
+                }
+            }
+        }
+        exit;
+    }
+
     /**
      *  Bulk file downloader
      *
@@ -33,6 +70,8 @@
      */
     $n = 0;
     while (isset ($_REQUEST["f$n"])) {
+
+        // get parameters for one file to send out
         $name = $_REQUEST["f$n"];
         if ($name[0] == '/') {
             die ("name $name cannot start with /\n");
@@ -40,13 +79,27 @@
         if (strpos ($name, '../') !== FALSE) {
             die ("name $name cannot contain ../\n");
         }
+        $skip = isset ($_REQUEST["s$n"]) ? intval ($_REQUEST["s$n"]) : 0;
+        $hash = isset ($_REQUEST["h$n"]) ? $_REQUEST["h$n"] : "";
+
+        // maybe start hashing thread
+        if ($hash) {
+            $myfile = __FILE__;
+            $hashpipe = popen ("php $myfile hash $name $hash", "r");
+        }
+
+        // echo parameters back
         echo "@@name=$name\n";
+        if ($skip > 0) echo "@@skip=$skip\n";
         $size = filesize ($name);
         echo "@@size=$size\n";
-        if ($size > 1024 * 1024) {
+
+        // send file contents
+        if (($skip > 0) || ($size > 1024 * 1024)) {
             $file = fopen ($name, 'rb');
             if (!$file) die ("error opening $name\n");
-            $read = 0;
+            if (fseek ($file, $skip, SEEK_SET)) die ("error seeking $name $skip\n");
+            $read = $skip;
             while (($len = $size - $read) > 0) {
                 if ($len > 8192) $len = 8192;
                 $data  = fread ($file, $len);
@@ -61,7 +114,16 @@
         if ($read != $size) {
             die ("size $size ne read $read for $name\n");
         }
-        echo "@@eof\n";
+
+        // wait for hash
+        if ($hash) {
+            echo fgets ($hashpipe);
+            pclose ($hashpipe);
+        } else {
+            echo "@@eof\n";
+        }
+
+        // on to next file if any
         $n ++;
     }
     echo "@@done\n";

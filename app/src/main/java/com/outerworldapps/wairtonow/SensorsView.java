@@ -348,7 +348,11 @@ public class SensorsView
                 sb.append ("no GPS selected\n");
             }
 
-            sb.append (Lib.TimeStringUTC (wairToNow.currentGPSTime));
+            if (wairToNow.currentGPSTime > 0) {
+                sb.append (Lib.TimeStringUTC (wairToNow.currentGPSTime));
+            } else {
+                sb.append ("no GPS co-ordinate received");
+            }
 
             sb.append ('\n');
 

@@ -51,3 +51,8 @@ then
     mono --debug SelectTopoZips.exe | doit
 fi
 
+if [ ! -f datums/topo.zip ]
+    cd datums
+    zip -0 -q topo.zip topo/*.zip
+fi
+

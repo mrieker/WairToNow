@@ -53,8 +53,11 @@ echo END READALLTIFFS.SH ; date
 ./makedatumstopo.sh
 echo END MAKEDATUMSTOPO.SH ; date
 
+./makestatezips.sh
+./makewtnzipfiles.sh
+echo END MAKEWTNZIPFILES.SH ; date
+
 ## ./purgeoldcharts.sh
 
 echo UPDATE COMPLETE
 date
-
