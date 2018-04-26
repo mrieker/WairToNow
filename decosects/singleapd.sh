@@ -25,6 +25,11 @@ function doairportdiagram
 
 set -e
 
+if [ GetAptPlates.exe -ot GetAptPlates.cs ]
+then
+    mcs -debug -out:GetAptPlates.exe GetAptPlates.cs
+fi
+
 if [ ReadArptDgmPng.exe -ot ReadArptDgmPng.cs ]
 then
     mcs -debug -out:ReadArptDgmPng.exe -reference:System.Drawing.dll ReadArptDgmPng.cs

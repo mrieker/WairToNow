@@ -30,6 +30,7 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.content.res.AssetManager;
 import android.database.Cursor;
@@ -78,6 +79,8 @@ import java.util.TreeMap;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
+
+import static android.content.Context.MODE_PRIVATE;
 
 /**
  * Display a menu to download database and charts.
@@ -414,19 +417,40 @@ public class MaintView
                             }
                         }
                         if (msg != null) {
-                            AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
-                            adb.setTitle ("Chart Maint");
-                            adb.setMessage (msg);
-                            adb.setPositiveButton ("Update", new DialogInterface.OnClickListener () {
-                                @Override
-                                public void onClick (DialogInterface dialogInterface, int i)
-                                {
-                                    miscCategory.onClick (null);
-                                    wairToNow.maintButton.DisplayNewTab ();
-                                }
-                            });
-                            adb.setNegativeButton ("Tomorrow", null);
-                            adb.show ();
+                            GregorianCalendar now = new GregorianCalendar ();
+                            final int today = now.get (Calendar.YEAR) * 10000 +
+                                    (now.get (Calendar.MONTH) - Calendar.JANUARY + 1) * 100 +
+                                    now.get (Calendar.DAY_OF_MONTH);
+
+                            final SharedPreferences prefs = wairToNow.getPreferences (MODE_PRIVATE);
+                            final int chartMaintDelay = prefs.getInt ("chartMaintDelay", 0);
+
+                            // don't prompt more than once per day
+                            if (today > chartMaintDelay) {
+                                AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
+                                adb.setTitle ("Chart Maint");
+                                adb.setMessage (msg);
+                                adb.setPositiveButton ("Update", new DialogInterface.OnClickListener () {
+                                    @Override
+                                    public void onClick (DialogInterface dialogInterface, int i)
+                                    {
+                                        miscCategory.onClick (null);
+                                        wairToNow.maintButton.DisplayNewTab ();
+                                    }
+                                });
+                                adb.setNegativeButton ("Tomorrow", new DialogInterface.OnClickListener () {
+                                    @Override
+                                    public void onClick (DialogInterface dialogInterface, int i)
+                                    {
+                                        // if user says don't prompt again until tomorrow,
+                                        // remember which day we last prompted on
+                                        SharedPreferences.Editor editr = prefs.edit ();
+                                        editr.putInt ("chartMaintDelay", today);  // yyyymmdd
+                                        editr.commit ();
+                                    }
+                                });
+                                adb.show ();
+                            }
                         }
                     }
                 });

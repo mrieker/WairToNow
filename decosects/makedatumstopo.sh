@@ -52,6 +52,7 @@ then
 fi
 
 if [ ! -f datums/topo.zip ]
+then
     cd datums
     zip -0 -q topo.zip topo/*.zip
 fi

@@ -46,10 +46,19 @@ END;
     $datdir  = "../webdata/iaputil";
 
     $cycles28 = 0;
-    foreach (scandir ("datums") as $fn) {
+    $prevcy28 = 0;
+    $datumfns = scandir ("datums");
+    foreach ($datumfns as $fn) {
         if (strpos ($fn, "aptplates_") === 0) {
             $i = intval (substr ($fn, 10, 8));
             if ($cycles28 < $i) $cycles28 = $i;
+        }
+    }
+    foreach ($datumfns as $fn) {
+        if (strpos ($fn, "aptplates_") === 0) {
+            $i = intval (substr ($fn, 10, 8));
+            if ($i == $cycles28) continue;
+            if ($prevcy28 < $i) $prevcy28 = $i;
         }
     }
 

@@ -70,7 +70,8 @@ public class GetAptPlates {
             string stateid = parts[parts.Length-2];
 
             string datname = "datums/getaptplates_" + airac + "/" + faaid + ".dat";
-            if (!File.Exists (datname)) {
+            if (!File.Exists (datname) || (new FileInfo (datname).Length == 0)) {
+                try { File.Delete (datname); } catch (Exception) { }
                 Directory.CreateDirectory ("datums/getaptplates_" + airac);
                 StreamWriter datfile = new StreamWriter (datname + ".tmp");
 
