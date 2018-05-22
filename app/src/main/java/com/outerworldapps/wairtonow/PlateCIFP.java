@@ -126,7 +126,7 @@ public class PlateCIFP {
     private Paint     dotsPaint   = new Paint ();
     private Paint     selectButtonPaint = new Paint ();
     private Path      cifpButtonPath = new Path ();
-    private PlateView.IAPPlateImage plateView;
+    private PlateView.IAPRealPlateImage plateView;
     private PointD    dsctidpp = new PointD ();
     private PointD    dsctidpm = new PointD ();
     private PointD    vnFafPoint = new PointD ();
@@ -163,7 +163,7 @@ public class PlateCIFP {
         return cc;
     }
 
-    public PlateCIFP (WairToNow wtn, PlateView.IAPPlateImage pv, Waypoint.Airport apt, String pi)
+    public PlateCIFP (WairToNow wtn, PlateView.IAPRealPlateImage pv, Waypoint.Airport apt, String pi)
     {
         wairToNow = wtn;
         plateView = pv;

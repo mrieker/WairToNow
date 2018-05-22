@@ -38,6 +38,7 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.Locale;
 
 /**
  * Display a menu to download database and charts.
@@ -55,6 +56,7 @@ public class OptionsView
     public  CheckOption  showNexrad;
     public  CheckOption  showTraffic;
     public  CheckOption  showWxSumDot;
+    public  CheckOption  synthILSDMEOption;
     public  CheckOption  userWPOption;
     public  CheckOption  typeBOption;
     public  DefAltOption ktsMphOption;
@@ -90,6 +92,7 @@ public class OptionsView
         capGridOption     = new CheckOption  ("Show CAP grids",              false);
         faaWPOption       = new CheckOption  ("Show FAA waypoints",          false);
         userWPOption      = new CheckOption  ("Show User waypoints",         true);
+        synthILSDMEOption = new CheckOption  ("Show Synth ILS/DME Plates",   false);
         typeBOption       = new TypeBOption  ();
         powerLockOption   = new CheckOption  ("Power Lock",                  false);
         gpsCompassOption  = new CheckOption  ("GPS status compass",          false);
@@ -155,6 +158,7 @@ public class OptionsView
         ll1.addView (capGridOption);
         ll1.addView (faaWPOption);
         ll1.addView (userWPOption);
+        ll1.addView (synthILSDMEOption);
         ll1.addView (typeBOption);
         ll1.addView (showNexrad);
         ll1.addView (showTraffic);
@@ -232,10 +236,8 @@ public class OptionsView
                 str = Integer.toString (deg) + (char)0xB0 + Integer.toString (min) + '\'';
 
                 if (sec00 > 0) {
-                    String sec00st = Integer.toString (sec00);
-                    int sec00ln;
-                    while ((sec00ln = sec00st.length ()) < 3) sec00st = "0" + sec00st;
-
+                    String sec00st = String.format (Locale.US, "%03d", sec00);
+                    int sec00ln = sec00st.length ();
                     str += sec00st.substring (0, sec00ln - 2) + '.' + sec00st.substring (sec00ln - 2);
                     while (str.endsWith ("0")) str = str.substring (0, str.length () - 1);
                     if (str.endsWith (".")) str = str.substring (0, str.length () - 1);
@@ -252,10 +254,8 @@ public class OptionsView
                 int deg = min0000 / 600000;
                 min0000 %= 600000;
 
-                String min0000st = Integer.toString (min0000);
-                int min0000ln;
-                while ((min0000ln = min0000st.length ()) < 5) min0000st = "0" + min0000st;
-
+                String min0000st = String.format (Locale.US, "%05d", min0000);
+                int min0000ln = min0000st.length ();
                 str = Integer.toString (deg) + (char)0xB0 + min0000st.substring (0, min0000ln - 4) + '.' + min0000st.substring (min0000ln - 4);
                 while (str.endsWith ("0")) str = str.substring (0, str.length () - 1);
                 if (str.endsWith (".")) str = str.substring (0, str.length () - 1);
@@ -271,12 +271,8 @@ public class OptionsView
                     ival /= 10;
                     dpts --;
                 }
-                str = Integer.toString (ival);
+                str = String.format (Locale.US, "%0" + dpts + "d", ival);
                 int len = str.length ();
-                while (len <= dpts) {
-                    str = '0' + str;
-                    len ++;
-                }
                 str = str.substring (0, len - dpts) + '.' + str.substring (len - dpts) + (char)0xB0;
                 break;
             }
@@ -300,44 +296,46 @@ public class OptionsView
                     int i = csvline.indexOf (',');
                     String name = csvline.substring (0, i);
                     String valu = csvline.substring (++ i);
-                    if (name.equals ("capGrid"))      capGridOption.checkBox.setChecked    (valu.equals (boolTrue));
-                    if (name.equals ("faaWPs"))       faaWPOption.checkBox.setChecked      (valu.equals (boolTrue));
-                    if (name.equals ("userWPs"))      userWPOption.checkBox.setChecked     (valu.equals (boolTrue));
-                    if (name.equals ("typeB"))        typeBOption.checkBox.setChecked      (valu.equals (boolTrue));
-                    if (name.equals ("powerLock"))    powerLockOption.checkBox.setChecked  (valu.equals (boolTrue));
-                    if (name.equals ("gpsCompass"))   gpsCompassOption.checkBox.setChecked (valu.equals (boolTrue));
-                    if (name.equals ("showNexrad"))   showNexrad.checkBox.setChecked       (valu.equals (boolTrue));
-                    if (name.equals ("showTraffic"))  showTraffic.checkBox.setChecked      (valu.equals (boolTrue));
-                    if (name.equals ("showWxSumDot")) showWxSumDot.checkBox.setChecked     (valu.equals (boolTrue));
-                    if (name.equals ("chartOrient"))  chartOrientOption.setKey (valu);
-                    if (name.equals ("chartTrack"))   chartTrackOption.setKey  (valu);
-                    if (name.equals ("magtrueAlt"))   magTrueOption.setAlt     (valu.equals (boolTrue));
-                    if (name.equals ("latlonAlt"))    latLonOption.setKey      (valu);
-                    if (name.equals ("ktsMphAlt"))    ktsMphOption.setAlt      (valu.equals (boolTrue));
-                    if (name.equals ("gpsUpdate"))    gpsUpdateOption.setKey   (valu);
-                    if (name.equals ("circCat"))      circCatOption.setKey     (valu);
+                    if (name.equals ("capGrid"))      capGridOption.setCheckedNoWrite     (valu.equals (boolTrue));
+                    if (name.equals ("faaWPs"))       faaWPOption.setCheckedNoWrite       (valu.equals (boolTrue));
+                    if (name.equals ("userWPs"))      userWPOption.setCheckedNoWrite      (valu.equals (boolTrue));
+                    if (name.equals ("synthILSDMEs")) synthILSDMEOption.setCheckedNoWrite (valu.equals (boolTrue));
+                    if (name.equals ("typeB"))        typeBOption.setCheckedNoWrite       (valu.equals (boolTrue));
+                    if (name.equals ("powerLock"))    powerLockOption.setCheckedNoWrite   (valu.equals (boolTrue));
+                    if (name.equals ("gpsCompass"))   gpsCompassOption.setCheckedNoWrite  (valu.equals (boolTrue));
+                    if (name.equals ("showNexrad"))   showNexrad.setCheckedNoWrite        (valu.equals (boolTrue));
+                    if (name.equals ("showTraffic"))  showTraffic.setCheckedNoWrite       (valu.equals (boolTrue));
+                    if (name.equals ("showWxSumDot")) showWxSumDot.setCheckedNoWrite      (valu.equals (boolTrue));
+                    if (name.equals ("chartOrient"))  chartOrientOption.setKeyNoWrite     (valu);
+                    if (name.equals ("chartTrack"))   chartTrackOption.setKeyNoWrite      (valu);
+                    if (name.equals ("magtrueAlt"))   magTrueOption.setAltNoWrite         (valu.equals (boolTrue));
+                    if (name.equals ("latlonAlt"))    latLonOption.setKeyNoWrite          (valu);
+                    if (name.equals ("ktsMphAlt"))    ktsMphOption.setAltNoWrite          (valu.equals (boolTrue));
+                    if (name.equals ("gpsUpdate"))    gpsUpdateOption.setKeyNoWrite       (valu);
+                    if (name.equals ("circCat"))      circCatOption.setKeyNoWrite         (valu);
                 }
             } finally {
                 csvreader.close ();
             }
         } catch (FileNotFoundException fnfe) {
             Log.i (TAG, "no options file yet");
-            capGridOption.checkBox.setChecked    (false);
-            faaWPOption.checkBox.setChecked      (false);
-            userWPOption.checkBox.setChecked     (true);
-            typeBOption.checkBox.setChecked      (false);
-            powerLockOption.checkBox.setChecked  (true);
-            gpsCompassOption.checkBox.setChecked (true);
-            showNexrad.checkBox.setChecked       (true);
-            showTraffic.checkBox.setChecked      (true);
-            showWxSumDot.checkBox.setChecked     (true);
-            chartOrientOption.setKey (chartOrientOption.keys[0]);
-            chartTrackOption.setKey  (chartTrackOption.keys[0]);
-            magTrueOption.setAlt     (false);
-            latLonOption.setKey      (latLonOption.keys[0]);
-            ktsMphOption.setAlt      (false);
-            gpsUpdateOption.setKey   (gpsUpdateOption.keys[0]);
-            circCatOption.setKey     (circCatOption.keys[0]);
+            capGridOption.setCheckedNoWrite     (false);
+            faaWPOption.setCheckedNoWrite       (false);
+            userWPOption.setCheckedNoWrite      (true);
+            synthILSDMEOption.setCheckedNoWrite (false);
+            typeBOption.setCheckedNoWrite       (false);
+            powerLockOption.setCheckedNoWrite   (true);
+            gpsCompassOption.setCheckedNoWrite  (true);
+            showNexrad.setCheckedNoWrite        (true);
+            showTraffic.setCheckedNoWrite       (true);
+            showWxSumDot.setCheckedNoWrite      (true);
+            chartOrientOption.setKeyNoWrite     (chartOrientOption.keys[0]);
+            chartTrackOption.setKeyNoWrite      (chartTrackOption.keys[0]);
+            magTrueOption.setAltNoWrite         (false);
+            latLonOption.setKeyNoWrite          (latLonOption.keys[0]);
+            ktsMphOption.setAltNoWrite          (false);
+            gpsUpdateOption.setKeyNoWrite       (gpsUpdateOption.keys[0]);
+            circCatOption.setKeyNoWrite         (circCatOption.keys[0]);
         } catch (Exception e) {
             Log.w (TAG, "error reading options.csv", e);
         }
@@ -352,22 +350,23 @@ public class OptionsView
         try {
             BufferedWriter csvwriter = new BufferedWriter (new FileWriter (csvname), 1024);
             try {
-                csvwriter.write ("capGrid,"      + Boolean.toString (capGridOption.checkBox.isChecked ())    + "\n");
-                csvwriter.write ("faaWPs,"       + Boolean.toString (faaWPOption.checkBox.isChecked ())      + "\n");
-                csvwriter.write ("userWPs,"      + Boolean.toString (userWPOption.checkBox.isChecked ())     + "\n");
-                csvwriter.write ("typeB,"        + Boolean.toString (typeBOption.checkBox.isChecked ())      + "\n");
-                csvwriter.write ("powerLock,"    + Boolean.toString (powerLockOption.checkBox.isChecked ())  + "\n");
-                csvwriter.write ("gpsCompass,"   + Boolean.toString (gpsCompassOption.checkBox.isChecked ()) + "\n");
-                csvwriter.write ("showNexrad,"   + Boolean.toString (showNexrad.checkBox.isChecked ())       + "\n");
-                csvwriter.write ("showTraffic,"  + Boolean.toString (showTraffic.checkBox.isChecked ())      + "\n");
-                csvwriter.write ("showWxSumDot," + Boolean.toString (showWxSumDot.checkBox.isChecked ())     + "\n");
-                csvwriter.write ("chartOrient,"  + chartOrientOption.getKey ()                               + "\n");
-                csvwriter.write ("chartTrack,"   + chartTrackOption.getKey ()                                + "\n");
-                csvwriter.write ("magtrueAlt,"   + Boolean.toString (magTrueOption.getAlt ())                + "\n");
-                csvwriter.write ("latlonAlt,"    + latLonOption.getKey ()                                    + "\n");
-                csvwriter.write ("ktsMphAlt,"    + Boolean.toString (ktsMphOption.getAlt ())                 + "\n");
-                csvwriter.write ("gpsUpdate,"    + gpsUpdateOption.getKey ()                                 + "\n");
-                csvwriter.write ("circCat,"      + circCatOption.getKey ()                                   + "\n");
+                csvwriter.write ("capGrid,"      + Boolean.toString (capGridOption.checkBox.isChecked ())     + "\n");
+                csvwriter.write ("faaWPs,"       + Boolean.toString (faaWPOption.checkBox.isChecked ())       + "\n");
+                csvwriter.write ("userWPs,"      + Boolean.toString (userWPOption.checkBox.isChecked ())      + "\n");
+                csvwriter.write ("synthILSDMEs," + Boolean.toString (synthILSDMEOption.checkBox.isChecked ()) + "\n");
+                csvwriter.write ("typeB,"        + Boolean.toString (typeBOption.checkBox.isChecked ())       + "\n");
+                csvwriter.write ("powerLock,"    + Boolean.toString (powerLockOption.checkBox.isChecked ())   + "\n");
+                csvwriter.write ("gpsCompass,"   + Boolean.toString (gpsCompassOption.checkBox.isChecked ())  + "\n");
+                csvwriter.write ("showNexrad,"   + Boolean.toString (showNexrad.checkBox.isChecked ())        + "\n");
+                csvwriter.write ("showTraffic,"  + Boolean.toString (showTraffic.checkBox.isChecked ())       + "\n");
+                csvwriter.write ("showWxSumDot," + Boolean.toString (showWxSumDot.checkBox.isChecked ())      + "\n");
+                csvwriter.write ("chartOrient,"  + chartOrientOption.getKey ()                                + "\n");
+                csvwriter.write ("chartTrack,"   + chartTrackOption.getKey ()                                 + "\n");
+                csvwriter.write ("magtrueAlt,"   + Boolean.toString (magTrueOption.getAlt ())                 + "\n");
+                csvwriter.write ("latlonAlt,"    + latLonOption.getKey ()                                     + "\n");
+                csvwriter.write ("ktsMphAlt,"    + Boolean.toString (ktsMphOption.getAlt ())                  + "\n");
+                csvwriter.write ("gpsUpdate,"    + gpsUpdateOption.getKey ()                                  + "\n");
+                csvwriter.write ("circCat,"      + circCatOption.getKey ()                                    + "\n");
             } finally {
                 csvwriter.close ();
             }
@@ -429,6 +428,7 @@ public class OptionsView
      */
     public class CheckOption extends LinearLayout implements CompoundButton.OnCheckedChangeListener {
         public CheckBox checkBox;
+        private boolean nowrite;
 
         public CheckOption (String name, boolean def)
         {
@@ -444,10 +444,20 @@ public class OptionsView
             addView (tv1);
         }
 
+        public void setCheckedNoWrite (boolean checked)
+        {
+            nowrite = true;
+            try {
+                checkBox.setChecked (checked);
+            } finally {
+                nowrite = false;
+            }
+        }
+
         @Override
         public void onCheckedChanged (CompoundButton buttonView, boolean isChecked)
         {
-            WriteOptionsCsvFile ();
+            if (!nowrite) WriteOptionsCsvFile ();
         }
     }
 
@@ -469,8 +479,10 @@ public class OptionsView
      * Present a spinner selection of a default and alternate value.
      */
     public class DefAltOption extends RadioGroup implements RadioGroup.OnCheckedChangeListener {
+        private boolean nowrite;
         private int selection;
 
+        @SuppressLint("ResourceType")
         public DefAltOption (String def, String alt)
         {
             super (wairToNow);
@@ -484,7 +496,6 @@ public class OptionsView
             RadioButton rbalt = new RadioButton (wairToNow);
             rbalt.setText (alt);
             wairToNow.SetTextSize (rbalt);
-            //noinspection ResourceType
             rbalt.setId (1);
             addView (rbalt);
 
@@ -496,18 +507,23 @@ public class OptionsView
             return selection != 0;
         }
 
-        public void setAlt (boolean isalt)
+        public void setAltNoWrite (boolean isalt)
         {
-            selection = isalt ? 1 : 0;
-            //noinspection ResourceType
-            check (selection);
+            nowrite = true;
+            try {
+                selection = isalt ? 1 : 0;
+                //noinspection ResourceType
+                check (selection);
+            } finally {
+                nowrite = false;
+            }
         }
 
         @Override
         public void onCheckedChanged (RadioGroup group, int checkedId)
         {
             selection = checkedId;
-            WriteOptionsCsvFile ();
+            if (!nowrite) WriteOptionsCsvFile ();
         }
     }
 
@@ -515,6 +531,7 @@ public class OptionsView
      * Present a spinner selection of several integer values.
      */
     public class IntOption extends TextArraySpinner implements TextArraySpinner.OnItemSelectedListener {
+        private boolean nowrite;
         private int selection;
         private int[] vals;
         private String[] keys;
@@ -540,23 +557,28 @@ public class OptionsView
             return keys[selection];
         }
 
-        public void setKey (String key)
+        public void setKeyNoWrite (String key)
         {
-            for (int i = 0; i < keys.length; i ++) {
-                if (key.equals (keys[i])) {
-                    selection = i;
-                    super.setIndex (i);
-                    return;
+            nowrite = true;
+            try {
+                for (int i = 0; i < keys.length; i ++) {
+                    if (key.equals (keys[i])) {
+                        selection = i;
+                        super.setIndex (i);
+                        return;
+                    }
                 }
+                throw new RuntimeException ("unknown key " + key);
+            } finally {
+                nowrite = false;
             }
-            throw new RuntimeException ("unknown key " + key);
         }
 
         @Override  // TextArraySpinner.OnItemSelectedListener
         public boolean onItemSelected (View view, int index)
         {
             selection = index;
-            WriteOptionsCsvFile ();
+            if (!nowrite) WriteOptionsCsvFile ();
             return true;
         }
 

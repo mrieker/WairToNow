@@ -86,7 +86,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
     private final static Object shadeCirclingAreaLock = new Object ();
     private static ShadeCirclingAreaThread shadeCirclingAreaThread;
 
-    private boolean full;
+    private boolean full;               // plate occupies full screen, draw GPS available outline
     private int expdate;                // plate expiration date, eg, 20150917
     private int screenOrient;
     private Paint exppaint;
@@ -130,8 +130,10 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
 
         if (plateid.startsWith ("APD-")) {
             plateImage = new APDPlateImage (fn);
+        } else if (plateid.startsWith (IAPSynthPlateImage.prefix)) {
+            plateImage = new IAPSynthPlateImage ();
         } else if (plateid.startsWith ("IAP-")) {
-            plateImage = new IAPPlateImage (fn);
+            plateImage = new IAPRealPlateImage (fn);
         } else if (plateid.startsWith ("RWY-")) {
             plateImage = new RWYPlateImage ();
         } else {
@@ -255,6 +257,12 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
 
         public void SetGPSLocation () { }
 
+        // used by PlateDME
+        public Waypoint FindWaypoint (String wayptid)
+        {
+            return airport.GetNearbyWaypoint (wayptid);
+        }
+
         /**
          * Callback for mouse events on the image.
          * We use this for scrolling the map around.
@@ -309,7 +317,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         }
 
         /**
-         * Open first plate bitmap image page file and map tp view.
+         * Open first plate bitmap image page file and map to view.
          */
         protected Bitmap OpenFirstPage (String filename)
         {
@@ -525,9 +533,12 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
 
         /**
          * Set lat/lon => bitmap transform via two example mappings.
+         *   (ilat,ilon) <=> (ipixelx,ipixely)
+         *   (jlat,jlon) <=> (jpixelx,jpixely)
          */
-        protected double SetLatLon2Bitmap (double ilat, double ilon, double jlat, double jlon,
-                                          int ipixelx, int ipixely, int jpixelx, int jpixely)
+        @SuppressWarnings("SameParameterValue")
+        protected void SetLatLon2Bitmap (double ilat, double ilon, double jlat, double jlon,
+                                         int ipixelx, int ipixely, int jpixelx, int jpixely)
         {
             double avglatcos = Math.cos (Math.toRadians (airport.lat));
 
@@ -620,8 +631,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             xfmtfwf = rev[2][4];
 
             // return rotation angle
-
-            return Math.atan2 (xfmwftb, xfmwfta);
+            //return Math.atan2 (xfmwftb, xfmwfta);
         }
 
         /**
@@ -1126,10 +1136,81 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         return ((RWYPlateImage) pv.plateImage).pmap;
     }
 
-    /**
-     * Display the IAP plate image file.
+    /*
+     * A real or synthetic IAP plate.
      */
-    public class IAPPlateImage extends GRPlateImage {
+    public abstract class IAPPlateImage extends GRPlateImage {
+        protected long       plateLoadedUptime;
+        protected PlateCIFP  plateCIFP;
+        private   PlateDME   plateDME;
+        private   PlateTimer plateTimer;
+
+        protected IAPPlateImage ()
+        {
+            plateDME   = new PlateDME (wairToNow, this, airport.ident, plateid);
+            plateTimer = new PlateTimer (wairToNow, this);
+            plateLoadedUptime = SystemClock.uptimeMillis ();
+        }
+
+        // maybe we know what navaid is being used by the plate
+        public abstract Waypoint GetRefNavWaypt ();
+
+        protected void DrawCommon (Canvas canvas)
+        {
+            /*
+             * Draw any CIFP, enabled DMEs and timer.
+             */
+            if (!wairToNow.optionsView.typeBOption.checkBox.isChecked ()) {
+                if (plateCIFP != null) plateCIFP.DrawCIFP (canvas);
+                plateDME.DrawDMEs (canvas, wairToNow.currentGPSLat, wairToNow.currentGPSLon,
+                        wairToNow.currentGPSAlt, wairToNow.currentGPSTime);
+            }
+            plateTimer.DrawTimer (canvas);
+
+            /*
+             * Draw airplane and current location info if we have enough georeference info.
+             */
+            DrawLocationArrow (canvas, false);
+            wairToNow.currentCloud.DrawIt (canvas);
+
+            /*
+             * Draw GPS Available box around plate border.
+             */
+            if (full && !wairToNow.optionsView.typeBOption.checkBox.isChecked ()) {
+                wairToNow.drawGPSAvailable (canvas, this);
+            }
+        }
+
+        protected void GotMouseDown (double x, double y)
+        {
+            plateDME.GotMouseDown (x, y);
+            plateTimer.GotMouseDown (x, y);
+            if (plateCIFP != null) plateCIFP.GotMouseDown (x, y);
+            wairToNow.currentCloud.MouseDown ((int) Math.round (x), (int) Math.round (y),
+                    System.currentTimeMillis ());
+        }
+
+        protected void GotMouseUp (double x, double y)
+        {
+            plateDME.GotMouseUp ();
+            if (plateCIFP != null) plateCIFP.GotMouseUp ();
+            wairToNow.currentCloud.MouseUp ((int) Math.round (x), (int) Math.round (y),
+                    System.currentTimeMillis ());
+        }
+
+        @Override  // PlateImage
+        public void SetGPSLocation ()
+        {
+            if (plateCIFP != null) plateCIFP.SetGPSLocation ();
+        }
+
+        public abstract void ShadeCirclingAreaWork ();
+    }
+
+    /**
+     * Display a real IAP plate image file.
+     */
+    public class IAPRealPlateImage extends IAPPlateImage {
 
         // dme arcs added via dmearcs.txt (see PlateCIFP.java)
         private class DMEArc {
@@ -1229,19 +1310,12 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         private Lambert      lccmap;                // non-null: FAA-provided georef data
         private LatLon       bmxy2latlon = new LatLon ();
         private LinkedList<DMEArc> dmeArcs;
-        private long         plateLoadedUptime;
-        public  PlateCIFP    plateCIFP;
-        private PlateDME     plateDME;
-        private PlateTimer   plateTimer;
         private PointD       bitmapPt = new PointD ();
         private String       filename;              // name of gifs on flash, without ".p<pageno>" suffix
 
-        public IAPPlateImage (String fn)
+        public IAPRealPlateImage (String fn)
         {
             filename = fn;
-
-            plateDME   = new PlateDME (wairToNow, this, airport.ident, plateid);
-            plateTimer = new PlateTimer (wairToNow, this);
 
             /*
              * Get any georeference points in database.
@@ -1253,8 +1327,15 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
              * Constructor uses lat/lon <=> bitmap pixel mapping.
              */
             plateCIFP = new PlateCIFP (wairToNow, this, airport, plateid);
+        }
 
-            plateLoadedUptime = SystemClock.uptimeMillis ();
+        /**
+         * Maybe CIFP knows what navaid the approach uses.
+         */
+        @Override  // IAPPlateImage
+        public Waypoint GetRefNavWaypt ()
+        {
+            return plateCIFP.getRefNavWaypt ();
         }
 
         /**
@@ -1277,18 +1358,6 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             dmeArc.nm  = nm;
             dmeArcs.addLast (dmeArc);
             hasDMEArcs = true;
-        }
-
-        @Override  // PlateImage
-        public void SetGPSLocation ()
-        {
-            plateCIFP.SetGPSLocation ();
-        }
-
-        // used by PlateDME
-        public Waypoint FindWaypoint (String wayptid)
-        {
-            return airport.GetNearbyWaypoint (wayptid);
         }
 
         /**
@@ -1343,23 +1412,6 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             }
         }
 
-        protected void GotMouseDown (double x, double y)
-        {
-            plateCIFP.GotMouseDown (x, y);
-            plateDME.GotMouseDown (x, y);
-            plateTimer.GotMouseDown (x, y);
-            wairToNow.currentCloud.MouseDown ((int) Math.round (x), (int) Math.round (y),
-                    System.currentTimeMillis ());
-        }
-
-        protected void GotMouseUp (double x, double y)
-        {
-            plateCIFP.GotMouseUp ();
-            plateDME.GotMouseUp ();
-            if (wairToNow.currentCloud.MouseUp ((int) Math.round (x), (int) Math.round (y),
-                    System.currentTimeMillis ())) invalidate ();
-        }
-
         /**
          * Draw the plate image and any other marks on it we want.
          */
@@ -1405,27 +1457,9 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             }
 
             /*
-             * Draw any CIFP, enabled DMEs and timer.
+             * Draw a bunch of stuff on the plate.
              */
-            if (!wairToNow.optionsView.typeBOption.checkBox.isChecked ()) {
-                plateCIFP.DrawCIFP (canvas);
-                plateDME.DrawDMEs (canvas, wairToNow.currentGPSLat, wairToNow.currentGPSLon,
-                        wairToNow.currentGPSAlt, wairToNow.currentGPSTime);
-            }
-            plateTimer.DrawTimer (canvas);
-
-            /*
-             * Draw airplane and current location info if we have enough georeference info.
-             */
-            DrawLocationArrow (canvas, false);
-            wairToNow.currentCloud.DrawIt (canvas);
-
-            /*
-             * Draw GPS Available box around plate border.
-             */
-            if (full && !wairToNow.optionsView.typeBOption.checkBox.isChecked ()) {
-                wairToNow.drawGPSAvailable (canvas, this);
-            }
+            DrawCommon (canvas);
         }
 
         /**
@@ -1545,6 +1579,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
          * This runs in the ShadeCirclingAreaThread to scan bitmap for the inverse [C] if necessary
          * then shade in the circling area on the bitmap.
          */
+        @Override  // IAPPlateImage
         @SuppressWarnings("ConstantConditions")  // method too complex
         public void ShadeCirclingAreaWork ()
         {
@@ -1761,6 +1796,503 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                 Log.w (TAG, "error shading circling area", e);
             }
         }
+    }
+
+    /**
+     * Display the IAP plate image file.
+     */
+    public class IAPSynthPlateImage extends IAPPlateImage implements DisplayableChart.Invalidatable {
+        public final static String prefix = "IAP-Synth ILS/DME ";
+
+        // pixel size of real plate files
+        private final static int platewidth  = 1614;
+        private final static int plateheight = 2475;
+
+        // 300dpi on plate
+        // same scale as sectional chart
+        // 300dp(500,000in) in real world
+        // = 42.33333 metres/pixel
+        private final static double mperbmpix = 500000.0 / 300.0 / 12.0 / Lib.FtPerM;
+
+        private class TopoRect {
+            public double bmpbot, bmpleft, bmprite, bmptop;
+            public int color;
+        }
+
+        private boolean  firstDraw = true;
+        private double   centerlat;     // lat,lon at center of needle
+        private double   centerlon;     // = initially at center of canvas
+        private double   rwymcbin;      // runway magnetic course (-180 to +180)
+        private double   rwynm, rwytc;  // runway length and true course
+        private double[] needlebmpxys = new double[26];
+        private float[]  needlecanxys = new float[26];
+        private int infotextswarn;
+        private LinkedList<TopoRect> topoRects = new LinkedList<> ();
+        private Paint    rwclPaint;
+        private PixelMapper pmap = new PixelMapper ();
+        private Rect     textbounds = new Rect ();
+        private String   gsaltstr;      // glideslope intercept altitude string
+        private String   gsintdmestr;   // glideslope intercept DME string
+        private String   ptlinstr;      // PT inbound heading string
+        private String   ptrinstr;
+        private String   ptloutstr;     // PT outbound heading string
+        private String   ptroutstr;
+        private String   rwymcstr;      // runway mag course string
+        private String[] infotexts;     // text lines at top center of canvas
+        private Waypoint.Localizer synthloc;
+        private Waypoint.Runway runway;
+
+        @SuppressWarnings("PointlessArithmeticExpression")
+        public IAPSynthPlateImage ()
+        {
+            runway = airport.GetRunways ().get (plateid.substring (prefix.length ()));
+            synthloc = runway.GetSynthLoc ();
+
+            rwytc = Lib.LatLonTC (runway.lat, runway.lon, runway.endLat, runway.endLon);
+            rwynm = Lib.LatLonDist (runway.lat, runway.lon, runway.endLat, runway.endLon);
+
+            rwymcbin = rwytc + Lib.MagVariation (runway.lat, runway.lon, runway.elev / Lib.FtPerM);
+            rwymcstr = Lib.Hdg2Str (rwymcbin);
+            if (rwymcbin < 0.0) {
+                ptlinstr  = Lib.Hdg2Str (rwymcbin + 135.0) + '\u2192';  // right arrow
+                ptloutstr = '\u2190' + Lib.Hdg2Str (rwymcbin -  45.0);  // left arrow
+                ptrinstr  = Lib.Hdg2Str (rwymcbin - 135.0) + '\u2192';  // right arrow
+                ptroutstr = '\u2190' + Lib.Hdg2Str (rwymcbin +  45.0);  // left arrow
+            } else {
+                ptlinstr  = Lib.Hdg2Str (rwymcbin -  45.0) + '\u2192';  // right arrow
+                ptloutstr = '\u2190' + Lib.Hdg2Str (rwymcbin + 135.0);  // left arrow
+                ptrinstr  = Lib.Hdg2Str (rwymcbin +  45.0) + '\u2192';  // right arrow
+                ptroutstr = '\u2190' + Lib.Hdg2Str (rwymcbin - 135.0);  // left arrow
+            }
+
+            rwclPaint = new Paint ();
+            rwclPaint.setColor (Color.WHITE);
+            rwclPaint.setStyle (Paint.Style.FILL_AND_STROKE);
+
+            /*
+             * Set up lat/lon <-> bitmap pixel mapping.
+             *   actual plates are 5.38 x 8.25 inches
+             *                     1614 x 2475 pixels
+             *                     same scale as section charts (500,000 : 1)
+             *                    36.86 x 56.57 nm
+             *   At 300dpi, actual plates are 1614 x 2475 pix = 5.38 x 8.25
+             *   And actual plates are same scale as sectional charts
+             * Position such that center of needle is in center of plate.
+             */
+            double loclat = synthloc.lat;
+            double loclon = synthloc.lon;
+            centerlat = Lib.LatHdgDist2Lat (loclat, rwytc + 180.0, 7.5);
+            centerlon = Lib.LatLonHdgDist2Lon (loclat, loclon, rwytc + 180.0, 7.5);
+
+            /*
+             * Glideslope calculations.
+             */
+            // glideslope intercept altitude (feet), approx 2000ft AGL
+            int gsaltbin = ((int) Math.round (runway.elev / 100.0)) * 100 + 2000;
+            gsaltstr = Integer.toString (gsaltbin) + '\'';
+
+            /*
+             * Compute needle points.
+             *  15nm long
+             *  3deg wide each side
+             */
+            double[] needlells = new double[26];
+
+            // tail of needle on centerline
+            needlells[ 6] = Lib.LatHdgDist2Lat    (loclat,         rwytc + 180.0, rwynm + 15.0);
+            needlells[ 7] = Lib.LatLonHdgDist2Lon (loclat, loclon, rwytc + 180.0, rwynm + 15.0);
+            // tail of needle left of centerline
+            needlells[ 4] = Lib.LatHdgDist2Lat    (loclat,         rwytc + 183.0, rwynm + 15.5);
+            needlells[ 5] = Lib.LatLonHdgDist2Lon (loclat, loclon, rwytc + 183.0, rwynm + 15.5);
+            // tail of needle right of centerline
+            needlells[ 8] = Lib.LatHdgDist2Lat    (loclat,         rwytc + 177.0, rwynm + 15.5);
+            needlells[ 9] = Lib.LatLonHdgDist2Lon (loclat, loclon, rwytc + 177.0, rwynm + 15.5);
+
+            // tip of needle
+            needlells[ 0] = Lib.LatHdgDist2Lat    (loclat,         rwytc + 180.0, rwynm + 0.2);
+            needlells[ 1] = Lib.LatLonHdgDist2Lon (loclat, loclon, rwytc + 180.0, rwynm + 0.2);
+            // near tip left of centerline
+            needlells[ 2] = Lib.LatHdgDist2Lat    (loclat,         rwytc + 183.0, rwynm + 0.5);
+            needlells[ 3] = Lib.LatLonHdgDist2Lon (loclat, loclon, rwytc + 183.0, rwynm + 0.5);
+            // near tip right of centerline
+            needlells[10] = Lib.LatHdgDist2Lat    (loclat,         rwytc + 177.0, rwynm + 0.5);
+            needlells[11] = Lib.LatLonHdgDist2Lon (loclat, loclon, rwytc + 177.0, rwynm + 0.5);
+
+            // most way toward tail on centerline
+            needlells[12] = Lib.LatHdgDist2Lat    (loclat,         rwytc + 180.0, rwynm + 10.0);
+            needlells[13] = Lib.LatLonHdgDist2Lon (loclat, loclon, rwytc + 180.0, rwynm + 10.0);
+
+            // start of PT barb near numbers
+            needlells[18] = Lib.LatHdgDist2Lat    (loclat,         rwytc + 180.0, rwynm + 12.0);
+            needlells[19] = Lib.LatLonHdgDist2Lon (loclat, loclon, rwytc + 180.0, rwynm + 12.0);
+
+            // elbow of PT barb near tail
+            needlells[20] = Lib.LatHdgDist2Lat    (loclat,         rwytc + 180.0, rwynm + 14.0);
+            needlells[21] = Lib.LatLonHdgDist2Lon (loclat, loclon, rwytc + 180.0, rwynm + 14.0);
+
+            // end of left 45deg leg of PT barb
+            needlells[22] = Lib.LatHdgDist2Lat    (needlells[20],                rwytc + 135.0, 2.0);
+            needlells[23] = Lib.LatLonHdgDist2Lon (needlells[20], needlells[21], rwytc + 135.0, 2.0);
+
+            // end of right 45deg leg of PT barb
+            needlells[24] = Lib.LatHdgDist2Lat    (needlells[20],                rwytc - 135.0, 2.0);
+            needlells[25] = Lib.LatLonHdgDist2Lon (needlells[20], needlells[21], rwytc - 135.0, 2.0);
+
+            for (int i = 0; i < 26; i += 2) {
+                needlebmpxys[i+0] = LatLon2BitmapX (needlells[i+0], needlells[i+1]);
+                needlebmpxys[i+1] = LatLon2BitmapY (needlells[i+0], needlells[i+1]);
+            }
+
+            double needletailwidth = Math.hypot (needlebmpxys[8] - needlebmpxys[4],
+                    needlebmpxys[9] - needlebmpxys[5]);
+
+            // glideslope intercept position
+            // glideslope antenna is located 1000' down from near end of runway
+            double gslat = synthloc.gs_lat;
+            double gslon = synthloc.gs_lon;
+            double gsintaltagl = gsaltbin - runway.elev;
+            double gsintdistft = gsintaltagl / Math.tan (Math.toRadians (synthloc.gs_tilt));
+            double gsintdistnm = gsintdistft / Lib.FtPerNM;
+            double gsintlat = Lib.LatHdgDist2Lat (gslat, rwytc + 180.0, gsintdistnm);
+            double gsintlon = Lib.LatLonHdgDist2Lon (gslat, gslon, rwytc + 180.0, gsintdistnm);
+            double gsintbmpx = LatLon2BitmapX (gsintlat, gsintlon);
+            double gsintbmpy = LatLon2BitmapY (gsintlat, gsintlon);
+            needlebmpxys[14] = gsintbmpx - needletailwidth * Math.cos (Math.toRadians (rwytc));
+            needlebmpxys[15] = gsintbmpy - needletailwidth * Math.sin (Math.toRadians (rwytc));
+            needlebmpxys[16] = gsintbmpx + needletailwidth * Math.cos (Math.toRadians (rwytc));
+            needlebmpxys[17] = gsintbmpy + needletailwidth * Math.sin (Math.toRadians (rwytc));
+
+            // DME antenna is located at near end of runway
+            double dmelat = synthloc.GetDMELat ();
+            double dmelon = synthloc.GetDMELon ();
+            double gsintdmenm = Lib.LatLonDist (gsintlat, gsintlon, dmelat, dmelon);
+            gsintdmestr = " " + Lib.DoubleNTZ (gsintdmenm) + " DME ";
+
+            /*
+             * Informational text lines.
+             */
+            infotexts = new String[] {
+                    plateid,
+                    airport.name + " (" + airport.faaident + ')',
+                    "Runway length: " + Math.round (rwynm * Lib.FtPerNM) + '\'',
+                    "Threshold elev: " + Math.round (runway.elev) + '\'',
+                    "Decision height: " + Math.round (runway.elev + 250.0) + '\'',
+                    "Although relative topography shown...",
+                    "...NO OBSTRUCTION CLEARANCE PROVIDED",
+                    "USE ONLY IN VFR CONDITIONS"
+            };
+            infotextswarn = infotexts.length - 3;
+
+            /*
+             * Set up topo rectangles +/-5nm from needle course line.
+             */
+            double widnm  = 5.0;
+            int minlatmin = (int) Math.round (Math.min (runway.endLat, needlells[6]) * 60.0 - widnm);
+            int maxlatmin = (int) Math.round (Math.max (runway.endLat, needlells[6]) * 60.0 + widnm);
+            double avglatcos = Math.cos (Math.toRadians (minlatmin + maxlatmin) / 120.0);
+            int minlonmin = (int) Math.round (Lib.Westmost (runway.endLon, needlells[7]) * 60.0 - widnm / avglatcos);
+            int maxlonmin = (int) Math.round (Lib.Eastmost (runway.endLon, needlells[7]) * 60.0 + widnm / avglatcos);
+            if (maxlonmin < minlonmin) maxlonmin += 360 * 60;
+
+            // loop through all possible lat/lon one minute at a time
+            for (int latmin = minlatmin; latmin <= maxlatmin; latmin ++) {
+                double latdeg = latmin / 60.0;
+                for (int lonmin = minlonmin; lonmin <= maxlonmin; lonmin ++) {
+                    double londeg = lonmin / 60.0;
+
+                    // skip if not within widnm of the runway course line
+                    double ocd = Lib.GCOffCourseDist (runway.endLat, runway.endLon, needlells[6], needlells[7], latdeg, londeg);
+                    if (Math.abs (ocd) > widnm) continue;
+
+                    // skip if more than needle length from runway and more than widnm from needle tail
+                    // also skip if vice versa
+                    double fromrunwy = Lib.LatLonDist (latdeg, londeg, runway.endLat, runway.endLon);
+                    double fromntail = Lib.LatLonDist (latdeg, londeg, needlells[6], needlells[7]);
+                    if ((fromrunwy > 15.0) && (fromntail > widnm)) continue;
+                    if ((fromrunwy > widnm) && (fromntail > 15.0)) continue;
+
+                    // get ground elevation at that lat/lon position
+                    // skip if unknown (leaving background black)
+                    short elevMetres = Topography.getElevMetres (latdeg, londeg);
+                    if (elevMetres == Topography.INVALID_ELEV) continue;
+
+                    // compute gap between terrain and altitude we should be flying at for this position
+                    double elevft  = elevMetres * Lib.FtPerM;  // terrain elevation in feet
+                    double flydist = Lib.LatLonDist (runway.lat, runway.lon, latdeg, londeg);
+                    if (flydist > 5.0) flydist = 5.0;   // how far away from runway we are
+                    double flyarw  = flydist * 400.0;   // how high above runway we should be flying
+                    double gapft   = runway.elev + flyarw - elevft;  // actual gap between flying and ground
+
+                    // if flying through dirt, we want full RED color
+                    // if gap is at least half distance to runway height, full GREEN color
+                    if (gapft < 0.0) gapft = 0.0;       // flying through dirt -- fully RED
+                    if (gapft > flyarw / 2.0) {         // gap more than half way above runway
+                        gapft = flyarw / 2.0;           // -- fully GREEN
+                    }
+                    double hue = gapft / (flyarw / 2.0) * Math.PI / 2.0;  // 0(red)..pi/2(green)
+
+                    // make a new rectangle entry
+                    TopoRect tr = new TopoRect ();
+                    tr.color = Color.rgb ((int) Math.round (Math.cos (hue) * 255),
+                            (int) Math.round (Math.sin (hue) * 255), 0);
+
+                    tr.bmpleft = LatLon2BitmapX (latdeg - 1.0/120.0, londeg - 1.0/120.0);
+                    tr.bmpbot  = LatLon2BitmapY (latdeg - 1.0/120.0, londeg - 1.0/120.0);
+                    tr.bmprite = LatLon2BitmapX (latdeg + 1.0/120.0, londeg + 1.0/120.0);
+                    tr.bmptop  = LatLon2BitmapY (latdeg + 1.0/120.0, londeg + 1.0/120.0);
+
+                    topoRects.addLast (tr);
+                }
+            }
+
+            /*
+             * Init CIFP class.
+             * Constructor uses lat/lon <=> bitmap pixel mapping.
+             */
+            ////TODO plateCIFP = new PlateCIFP (wairToNow, this, airport, plateid);
+        }
+
+        /**
+         * We always reference the synthetic ILS/DME antennae.
+         */
+        @Override  // IAPPlateImage
+        public Waypoint GetRefNavWaypt ()
+        {
+            return runway.GetSynthLoc ();
+        }
+
+        /**
+         * Close any open bitmaps so we don't take up too much memory.
+         */
+        public void CloseBitmaps ()
+        {
+            // re-center when opened again
+            // might be switching between FAAWP1,2 and
+            // right side of VirtNav1,2 pages
+            firstDraw = true;
+        }
+
+        /**
+         * Draw the plate image and any other marks on it we want.
+         */
+        @SuppressWarnings("PointlessArithmeticExpression")
+        @Override  // View
+        public void onDraw (Canvas canvas)
+        {
+            if (firstDraw) {
+                SetBitmapMapping (platewidth, plateheight);
+                firstDraw = false;
+            }
+
+            /* back display with auto sectional
+               - doesn't translate/zoom
+               - too messy to read
+            double bmpleft = 0;
+            double bmprite = platewidth;
+            double bmptop  = 0;
+            double bmpbot  = plateheight;
+            double tlLat = BitmapXY2Lat (bmpleft, bmptop);
+            double tlLon = BitmapXY2Lon (bmpleft, bmptop);
+            double trLat = BitmapXY2Lat (bmprite, bmptop);
+            double trLon = BitmapXY2Lon (bmprite, bmptop);
+            double blLat = BitmapXY2Lat (bmpleft, bmpbot);
+            double blLon = BitmapXY2Lon (bmpleft, bmpbot);
+            double brLat = BitmapXY2Lat (bmprite, bmpbot);
+            double brLon = BitmapXY2Lon (bmprite, bmpbot);
+            pmap.setup (platewidth, plateheight,
+                    tlLat, tlLon, trLat, trLon,
+                    blLat, blLon, brLat, brLon);
+            wairToNow.chartView.autoAirChartSEC.DrawOnCanvas (pmap, canvas, this, 0.0);
+            */
+
+            /*
+             * Draw topo rectangles +/-3nm from courseline.
+             */
+            for (TopoRect tr : topoRects) {
+                rwclPaint.setColor (tr.color);
+                float canleft = (float) BitmapX2CanvasX (tr.bmpleft);
+                float canrite = (float) BitmapX2CanvasX (tr.bmprite);
+                float cantop  = (float) BitmapY2CanvasY (tr.bmptop);
+                float canbot  = (float) BitmapY2CanvasY (tr.bmpbot);
+                canvas.drawRect (canleft, canbot, canrite, cantop, rwclPaint);
+            }
+
+            /*
+             * Draw runways.
+             */
+            rwclPaint.setColor (Color.WHITE);
+            for (Waypoint.Runway rwy : airport.GetRunwayPairs ()) {
+                double begBmpX = LatLon2BitmapX (rwy.lat, rwy.lon);
+                double begBmpY = LatLon2BitmapY (rwy.lat, rwy.lon);
+                double endBmpX = LatLon2BitmapX (rwy.endLat, rwy.endLon);
+                double endBmpY = LatLon2BitmapY (rwy.endLat, rwy.endLon);
+                double begCanX = BitmapX2CanvasX (begBmpX);
+                double begCanY = BitmapY2CanvasY (begBmpY);
+                double endCanX = BitmapX2CanvasX (endBmpX);
+                double endCanY = BitmapY2CanvasY (endBmpY);
+                float lengthft = rwy.getLengthFt ();
+                float widthft  = rwy.getWidthFt ();
+                float lengthcp = (float) Math.hypot (endCanX - begCanX, endCanY - begCanY);
+                float widthcp  = lengthcp * widthft / lengthft;
+                if (widthcp < wairToNow.thinLine) widthcp = wairToNow.thinLine;
+                rwclPaint.setStrokeWidth (widthcp / 2.0F);
+                canvas.drawLine ((float)begCanX, (float)begCanY, (float)endCanX, (float)endCanY, rwclPaint);
+            }
+
+            /*
+             * Draw localizer needle.
+             */
+            // needle outline
+            for (int i = 0; i < 26; i += 2) {
+                needlecanxys[i+0] = (float) BitmapX2CanvasX (needlebmpxys[i+0]);
+                needlecanxys[i+1] = (float) BitmapY2CanvasY (needlebmpxys[i+1]);
+            }
+            rwclPaint.setStrokeWidth (wairToNow.thinLine / 4.0F);
+            for (int i = 0; i < 12; i += 2) {
+                int j = i + 2;
+                if (j >= 12) j -= 12;
+                canvas.drawLine (needlecanxys[i+0], needlecanxys[i+1],
+                        needlecanxys[j+0], needlecanxys[j+1],
+                        rwclPaint);
+            }
+
+            // line down center
+            rwclPaint.setStrokeWidth (wairToNow.thinLine / 2.0F);
+            canvas.drawLine (needlecanxys[ 0], needlecanxys[ 1],
+                    needlecanxys[12], needlecanxys[13], rwclPaint);
+
+            // PT barbs
+            canvas.drawLine (needlecanxys[18], needlecanxys[19],
+                    needlecanxys[20], needlecanxys[21], rwclPaint);
+            canvas.drawLine (needlecanxys[20], needlecanxys[21],
+                    needlecanxys[22], needlecanxys[23], rwclPaint);
+            canvas.drawLine (needlecanxys[20], needlecanxys[21],
+                    needlecanxys[24], needlecanxys[25], rwclPaint);
+
+            // mag course text
+            float textsize = (float) Math.hypot (needlecanxys[6] - needlecanxys[4], needlecanxys[7] - needlecanxys[5]);
+            rwclPaint.setStrokeWidth (wairToNow.thinLine / 6.0F);
+            rwclPaint.setTextSize (textsize);
+            rwclPaint.getTextBounds (rwymcstr, 0, rwymcstr.length (), textbounds);
+            rwclPaint.setTextAlign ((rwymcbin < 0.0) ? Paint.Align.LEFT : Paint.Align.RIGHT);
+            float textheight = textbounds.height ();
+            float textrotate = (float) ((rwymcbin < 0.0) ? (rwytc - 270.0) : (rwytc - 90.0));
+            canvas.save ();
+            canvas.rotate (textrotate, needlecanxys[12], needlecanxys[13]);
+            canvas.translate (0.0F, textheight * 0.5F);
+            canvas.drawText (rwymcstr, needlecanxys[12], needlecanxys[13], rwclPaint);
+
+            // gs intercept altitude string above mag course text
+            rwclPaint.setTextSize (textsize * 0.75F);
+            canvas.translate (0.0F, textheight * -1.5F);
+            canvas.drawText (gsaltstr, needlecanxys[12], needlecanxys[13], rwclPaint);
+            canvas.restore ();
+
+            // glideslope intercept point crosswise line
+            rwclPaint.setStrokeWidth (wairToNow.thinLine / 4.0F);
+            canvas.drawLine (needlecanxys[14], needlecanxys[15],
+                    needlecanxys[16], needlecanxys[17], rwclPaint);
+            rwclPaint.setStrokeWidth (wairToNow.thinLine / 6.0F);
+            int k = (rwymcbin < 0.0) ? 14 : 16;
+            canvas.save ();
+            canvas.rotate (textrotate, needlecanxys[k+0], needlecanxys[k+1]);
+            canvas.drawText (gsintdmestr, needlecanxys[k+0], needlecanxys[k+1], rwclPaint);
+            canvas.restore ();
+
+            // PT in/out heading strings
+            canvas.save ();
+            canvas.rotate (textrotate - 45.0F, needlecanxys[22], needlecanxys[23]);
+            canvas.drawText (ptlinstr,  needlecanxys[22], needlecanxys[23], rwclPaint);
+            canvas.translate (0.0F, textheight);
+            canvas.drawText (ptloutstr, needlecanxys[22], needlecanxys[23], rwclPaint);
+            canvas.restore ();
+            canvas.save ();
+            canvas.rotate (textrotate + 45.0F, needlecanxys[24], needlecanxys[25]);
+            canvas.drawText (ptroutstr, needlecanxys[24], needlecanxys[25], rwclPaint);
+            canvas.translate (0.0F, textheight);
+            canvas.drawText (ptrinstr,  needlecanxys[24], needlecanxys[25], rwclPaint);
+            canvas.restore ();
+
+            /*
+             * Draw informational text.
+             */
+            rwclPaint.setTextSize (wairToNow.textSize);
+            rwclPaint.setTextAlign (Paint.Align.CENTER);
+            float infotextx = getWidth () / 2.0F;
+            float infotexty = 10.0F;
+            int ninfotexts  = (SystemClock.uptimeMillis () - plateLoadedUptime > 10000) ?
+                    infotextswarn : infotexts.length;
+            for (int i = 0; i < ninfotexts; i ++) {
+                rwclPaint.setColor ((i < infotextswarn) ? Color.WHITE : Color.RED);
+                String infotext = infotexts[i];
+                infotexty += wairToNow.textSize;
+                canvas.drawText (infotext, infotextx, infotexty, rwclPaint);
+            }
+
+            /*
+             * Draw a bunch of stuff on the plate.
+             */
+            DrawCommon (canvas);
+        }
+
+        /**
+         * Convert lat,lon to bitmap X,Y.
+         * Use LCC conversion if FAA-supplied georef data given.
+         */
+        @Override  // GRPPlateImage
+        protected boolean LatLon2BitmapOK ()
+        {
+            return true;
+        }
+
+        @Override  // GRPPlateImage
+        public double LatLon2BitmapX (double lat, double lon)
+        {
+            double easting = (lon - centerlon) * (Lib.NMPerDeg * Lib.MPerNM) *
+                    Math.cos (Math.toRadians (lat));
+            return platewidth / 2.0 + easting / mperbmpix;
+        }
+
+        @Override  // GRPPlateImage
+        public double LatLon2BitmapY (double lat, double lon)
+        {
+            double northing = (lat - centerlat) * (Lib.NMPerDeg * Lib.MPerNM);
+            return plateheight / 2.0 - northing / mperbmpix;
+        }
+
+        @Override  // GRPPlateImage
+        public double BitmapXY2Lat (double bmx, double bmy)
+        {
+            // bmy = plateheight / 2.0 - northing / mperbmpix
+            // northing / mperbmpix = plateheight / 2.0 - bmy
+            double northing = (plateheight / 2.0 - bmy) * mperbmpix;
+
+            // northing = (lat - centerlat) * (Lib.NMPerDeg * Lib.MPerNM)
+            // northing / (Lib.NMPerDeg * Lib.MPerNM) = (lat - centerlat)
+            return northing / (Lib.NMPerDeg * Lib.MPerNM) + centerlat;
+        }
+
+        @Override  // GRPPlateImage
+        public double BitmapXY2Lon (double bmx, double bmy)
+        {
+            double lat = BitmapXY2Lat (bmx, bmy);
+
+            // bmx = platewidth / 2.0 + easting / mperbmpix
+            // bmx - platewidth / 2.0 = easting / mperbmpix
+            double easting = (bmx - platewidth / 2.0) * mperbmpix;
+
+            // easting = (lon - centerlon) * (Lib.NMPerDeg * Lib.MPerNM) * Math.cos (Math.toRadians (lat))
+            // easting / (Lib.NMPerDeg * Lib.MPerNM) / Math.cos (Math.toRadians (lat)) = (lon - centerlon)
+            return easting / (Lib.NMPerDeg * Lib.MPerNM) / Math.cos (Math.toRadians (lat)) + centerlon;
+        }
+
+        /**
+         * This runs in the ShadeCirclingAreaThread to scan bitmap for the inverse [C] if necessary
+         * then shade in the circling area on the bitmap.
+         */
+        @Override  // IAPPlateImage
+        public void ShadeCirclingAreaWork ()
+        { }
     }
 
     /**

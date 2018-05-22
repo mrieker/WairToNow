@@ -58,6 +58,7 @@ public class WriteNavaidsCsv {
         while ((line = Console.ReadLine ()) != null) {
             if (line.StartsWith ("ILS1")) {
                 if (type != "") {
+                    // name string format relied on by Waypoint.java Localizer class constructor
                     Console.WriteLine (type + "," + ident + "," + elev + ",\"" + name + " - " + freq + " - " + city + "\"," + lat + "," + lon + "," + thdg + "," + gsalt + "," + gsang + "," + gslat + "," + gslon + "," + dmealt + "," + dmelat + "," + dmelon);
                     type   = "";
                     ident  = "";

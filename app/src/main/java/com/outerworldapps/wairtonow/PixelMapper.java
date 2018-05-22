@@ -22,7 +22,7 @@ package com.outerworldapps.wairtonow;
 
 
 /**
- * Map lat/lon to canvax pixel x,y.
+ * Map lat/lon to canvas pixel x,y.
  */
 public class PixelMapper {
     public double canvasNorthLat, canvasSouthLat;

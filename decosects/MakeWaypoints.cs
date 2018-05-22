@@ -58,6 +58,7 @@ public class MakeWaypoints {
             DoCommand (dbcon, "CREATE INDEX airports_faaid ON airports (apt_faaid);");
             DoCommand (dbcon, "CREATE INDEX airports_lats  ON airports (apt_lat);");
             DoCommand (dbcon, "CREATE INDEX airports_lons  ON airports (apt_lon);");
+            DoCommand (dbcon, "CREATE INDEX airports_names ON airports (apt_name);");
             DoCommand (dbcon, "CREATE INDEX aptkeys_keys   ON aptkeys  (kw_key);");
 
             DoCommand (dbcon, "BEGIN;");

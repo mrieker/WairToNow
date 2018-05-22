@@ -127,6 +127,10 @@ public class VirtNavView extends LinearLayout
 
     public void OpenDisplay ()
     {
+        if (rightHalfView instanceof WairToNow.CanBeMainView) {
+            ((WairToNow.CanBeMainView)rightHalfView).OpenDisplay ();
+        }
+
         /*
          * Tell anyone who cares that this screen is open.
          */
@@ -141,6 +145,9 @@ public class VirtNavView extends LinearLayout
     public void CloseDisplay ()
     {
         open = false;
+        if (rightHalfView instanceof WairToNow.CanBeMainView) {
+            ((WairToNow.CanBeMainView)rightHalfView).CloseDisplay ();
+        }
     }
 
     public void ReClicked () { }
@@ -180,7 +187,7 @@ public class VirtNavView extends LinearLayout
                     !(waypoint instanceof Waypoint.Localizer)) {
                 mode = NavDialView.Mode.OFF;
             }
-            if (mode == NavDialView.Mode.ILS && (!(waypoint instanceof Waypoint.Localizer) ||
+            if ((mode == NavDialView.Mode.ILS) && (!(waypoint instanceof Waypoint.Localizer) ||
                     (((Waypoint.Localizer) waypoint).gs_elev == Waypoint.ELEV_UNKNOWN))) {
                 mode = NavDialView.Mode.OFF;
             }
@@ -263,7 +270,7 @@ public class VirtNavView extends LinearLayout
             PlateCIFP plateCIFP = iappi.plateCIFP;
 
             // if CIFP selected, track the CIFP route
-            if (plateCIFP.cifpSelected != null) {
+            if ((plateCIFP != null) && (plateCIFP.cifpSelected != null)) {
 
                 // ok, put us in CIFP tracking mode
                 selectedPlateCIFP = plateCIFP;
@@ -284,8 +291,8 @@ public class VirtNavView extends LinearLayout
                 return;
             }
 
-            // if CIFP knows the reference navaid of the approach, select that navaid
-            Waypoint refnavwp = iappi.plateCIFP.getRefNavWaypt ();
+            // if plate knows the reference navaid of the approach, select that navaid
+            Waypoint refnavwp = iappi.GetRefNavWaypt ();
             if (refnavwp != null) {
                 useWaypointButtonClicked (refnavwp);
                 return;
@@ -328,11 +335,12 @@ public class VirtNavView extends LinearLayout
             // and set the obs to the localizer's course
             wpmagvar = waypoint.GetMagVar (0);
             if (waypoint instanceof Waypoint.Localizer) {
+                Waypoint.Localizer wploc = (Waypoint.Localizer) waypoint;
                 navDial.setMode (NavDialView.Mode.LOC);
-                if (((Waypoint.Localizer) waypoint).gs_elev != Waypoint.ELEV_UNKNOWN) {
+                if (wploc.gs_elev != Waypoint.ELEV_UNKNOWN) {
                     navDial.setMode (NavDialView.Mode.ILS);
                 }
-                navDial.obsSetting = locObsSetting = ((Waypoint.Localizer) waypoint).thdg + wpmagvar;
+                navDial.obsSetting = locObsSetting = wploc.thdg + wpmagvar;
             }
 
             // NDBs get the dial set to ADF mode
@@ -342,7 +350,7 @@ public class VirtNavView extends LinearLayout
                         waypoint.GetMagVar (wairToNow.currentGPSAlt);
             }
 
-            // VORs get the dial set to VOR mode
+            // everything else gets the dial set to VOR mode
             else {
                 navDial.setMode (NavDialView.Mode.VOR);
                 navDial.obsSetting = Lib.LatLonTC (
@@ -379,7 +387,7 @@ public class VirtNavView extends LinearLayout
 
             // normal navigating to waypoint, allow separate DME waypoint
             Waypoint.ShowWaypointDialog (wairToNow, "Enter DME Waypoint",
-                    waypoint.lat, waypoint.lon,
+                    waypoint.lat, waypoint.lon, waypoint.GetAirport (),
                     (dmeWaypoint == null) ? waypoint.ident : dmeWaypoint.ident,
                     new Waypoint.Selected () {
                         @Override
@@ -389,8 +397,8 @@ public class VirtNavView extends LinearLayout
                         }
                         @Override
                         public void noWPSeld () { }
-                    }
-            );
+                    },
+            null);
         }
     }
 
@@ -673,6 +681,7 @@ public class VirtNavView extends LinearLayout
     {
         Waypoint.ShowWaypointDialog (wairToNow, "Enter Nav Waypoint",
                 wairToNow.currentGPSLat, wairToNow.currentGPSLon,
+                (waypoint == null) ? null : waypoint.GetAirport (),
                 (waypoint == null) ? "" : waypoint.ident,
                 new Waypoint.Selected () {
                     @Override
@@ -681,8 +690,8 @@ public class VirtNavView extends LinearLayout
                     }
                     @Override
                     public void noWPSeld () { }
-                }
-        );
+                },
+        null);
     }
 
     /**
@@ -833,6 +842,9 @@ public class VirtNavView extends LinearLayout
     /**
      * Assuming we are in localizer/ILS mode, set needle deflection accordingly.
      * Also append info to status string.
+     * @param status = append status string to this
+     * @param bc = 1: front course; -1: back course
+     * @return localizer object
      */
     private Waypoint.Localizer computeLocRadial (SpannableStringBuilder status, int bc)
     {

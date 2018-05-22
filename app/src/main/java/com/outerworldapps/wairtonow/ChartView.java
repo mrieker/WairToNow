@@ -54,6 +54,7 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
 
     private boolean reselectLastChart = true;
     private boolean use3DChart;
+    public  AutoAirChart autoAirChartSEC;
     private AutoAirChart[] autoAirCharts;
     public  Backing backing;
     private ChartSelectDialog chartSelectDialog;
@@ -79,9 +80,10 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
 
         stateView = new StateView (this);
 
+        autoAirChartSEC = new AutoAirChart (wairToNow, "SEC");
         autoAirCharts = new AutoAirChart[] {
             new AutoAirChart (wairToNow, "ENR"),
-            new AutoAirChart (wairToNow, "SEC"),
+            autoAirChartSEC,
             new AutoAirChart (wairToNow, "WAC")
         };
 

@@ -68,3 +68,9 @@ mv singleapd.tmp $dir/state/$stateid.csv
 apdoutdir=datums/apdgeorefs_$cycles28
 processdiagrams '-stages' < aptplates.tmp/$stfile
 rm -rf aptplates.tmp
+
+#
+# Create patched state zip file
+#
+rm -f datums/statezips_$cycles28/$stateid.zip
+./makestatezips.sh $stateid

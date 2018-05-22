@@ -40,11 +40,12 @@ public class Lib {
 
     // fine-tuned constants
     public static final double FtPerM    = 3.28084;
+    public static final double FtPerNM   = 6076.12;
     public static final double KtPerMPS  = 1.94384;
     public static final double NMPerDeg  = 60.0;
     public static final double MMPerIn   = 25.4;    // millimetres per inch
     public static final double SMPerNM   = 1.15078;
-    public static final int   MPerNM    = 1852;     // metres per naut mile
+    public static final int    MPerNM    = 1852;    // metres per naut mile
 
     private static ThreadLocal<SimpleDateFormat> utcfmt = new ThreadLocal<> ();
     private static Rect drawBoundedStringBounds = new Rect ();
@@ -573,7 +574,7 @@ public class Lib {
     }
 
     /**
-     * Given a course from beg to end and a current poistion cur, find out how many miles a given
+     * Given a course from beg to end and a current position cur, find out how many miles a given
      * current point is off course
      * @param beglatdeg = course beginning latitude
      * @param beglondeg = course beginning longitude
@@ -1244,6 +1245,16 @@ public class Lib {
             utcfmt.set (sdf);
         }
         return sdf.format (timems);
+    }
+
+    /**
+     * Heading to string.
+     */
+    public static String Hdg2Str (double hdg)
+    {
+        int ihdg = (int) Math.round (hdg) % 360;
+        while (ihdg <= 0) ihdg += 360;
+        return Integer.toString (ihdg + 1000).substring (1) + '\u00B0';
     }
 
     /**

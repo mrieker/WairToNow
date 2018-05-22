@@ -67,9 +67,9 @@ public abstract class Waypoint {
 
     public final static ArrayList<Class<? extends Waypoint>> wpclasses = GetWaypointClasses ();
 
-    public double  lat;                   // degrees north
-    public double  lon;                   // degrees east
-    public double  elev = ELEV_UNKNOWN;   // feet MSL
+    public double lat;                   // degrees north
+    public double lon;                   // degrees east
+    public double elev = ELEV_UNKNOWN;   // feet MSL
     public int    magvar = VAR_UNKNOWN;  // magnetic variation (+=West; -=East)
     public String ident;                 // for airports, ICAO identifier
 
@@ -96,8 +96,10 @@ public abstract class Waypoint {
      * @param title = title for the dialog box
      * @param nearlat = nearby latitude
      * @param nearlon = nearby longitude
+     * @param nearapt = nearby airport (or null)
      * @param oldid = initial value for dialog box
      * @param wpsel = what to call when waypoint selection complete
+     * @param ermsg = error message to display (or null for none)
      */
     @SuppressLint("SetTextI18n")
     public static void ShowWaypointDialog (
@@ -105,12 +107,14 @@ public abstract class Waypoint {
             final String title,
             final double nearlat,
             final double nearlon,
+            final Airport nearapt,
             final String oldid,
-            final Selected wpsel)
+            final Selected wpsel,
+            final String ermsg)
     {
         // set up a text box to enter the new identifier in
         final EditText ident = new EditText (wtn);
-        ident.setEms (5);
+        ident.setEms (10);
         ident.setInputType (InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         ident.setSingleLine ();
 
@@ -201,13 +205,13 @@ public abstract class Waypoint {
         }
 
         // put those boxes in a linear layout
-        final LinearLayout ll = new LinearLayout (wtn);
-        ll.setOrientation (LinearLayout.HORIZONTAL);
-        ll.addView (ident);
+        final LinearLayout llh = new LinearLayout (wtn);
+        llh.setOrientation (LinearLayout.HORIZONTAL);
+        llh.addView (ident);
         if (hasRNavOffset) {
 
             // already has RNAV offset, display the RNAV offset boxes too
-            addRNavOffsetBoxes (ll, rnavradl, magTrue, rnavdist);
+            addRNavOffsetBoxes (llh, rnavradl, magTrue, rnavdist);
         } else {
 
             // no RNAV offset, give them a button to show the boxes if they want
@@ -217,12 +221,26 @@ public abstract class Waypoint {
                 @Override
                 public void onClick (View view)
                 {
-                    ll.removeAllViews ();
-                    ll.addView (ident);
-                    addRNavOffsetBoxes (ll, rnavradl, magTrue, rnavdist);
+                    llh.removeAllViews ();
+                    llh.addView (ident);
+                    addRNavOffsetBoxes (llh, rnavradl, magTrue, rnavdist);
                 }
             });
-            ll.addView (rnavOffsetButton);
+            llh.addView (rnavOffsetButton);
+        }
+
+        // maybe display error message below input boxes
+        LinearLayout ll = llh;
+        if (ermsg != null) {
+            TextView ertxt = new TextView (wtn);
+            wtn.SetTextSize (ertxt);
+            ertxt.setText (ermsg);
+
+            LinearLayout llv = new LinearLayout (wtn);
+            llv.setOrientation (LinearLayout.VERTICAL);
+            llv.addView (llh);
+            llv.addView (ertxt);
+            ll = llv;
         }
 
         // wrap that all in an horizontal scroll in case of small screen
@@ -237,7 +255,7 @@ public abstract class Waypoint {
         adb.setPositiveButton ("OK", new DialogInterface.OnClickListener () {
             @Override
             public void onClick (DialogInterface dialogInterface, int i) {
-                waypointEntered (wtn, title, wpsel, nearlat, nearlon,
+                waypointEntered (wtn, title, wpsel, nearlat, nearlon, nearapt,
                         ident, rnavradl, magTrue, rnavdist);
             }
         });
@@ -245,7 +263,7 @@ public abstract class Waypoint {
             @Override
             public void onClick (DialogInterface dialogInterface, int i) {
                 ident.setText ("");
-                waypointEntered (wtn, title, wpsel, nearlat, nearlon,
+                waypointEntered (wtn, title, wpsel, nearlat, nearlon, nearapt,
                         ident, rnavradl, magTrue, rnavdist);
             }
         });
@@ -264,7 +282,7 @@ public abstract class Waypoint {
             {
                 if (i == EditorInfo.IME_ACTION_DONE) {
                     Lib.dismiss (ad);
-                    waypointEntered (wtn, title, wpsel, nearlat, nearlon,
+                    waypointEntered (wtn, title, wpsel, nearlat, nearlon, nearapt,
                             ident, rnavradl, magTrue, rnavdist);
                 }
                 return false;
@@ -281,7 +299,9 @@ public abstract class Waypoint {
         ll.addView (magTrue);
         ll.addView (new TextViewString (ctx, "@"));
         ll.addView (rnavdist);
-        ll.addView (new TextViewString (ctx, "nm"));
+        TextView nm = new TextViewString (ctx, "nm");
+        nm.setSingleLine ();
+        ll.addView (nm);
     }
 
     private static void waypointEntered (
@@ -290,6 +310,7 @@ public abstract class Waypoint {
             Selected wpsel,
             double nearlat,
             double nearlon,
+            Airport nearapt,
             EditText ident,
             EditText rnavradl,
             MagTrueSpinner magTrue,
@@ -315,6 +336,12 @@ public abstract class Waypoint {
                 }
             }
 
+            // if no such waypoint exists, maybe it is an airport's runway number
+            if ((bestwp == null) && (nearapt != null)) {
+                HashMap<String,Runway> rwys = nearapt.GetRunways ();
+                bestwp = newid.startsWith ("RW") ? rwys.get (newid.substring (2)) : rwys.get (newid);
+            }
+
             // get RNAV offset info
             String rnavradlstr = rnavradl.getText ().toString ();
             boolean magnetic   = magTrue.getMag ();
@@ -323,8 +350,17 @@ public abstract class Waypoint {
 
             // if waypoint not found, re-prompt
             if (bestwp == null) {
-                newid += "[" + rnavsuffix;
-                ShowWaypointDialog (wtn, title, nearlat, nearlon, newid, wpsel);
+                if (!rnavradlstr.equals ("") && !rnavdiststr.equals ("")) {
+                    newid += "[" + rnavsuffix;
+                }
+                ShowWaypointDialog (wtn, title, nearlat, nearlon, nearapt, newid, wpsel,
+                        "Waypoint not found\n" +
+                        "Airport ICAO ID (eg KBOS)\n" +
+                        "VOR or NDB ID (eg BOS)\n" +
+                        "Loc/ILS ID (eg IBOS)\n" +
+                        "Fix ID (eg BOSOX)\n" +
+                        "Runway numbers (eg BOS.04R)\n" +
+                        "Synthetic ILS/DME (eg IBOS.04R)");
                 return;
             }
 
@@ -333,14 +369,17 @@ public abstract class Waypoint {
                 try {
                     double rnavradlbin = Double.parseDouble (rnavradlstr);
                     double rnavdistbin = Double.parseDouble (rnavdiststr);
-                    if (rnavdistbin != 0) {
+                    if (rnavdistbin != 0.0) {
                         rnavsuffix = Lib.DoubleNTZ (rnavradlbin) + (magnetic ? "@" : "T@") +
                                 Lib.DoubleNTZ (rnavdistbin);
                         bestwp = new RNavOffset (bestwp, rnavdistbin, rnavradlbin, magnetic, rnavsuffix);
                     }
                 } catch (NumberFormatException nfe) {
                     newid += "[" + rnavsuffix;
-                    ShowWaypointDialog (wtn, title, nearlat, nearlon, newid, wpsel);
+                    ShowWaypointDialog (wtn, title, nearlat, nearlon, nearapt, newid, wpsel,
+                            "Bad RNAV radial and/or distance\n" +
+                            "Radial is number 0 to 360\n" +
+                            "Distance is number gt 0");
                     return;
                 }
             }
@@ -358,6 +397,37 @@ public abstract class Waypoint {
     public static LinkedList<Waypoint> GetWaypointsByIdent (String ident, WairToNow wairToNow)
     {
         LinkedList<Waypoint> wplist = new LinkedList<> ();
+
+        ident = ident.toUpperCase (Locale.US);
+
+        /*
+         * Maybe we have aptid.RWrwyid
+         * aptid can be faaid or icaoid
+         *
+         * We can also have I-aptid.RWrwyid for synthetic ILS/DME.
+         */
+        int i = ident.indexOf ('.');
+        if (i >= 0) {
+            String aptid = ident.substring (0, i);
+            String rwyid = ident.substring (++ i);
+            if (rwyid.startsWith ("RW")) rwyid = rwyid.substring (2);
+            Airport aptwp = GetAirportByIdent (aptid, wairToNow);
+            if (aptwp != null) {
+                HashMap<String,Runway> rwys = aptwp.GetRunways ();
+                Runway rwywp = rwys.get (rwyid);
+                if (rwywp != null) wplist.addLast (rwywp);
+            }
+            if (aptid.startsWith ("I") || aptid.startsWith ("I-")) {
+                aptid = aptid.substring (1);
+                if (aptid.startsWith ("-")) aptid = aptid.substring (1);
+                aptwp = GetAirportByIdent (aptid, wairToNow);
+                if (aptwp != null) {
+                    HashMap<String,Runway> rwys = aptwp.GetRunways ();
+                    Runway rwywp = rwys.get (rwyid);
+                    if (rwywp != null) wplist.addLast (rwywp.GetSynthLoc ());
+                }
+            }
+        }
 
         /*
          * If there is a [rnavoffset on the end, get ident then add that offset.
@@ -388,7 +458,7 @@ public abstract class Waypoint {
              * Accept format /<lat>/<lon> as generated by ParseCifp.java on the server.
              */
             if (ident.startsWith ("/")) {
-                int i = ident.indexOf ("/", 1);
+                i = ident.indexOf ("/", 1);
                 SelfLL selfll = new SelfLL ();
                 selfll.ident = ident;
                 selfll.lat = Double.parseDouble (ident.substring (1, i));
@@ -453,6 +523,34 @@ public abstract class Waypoint {
                 Cursor result = sqldb.query (
                         "airports", Airport.dbcols,
                         "apt_icaoid=? OR apt_faaid=?", new String[] { ident, ident },
+                        null, null, null, null);
+                try {
+                    if (result.moveToFirst ()) {
+                        return new Airport (result, wtn);
+                    }
+                } finally {
+                    result.close ();
+                }
+            } catch (Exception e) {
+                Log.e (TAG, "error reading " + dbname, e);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Find airport by name, eg, "BEVERLY RGNL".
+     */
+    public static Airport GetAirportByName (String name, WairToNow wtn)
+    {
+        int waypointexpdate = MaintView.GetWaypointExpDate ();
+        String dbname = "waypoints_" + waypointexpdate + ".db";
+        SQLiteDBs sqldb = SQLiteDBs.open (dbname);
+        if (sqldb != null) {
+            try {
+                Cursor result = sqldb.query (
+                        "airports", Airport.dbcols,
+                        "apt_name=?", new String[] { name },
                         null, null, null, null);
                 try {
                     if (result.moveToFirst ()) {
@@ -746,6 +844,13 @@ public abstract class Waypoint {
         return lon;
     }
 
+    // get corresponding airport
+    // - for airport, the object itself
+    // - for ILS/Localizer, the airport it is on
+    // - for Runway, the runway's airport
+    // - all others, null
+    public Airport GetAirport () { return null; }
+
     /**
      * Get waypoints within a lat/lon area.
      */
@@ -972,7 +1077,17 @@ public abstract class Waypoint {
             latestplates.put   ("RWY-RUNWAY DIAGRAM", "-");
             latestexpdates.put ("RWY-RUNWAY DIAGRAM", 99999999);
 
-            // make a button for each plate (apt diagram, iap, sid, star, etc) and display them below the detail text
+            // maybe make up synthetic ILS/DME plate for each runway
+            if (wairToNow.optionsView.synthILSDMEOption.checkBox.isChecked ()) {
+                for (String rwyno : GetRunways ().keySet ()) {
+                    String plateid = PlateView.IAPSynthPlateImage.prefix + rwyno;
+                    latestplates.put (plateid, "-");
+                    latestexpdates.put (plateid, 99999999);
+                }
+            }
+
+            // make a button for each plate (apt diagram, iap, sid, star, etc)
+            // and display them below the detail text
             for (String descrip : latestplates.keySet ()) {
                 String filename = latestplates.get (descrip);
                 int expdate = latestexpdates.get (descrip);
@@ -1167,6 +1282,10 @@ public abstract class Waypoint {
             return details;
         }
 
+        // Get associated airport
+        @Override  // Waypoint
+        public Airport GetAirport () { return this; }
+
         /**
          * These buttons are used to display a plate (apt diagram, iap, sid, star, etc).
          */
@@ -1333,6 +1452,7 @@ public abstract class Waypoint {
 
         private int lengthFt = -1;
         private int widthFt  = -1;
+        private Localizer synthloc;
 
         public Runway (Cursor result, Airport apt)
         {
@@ -1368,10 +1488,11 @@ public abstract class Waypoint {
         {
             return null;
         }
+
         @Override  // Waypoint
         public String MenuKey ()
         {
-            return null;
+            return airport.ident + "." + ident;
         }
 
         public int getLengthFt ()
@@ -1442,6 +1563,19 @@ public abstract class Waypoint {
             }
             return null;
         }
+
+        // get a synthetic localizer that is an ILS/DME
+        // with localizer antenna at far end of runway
+        // and glideslope antenna 1000ft down runway at 3.25deg
+        public Localizer GetSynthLoc ()
+        {
+            if (synthloc == null) synthloc = new Localizer (this, 3.25, 1000.0);
+            return synthloc;
+        }
+
+        // Get associated airport
+        @Override  // Waypoint
+        public Airport GetAirport () { return airport; }
     }
 
     public static class Localizer extends Waypoint {
@@ -1470,22 +1604,53 @@ public abstract class Waypoint {
         public double dme_lat;
         public double dme_lon;
 
+        private Airport airport;
+
+        @SuppressWarnings("unused")  // used by reflection
         public Localizer (Cursor result, WairToNow wtn)
         {
-            this.type     = result.getString (0);
-            this.ident    = result.getString (1);
-            this.elev     = result.isNull    (2) ? ELEV_UNKNOWN : result.getDouble (2);
-            this.descr    = result.getString (3);
+            this.type     = result.getString  (0);
+            this.ident    = result.getString  (1);
+            this.elev     = result.isNull     (2) ? ELEV_UNKNOWN : result.getDouble (2);
+            this.descr    = result.getString  (3);
             this.lat      = result.getDouble  (4);
             this.lon      = result.getDouble  (5);
             this.thdg     = result.getDouble  (6);
-            this.gs_elev  = result.isNull    (7) ? ELEV_UNKNOWN : result.getDouble (7);
-            this.gs_tilt  = result.isNull    (8) ? 0 : result.getDouble (8);
+            this.gs_elev  = result.isNull     (7) ? ELEV_UNKNOWN : result.getDouble (7);
+            this.gs_tilt  = result.isNull     (8) ? 0 : result.getDouble (8);
             this.gs_lat   = result.getDouble  (9);
             this.gs_lon   = result.getDouble (10);
-            this.dme_elev = result.isNull   (11) ? ELEV_UNKNOWN : result.getDouble (11);
+            this.dme_elev = result.isNull    (11) ? ELEV_UNKNOWN : result.getDouble (11);
             this.dme_lat  = result.getDouble (12);
             this.dme_lon  = result.getDouble (13);
+
+            // descr string is "<airportname> rwy <runwaynumber> - <frequency> - <cityname>"
+            // see WriteLocalizersCsv.cs
+            int i = this.descr.indexOf (" rwy ");
+            if (i >= 0) {
+                String aptname = this.descr.substring (0, i);
+                this.airport = GetAirportByName (aptname, wtn);
+            }
+        }
+
+        // make up a phony localizer pointing down the given runway
+        public Localizer (Runway rwy, double gstilt, double gsdist)
+        {
+            this.type     = "ILS/DME";
+            this.ident    = "I-" + rwy.aptid + "." + rwy.ident;  // eg, I-BVY.RW09
+            this.elev     = rwy.elev;
+            this.descr    = "Synth ILS/DME for " + rwy.ident + " of " + rwy.airport.name;
+            this.lat      = rwy.endLat;     // located at far end of runway
+            this.lon      = rwy.endLon;
+            this.thdg     = rwy.trueHdg;    // computed
+            this.gs_elev  = rwy.elev;
+            this.gs_tilt  = gstilt;
+            this.gs_lat   = Lib.LatHdgDist2Lat (rwy.lat, rwy.trueHdg, gsdist / Lib.FtPerNM);
+            this.gs_lon   = Lib.LatLonHdgDist2Lon (rwy.lat, rwy.lon, rwy.trueHdg, gsdist / Lib.FtPerNM);
+            this.dme_elev = rwy.elev;       // dme at beginning of runway
+            this.dme_lat  = rwy.lat;
+            this.dme_lon  = rwy.lon;
+            this.airport  = rwy.airport;
         }
 
         @Override
@@ -1529,6 +1694,10 @@ public abstract class Waypoint {
         {
             return ((dme_lat != 0) || (dme_lon != 0)) ? dme_lon : lon;
         }
+
+        // Get associated airport
+        @Override  // Waypoint
+        public Airport GetAirport () { return airport; }
     }
 
     public static class Navaid extends Waypoint {
@@ -1544,6 +1713,7 @@ public abstract class Waypoint {
         public String type;  // "NDB", "VOR", "VOR/DME", etc
         public String descr;
 
+        @SuppressWarnings("unused")  // used by reflection
         public Navaid (Cursor result, WairToNow wtn)
         {
             this.type   = result.getString (0);
@@ -1586,6 +1756,7 @@ public abstract class Waypoint {
 
         private String descr;
 
+        @SuppressWarnings("unused")  // used by reflection
         public Fix (Cursor result, WairToNow wtn)
         {
             this.ident = result.getString (0);
@@ -1629,6 +1800,7 @@ public abstract class Waypoint {
 
         private String type;
 
+        @SuppressWarnings("unused")  // used by reflection
         public Intersection (Cursor result, WairToNow wtn)
         {
             this.ident = result.getString (0);

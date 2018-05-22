@@ -41,12 +41,37 @@
                 you want to, for example, use an ADF dial to navigate to a VOR navaid, just click
                 the mode button in the upper left corner to select ADF mode.</LI>
         </OL>
+
+        <H3>Localizer and ILS</H3>
         <P>Similarly, you can tune in a localizer or ILS.  It will by default set the display to
             LOC or ILS mode, depending on the beacon type.  When the display is in LOC or ILS mode,
             the OBS dial will be locked to the localizer heading.  If you set the display to LOCBC
             mode, the OBS dial will be locked to the reciprocal of the localizer heading.  If you
             set the display to VOR or ADF mode, WairToNow will behave as if there was a VOR or ADF
             at the same spot as the localizer and you can rotate the dial freely.</P>
+        <UL>
+            <LI>You can also select a runway and the app will pretend there is an ILS/DME on that
+                runway, whether or not there is one really there.  To select a runway, click
+                the yellow name text (or [OFF]) and enter the runway name in the format
+                <B>I</B><I>aptid</I><B>.</B><I>rwyid</I> where <i>aptid</I> is an FAA or ICAO airport
+                ID and <I>rwyid</I> is a runway on that airport.  If the runway is runway 1 to 9,
+                you must use two digits, eg, 03 for runway 3.  So for example, enter IBOS.04R for
+                runway 4-right at Boston.
+            <LI>It pretends there is a localizer antenna at the far end of the
+                selected runway where the runway numbers are, the glideslope antenna is 1000 ft down
+                from the approach end of the runway tilted at 3.25&#176; and a DME antenna at the
+                near end numbers.
+            <LI>This feature should <FONT COLOR=RED>only be used in VMC conditions</FONT> for
+                practicing ILS where there is no ILS available.  It must not be used if there are
+                obstructions near the approach path, so a <FONT COLOR=RED>clear path must be
+                verified visually at all times</FONT>.
+            <LI>For typical vectoring, the glideslope intercept should be at 2000 ft AGL at least
+                8.0nm (DME) out from the numbers.  You should intercept the glideslope at
+                approximately 5.7nm (DME) out from the numbers.  The localizer should be intercepted
+                at approximately &#177;30&#176; from the runway heading.
+            <LI>There are <A HREF="iap_plate.html#synth">approach plates</A> available for these
+                'synthetic' approaches.
+        </UL>
         <P>When doing a LOC BC approach, there are two options:</P>
         <UL>
             <LI>LOC mode - the OBS will lock to the localizer forward heading and the needle will
