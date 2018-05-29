@@ -63,7 +63,7 @@ public class HelpView extends WebView
     public void CloseDisplay () { }
     public void ReClicked ()
     {
-        loadHtmlAsset ("help.html");
+        loadUrl ("file:///android_asset/help.html");
     }
     public View GetBackPage ()
     {
@@ -84,19 +84,12 @@ public class HelpView extends WebView
     }
 
     /**
-     * Display the named HTML asset in the view.
-     */
-    public void loadHtmlAsset (String assetName)
-    {
-        loadUrl ("file:///android_asset/" + assetName);
-    }
-
-    /**
      * Accessed via javascript in the internal .HTML files.
      */
     private class JavaScriptObject {
 
         @SuppressWarnings ("unused")
+        @android.webkit.JavascriptInterface
         public String getVersionName ()
         {
             try {
@@ -108,6 +101,7 @@ public class HelpView extends WebView
         }
 
         @SuppressWarnings ("unused")
+        @android.webkit.JavascriptInterface
         public int getVersionCode ()
         {
             try {
@@ -119,6 +113,7 @@ public class HelpView extends WebView
         }
 
         @SuppressWarnings ("unused")
+        @android.webkit.JavascriptInterface
         public String getGithubLink ()
         {
             String fullhash = BuildConfig.GitHash;
@@ -139,6 +134,7 @@ public class HelpView extends WebView
         }
 
         @SuppressWarnings ("unused")
+        @android.webkit.JavascriptInterface
         public boolean getGitDirtyFlag ()
         {
             String status = BuildConfig.GitStatus;

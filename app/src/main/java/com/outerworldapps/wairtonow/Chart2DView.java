@@ -110,7 +110,6 @@ public class Chart2DView extends View
     private Paint courseLnPaint     = new Paint ();
     private Paint courseTxPaint     = new Paint ();
     private Paint currentBGPaint    = new Paint ();
-    private Paint currentLnPaint    = new Paint ();
     private Paint currentTxPaint    = new Paint ();
     private Paint trailPaint        = new Paint ();
     private Paint wayptBGPaint      = new Paint ();
@@ -177,9 +176,6 @@ public class Chart2DView extends View
         currentBGPaint.setStrokeWidth (wairToNow.thickLine);
         currentBGPaint.setTextSize (ts);
         currentBGPaint.setTextAlign (Paint.Align.CENTER);
-        currentLnPaint.setColor (currentColor);
-        currentLnPaint.setStyle (Paint.Style.STROKE);
-        currentLnPaint.setStrokeWidth (wairToNow.thinLine);
         currentTxPaint.setColor (currentColor);
         currentTxPaint.setStyle (Paint.Style.FILL);
         currentTxPaint.setStrokeWidth (2);
@@ -332,6 +328,7 @@ public class Chart2DView extends View
      * Callback for mouse events on the image.
      * We use this for scrolling the map around.
      */
+    @SuppressLint("ClickableViewAccessibility")
     @Override  // View
     public boolean onTouchEvent (@NonNull MotionEvent event)
     {
@@ -602,18 +599,6 @@ public class Chart2DView extends View
     public void onDraw (Canvas canvas)
     {
         DrawChart (canvas, getWidth (), getHeight ());
-
-        /*
-         * Draw circles around spot where screen is being touched.
-         */
-        if (firstPointer != null) {
-            float r = wairToNow.dotsPerInch * 0.25F;
-            canvas.drawCircle ((float) firstPointer.lx, (float) firstPointer.ly, r, currentLnPaint);
-        }
-        if (secondPointer != null) {
-            float r = wairToNow.dotsPerInch * 0.25F;
-            canvas.drawCircle ((float) secondPointer.lx, (float) secondPointer.ly, r, currentLnPaint);
-        }
     }
 
     /**

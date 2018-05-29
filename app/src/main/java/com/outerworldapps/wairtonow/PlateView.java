@@ -490,6 +490,15 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         private RectF  canTmpRect = new RectF  ();
 
         /**
+         * Since the plate is georeferenced, re-draw it with new GPS location.
+         */
+        @Override
+        public void SetGPSLocation ()
+        {
+            invalidate ();
+        }
+
+        /**
          * Display single-page plate according to current zoom/pan.
          */
         protected void ShowSinglePage (Canvas canvas, Bitmap bitmap)
@@ -1201,6 +1210,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         @Override  // PlateImage
         public void SetGPSLocation ()
         {
+            super.SetGPSLocation ();
             if (plateCIFP != null) plateCIFP.SetGPSLocation ();
         }
 
@@ -1829,7 +1839,6 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         private int infotextswarn;
         private LinkedList<TopoRect> topoRects = new LinkedList<> ();
         private Paint    rwclPaint;
-        private PixelMapper pmap = new PixelMapper ();
         private Rect     textbounds = new Rect ();
         private String   gsaltstr;      // glideslope intercept altitude string
         private String   gsintdmestr;   // glideslope intercept DME string

@@ -30,6 +30,7 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.Rect;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
@@ -37,6 +38,7 @@ import android.os.SystemClock;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.util.TypedValue;
+import android.view.Gravity;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -44,6 +46,8 @@ import android.view.ViewGroup;
 import android.view.ViewParent;
 import android.view.WindowManager;
 import android.widget.Button;
+import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TableLayout;
@@ -58,6 +62,7 @@ import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.Locale;
 import java.util.Map;
 
@@ -88,6 +93,7 @@ public class WairToNow extends Activity {
     public  double currentGPSSpd;    // metres per second
     public  float dotsPerInch, dotsPerInchX, dotsPerInchY;
     public  float textSize, thickLine, thinLine;
+    private FrameLayout toolbarLayout;
     private GlassView glassView;
     public  final HashMap<String,MetarRepo> metarRepos = new HashMap<> ();
     public  volatile InputStream downloadStream;
@@ -96,6 +102,7 @@ public class WairToNow extends Activity {
     public  int gpsDisabled;
     private int gpsLastInterval;
     public  LinearLayout downloadStatusRow;
+    private LinearLayout menuButtonColumn;
     private LinearLayout tabButtonLayout;
     private LinearLayout tabViewLayout;
     private LinearLayout.LayoutParams ctvllp = new LinearLayout.LayoutParams (
@@ -321,7 +328,36 @@ public class WairToNow extends Activity {
         virtNav2Button = new TabButton (virtNav2View);
 
         /*
-         * Download status box at top of screen.
+         * Toolbar at top of screen.
+         */
+        ImageView iconImageView = new ImageView (this);
+        iconImageView.setAdjustViewBounds (true);
+        iconImageView.setImageResource (R.drawable.icon);
+        iconImageView.setMaxHeight (Math.round (textSize));
+
+        LinearLayout tbl = new LinearLayout (this);
+        tbl.setOrientation (LinearLayout.HORIZONTAL);
+        tbl.addView (iconImageView);
+        tbl.addView (new ToolbarText (" WairToNow"));
+
+        FrameLayout.LayoutParams omblp = new FrameLayout.LayoutParams (
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        omblp.gravity = Gravity.TOP | Gravity.END;
+        ToolbarText omb = new ToolbarText (" Menu");
+        omb.setLayoutParams (omblp);
+        omb.setOnClickListener (new View.OnClickListener () {
+            @Override
+            public void onClick (View view) {
+                ExpandMenu ();
+            }
+        });
+
+        toolbarLayout = new FrameLayout (this);
+        toolbarLayout.addView (tbl);
+        toolbarLayout.addView (omb);
+
+        /*
+         * Download status box near top of screen.
          */
         downloadStatusRow = new LinearLayout (this);
         downloadStatusRow.setOrientation (LinearLayout.HORIZONTAL);
@@ -377,15 +413,202 @@ public class WairToNow extends Activity {
 
         tabViewLayout = new LinearLayout (this);
         tabViewLayout.setOrientation (LinearLayout.VERTICAL);
+        tabViewLayout.addView (toolbarLayout);
         tabViewLayout.addView (downloadStatusRow);
         tabViewLayout.addView (tabButtonScroller);
 
-        setContentView (tabViewLayout);
+        // make menu button column for upper right corner overlay
+        menuButtonColumn = new LinearLayout (this);
+        menuButtonColumn.setOrientation (LinearLayout.VERTICAL);
+        FrameLayout.LayoutParams menuButtonColumnLayout =
+                new FrameLayout.LayoutParams (ViewGroup.LayoutParams.WRAP_CONTENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT);
+        menuButtonColumnLayout.gravity = Gravity.TOP | Gravity.END;
+        menuButtonColumn.setLayoutParams (menuButtonColumnLayout);
+
+        // make menu button column invisible to begin with
+        CollapseMenu ();
+
+        // overlay the menu button column on the rest of the screen
+        FrameLayout frameLayout = new FrameLayout (this);
+        frameLayout.addView (tabViewLayout);
+        frameLayout.addView (menuButtonColumn);
+        setContentView (frameLayout);
+
+        // set up initial active tab
         tabsVisible = prefs.getBoolean ("tabVisibility", true);
-
         UpdateTabVisibilities ();
-
         chartButton.DisplayNewTab ();
+    }
+
+    /**
+     * Collapse the upper right corner menu.
+     */
+    private void CollapseMenu ()
+    {
+        menuButtonColumn.removeAllViews ();
+    }
+
+    /**
+     * Expand the upper right corner menu to show the buttons.
+     */
+    private void ExpandMenu ()
+    {
+        menuButtonColumn.removeAllViews ();
+
+        AddMenuItem ("Chart", new View.OnClickListener () {
+            @Override
+            public void onClick (View view) {
+                CollapseMenu ();
+                chartButton.onClick (chartButton);
+            }
+        });
+
+        AddMenuItem ("Exit", new View.OnClickListener () {
+            @Override
+            public void onClick (View view) {
+                CollapseMenu ();
+                MyFinish ();
+            }
+        });
+
+        if (tabsVisible) {
+            AddMenuItem ("Hide Tabs", new View.OnClickListener () {
+                @Override
+                public void onClick (View view) {
+                    CollapseMenu ();
+                    SetTabVisibility (false);
+                }
+            });
+        }
+
+        AddMenuItem ("\u25B6 \u25B6", new View.OnClickListener () {
+            @Override  // 25B6=right triangle
+            public void onClick (View view) {
+                CollapseMenu ();
+            }
+        });
+
+        if (!tabsVisible) {
+            AddMenuItem ("Pages", new View.OnClickListener () {
+                @Override
+                public void onClick (View view) {
+                    CollapseMenu ();
+                    ShowMoreMenu ();
+                }
+            });
+        }
+
+        AddMenuItem ("Re-center", new View.OnClickListener () {
+            @Override
+            public void onClick (View view) {
+                CollapseMenu ();
+                if (hasAgreed) {
+                    if (currentTabButton != chartButton) {
+                        chartButton.DisplayNewTab ();
+                    }
+                    chartView.ReCenter ();
+                }
+            }
+        });
+
+        if (!tabsVisible) {
+            AddMenuItem ("Show Tabs", new View.OnClickListener () {
+                @Override
+                public void onClick (View view) {
+                    CollapseMenu ();
+                    SetTabVisibility (true);
+                }
+            });
+        }
+    }
+
+    /**
+     * Strings at top of screen in toolbar.
+     * Standard TextView has a little margin at the top and so everything looks crooked.
+     */
+    private class ToolbarText extends View {
+        private Paint paint;
+        private Rect bounds;
+        private String text;
+
+        public ToolbarText (String txt)
+        {
+            super (WairToNow.this);
+            paint  = new Paint ();
+            bounds = new Rect ();
+            text   = txt;
+            paint.setColor (Color.WHITE);
+            paint.setTextSize (textSize);
+            paint.getTextBounds (text, 0, text.length (), bounds);
+        }
+
+        @Override
+        protected void onMeasure (int widthMeasureSpec, int heightMeasureSpec)
+        {
+            // bounds.width() leaves out the leading space
+            // ...so use bounds.right to include it
+            // +3 on the height to leave extra room below the icon and the chart
+            setMeasuredDimension (bounds.right, Math.round (textSize) + 3);
+        }
+
+        @Override
+        public void onDraw (Canvas canvas)
+        {
+            canvas.drawText (text, 0, (textSize + bounds.height ()) / 2.0F, paint);
+        }
+    }
+
+    /**
+     * Add an entry to the menu button column in upper right corner of screen.
+     * @param label = what button is named
+     * @param action = what to do when button is clicked
+     */
+    private void AddMenuItem (String label, View.OnClickListener action)
+    {
+        Button showMenuButton = new MenuButton ();
+        showMenuButton.setOnClickListener (action);
+        showMenuButton.setText (label);
+        menuButtonColumn.addView (showMenuButton);
+    }
+
+    // like Button except gives black background instead of transparent
+    private class MenuButton extends Button {
+        public MenuButton ()
+        {
+            super (WairToNow.this);
+            SetTextSize (this);
+        }
+
+        // overriding onDraw() just makes the whole thing black
+        @Override
+        public void draw (Canvas canvas)
+        {
+            canvas.drawColor (Color.BLACK);
+            super.draw (canvas);
+        }
+    }
+
+    /**
+     * Close the app after confirmation.
+     * The real finish() doesn't really exit.
+     */
+    public void MyFinish ()
+    {
+        AlertDialog.Builder adb = new AlertDialog.Builder (this);
+        adb.setTitle ("Exit");
+        adb.setMessage ("Are you sure you want to exit?");
+        adb.setPositiveButton ("Yes - Close App", new DialogInterface.OnClickListener () {
+            @Override
+            public void onClick (DialogInterface dialogInterface, int i) {
+                saveLastKnownPosition ();
+                crumbsView.CloseFiles ();
+                SQLiteDBs.CloseAll ();
+                System.exit (0);
+            }
+        });
+        adb.setNegativeButton ("No - Stay Open", null);
+        adb.show ();
     }
 
     /**
@@ -593,6 +816,7 @@ public class WairToNow extends Activity {
     private void SetCurrentView ()
     {
         tabViewLayout.removeAllViews ();
+        tabViewLayout.addView (toolbarLayout);
         tabViewLayout.addView (downloadStatusRow);
         if (currentTabButton != null) {
             View v = currentTabButton.view;
@@ -701,10 +925,6 @@ public class WairToNow extends Activity {
         virtNav2View.SetGPSLocation ();
         waypointView1.SetGPSLocation ();
         waypointView2.SetGPSLocation ();
-
-        if (currentTabButton != null) {
-            currentTabButton.view.invalidate ();
-        }
     }
 
     /**
@@ -931,9 +1151,9 @@ public class WairToNow extends Activity {
     {
         // main menu
         menu.add ("Chart");
-        menu.add ("More");
-        menu.add ("Hide");
-        menu.add ("Show");
+        menu.add ("Pages");
+        menu.add ("Hide Tabs");
+        menu.add ("Show Tabs");
         menu.add ("Re-center");
         menu.add ("Exit");
 
@@ -950,21 +1170,18 @@ public class WairToNow extends Activity {
             chartButton.onClick (chartButton);
         }
         if ("Exit".equals (sel)) {
-            saveLastKnownPosition ();
-            crumbsView.CloseFiles ();
-            SQLiteDBs.CloseAll ();
-            System.exit (0); // finish () doesn't really exit
+            MyFinish ();
         }
-        if ("Hide".equals (sel)) {
+        if ("Hide Tabs".equals (sel)) {
             SetTabVisibility (false);
         }
-        if ("More".equals (sel)) {
+        if ("Pages".equals (sel)) {
             ShowMoreMenu ();
         }
         if ("Re-center".equals (sel) && hasAgreed) {
             chartView.ReCenter ();
         }
-        if ("Show".equals (sel)) {
+        if ("Show Tabs".equals (sel)) {
             SetTabVisibility (true);
         }
         return true;
@@ -1026,11 +1243,11 @@ public class WairToNow extends Activity {
     private void ShowMoreMenu ()
     {
         /*
-         * Determine number of buttons for each row.
+         * Determine number of buttons columns.
          */
-        int buttonsPerRow = 2;
+        int numCols = 2;
         if (displayWidth > displayHeight) {
-            buttonsPerRow = 4;
+            numCols = 4;
         }
 
         /*
@@ -1059,8 +1276,7 @@ public class WairToNow extends Activity {
          * Go through the buttons in the tabButtonLayout,
          * creating a regular button for each one.
          */
-        TableLayout tableLayout = new TableLayout (this);
-        TableRow tableRow = null;
+        LinkedList<Button> menuButtons = new LinkedList<> ();
         int numButtons = tabButtonLayout.getChildCount ();
         for (int i = 0; i < numButtons; i ++) {
             View v = tabButtonLayout.getChildAt (i);
@@ -1069,7 +1285,7 @@ public class WairToNow extends Activity {
                 if (tb.getVisibility () != View.GONE) {
 
                     /*
-                     * Create a regular button that calls the TabButton when clicked.
+                     * Create a menu button that calls the TabButton when clicked.
                      */
                     Button but = new Button (this);
                     but.setOnClickListener (menuButtonListener);
@@ -1078,21 +1294,30 @@ public class WairToNow extends Activity {
                     but.setTextColor ((tb == currentTabButton) ? Color.RED : Color.BLACK);
                     but.setVisibility (tb.getVisibility ());
                     SetTextSize (but);
-
-                    /*
-                     * Add the regular button to the table, creating a row if needed,
-                     * closing the row if it is filled.
-                     */
-                    if (tableRow == null) {
-                        tableRow = new TableRow (this);
-                        tableLayout.addView (tableRow);
-                    }
-                    tableRow.addView (but);
-                    if (tableRow.getChildCount () >= buttonsPerRow) {
-                        tableRow = null;
-                    }
+                    menuButtons.addLast (but);
                 }
             }
+        }
+
+        /*
+         * Determine number of button rows and allocate rows.
+         */
+        int numRows = (menuButtons.size () + numCols - 1) / numCols;
+        TableLayout tableLayout = new TableLayout (this);
+        TableRow[] rows = new TableRow[numRows];
+        int i;
+        for (i = 0; i < numRows; i ++) {
+            rows[i] = new TableRow (this);
+            tableLayout.addView (rows[i]);
+        }
+
+        /*
+         * Add the menu buttons to the table.
+         */
+        i = 0;
+        for (Button but : menuButtons) {
+            rows[i].addView (but);
+            if (++ i == numRows) i = 0;
         }
 
         /*

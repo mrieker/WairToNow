@@ -89,6 +89,14 @@ public class VirtNavView extends LinearLayout
         if (open) {
             // update needle(s)
             computeRadial ();
+
+            if (rightHalfView instanceof ChartView) {
+                ((ChartView) rightHalfView).SetGPSLocation ();
+            }
+            if (rightHalfView instanceof PlateView) {
+                ((PlateView) rightHalfView).SetGPSLocation ();
+            }
+
             // update the GPS blinking border status box
             // - causes dispatchDraw() to be called
             invalidate ();
@@ -407,7 +415,7 @@ public class VirtNavView extends LinearLayout
     {
         // see if in landscape mode or not
         // re-draw screen if it has changed
-        boolean landscape = (getResources().getConfiguration().orientation ==  Configuration.ORIENTATION_LANDSCAPE);
+        boolean landscape = (getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE);
         if (oldLandscape != landscape) {
             oldLandscape = landscape;
             post (new Runnable () {
@@ -432,6 +440,7 @@ public class VirtNavView extends LinearLayout
     private void orientationChanged ()
     {
         LayoutInflater inflater = (LayoutInflater) wairToNow.getSystemService (Context.LAYOUT_INFLATER_SERVICE);
+        assert inflater != null;
 
         /*
          * Save current settings.
@@ -458,19 +467,19 @@ public class VirtNavView extends LinearLayout
             wairToNow.SetDetentSize ((DetentHorizontalScrollView) findViewById (R.id.identscrollerland));
             wairToNow.SetDetentSize ((DetentHorizontalScrollView) findViewById (R.id.statusscrollerland));
 
-            modeButton = (Button) findViewById (R.id.modebuttonland);
-            hsiCheckBox = (CheckBox) findViewById (R.id.hsicheckboxland);
-            orientButton = (Button) findViewById (R.id.orientland);
-            useChart  = (Button) findViewById (R.id.use_chartland);
-            useFAAWP1 = (Button) findViewById (R.id.use_faawp1land);
-            useFAAWP2 = (Button) findViewById (R.id.use_faawp2land);
-            useUserWP = (Button) findViewById (R.id.use_userwpland);
+            modeButton   = findViewById (R.id.modebuttonland);
+            hsiCheckBox  = findViewById (R.id.hsicheckboxland);
+            orientButton = findViewById (R.id.orientland);
+            useChart     = findViewById (R.id.use_chartland);
+            useFAAWP1    = findViewById (R.id.use_faawp1land);
+            useFAAWP2    = findViewById (R.id.use_faawp2land);
+            useUserWP    = findViewById (R.id.use_userwpland);
 
-            wpIdent = (TextView) findViewById (R.id.wpidentland);
-            wpStatus = (TextView) findViewById (R.id.wpstatusland);
-            navDial = (NavDialView) findViewById (R.id.navdialland);
+            wpIdent      = findViewById (R.id.wpidentland);
+            wpStatus     = findViewById (R.id.wpstatusland);
+            navDial      = findViewById (R.id.navdialland);
 
-            plateViewFrame = (FrameLayout) findViewById (R.id.plateviewland);
+            plateViewFrame = findViewById (R.id.plateviewland);
         } else {
             @SuppressLint("InflateParams")
             View mainView = inflater.inflate (R.layout.virtnavport, null);
@@ -481,17 +490,17 @@ public class VirtNavView extends LinearLayout
             wairToNow.SetDetentSize ((DetentHorizontalScrollView) findViewById (R.id.buttonscrollerport));
             wairToNow.SetDetentSize ((DetentHorizontalScrollView) findViewById (R.id.identscrollerport));
 
-            modeButton = (Button) findViewById (R.id.modebuttonport);
-            hsiCheckBox = (CheckBox) findViewById (R.id.hsicheckboxport);
-            orientButton = (Button) findViewById (R.id.orientport);
-            useChart  = (Button) findViewById (R.id.use_chartport);
-            useFAAWP1 = (Button) findViewById (R.id.use_faawp1port);
-            useFAAWP2 = (Button) findViewById (R.id.use_faawp2port);
-            useUserWP = (Button) findViewById (R.id.use_userwpport);
+            modeButton   = findViewById (R.id.modebuttonport);
+            hsiCheckBox  = findViewById (R.id.hsicheckboxport);
+            orientButton = findViewById (R.id.orientport);
+            useChart     = findViewById (R.id.use_chartport);
+            useFAAWP1    = findViewById (R.id.use_faawp1port);
+            useFAAWP2    = findViewById (R.id.use_faawp2port);
+            useUserWP    = findViewById (R.id.use_userwpport);
 
-            wpIdent = (TextView) findViewById (R.id.wpidentport);
-            wpStatus = (TextView) findViewById (R.id.wpstatusport);
-            navDial = (NavDialView) findViewById (R.id.navdialport);
+            wpIdent      = findViewById (R.id.wpidentport);
+            wpStatus     = findViewById (R.id.wpstatusport);
+            navDial      = findViewById (R.id.navdialport);
 
             plateViewFrame = null;
         }
@@ -650,7 +659,7 @@ public class VirtNavView extends LinearLayout
     /**
      * Set text on button to match what the screen orientation currently is.
      */
-    @SuppressLint("SetTextI18n")
+    @SuppressLint({ "SetTextI18n", "SwitchIntDef" })
     private void setOrientButtonText ()
     {
         int orientation = wairToNow.getRequestedOrientation ();

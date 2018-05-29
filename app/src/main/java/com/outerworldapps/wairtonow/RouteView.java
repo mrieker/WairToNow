@@ -22,6 +22,7 @@ package com.outerworldapps.wairtonow;
 
 import android.annotation.SuppressLint;
 import android.app.AlertDialog;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.pm.ActivityInfo;
 import android.graphics.Color;
@@ -32,8 +33,8 @@ import android.text.TextWatcher;
 import android.text.style.ForegroundColorSpan;
 import android.util.Log;
 import android.util.Xml;
+import android.view.LayoutInflater;
 import android.view.View;
-import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -96,16 +97,20 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
 
         loadedFromName = "";
 
-        // so the findVewById()s don't return null
-        ctx.setContentView (R.layout.routeview);
+        LayoutInflater inflater = (LayoutInflater) wairToNow.getSystemService (Context.LAYOUT_INFLATER_SERVICE);
+        assert inflater != null;
+        @SuppressLint("InflateParams")
+        View routeView = inflater.inflate (R.layout.routeview, null);
+        removeAllViews ();
+        addView (routeView);
 
-        editTextD = (EditText) ctx.findViewById (R.id.editTextD);
-        editTextR = (EditText) ctx.findViewById (R.id.editTextR);
-        editTextA = (EditText) ctx.findViewById (R.id.editTextA);
-        editTextF = (EditText) ctx.findViewById (R.id.editTextF);
-        editTextT = (EditText) ctx.findViewById (R.id.editTextT);
-        editTextN = (EditText) ctx.findViewById (R.id.editTextN);
-        textViewC = (TextView) ctx.findViewById (R.id.textViewC);
+        editTextD = findViewById (R.id.editTextD);
+        editTextR = findViewById (R.id.editTextR);
+        editTextA = findViewById (R.id.editTextA);
+        editTextF = findViewById (R.id.editTextF);
+        editTextT = findViewById (R.id.editTextT);
+        editTextN = findViewById (R.id.editTextN);
+        textViewC = findViewById (R.id.textViewC);
 
         editTextD.addTextChangedListener (new TextWatcher () {
             @Override
@@ -161,11 +166,11 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
             }
         });
 
-        Button buttonCheck = (Button) ctx.findViewById (R.id.buttonCheck);
-        Button buttonClear = (Button) ctx.findViewById (R.id.buttonClear);
-        Button buttonLoad  = (Button) ctx.findViewById (R.id.buttonLoad);
-        Button buttonSave  = (Button) ctx.findViewById (R.id.buttonSave);
-        buttonTrack = (Button) ctx.findViewById (R.id.buttonTrack);
+        Button buttonCheck = findViewById (R.id.buttonCheck);
+        Button buttonClear = findViewById (R.id.buttonClear);
+        Button buttonLoad  = findViewById (R.id.buttonLoad);
+        Button buttonSave  = findViewById (R.id.buttonSave);
+        buttonTrack = findViewById (R.id.buttonTrack);
 
         buttonCheck.setOnClickListener (new OnClickListener () {
             @Override
@@ -218,10 +223,6 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
         });
 
         ShutTrackingOff ();
-
-        View routeView = ctx.findViewById (R.id.routeView);
-        ((ViewGroup) (routeView.getParent ())).removeAllViews ();
-        addView (routeView);
 
         clearFields ();
     }

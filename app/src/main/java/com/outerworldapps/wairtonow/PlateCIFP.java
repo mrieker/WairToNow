@@ -56,6 +56,8 @@ import java.util.TreeMap;
 public class PlateCIFP {
     public final static String TAG = "WairToNow";
 
+    public final static boolean LINEPATHEFFECTWORKS = false;
+
     private final static int CLIMBFT_NM =   200;  // default climb rate
     private final static int MINSPEEDKT =    60;  // minimum speed knots
     private final static int HOLDLEGSEC =    60;  // number of seconds for hold legs
@@ -88,6 +90,7 @@ public class PlateCIFP {
     private boolean   drawTextEnable;
     public  CIFPSegment cifpSelected;
     private CIFPStep[] cifpSteps;
+    private DashPathEffect dotsEffect;
     private FilletArc filletArc = new FilletArc ();
     private double     acraftalt;    // aircraft altitude feet
     private double     acrafthdg;    // aircraft heading degrees
@@ -184,8 +187,8 @@ public class PlateCIFP {
         cifpTxPaint.setTextAlign (Paint.Align.RIGHT);
         cifpTxPaint.setTypeface (Typeface.MONOSPACE);
 
-        dotsPaint.setColor (Color.MAGENTA);
-        dotsPaint.setPathEffect (new DashPathEffect (new float[] { thin, thick }, 0));
+        dotsEffect = new DashPathEffect (new float[] { thin, thick }, 0);
+        dotsPaint.setPathEffect (dotsEffect);
         dotsPaint.setStyle (Paint.Style.STROKE);
         dotsPaint.setStrokeCap (Paint.Cap.ROUND);
         dotsPaint.setStrokeWidth (thin);
@@ -730,7 +733,25 @@ public class PlateCIFP {
                     y0 = plateView.BitmapY2CanvasY (y0);
                     x1 = plateView.BitmapX2CanvasX (x1);
                     y1 = plateView.BitmapY2CanvasY (y1);
-                    canvas.drawLine ((float) x0, (float) y0, (float) x1, (float) y1, dotsPaint);
+                    if (LINEPATHEFFECTWORKS) {
+                        canvas.drawLine ((float) x0, (float) y0, (float) x1, (float) y1, dotsPaint);
+                    } else {
+                        dotsPaint.setPathEffect (null);
+                        double len = Math.hypot (x1 - x0, y1 - y0);
+                        double xperlen = (x1 - x0) / len;
+                        double yperlen = (y1 - y0) / len;
+                        double thick = wairToNow.thickLine;
+                        double thin  = wairToNow.thinLine;
+                        for (double t = 0; t < len; t += thick) {
+                            double xa = x0 + xperlen * t;
+                            double ya = y0 + yperlen * t;
+                            t += thin;
+                            if (t > len) t = len;
+                            double xb = x0 + xperlen * t;
+                            double yb = y0 + yperlen * t;
+                            canvas.drawLine ((float) xa, (float) ya, (float) xb, (float) yb, dotsPaint);
+                        }
+                    }
                 } else {
                     double radius = cifpDotBitmapXYs[--i];
                     double centx  = cifpDotBitmapXYs[--i];
@@ -742,12 +763,14 @@ public class PlateCIFP {
                             (float) plateView.BitmapY2CanvasY (centy - radius),
                             (float) plateView.BitmapX2CanvasX (centx + radius),
                             (float) plateView.BitmapY2CanvasY (centy + radius));
+                    dotsPaint.setPathEffect (dotsEffect);
                     canvas.drawArc (drawArcBox, (float) start, (float) sweep, false, dotsPaint);
                 }
             }
 
             // draw fillet arc in magenta
             if (filletArc.turndir != 0) {
+                dotsPaint.setPathEffect (dotsEffect);
                 filletArc.draw (canvas, dotsPaint);
             }
         }
@@ -2127,6 +2150,7 @@ public class PlateCIFP {
         /**
          * Append a number of tenths to string buffer.
          */
+        @SuppressWarnings("SameParameterValue")
         protected void appTenth (StringBuilder sb, String key)
         {
             appTenth (sb, Integer.parseInt (parms.get (key)));
@@ -5226,6 +5250,7 @@ public class PlateCIFP {
      * Draw a U-turn at standard rate starting at current position and heading.
      * @return proximity of aircraft to the arc
      */
+    @SuppressWarnings("UnusedReturnValue")
     private double drawStepUTurn (char td)
     {
         double hdgtoctr = Double.NaN;
@@ -5248,6 +5273,7 @@ public class PlateCIFP {
      * Draw a straight-ahead path for one minute starting at current position.
      * @return proximity of aircraft to the line
      */
+    @SuppressWarnings("UnusedReturnValue")
     private double drawStepOneMinLine ()
     {
         double dist   = HOLDLEGSEC * bmpixpersec;

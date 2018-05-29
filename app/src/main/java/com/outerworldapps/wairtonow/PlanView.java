@@ -539,7 +539,7 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
         } catch (FileNotFoundException fnfe) {
             alllines.put ("ADDS - Aviation Weather", "https://www.aviationweather.gov/adds/");
             alllines.put ("AirNav - Fuel Prices", "https://www.airnav.com/fuel/local.html");
-            alllines.put ("DUATS - File Flight Plan", "https://www.duats.com/index.php?mobile=true");
+            alllines.put ("FlightService - File Flight Plan", "https://www.1800wxbrief.com");
             alllines.put ("SkyVector - Planning", "https://skyvector.com/");
         } catch (Exception e) {
             Log.w (TAG, "error reading linkbuttons.txt", e);

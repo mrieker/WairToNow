@@ -169,6 +169,7 @@ public class GlassView
         p.longitude = wairToNow.currentGPSLon;
         p.speed     = wairToNow.currentGPSSpd;
         p.time      = wairToNow.currentGPSTime;
+        invalidate ();
     }
 
     /**
@@ -212,6 +213,7 @@ public class GlassView
      * Callback for mouse events on the image.
      * We use this for scrolling the map around.
      */
+    @SuppressLint("ClickableViewAccessibility")
     @Override
     public boolean onTouchEvent (@NonNull MotionEvent event)
     {
@@ -358,7 +360,7 @@ public class GlassView
                 int canCentX = canWidth / 2;
                 int canCentY = canHeight / 2;
                 canvas.translate (centX - canCentX, centY + radius / 2 - canCentY);
-                chart2DView.ReCenter ();
+                wairToNow.chartView.ReCenter ();
                 chart2DView.SetCanvasHdgRad (Math.toRadians (course));
                 chart2DView.DrawChart (canvas, canWidth, canHeight);
                 chart2DView.UnSetCanvasHdgRad ();
@@ -731,6 +733,7 @@ public class GlassView
      * @param numsteps   = number of persteps to display top-to-bottom
      * @param minallowed = don't display regular interval markings below this value
      */
+    @SuppressWarnings("SameParameterValue")
     private void DrawNumericStrip (Canvas canvas, int centX, int centY, int height, int width, int val, int perstep, int numsteps, int minallowed, int marker, int target)
     {
         canvas.save ();
