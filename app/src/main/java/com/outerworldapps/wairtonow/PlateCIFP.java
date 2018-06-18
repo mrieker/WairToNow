@@ -981,11 +981,18 @@ public class PlateCIFP {
             // assume they want the text shown
             drawTextEnable = true;
 
-            // get steps from transition, final and missed segments
-            CIFPSegment finalseg = segment.approach.finalseg;
+            // get steps from transition segment
             LinkedList<CIFPStep> steps = new LinkedList<> ();
             CIFPLeg prevleg = cifpSelected.getSteps (steps, null);
-            prevleg = finalseg.getSteps (steps, prevleg);
+
+            // get steps from final segment
+            // but don't bother if it is a intermediate fix transition
+            // ...that we derived from the final segment, cuz the derived
+            //    transition already includes part of the final segment
+            CIFPSegment finalseg = segment.approach.finalseg;
+            if (!cifpSelected.hitfaf) prevleg = finalseg.getSteps (steps, prevleg);
+
+            // get steps from missed segment
             mapIndex = steps.size ();
             cifpSelected.approach.missedseg.getSteps (steps, prevleg);
 
@@ -1196,12 +1203,30 @@ public class PlateCIFP {
             // every approach must have a finalseg and a missedseg
             // remove any that don't have both
             // also add a radar-vector transition segment for each approach
+            // and add intermediate fixes as transitions
+            //     cuz sometimes radar controllers do that
+            //     they show up in menus in lower case
+            //     the real transitions are upper case
             for (Iterator<String> it = cifpApproaches.keySet ().iterator (); it.hasNext ();) {
                 String appid = it.next ();
                 CIFPApproach approach = cifpApproaches.get (appid);
                 if ((approach.finalseg == null) || (approach.missedseg == null)) {
                     it.remove ();
                 } else {
+
+                    // add intermediate fixes from transition segments
+                    CIFPSegment[] realtranssegs = approach.transsegs.values ().toArray (
+                            new CIFPSegment[approach.transsegs.values().size()]);
+                    for (CIFPSegment transseg : realtranssegs) {
+                        AddIntermediateSegments (transseg);
+                    }
+
+                    // some final segments have fixes outside the FAF
+                    // eg, ASH GPS-14 has LODTI
+                    // ...so add intermediate fixes from final segment
+                    AddIntermediateSegments (approach.finalseg);
+
+                    // add radar vector segment
                     CIFPSegment rvseg = new CIFPSegment ();
                     CIFPLeg_rv  rvleg = new CIFPLeg_rv  ();
 
@@ -1227,6 +1252,30 @@ public class PlateCIFP {
                 }
                 cifpapp.finalseg.init2 ();
                 cifpapp.missedseg.init2 ();
+            }
+        }
+
+        // add intermediate segments derived from transition segment to its approach
+        private void AddIntermediateSegments (CIFPSegment transseg)
+        {
+            // loop through possible intermediate fix names
+            // they come from all CF legs in the transition segment
+            for (String interfixuc : transseg.interfixes.keySet ()) {
+                String interfixlc = interfixuc.toLowerCase (Locale.US);
+
+                // make sure we don't already have transition with that name
+                if ((transseg.approach.transsegs.get (interfixuc) == null) &&
+                        (transseg.approach.transsegs.get (interfixlc) == null)) {
+
+                    // try to create a new transition segment starting at that fix
+                    try {
+                        ParseCIFPSegment (transseg.approach, interfixlc, transseg.semis,
+                                transseg.interfixes.get (interfixuc));
+                    } catch (Exception e) {
+                        Log.w (TAG, "error parsing " + airport.ident + " " +
+                                transseg.approach.appid + " " + interfixlc, e);
+                    }
+                }
             }
         }
 
@@ -1281,38 +1330,67 @@ public class PlateCIFP {
                         String[] semis = legs.split (";");
 
                         // make sure segment has at least one leg
-                        int nlegs = semis.length;
-                        if (nlegs <= 0) return;
+                        if (semis.length > 0) {
 
-                        // create segment object and associated leg objects
-                        CIFPSegment cifpseg = new CIFPSegment ();
-                        cifpseg.approach    = cifpapp;
-                        cifpseg.segid       = segid;
-                        cifpseg.legs        = new CIFPLeg[nlegs];
-                        for (int i = 0; i < nlegs; i ++) {
-                            makeLeg (cifpseg, i, semis[i]);
-                        }
-
-                        // add segment to approach
-                        switch (segid) {
-                            case CIFPSEG_FINAL: {
-                                cifpapp.finalseg = cifpseg;
-                                break;
-                            }
-                            case CIFPSEG_MISSD: {
-                                cifpapp.missedseg = cifpseg;
-                                break;
-                            }
-                            default: {
-                                cifpapp.transsegs.put (segid, cifpseg);
-                                break;
-                            }
+                            // parse legs and add segment to approach
+                            ParseCIFPSegment (cifpapp, segid, semis, 0);
                         }
                     }
                 }
             } catch (Exception e) {
                 errorMessage ("error processing CIFP record " + airport.ident + "." +
                         appid + "." + segid, e);
+            }
+        }
+
+        /**
+         * Add segment to approach.
+         *  Input:
+         *   cifpapp = approach to add segment to
+         *   segid   = segment id (name of IAF or ~f~, ~m~, (rv))
+         *   semis   = leg strings
+         *      eg, CF,wp=LWM[330@10,a=+2000,iaf
+         *          AF,nav=LWM,beg=3300,end=566,nm=100,a=+2000
+         *   isemi   = which element in semis to start at
+         *  Output:
+         *   segment added to cifpapp
+         */
+        private void ParseCIFPSegment (CIFPApproach cifpapp, String segid, String[] semis, int ileg)
+                throws Exception
+        {
+            // create segment object and associated leg objects
+            int nlegs = semis.length - ileg;
+            CIFPSegment cifpseg = new CIFPSegment ();
+            cifpseg.approach    = cifpapp;
+            cifpseg.segid       = segid;
+            cifpseg.legs        = new CIFPLeg[nlegs];
+            cifpseg.interfixes  = new HashMap<> ();
+            cifpseg.semis       = semis;
+            for (int i = 0; i < nlegs; i ++) {
+                String fixid = makeLeg (cifpseg, i, semis[i+ileg]);
+
+                // save fix name if it might be an intermediate fix or the faf
+                // this lets us build transition segments beginning at ifs and the faf
+                if (!cifpseg.hitfaf) {
+                    if (fixid != null) cifpseg.interfixes.put (fixid, i + ileg);
+                    cifpseg.hitfaf = cifpseg.legs[i].parms.containsKey ("faf");
+                }
+            }
+
+            // add segment to approach
+            switch (segid) {
+                case CIFPSEG_FINAL: {
+                    cifpapp.finalseg = cifpseg;
+                    break;
+                }
+                case CIFPSEG_MISSD: {
+                    cifpapp.missedseg = cifpseg;
+                    break;
+                }
+                default: {
+                    cifpapp.transsegs.put (segid, cifpseg);
+                    break;
+                }
             }
         }
 
@@ -1469,6 +1547,9 @@ public class PlateCIFP {
         public  String segid;
         private String name;
         public  CIFPLeg[] legs;
+        public  HashMap<String,Integer> interfixes;
+        public  String[] semis;
+        public  boolean hitfaf;
 
         // second-phase init
         public void init2 ()
@@ -1545,8 +1626,12 @@ public class PlateCIFP {
 
     /**
      * Make a CIFP leg object from the database leg string.
+     * Output:
+     *  returns null: cannot be an intermediate fix
+     *          else: might be an intermediate fix
+     *                only CF cuz code assumes transition segments start with CF leg
      */
-    private void makeLeg (CIFPSegment seg, int idx, String legstr) throws Exception
+    private String makeLeg (CIFPSegment seg, int idx, String legstr) throws Exception
     {
         String[] parmary = legstr.split (",");
         int nparms = parmary.length;
@@ -1588,7 +1673,7 @@ public class PlateCIFP {
         leg.legidx  = idx;
         seg.legs[idx] = leg;
 
-        leg.init1 ();
+        return leg.init1 ();
     }
 
     /**
@@ -1725,7 +1810,7 @@ public class PlateCIFP {
 
                 // not in fillet, set obs dial to whatever course they should be flying in this step
                 double obstrue = trueCourse (begptbmx, begptbmy, endptbmx, endptbmy);
-                navDial.obsSetting = obstrue + aptmagvar;
+                navDial.setObs (obstrue + aptmagvar);
 
                 // see if this segment is on final approach course
                 double obsfinaldiff = angleDiffU (obstrue - vnFinalTC);
@@ -1809,7 +1894,7 @@ public class PlateCIFP {
         protected boolean inEndFillet (NavDialView navDial)
         {
             if ((bmpToNextTurn (nextTurn) <= 0.0) && !Double.isNaN (nextTurn.truecourse)) {
-                navDial.obsSetting = nextTurn.truecourse + aptmagvar;
+                navDial.setObs (nextTurn.truecourse + aptmagvar);
                 return true;
             }
             return false;
@@ -1853,7 +1938,7 @@ public class PlateCIFP {
         private int  alt1ft;
         private int  alt2ft;
 
-        public abstract void init1 () throws Exception;
+        public abstract String init1 () throws Exception;
         public boolean isRuntLeg (CIFPLeg prevleg) { return false; }
         public abstract void init2 ();
         public boolean isOptional () { return false; }
@@ -1909,8 +1994,8 @@ public class PlateCIFP {
          */
         protected void appTrueAsMag (StringBuilder sb, double tru)
         {
-            int mag = (int) Math.round (tru + aptmagvar);
-            mag = (mag + 719) % 360 + 1;
+            int mag = ((int) Math.round (tru + aptmagvar)) % 360;
+            if (mag <=  0) mag += 360;
             if (mag <  10) sb.append ('0');
             if (mag < 100) sb.append ('0');
             sb.append (mag);
@@ -2751,7 +2836,7 @@ public class PlateCIFP {
                     navDial.setMode (NavDialView.Mode.LOC);
 
                     // set OBS based on position from center of arc
-                    navDial.obsSetting = arcObsSetting (navpt.x, navpt.y, arcturndir);
+                    navDial.setObs (arcObsSetting (navpt.x, navpt.y, arcturndir));
 
                     // set deflection based on distance from arc
                     navDial.setDeflect (arcDeflection (navpt.x, navpt.y, arcradbmp, arcturndir));
@@ -2763,7 +2848,7 @@ public class PlateCIFP {
             }
         };
 
-        public void init1 () throws Exception
+        public String init1 () throws Exception
         {
             // get parameters
             navwp = findWaypoint (parms.get ("nav"), navpt);
@@ -2793,6 +2878,8 @@ public class PlateCIFP {
             // compute the endpoint of the dme arc
             endingbmx = navpt.x + Mathf.sindeg (afstep.arcendrad) * afstep.arcradbmp;
             endingbmy = navpt.y - Mathf.cosdeg (afstep.arcendrad) * afstep.arcradbmp;
+
+            return null;
         }
 
         public void init2 ()
@@ -2893,11 +2980,12 @@ public class PlateCIFP {
             }
         };
 
-        public void init1 ()
+        public String init1 ()
         {
             ochdgtru = getTCDeg ("mc", null);
             altitude = getAltitude ();
             climbegalt = Double.NaN;
+            return null;
         }
 
         public void init2 ()
@@ -2950,12 +3038,13 @@ public class PlateCIFP {
             }
         };
 
-        public void init1 () throws Exception
+        public String init1 () throws Exception
         {
             dmenm  = Integer.parseInt (parms.get ("nm")) / 10.0;
             dmebmp = dmenm * bmpixpernm;
             navwp  = findWaypoint (parms.get ("nav"), navpt);
             ochdg  = getTCDeg ("mc", navwp);
+            return null;
         }
 
         public void init2 ()
@@ -3006,11 +3095,12 @@ public class PlateCIFP {
             }
         };
 
-        public void init1 () throws Exception
+        public String init1 () throws Exception
         {
             String wpid = parms.get ("wp");
             navwp  = findWaypoint (wpid, navpt);
             trucrs = parms.containsKey ("mc") ? getTCDeg ("mc", navwp) : Double.NaN;
+            return navwp.ident;
         }
 
         public boolean isRuntLeg (CIFPLeg prevleg)
@@ -3159,9 +3249,10 @@ public class PlateCIFP {
             }
         };
 
-        public void init1 ()
+        public String init1 ()
         {
             trucrs = getTCDeg ("mc", null);
+            return null;
         }
 
         public void init2 ()
@@ -3216,11 +3307,12 @@ public class PlateCIFP {
             }
         };
 
-        public void init1 () throws Exception
+        public String init1 () throws Exception
         {
             navwp  = findWaypoint (parms.get ("nav"), navpt);
             ochdg  = getTCDeg ("mc",  navwp);
             radial = getTCDeg ("rad", navwp);
+            return null;
         }
 
         public void init2 ()
@@ -3274,10 +3366,11 @@ public class PlateCIFP {
             }
         };
 
-        public void init1 () throws Exception
+        public String init1 () throws Exception
         {
             ochdg   = getTCDeg ("mc", null);
             distbmp = Integer.parseInt (parms.get ("nm")) / 10.0 * bmpixpernm;
+            return null;
         }
 
         public void init2 ()
@@ -3753,14 +3846,14 @@ public class PlateCIFP {
 
                     // if along inbound line, obs is outbound course
                     if (dist1 < dist2) {
-                        navDial.obsSetting = lineObsSetting (inbound + 180.0);
+                        navDial.setObs (lineObsSetting (inbound + 180.0));
                         navDial.setDeflect (lineDeflection (navpt.x, navpt.y, inbound + 180.0));
                         return;
                     }
 
                     // somewhere in far-end turn, obs is right-angle to course from turn center
                     char oppdir = (char) ('L' ^ 'R' ^ turndir);  // going the opposite way
-                    navDial.obsSetting = arcObsSetting (farctrbmx, farctrbmy, oppdir);
+                    navDial.setObs (arcObsSetting (farctrbmx, farctrbmy, oppdir));
                     navDial.setDeflect (arcDeflection (farctrbmx, farctrbmy, stdturnradbmp, oppdir));
                     return;
                 }
@@ -3770,13 +3863,13 @@ public class PlateCIFP {
 
                     // if along teardrop diagonal, heading is outbound along diagonal
                     if (dist1 < dist2) {
-                        navDial.obsSetting = lineObsSetting (tearhdg);
+                        navDial.setObs (lineObsSetting (tearhdg));
                         navDial.setDeflect (lineDeflection (navpt.x, navpt.y, tearhdg));
                         return;
                     }
 
                     // somewhere in far-end turn, obs is right-angle to course from turn center
-                    navDial.obsSetting = arcObsSetting (farctrbmx, farctrbmy, turndir);
+                    navDial.setObs (arcObsSetting (farctrbmx, farctrbmy, turndir));
                     navDial.setDeflect (arcDeflection (farctrbmx, farctrbmy, stdturnradbmp, turndir));
                     return;
                 }
@@ -3786,7 +3879,7 @@ public class PlateCIFP {
                 // - see if between navwp and near-end arc
                 //   if so, return heading to reach the beginning of the arc
                 if ((dist0 < dist1) && (dist0 < dist2) && (dist0 < dist3)) {
-                    navDial.obsSetting = lineObsSetting (trueCourse (navpt.x, navpt.y, directbegarcx, directbegarcy));
+                    navDial.setObs (lineObsSetting (trueCourse (navpt.x, navpt.y, directbegarcx, directbegarcy)));
                     navDial.setDeflect (lineDeflection (navpt.x, navpt.y, directbegarcx, directbegarcy));
                     return;
                 }
@@ -3794,7 +3887,7 @@ public class PlateCIFP {
                 // - see if on the displaced near-end arc
                 //   if so, give heading to continue on displaced near-end arc
                 if ((dist1 < dist2) && (dist1 < dist3)) {
-                    navDial.obsSetting = arcObsSetting (directctrbmx, directctrbmy, turndir);
+                    navDial.setObs (arcObsSetting (directctrbmx, directctrbmy, turndir));
                     navDial.setDeflect (arcDeflection (directctrbmx, directctrbmy, stdturnradbmp, turndir));
                     return;
                 }
@@ -3802,14 +3895,14 @@ public class PlateCIFP {
                 // - see if on the outbound line
                 //   if so, give heading to stay on outbound line
                 if (dist2 < dist3) {
-                    navDial.obsSetting = lineObsSetting (inbound + 180.0);
+                    navDial.setObs (lineObsSetting (inbound + 180.0));
                     navDial.setDeflect (lineDeflection (outboundnearbmx, outboundnearbmy,
                             outboundfarbmx, outboundfarbmy));
                     return;
                 }
 
                 // somewhere in far-end turn, obs is right-angle to course from turn center
-                navDial.obsSetting = arcObsSetting (farctrbmx, farctrbmy, turndir);
+                navDial.setObs (arcObsSetting (farctrbmx, farctrbmy, turndir));
                 navDial.setDeflect (arcDeflection (farctrbmx, farctrbmy, stdturnradbmp, turndir));
             }
         };
@@ -3922,13 +4015,13 @@ public class PlateCIFP {
 
                 // parallel entry, give heading along diagonal
                 if (tc_acraft_to_navwp < -70.0) {
-                    navDial.obsSetting = lineObsSetting (parahdg);
+                    navDial.setObs (lineObsSetting (parahdg));
                     navDial.setDeflect (lineDeflection (paralleldiagfarx, paralleldiagfary, parahdg));
                     return;
                 }
 
                 // teardrop or direct entry, give inbound radial heading
-                navDial.obsSetting = lineObsSetting (inbound);
+                navDial.setObs (lineObsSetting (inbound));
                 navDial.setDeflect (lineDeflection (inboundfarbmx, inboundfarbmy, navpt.x, navpt.y));
             }
         };
@@ -4098,14 +4191,14 @@ public class PlateCIFP {
 
                 // see if on near arc
                 if ((dist1 < dist2) && (dist1 < dist3) && (dist1 < dist4)) {
-                    navDial.obsSetting = arcObsSetting (nearctrbmx, nearctrbmy, turndir);
+                    navDial.setObs (arcObsSetting (nearctrbmx, nearctrbmy, turndir));
                     navDial.setDeflect (arcDeflection (nearctrbmx, nearctrbmy, stdturnradbmp, turndir));
                     return;
                 }
 
                 // see if on outbound line
                 if ((dist2 < dist3) && (dist2 < dist4)) {
-                    navDial.obsSetting = lineObsSetting (inbound + 180.0);
+                    navDial.setObs (lineObsSetting (inbound + 180.0));
                     navDial.setDeflect (lineDeflection (outboundnearbmx, outboundnearbmy,
                             outboundfarbmx, outboundfarbmy));
                     return;
@@ -4113,18 +4206,18 @@ public class PlateCIFP {
 
                 // see if on far arc
                 if (dist3 < dist4) {
-                    navDial.obsSetting = arcObsSetting (farctrbmx, farctrbmy, turndir);
+                    navDial.setObs (arcObsSetting (farctrbmx, farctrbmy, turndir));
                     navDial.setDeflect (arcDeflection (farctrbmx, farctrbmy, stdturnradbmp, turndir));
                     return;
                 }
 
                 // on inbound radial
-                navDial.obsSetting = lineObsSetting (inbound);
+                navDial.setObs (lineObsSetting (inbound));
                 navDial.setDeflect (lineDeflection (inboundfarbmx, inboundfarbmy, navpt.x, navpt.y));
             }
         };
 
-        public void init1 () throws Exception
+        public String init1 () throws Exception
         {
             navwp   = findWaypoint (parms.get ("wp"), navpt);
             inbound = getTCDeg ("rad", navwp);
@@ -4144,6 +4237,7 @@ public class PlateCIFP {
             }
             inboundsin = Mathf.sindeg (inbound);
             inboundcos = Mathf.cosdeg (inbound);
+            return null;
         }
 
         public void init2 ()
@@ -4379,7 +4473,7 @@ public class PlateCIFP {
 
                     // if not, fly on outbound heading
                     navDial.setMode (NavDialView.Mode.LOC);
-                    navDial.obsSetting = lineObsSetting (a_tru);
+                    navDial.setObs (lineObsSetting (a_tru));
                     navDial.setDeflect (lineDeflection (navpt.x, navpt.y, a_tru));
                 }
 
@@ -4435,7 +4529,7 @@ public class PlateCIFP {
                 navDial.setDistance (dist / bmpixpernm, extwp.ident, false);
 
                 // OBS set to 45deg outbound heading
-                navDial.obsSetting = lineObsSetting (b_tru);
+                navDial.setObs (lineObsSetting (b_tru));
                 navDial.setDeflect (lineDeflection (begptbmx, begptbmy, b_tru));
             }
         };
@@ -4483,7 +4577,7 @@ public class PlateCIFP {
                 // heading aircraft should be on at this point in the turn
                 double uturnctrbmx = (begptbmx + endptbmx) / 2.0;
                 double uturnctrbmy = (begptbmy + endptbmy) / 2.0;
-                navDial.obsSetting = arcObsSetting (uturnctrbmx, uturnctrbmy, td);
+                navDial.setObs (arcObsSetting (uturnctrbmx, uturnctrbmy, td));
                 navDial.setDeflect (arcDeflection (uturnctrbmx, uturnctrbmy, stdturnradbmp, td));
             }
         };
@@ -4520,7 +4614,7 @@ public class PlateCIFP {
 
                     // not, flying the inbound 45deg line
                     navDial.setMode (NavDialView.Mode.LOC);
-                    navDial.obsSetting = lineObsSetting (c_tru);
+                    navDial.setObs (lineObsSetting (c_tru));
                     navDial.setDeflect (lineDeflection (begptbmx, begptbmy, c_tru));
                 }
 
@@ -4529,7 +4623,7 @@ public class PlateCIFP {
             }
         };
 
-        public void init1 () throws Exception
+        public String init1 () throws Exception
         {
             // get magnetic courses for the 4 parts
             int toc = Integer.parseInt (parms.get ("toc"));
@@ -4563,6 +4657,8 @@ public class PlateCIFP {
             // also let anyone who cares what the inbound heading to beacon is
             // this is the TC after the final 45deg turn inbound
             inbound = getTCDeg (d_dir, navwp);
+
+            return null;
         }
 
         public void init2 ()
@@ -4740,12 +4836,12 @@ public class PlateCIFP {
                 navDial.setDistance (enddist / bmpixpernm, endwp.ident, false);
 
                 // set obs and deflection depending on where we are along the arc
-                navDial.obsSetting = arcObsSetting (ctrpt.x, ctrpt.y, turndir);
+                navDial.setObs (arcObsSetting (ctrpt.x, ctrpt.y, turndir));
                 navDial.setDeflect (arcDeflection (ctrpt.x, ctrpt.y, arcradius, turndir));
             }
         };
 
-        public void init1 () throws Exception
+        public String init1 () throws Exception
         {
             findWaypoint (parms.get ("cp"), ctrpt);
             endwp   = findWaypoint (parms.get ("ep"), endpt);
@@ -4758,6 +4854,8 @@ public class PlateCIFP {
             // and the corresponding distance
             endradtru = trueCourse (ctrpt.x, ctrpt.y, endpt.x, endpt.y);
             arcradius = Math.hypot (ctrpt.x - endpt.x, ctrpt.y - endpt.y);
+
+            return null;
         }
 
         public void init2 ()
@@ -4848,17 +4946,17 @@ public class PlateCIFP {
 
                     // not, if first time here, set initial obs = aircraft heading
                     if (!virtnavdialmode) {
-                        navDial.obsSetting = acrafthdg + aptmagvar;
+                        navDial.setObs (acrafthdg + aptmagvar);
                         virtnavdialmode = true;
-                        virtnavdiallastobs = navDial.obsSetting + 180.0;
+                        virtnavdiallastobs = navDial.getObs () + 180.0;
                     }
 
                     // use VOR mode to allow finger turning the dial to what the vector is
                     navDial.setMode (NavDialView.Mode.VOR);
 
                     // if nav dial turned, assume it's a new vector and reset course line
-                    if (angleDiffU (virtnavdiallastobs - navDial.obsSetting) >= 0.125) {
-                        virtnavdiallastobs = navDial.obsSetting;
+                    if (angleDiffU (virtnavdiallastobs - navDial.getObs ()) >= 0.125) {
+                        virtnavdiallastobs = navDial.getObs ();
 
                         // new starting point to leg
                         begptbmx = acraftbmx;
@@ -4908,8 +5006,10 @@ public class PlateCIFP {
             }
         };
 
-        public void init1 ()
-        { }
+        public String init1 ()
+        {
+            return null;
+        }
 
         public void init2 ()
         { }
@@ -5028,12 +5128,12 @@ public class PlateCIFP {
                 navDial.setDistance (dist / bmpixpernm, navwp.ident, false);
 
                 // heading aircraft should be on at this point in the turn
-                navDial.obsSetting = arcObsSetting (centerbmx, centerbmy, turnchr);
+                navDial.setObs (arcObsSetting (centerbmx, centerbmy, turnchr));
                 navDial.setDeflect (arcDeflection (centerbmx, centerbmy, stdturnradbmp, turnchr));
             }
         };
 
-        public void init1 () throws Exception
+        public String init1 () throws Exception
         {
             String wpid = parms.get ("wp");
             navwp   = findWaypoint (wpid, navpt);
@@ -5049,6 +5149,7 @@ public class PlateCIFP {
                 }
                 default: throw new Exception ("bad turndir " + turnchr);
             }
+            return null;
         }
 
         public void init2 ()

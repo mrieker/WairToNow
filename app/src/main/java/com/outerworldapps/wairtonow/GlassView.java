@@ -117,8 +117,8 @@ public class GlassView
         nsPaintNum.setStyle (Paint.Style.FILL);
         nsPaintNum.setStrokeWidth (2);
         nsPaintNum.setTextAlign (Paint.Align.CENTER);
-        nsPaintNum.setTextSize (wairToNow.textSize);
-        nsPaintVal.setColor (Color.RED);
+        nsPaintNum.setTextSize (wairToNow.textSize * 0.875F);
+        nsPaintVal.setColor (Color.GREEN);
         nsPaintVal.setStyle (Paint.Style.FILL);
         nsPaintVal.setStrokeWidth (2);
         nsPaintVal.setTextAlign (Paint.Align.CENTER);
@@ -760,11 +760,14 @@ public class GlassView
         int valAboveCtr = val - extraUnits;
 
         // draw regular interval markings
+        float tsnum = nsPaintNum.getTextSize ();
+        float tsval = nsPaintVal.getTextSize ();
         for (int n = -(numsteps + 1) / 2; n <= (numsteps + 1) / 2; n ++) {
             int y = -yAboveCenter + (int)(yPerStep * n + 0.5);
+            if ((y < 0) && (y > -tsnum)) continue;
+            if ((y >= 0) && (y < tsval)) continue;  // skip if near center where given value goes
             int yabs = Math.abs (y);
-            if (yabs < 20) continue;               // skip if near center that where given value goes
-            if (yabs > height / 2 - 20) continue;  // skip if off the ends
+            if (yabs > height / 2 - 20) continue;      // skip if off the ends
             int valAtY = valAboveCtr + perstep * n;
             if (valAtY < minallowed) continue;
             canvas.drawText (Integer.toString (valAtY), 0, y, nsPaintNum);

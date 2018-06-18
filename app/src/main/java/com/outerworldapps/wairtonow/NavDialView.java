@@ -20,6 +20,7 @@
 
 package com.outerworldapps.wairtonow;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -61,7 +62,7 @@ public class NavDialView extends View {
     private double distance;
     private double heading;
     private float  lastHeight, lastRotate, lastScale, lastWidth;
-    public  double obsSetting;
+    private double obsSetting;
     private double slope;
     private double touchDownOBS;
     private double touchDownX;
@@ -268,8 +269,30 @@ public class NavDialView extends View {
     }
 
     /**
+     * Set OBS setting.
+     * @param obs = degrees
+     */
+    public void setObs (double obs)
+    {
+        while (obs < -180.0) obs += 360.0;
+        while (obs >= 180.0) obs -= 360.0;
+        obsSetting = obs;
+        invalidate ();
+    }
+
+    /**
+     * Get OBS setting.
+     * @return value in range -180..179.999999
+     */
+    public double getObs ()
+    {
+        return obsSetting;
+    }
+
+    /**
      * Touch for turning the dial.
      */
+    @SuppressLint("ClickableViewAccessibility")
     @Override
     public boolean onTouchEvent (@NonNull MotionEvent event)
     {
@@ -317,8 +340,7 @@ public class NavDialView extends View {
                     }
 
                     // update the dial to the new heading
-                    obsSetting = touchDownOBS + degsMoved;
-                    invalidate ();
+                    setObs (touchDownOBS + degsMoved);
 
                     // if turned a long way, pretend we just did a new finger down
                     // ...this lets us go round and round

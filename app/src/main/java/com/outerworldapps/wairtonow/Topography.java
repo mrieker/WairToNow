@@ -132,7 +132,7 @@ public class Topography {
             // null files are for areas not covered by air charts
             // so just return INVALID_ELEV
             File file = new File (name);
-            if (file.exists () && (file.length () == 0)) return null;
+            if (!file.exists () || (file.length () == 0)) return null;
 
             // otherwise, open the zip file
             try {

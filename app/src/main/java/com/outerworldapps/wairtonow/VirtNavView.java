@@ -226,7 +226,7 @@ public class VirtNavView extends LinearLayout
             case VOR: {
                 double tcfrom = Lib.LatLonTC (waypoint.lat, waypoint.lon, chartView.orgLat, chartView.orgLon);
                 double magvar = waypoint.GetMagVar (wairToNow.currentGPSAlt);
-                navDial.obsSetting = tcfrom + magvar + 180.0;
+                navDial.setObs (tcfrom + magvar + 180.0);
             }
         }
 
@@ -332,7 +332,7 @@ public class VirtNavView extends LinearLayout
             wpIdent.setText ("[OFF]");
             wpStatus.setText ("");
             navDial.setMode (NavDialView.Mode.OFF);
-            navDial.obsSetting = 0.0;
+            navDial.setObs (0.0);
         } else {
 
             // set up big yellow text so user can see what navaid is selected
@@ -348,23 +348,23 @@ public class VirtNavView extends LinearLayout
                 if (wploc.gs_elev != Waypoint.ELEV_UNKNOWN) {
                     navDial.setMode (NavDialView.Mode.ILS);
                 }
-                navDial.obsSetting = locObsSetting = wploc.thdg + wpmagvar;
+                navDial.setObs (locObsSetting = wploc.thdg + wpmagvar);
             }
 
             // NDBs get the dial set to ADF mode
             else if (wpstr.startsWith ("NDB")) {
                 navDial.setMode (NavDialView.Mode.ADF);
-                navDial.obsSetting = wairToNow.currentGPSHdg +
-                        waypoint.GetMagVar (wairToNow.currentGPSAlt);
+                navDial.setObs (wairToNow.currentGPSHdg +
+                        waypoint.GetMagVar (wairToNow.currentGPSAlt));
             }
 
             // everything else gets the dial set to VOR mode
             else {
                 navDial.setMode (NavDialView.Mode.VOR);
-                navDial.obsSetting = Lib.LatLonTC (
+                navDial.setObs (Lib.LatLonTC (
                         wairToNow.currentGPSLat, wairToNow.currentGPSLon,
                         waypoint.lat, waypoint.lon) +
-                    waypoint.GetMagVar (wairToNow.currentGPSAlt);
+                    waypoint.GetMagVar (wairToNow.currentGPSAlt));
             }
         }
 
@@ -447,7 +447,7 @@ public class VirtNavView extends LinearLayout
          */
         String oldIdent = (wpIdent == null) ? "" : wpIdent.getText ().toString ();
         NavDialView.Mode oldMode = (navDial == null) ? NavDialView.Mode.OFF : navDial.getMode ();
-        double oldObsSetting = (navDial == null) ? 0.0 : navDial.obsSetting;
+        double oldObsSetting = (navDial == null) ? 0.0 : navDial.getObs ();
         boolean oldHSIEnable = (navDial == null) ? getHSIPreference () : navDial.hsiEnable;
 
         /*
@@ -610,7 +610,7 @@ public class VirtNavView extends LinearLayout
          */
         wpIdent.setText (oldIdent);
         setNavDialMode (oldMode);
-        navDial.obsSetting = oldObsSetting;
+        navDial.setObs (oldObsSetting);
         navDial.hsiEnable = oldHSIEnable;
         navDial.invalidate ();
         hsiCheckBox.setChecked (oldHSIEnable);
@@ -711,10 +711,10 @@ public class VirtNavView extends LinearLayout
     {
         if (selectedPlateCIFP == null) {
             if ((mode == NavDialView.Mode.ILS) || (mode == NavDialView.Mode.LOC)) {
-                navDial.obsSetting = locObsSetting;
+                navDial.setObs (locObsSetting);
             }
             if (mode == NavDialView.Mode.LOCBC) {
-                navDial.obsSetting = locObsSetting + 180.0;
+                navDial.setObs (locObsSetting + 180.0);
             }
             navDial.setMode (mode);
             modeButton.setText (mode.toString ());
@@ -770,7 +770,7 @@ public class VirtNavView extends LinearLayout
             // start building status string with the OBS setting (ie, what dial is actually set to)
             if (navDial.getMode () != NavDialView.Mode.OFF) {
                 status.append ("OBS: ");
-                hdgString (status, navDial.obsSetting);
+                hdgString (status, navDial.getObs ());
             }
 
             // update display based on what mode we are in
@@ -786,7 +786,7 @@ public class VirtNavView extends LinearLayout
                 case VOR: {
                     double radial = Lib.LatLonTC (waypoint.lat, waypoint.lon, wairToNow.currentGPSLat, wairToNow.currentGPSLon);
                     radial += wpmagvar;
-                    navDial.setDeflect (navDial.obsSetting - radial);
+                    navDial.setDeflect (navDial.getObs () - radial);
                     status.append ("  Radial From: ");
                     hdgString (status, radial);
                     status.append ("  To: ");
@@ -875,7 +875,7 @@ public class VirtNavView extends LinearLayout
         if (wairToNow.currentGPSSpd > WairToNow.gpsMinSpeedMPS) {
             double currentMH = wairToNow.currentGPSHdg + Lib.MagVariation (wairToNow.currentGPSLat,
                     wairToNow.currentGPSLon, wairToNow.currentGPSAlt);
-            navDial.setHeading (currentMH - navDial.obsSetting);
+            navDial.setHeading (currentMH - navDial.getObs ());
         } else {
             navDial.setHeading (NavDialView.NOHEADING);
         }

@@ -248,7 +248,6 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         protected PlateImage ()
         {
             super (wairToNow);
-            advPanAndZoom = new ADVPanAndZoom ();
         }
 
         public abstract void CloseBitmaps ();
@@ -270,6 +269,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         @Override  // View
         public boolean onTouchEvent (@NonNull MotionEvent event)
         {
+            if (advPanAndZoom == null) advPanAndZoom = new ADVPanAndZoom ();
             return advPanAndZoom.OnTouchEvent (event);
         }
 
@@ -2123,7 +2123,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                 float canrite = (float) BitmapX2CanvasX (tr.bmprite);
                 float cantop  = (float) BitmapY2CanvasY (tr.bmptop);
                 float canbot  = (float) BitmapY2CanvasY (tr.bmpbot);
-                canvas.drawRect (canleft, canbot, canrite, cantop, rwclPaint);
+                canvas.drawRect (canleft, cantop, canrite, canbot, rwclPaint);
             }
 
             /*

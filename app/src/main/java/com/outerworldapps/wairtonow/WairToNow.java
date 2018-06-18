@@ -77,6 +77,7 @@ public class WairToNow extends Activity {
 
     private final static int airplaneHeight = 313 - 69;
 
+    ////private AltimeterView altimeterView;
     public  volatile boolean downloadCancelled;
     private boolean gpsAvailable;
     private boolean hasAgreed;
@@ -289,6 +290,11 @@ public class WairToNow extends Activity {
         glassView = new GlassView (this);
 
         /*
+         * Altimeter based on pressure.
+         */
+        ////altimeterView = new AltimeterView (this);
+
+        /*
          * Create a new that analyzes a route clearance.
          */
         routeView = new RouteView (this);
@@ -379,6 +385,7 @@ public class WairToNow extends Activity {
         TabButton waypt2Button    = new TabButton (waypointView2);
         TabButton userWPButton    = new TabButton (userWPView);
         glassButton               = new TabButton (glassView);
+        ////TabButton altimeterButton = new TabButton (altimeterView);
         TabButton routeButton     = new TabButton (routeView);
         crumbsButton              = new TabButton (crumbsView);
         TabButton planButton      = new TabButton (planView);
@@ -395,6 +402,7 @@ public class WairToNow extends Activity {
         tabButtonLayout.addView (waypt2Button);
         tabButtonLayout.addView (userWPButton);
         tabButtonLayout.addView (glassButton);
+        ////tabButtonLayout.addView (altimeterButton);
         tabButtonLayout.addView (routeButton);
         tabButtonLayout.addView (crumbsButton);
         tabButtonLayout.addView (planButton);
@@ -916,6 +924,7 @@ public class WairToNow extends Activity {
             pendingCourseSetWP = null;
         }
 
+        ////altimeterView.setGPSAltitude (currentGPSAlt);
         chartView.SetGPSLocation ();
         crumbsView.SetGPSLocation ();
         glassView.SetGPSLocation ();
@@ -1000,16 +1009,24 @@ public class WairToNow extends Activity {
     @SuppressWarnings("unused")
     public static void WriteLog (String str)
     {
-        SimpleDateFormat sdf = new SimpleDateFormat ("yyyy-MM-dd@HH:mm:ss", Locale.US);
-        Date now = new Date ();
+
         try {
-            PrintWriter pw = new PrintWriter (new FileOutputStream (WairToNow.dbdir + "/log.txt", true), true);
-            pw.println (sdf.format (now) + " " + str);
-            pw.close ();
+            if (logFile == null) {
+                logFile = new PrintWriter (new FileOutputStream (WairToNow.dbdir + "/log.txt", true), true);
+            }
+            logFile.println (logFmt.format (new Date ()) + " " + str);
         } catch (Exception e) {
             Lib.Ignored ();
         }
     }
+    @SuppressWarnings("unused")
+    public static void FlushLog ()
+    {
+        if (logFile != null) logFile.flush ();
+    }
+
+    private static PrintWriter logFile;
+    private static SimpleDateFormat logFmt = new SimpleDateFormat ("yyyy-MM-dd@HH:mm:ss", Locale.US);
 
     /***************************************\
      *  GPS Location and Status listeners  *

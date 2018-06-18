@@ -39,11 +39,11 @@ public class GDL90Decoder extends MidDecoder {
     private boolean gotOwnGeoAltThisCycle;
     public  boolean heartbeatPosVal;  // heartbeat says whether GPS position is valid or not
     private boolean stratuxAhrsValid;
-    public  double   ownHeading;
-    public  double   ownLatitude;
-    public  double   ownLongitude;
-    public  double   ownSpeed;
-    public  double   ownTrueAlt;
+    public  double  ownHeading;
+    public  double  ownLatitude;
+    public  double  ownLongitude;
+    public  double  ownSpeed;
+    public  double  ownTrueAlt;
     public  long    heartbeatTime;    // ms since 1970-01-01 0000Z of last heartbeat
     public  TopDecoder topDecoder;
 
