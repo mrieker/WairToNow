@@ -51,7 +51,7 @@ public abstract class GpsAdsbReceiver {
     public abstract View displayOpened ();  // SensorsView display open, update status display continually
     public abstract void displayClosed ();  // SensorsView display closed, stop updating status display
     public abstract void startSensor   ();  // sensor selected in preferences and app is active, start receiving
-    public abstract void stopSensor    ();  // sensor not selected inprefs or app is inactive, stop receiving
+    public abstract void stopSensor    ();  // sensor not selected in prefs or app is inactive, stop receiving
     public abstract void refreshStatus ();  // update status display
     public abstract boolean isSelected ();  // true iff no stopSensor() since most recent startSensor()
 

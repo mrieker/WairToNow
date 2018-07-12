@@ -50,6 +50,7 @@ import java.io.InputStream;
 import java.util.Collection;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Locale;
 import java.util.zip.ZipEntry;
@@ -98,7 +99,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
 
     private final static String[] columns_apdgeorefs1 = new String[] { "gr_wfta", "gr_wftb", "gr_wftc", "gr_wftd", "gr_wfte", "gr_wftf" };
     private final static String[] columns_georefs21 = new String[] { "gr_clat", "gr_clon", "gr_stp1", "gr_stp2", "gr_rada", "gr_radb",
-            "gr_tfwa", "gr_tfwb", "gr_tfwc", "gr_tfwd", "gr_tfwe", "gr_tfwf", "gr_circ" };
+            "gr_tfwa", "gr_tfwb", "gr_tfwc", "gr_tfwd", "gr_tfwe", "gr_tfwf", "gr_circtype", "gr_circrweps" };
 
     public PlateView (WaypointView wv, String fn, Waypoint.Airport aw, String pd, int ex, boolean fu)
     {
@@ -1313,6 +1314,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
         private Bitmap       fgbitmap;              // single plate page
         private boolean      hasDMEArcs;
         private byte         circradtype;
+        private byte[]       circrwyepts;
         private double       bitmapLat, bitmapLon;
         private double       bmxy2llx = Double.NaN;
         private double       bmxy2lly = Double.NaN;
@@ -1379,8 +1381,11 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             String machinedbname = "plates_" + expdate + ".db";
             SQLiteDBs machinedb = SQLiteDBs.create (machinedbname);
             if (machinedb.tableExists ("iapgeorefs2")) {
-                if (!machinedb.columnExists ("iapgeorefs2", "gr_circ")) {
-                    machinedb.execSQL ("ALTER TABLE iapgeorefs2 ADD COLUMN gr_circ INTEGER NOT NULL DEFAULT " + CRT_UNKN);
+                if (!machinedb.columnExists ("iapgeorefs2", "gr_circtype")) {
+                    machinedb.execSQL ("ALTER TABLE iapgeorefs2 ADD COLUMN gr_circtype INTEGER NOT NULL DEFAULT " + CRT_UNKN);
+                }
+                if (!machinedb.columnExists ("iapgeorefs2", "gr_circrweps")) {
+                    machinedb.execSQL ("ALTER TABLE iapgeorefs2 ADD COLUMN gr_circrweps BLOB");
                 }
                 Cursor result = machinedb.query ("iapgeorefs2", columns_georefs21,
                         "gr_icaoid=? AND gr_plate=?", grkey,
@@ -1404,6 +1409,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                                 }
                         );
                         circradtype = (byte) result.getInt (12);
+                        circrwyepts = result.getBlob (13);
                     }
                 } finally {
                     result.close ();
@@ -1541,24 +1547,17 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             // if we don't already have an image file, create one
             File csvfile = new File (WairToNow.dbdir + "/dmearcs.txt");
             File imgfile = new File (WairToNow.dbdir + "/dmearcs-" + airport.ident + "-" +
-                    plateid.replace (" ", "_").replace ("/", "_") + "-" + expdate + ".png");
+                    plateid.replace (" ", "_").replace ("/", "_") + "-" + expdate + ".gif");
             if (imgfile.lastModified () < csvfile.lastModified ()) {
-                try {
-                    File tmpfile = new File (imgfile.getPath () + ".tmp");
-                    FileOutputStream tmpouts = new FileOutputStream (tmpfile);
-                    try {
-                        if (!fgbitmap.compress (Bitmap.CompressFormat.PNG, 0, tmpouts)) {
-                            throw new IOException ("bitmap.compress failed");
+                synchronized (WriteGifThread.list) {
+                    if (!WriteGifThread.list.containsKey (imgfile)) {
+                        WriteGifThread.Node node = new WriteGifThread.Node (fgbitmap);
+                        WriteGifThread.list.put (imgfile, node);
+                        if (WriteGifThread.thread == null) {
+                            WriteGifThread.thread = new WriteGifThread ();
+                            WriteGifThread.thread.start ();
                         }
-                    } finally {
-                        tmpouts.close ();
                     }
-                    if (!tmpfile.renameTo (imgfile)) {
-                        throw new IOException ("error renaming from " + tmpfile.getPath ());
-                    }
-                } catch (IOException ioe) {
-                    Log.w (TAG, "error writing " + imgfile.getPath () + ": " + ioe.getMessage ());
-                    Lib.Ignored (imgfile.delete ());
                 }
             }
         }
@@ -1596,6 +1595,8 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             try {
 
                 // maybe need to compute circling area type
+                //  CRT_OLD: old style, independent of circling MDA
+                //  CRT_NEW: new style, depends on circling MDA
                 if (circradtype == CRT_UNKN) {
 
                     // read bitmap containing prototype white C on black background
@@ -1644,15 +1645,126 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
 
                     // write value to database so we don't have to scan this plate again
                     ContentValues values = new ContentValues (1);
-                    values.put ("gr_circ", circradtype);
+                    values.put ("gr_circtype", circradtype);
                     String[] whargs = new String[] { airport.ident, plateid };
                     String machinedbname = "plates_" + expdate + ".db";
                     SQLiteDBs machinedb = SQLiteDBs.create (machinedbname);
                     machinedb.update ("iapgeorefs2", values, "gr_icaoid=? AND gr_plate=?", whargs);
                 }
 
-                // fill shading in on plate
-                // get radius in tenths of a nautical mile
+                // maybe we need to compute circling ring endpoints
+                // it is a convex polygon whose vertices are the runway endpoints
+                // any interior points are discarded/ignored
+                if ((circrwyepts == null) || (circrwyepts.length == 0)) {
+
+                    // make array of runway endpoints
+                    Collection<Waypoint.Runway> runways = airport.GetRunways ().values ();
+                    int nrwyeps     = runways.size ();
+                    if (nrwyeps == 0) return;
+                    PointD[] rwyeps = new PointD[nrwyeps];
+                    double minrwybmpx = Double.MAX_VALUE;
+                    double minrwybmpy = Double.MAX_VALUE;
+                    double maxrwybmpx = Double.MIN_VALUE;
+                    double maxrwybmpy = Double.MIN_VALUE;
+                    int i = 0;
+                    for (Waypoint.Runway runway : runways) {
+                        double rwybmpx = LatLon2BitmapX (runway.lat, runway.lon);
+                        double rwybmpy = LatLon2BitmapY (runway.lat, runway.lon);
+                        rwyeps[i++]    = new PointD (rwybmpx, rwybmpy);
+                        if (minrwybmpx > rwybmpx) minrwybmpx = rwybmpx;
+                        if (minrwybmpy > rwybmpy) minrwybmpy = rwybmpy;
+                        if (maxrwybmpx < rwybmpx) maxrwybmpx = rwybmpx;
+                        if (maxrwybmpy < rwybmpy) maxrwybmpy = rwybmpy;
+                    }
+
+                    // make a clockwise convex polygon out of the points,
+                    // ignoring any on the interior
+                    if (nrwyeps > 2) {
+                        PointD[] temp = new PointD[nrwyeps];
+                        i = 0;
+
+                        // find westmost point, guaranteed to be an outie
+                        int bestj = 0;
+                        for (int j = 0; ++ j < nrwyeps;) {
+                            if (rwyeps[bestj].x > rwyeps[j].x) bestj = j;
+                        }
+                        temp[i++] = rwyeps[bestj];
+                        rwyeps[bestj] = rwyeps[--nrwyeps];
+
+                        // find next point of lowest heading from that
+                        // due north is 0, east is 90, south is 180, west is 270
+                        // repeat until the answer is the starting point
+                        // since we are at westmost point to start, next point will be east of it
+                        double lasth = 0.0;
+                        while (true) {
+                            PointD lastep = temp[i-1];
+                            double besth = Double.MAX_VALUE;
+                            bestj = -1;
+                            for (int j = 0; j < nrwyeps; j ++) {
+                                PointD rwyep = rwyeps[j];
+
+                                // get heading from last point to this point
+                                // range is -PI .. +PI
+                                double h = Math.atan2 (rwyep.x - lastep.x, lastep.y - rwyep.y);
+
+                                // lasth is in range 0 .. +2*PI
+                                // compute how much we have to turn right
+                                // so resultant range of h is -3*PI .. +PI
+                                h -= lasth;
+
+                                // wrap to range -PI/10 .. +PI*19/10
+                                // the -PI/10 allows for a little turning left for rounding errors
+                                if (h < - Math.PI / 10.0) h += Math.PI * 2.0;
+
+                                // save it if it is the least amount of right turn
+                                // (this includes saving if it is a little bit of a left turn
+                                //  from rounding errors)
+                                if (besth > h) {
+                                    besth = h;
+                                    bestj = j;
+                                }
+                            }
+
+                            // if made it all the way back to westmost point, we're done
+                            if (rwyeps[bestj] == temp[0]) break;
+
+                            // otherwise save point, remove from list, and continue on
+                            temp[i++] = rwyeps[bestj];
+                            rwyeps[bestj] = (i == 2) ? temp[0] : rwyeps[--nrwyeps];
+                            lasth += besth;
+                        }
+
+                        // replace old list with new one
+                        // it may have fewer points (some were on interior)
+                        rwyeps = temp;
+                        nrwyeps = i;
+                    }
+
+                    // write endpoints in order to database blob so we don't have to recompute it next time
+                    // packed as pairs of shorts, x,y, for each endpoint
+                    circrwyepts = new byte[nrwyeps*4];
+                    int j = 0;
+                    for (i = 0; i < nrwyeps; i ++) {
+                        long xx = Math.round (rwyeps[i].x);
+                        long yy = Math.round (rwyeps[i].y);
+                        if ((xx != (short) xx) || (yy != (short) yy)) {
+                            throw new Exception ("bad runway x,y");
+                        }
+                        circrwyepts[j++] = (byte) xx;
+                        circrwyepts[j++] = (byte) (xx >> 8);
+                        circrwyepts[j++] = (byte) yy;
+                        circrwyepts[j++] = (byte) (yy >> 8);
+                    }
+
+                    ContentValues values = new ContentValues (1);
+                    values.put ("gr_circrweps", circrwyepts);
+                    String[] whargs = new String[] { airport.ident, plateid };
+                    String machinedbname = "plates_" + expdate + ".db";
+                    SQLiteDBs machinedb = SQLiteDBs.create (machinedbname);
+                    machinedb.update ("iapgeorefs2", values, "gr_icaoid=? AND gr_plate=?", whargs);
+                }
+
+                // get circling radius in tenths of a nautical mile based on circling MDA MSL and category
                 // we don't have circling MDA so use airport elev + 200 which is conservative
                 int circrad10ths;
                 String type;
@@ -1665,110 +1777,31 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                     circrad10ths = oldcircrad10ths[circradopt];
                     type = "old";
                 }
-                Log.i (TAG, airport.ident + " " + plateid + " using " + type + " circling radii of " + (circrad10ths / 10.0));
+                Log.i (TAG, airport.ident + " " + plateid + " using " + type + " circling radius of " + (circrad10ths / 10.0));
 
-                // make array of runway endpoints
-                // also compute circling radius in bitmap pixels
-                Collection<Waypoint.Runway> runways = airport.GetRunways ().values ();
-                int nrwyeps     = runways.size ();
-                if (nrwyeps == 0) return;
-                PointD[] rwyeps = new PointD[nrwyeps];
-                double circradbmp = Double.NaN;
-                double minrwybmpx = Double.MAX_VALUE;
-                double minrwybmpy = Double.MAX_VALUE;
-                double maxrwybmpx = Double.MIN_VALUE;
-                double maxrwybmpy = Double.MIN_VALUE;
-                int i = 0;
-                for (Waypoint.Runway runway : runways) {
-                    double rwybmpx = LatLon2BitmapX (runway.lat, runway.lon);
-                    double rwybmpy = LatLon2BitmapY (runway.lat, runway.lon);
-                    rwyeps[i++]    = new PointD (rwybmpx, rwybmpy);
-                    if (minrwybmpx > rwybmpx) minrwybmpx = rwybmpx;
-                    if (minrwybmpy > rwybmpy) minrwybmpy = rwybmpy;
-                    if (maxrwybmpx < rwybmpx) maxrwybmpx = rwybmpx;
-                    if (maxrwybmpy < rwybmpy) maxrwybmpy = rwybmpy;
-                    if (Double.isNaN (circradbmp)) {
-                        double offbmpx = LatLon2BitmapX (runway.lat + 0.1 / Lib.NMPerDeg, runway.lon);
-                        double offbmpy = LatLon2BitmapY (runway.lat + 0.1 / Lib.NMPerDeg, runway.lon);
-                        double bmpixper10th = Math.hypot (rwybmpx - offbmpx, rwybmpy - offbmpy);
-                        circradbmp = bmpixper10th * circrad10ths;
-                    }
-                }
-
-                // make a clockwise convex polygon out of the points,
-                // ignoring any on the interior
-                if (nrwyeps > 2) {
-                    PointD[] temp = new PointD[nrwyeps];
-                    i = 0;
-
-                    // find westmost point, guaranteed to be an outie
-                    int bestj = 0;
-                    for (int j = 0; ++ j < nrwyeps;) {
-                        if (rwyeps[bestj].x > rwyeps[j].x) bestj = j;
-                    }
-                    temp[i++] = rwyeps[bestj];
-                    rwyeps[bestj] = rwyeps[--nrwyeps];
-
-                    // find next point of lowest heading from that
-                    // due north is 0, east is 90, south is 180, west is 270
-                    // repeat until the answer is the starting point
-                    // since we are at westmost point to start, next point will be east of it
-                    double lasth = 0.0;
-                    while (true) {
-                        PointD lastep = temp[i-1];
-                        double besth = Double.MAX_VALUE;
-                        bestj = -1;
-                        for (int j = 0; j < nrwyeps; j ++) {
-                            PointD rwyep = rwyeps[j];
-
-                            // get heading from last point to this point
-                            // range is -PI .. +PI
-                            double h = Math.atan2 (rwyep.x - lastep.x, lastep.y - rwyep.y);
-
-                            // lasth is in range 0 .. +2*PI
-                            // compute how much we have to turn right
-                            // so resultant range of h is -3*PI .. +PI
-                            h -= lasth;
-
-                            // wrap to range -PI/10 .. +PI*19/10
-                            // the -PI/10 allows for a little turning left for rounding errors
-                            if (h < - Math.PI / 10.0) h += Math.PI * 2.0;
-
-                            // save it if it is the least amount of right turn
-                            // (this includes saving if it is a little bit of a left turn
-                            //  from rounding errors)
-                            if (besth > h) {
-                                besth = h;
-                                bestj = j;
-                            }
-                        }
-
-                        // if made it all the way back to westmost point, we're done
-                        if (rwyeps[bestj] == temp[0]) break;
-
-                        // otherwise save point, remove from list, and continue on
-                        temp[i++] = rwyeps[bestj];
-                        rwyeps[bestj] = (i == 2) ? temp[0] : rwyeps[--nrwyeps];
-                        lasth += besth;
-                    }
-
-                    // replace old list with new one
-                    // it may have fewer points (some were on interior)
-                    rwyeps = temp;
-                    nrwyeps = i;
-                }
+                // get circling radius in bitmap pixels
+                double circradlat = airport.lat + circrad10ths / (Lib.NMPerDeg * 10.0);
+                double aptbmx = LatLon2BitmapX (airport.lat, airport.lon);
+                double aptbmy = LatLon2BitmapY (airport.lat, airport.lon);
+                double radbmx = LatLon2BitmapX (circradlat, airport.lon);
+                double radbmy = LatLon2BitmapY (circradlat, airport.lon);
+                double circradbmp = Math.hypot (aptbmx - radbmx, aptbmy - radbmy);
 
                 // draw outline circradbmp outside that polygon, rounding the corners
+                int nrwyeps = circrwyepts.length / 4;
                 Path  path = new Path  ();
                 RectF oval = new RectF ();
-                PointD q = rwyeps[(nrwyeps*2-2)%nrwyeps];
-                PointD r = rwyeps[nrwyeps-1];
-                double tcqr = Math.toDegrees (Math.atan2 (r.x - q.x, q.y - r.y));
-                for (i = 0; i < nrwyeps; i ++) {
+                int qx = circRwyEpX ((nrwyeps * 2 - 2) % nrwyeps);
+                int qy = circRwyEpY ((nrwyeps * 2 - 2) % nrwyeps);
+                int rx = circRwyEpX (nrwyeps - 1);
+                int ry = circRwyEpY (nrwyeps - 1);
+                double tcqr = Math.toDegrees (Math.atan2 (rx - qx, qy - ry));
+                for (int i = 0; i < nrwyeps; i ++) {
 
                     // three points going clockwise around the perimeter P -> Q -> R
-                    q = r;
-                    r = rwyeps[i];
+                    qx = rx; qy = ry;
+                    rx = circRwyEpX (i);
+                    ry = circRwyEpY (i);
 
                     // standing at Q looking at R:
                     //  draw arc from Q of displaced PQ to Q of displaced QR
@@ -1776,12 +1809,12 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                     //  the turn amount to the right should be -1..+181 degrees
                     //  (the extra degree on each end is for rounding errors)
                     // the Path object will fill in a line from the last arc to this one
-                    oval.bottom  = (float) (q.y + circradbmp);
-                    oval.left    = (float) (q.x - circradbmp);
-                    oval.right   = (float) (q.x + circradbmp);
-                    oval.top     = (float) (q.y - circradbmp);
+                    oval.bottom  = (float) (qy + circradbmp);
+                    oval.left    = (float) (qx - circradbmp);
+                    oval.right   = (float) (qx + circradbmp);
+                    oval.top     = (float) (qy - circradbmp);
                     double tcpq  = tcqr;
-                    tcqr         = Math.toDegrees (Math.atan2 (r.x - q.x, q.y - r.y));
+                    tcqr         = Math.toDegrees (Math.atan2 (rx - qx, qy - ry));
                     double start = tcpq + 180.0;
                     double sweep = tcqr - tcpq;
                     if (sweep < -10.0) sweep += 360.0;
@@ -1804,6 +1837,101 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                 canvas.drawPath (path, paint);
             } catch (Exception e) {
                 Log.w (TAG, "error shading circling area", e);
+            }
+        }
+
+        private int circRwyEpX (int i)
+        {
+            i *= 4;
+            int xx = circrwyepts[i++] & 0xFF;
+            xx += circrwyepts[i] << 8;
+            return xx;
+        }
+
+        private int circRwyEpY (int i)
+        {
+            i *= 4;
+            i += 2;
+            int yy = circrwyepts[i++] & 0xFF;
+            yy += circrwyepts[i]   << 8;
+            return yy;
+        }
+    }
+
+    /**
+     * First time displaying a plat with a DME arc on it,
+     * write to a .gif file in a background thread.
+     */
+    private static class WriteGifThread extends Thread {
+        public static class Node {
+            public int[] data;
+            public int width;
+            public int height;
+
+            public Node (Bitmap bm)
+            {
+                width  = bm.getWidth  ();
+                height = bm.getHeight ();
+                data   = new int[width*height];
+                bm.getPixels (data, 0, width, 0, 0, width, height);
+            }
+        }
+
+        public static final HashMap<File,Node> list = new HashMap<> ();
+        public static WriteGifThread thread;
+
+        @Override
+        public void run ()
+        {
+            setName ("WriteGifThread");
+            setPriority (Thread.MIN_PRIORITY);
+
+            File imgfile = null;
+            Node node;
+            while (true) {
+
+                // see if another gif to write
+                // exit thread if not
+                synchronized (list) {
+                    if (imgfile != null) list.remove (imgfile);
+                    Iterator<File> it = list.keySet ().iterator ();
+                    if (!it.hasNext ()) {
+                        thread = null;
+                        break;
+                    }
+                    imgfile = it.next ();
+                    node = list.get (imgfile);
+                }
+
+                // write pixel data to temp file in gif format
+                long ms = SystemClock.uptimeMillis ();
+                Log.i (TAG, "creating " + imgfile.getPath ());
+                try {
+                    File tmpfile = new File (imgfile.getPath () + ".tmp");
+                    FileOutputStream tmpouts = new FileOutputStream (tmpfile);
+                    try {
+                        AnimatedGifEncoder encoder = new AnimatedGifEncoder ();
+                        encoder.start (tmpouts);
+                        encoder.addFrame (node.data, node.width, node.height);
+                        encoder.finish ();
+                    } finally {
+                        tmpouts.close ();
+                    }
+
+                    // temp written successfully, rename to permanent name
+                    if (!tmpfile.renameTo (imgfile)) {
+                        throw new IOException ("error renaming from " + tmpfile.getPath ());
+                    }
+                } catch (IOException ioe) {
+
+                    // failed to write temp file
+                    Log.w (TAG, "error writing " + imgfile.getPath () + ": " + ioe.getMessage ());
+                    Lib.Ignored (imgfile.delete ());
+                }
+
+                // finished one way or the other
+                ms = SystemClock.uptimeMillis () - ms;
+                Log.i (TAG, "finished " + imgfile.getPath () + ", " + ms + " ms");
             }
         }
     }

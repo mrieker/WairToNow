@@ -221,7 +221,7 @@ public class NavDialView extends View {
      */
     public boolean isHSIAble ()
     {
-        return (mode == Mode.VOR) || (mode == Mode.LOC) || (mode == Mode.LOCBC) || (mode == Mode.ILS);
+        return (mode == Mode.VOR) || (mode == Mode.ADF) || (mode == Mode.LOC) || (mode == Mode.LOCBC) || (mode == Mode.ILS);
     }
 
     /**
@@ -250,6 +250,7 @@ public class NavDialView extends View {
 
     /**
      * Set which heading we are actually going, relative to straight up on dial.
+     * Tells where to put the airplane icon.
      */
     public void setHeading (double h)
     {
@@ -318,7 +319,7 @@ public class NavDialView extends View {
             }
 
             case MotionEvent.ACTION_MOVE: {
-                if ((mode == Mode.ADF) || (mode == Mode.VOR)) {
+                if ((mode == Mode.VOR) || ((mode == Mode.ADF) && !hsiEnable)) {
                     double moveX    = event.getX ();
                     double moveY    = event.getY ();
                     double centerX  = getWidth ()  / 2.0;
@@ -335,7 +336,7 @@ public class NavDialView extends View {
                     degsMoved /= DIALRATIO;
 
                     // backward when HSI enabled and active
-                    if (hsiEnable && (heading != NOHEADING) && isHSIAble ()) {
+                    if (hsiEnable && (heading != NOHEADING)) {
                         degsMoved = - degsMoved;
                     }
 

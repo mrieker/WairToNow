@@ -531,7 +531,7 @@ public class VirtNavView extends LinearLayout
             public void onClick (View view) {
                 navDial.hsiEnable = hsiCheckBox.isChecked ();
                 setHSIPreference (navDial.hsiEnable);
-                navDial.invalidate ();
+                computeRadial ();
             }
         });
 
@@ -807,7 +807,16 @@ public class VirtNavView extends LinearLayout
                     status.append ("  To: ");
                     hdgString (status, radial + 180);
                     dmeDisplay ();
-                    navDial.setHeading (NavDialView.NOHEADING);
+
+                    // put airplane always in straight-ahead position
+                    boolean valid = wairToNow.currentGPSSpd > WairToNow.gpsMinSpeedMPS;
+                    navDial.setHeading (valid ? 0.0 : NavDialView.NOHEADING);
+                    // HSI mode means lock OBS to actual ground track heading
+                    if (valid && hsiCheckBox.isChecked ()) {
+                        double currentMH = wairToNow.currentGPSHdg + Lib.MagVariation (wairToNow.currentGPSLat,
+                                wairToNow.currentGPSLon, wairToNow.currentGPSAlt);
+                        navDial.setObs (currentMH);
+                    }
                     break;
                 }
 

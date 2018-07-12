@@ -50,6 +50,18 @@ import java.util.UUID;
 /**
  * Bluetooth GPS/ADS-B receiver.
  * When enabled, reads GPS/ADS-B info from bluetooth and pushes to UI.
+ *
+ * Preferences usages:
+ *   prefKey  = "blue1" or "blue2"
+ *   devident = "MRIEKER-LAPTOP 00:01:02:03:04:05"
+ *              "XGPS160-456905 06:07:08:09:0A:0B"
+ *
+ *   string  <prefKey>ReceiverDev             = <devident> selected in top (select) box
+ *   boolean selectedGPSReceiverKey_<prefKey> = 'Bluetooth GPS/ADS-B #n' checkbox checked
+ *   boolean bluetoothRcvrSecure_<devident>   = state of 'Secure' checkbox
+ *   boolean bluetoothSendGdlIni_<devident>   = state of 'Send GDL 90 Inits' checkbox
+ *   string  bluetoothRcvrUUID_<devident>     = UUID to receive on
+ *
  */
 public class BluetoothGpsAdsb extends GpsAdsbReceiver {
     public final static String TAG = "WairToNow";
@@ -551,7 +563,7 @@ public class BluetoothGpsAdsb extends GpsAdsbReceiver {
         {
             String action = intent.getAction ();
             Log.d (TAG, "BluetoothGpsAdsb: received action " + action);
-            if (action.equals ("android.bluetooth.device.action.UUID") && !sdpComplete) {
+            if ("android.bluetooth.device.action.UUID".equals (action) && !sdpComplete) {
                 BluetoothDevice bd = intent.getParcelableExtra (BluetoothDevice.EXTRA_DEVICE);
                 String bdid = btIdentString (bd);
                 Log.d (TAG, "BluetoothGpsAdsb: device ident " + bdid);

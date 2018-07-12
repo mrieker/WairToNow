@@ -9,17 +9,20 @@
 #
 set -e
 oldpwd=$PWD
+cd `dirname $0`
+scriptdir=$PWD
+script=$PWD/`basename $0`
+cd $oldpwd
 cd $1
 outroot=$PWD
-cd $oldpwd
 owner=`stat -c '%U' $outroot`
 if [ "$owner" != "`whoami`" ]
 then
-    sudo -u $owner $0 $outroot
+    ssh $owner@localhost $script $outroot
     exit
 fi
-cd `dirname $0`
 
+cd $scriptdir
 mkdir -p $outroot/../decosects
 mkdir -p $outroot/../webdata/acrauploads
 mkdir -p $outroot/../webdata/iaputil

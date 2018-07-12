@@ -60,3 +60,6 @@ KCON,VOR-A,CON;CF,wp=CON,a=+3500,iaf;PI,toc=2540,td=R,a=+3500,wp=CON;CF,wp=CON,m
 KCON,VOR-A,~f~;CF,wp=CON,mc=1190,a=+2100,faf;CF,wp=CON[119@3.1,mc=1190,a=@1113
 KCON,VOR-A,~m~;td,td=R,wp=CON,a=+4000;CF,wp=CON,a=+4000;HM,wp=CON,rad=1190,td=R,a=+4000
 KCON,VOR-A,~r~;CON
+
+# this arc is on brown-shaded plate to test gifs
+KCOS,N35L,CO[75@8; CF,wp=CO[75@8,a=+8100,iaf; AF,nav=CO,beg=750,end=1720,nm=80,a=+8100
