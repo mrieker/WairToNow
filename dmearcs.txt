@@ -5,7 +5,7 @@
 # Use a file transfer program to copy this to your
 #   com.outerworldapps.wairtonow/files directory
 #
-# Note that patched plate .png files are created for
+# Note that patched plate .gif files are created for
 #  each patched plate in the files directory so you
 #  can use a file transfer program to copy them to
 #  your PC and print them.
@@ -14,11 +14,12 @@
 #
 #  <icaoid>,<cifpid>,<startpoint>;<leg1>;<leg2>;...
 #   <icaoid> = airport ICAO id
-#   <cifpid> = approach CIFP name
+#   <cifpid> = approach CIFP name, get from
+#.             files/datums/statezips_????????/??.zip/iapcifps.csv
 #   <startpoint> = <nav>[<beg>@<dme>
 #   <nav> = navaid the DME is measured from
-#   <beg> = beginning of the DME arc (magnetic degrees)
-#   <dme> = radius of the DME arc (nautical miles)
+#   <beg> = beginning of the DME arc (magnetic degrees 10ths)
+#   <dme> = radius of the DME arc (nautical miles 10ths)
 #   <legn> = legs of the DME arc
 #
 # Format of the legs are:
@@ -33,6 +34,9 @@
 #     starting at <beg> degrees magnetic from <nav>
 #     ending at <end> degrees magnetic from <nav>
 #     at a minimum altitude of <minalt> feet
+#
+#   There are other leg type examples in
+#   files/datums/statezips_????????/??.zip/iapcifps.csv
 #
 # The first leg must be a CF leg going to the DME arc begin point.
 # There must be exactly one AF leg per line.
@@ -58,8 +62,14 @@ KSFM,S25,ENE[340@8; CF,wp=ENE[340@8,a=+3600,iaf; AF,nav=ENE,beg=3400,end=814,nm=
 #  3deg descent over 3.1nm = 3.1nm * tan 3deg = 987 ft
 KCON,VOR-A,CON;CF,wp=CON,a=+3500,iaf;PI,toc=2540,td=R,a=+3500,wp=CON;CF,wp=CON,mc=1190,a=+2100
 KCON,VOR-A,~f~;CF,wp=CON,mc=1190,a=+2100,faf;CF,wp=CON[119@3.1,mc=1190,a=@1113
-KCON,VOR-A,~m~;td,td=R,wp=CON,a=+4000;CF,wp=CON,a=+4000;HM,wp=CON,rad=1190,td=R,a=+4000
+KCON,VOR-A,~m~;CF,td=R,wp=CON,a=+4000;CF,wp=CON,a=+4000;HM,wp=CON,rad=1190,td=R,a=+4000
 KCON,VOR-A,~r~;CON
 
 # this arc is on brown-shaded plate to test gifs
 KCOS,N35L,CO[75@8; CF,wp=CO[75@8,a=+8100,iaf; AF,nav=CO,beg=750,end=1720,nm=80,a=+8100
+
+# missing PVC NDB 25
+KPVC,N25,PVC;CF,wp=PVC,a=+1800,iaf;PI,wp=PVC,toc=220,td=R,a=+1600
+KPVC,N25,~f~;CF,wp=PVC[67@4,a=+1200,faf;CF,wp=PVC[67@0.6,a=@180
+KPVC,N25,~m~;CA,mc=2470,a=+800;td,td=R,wp=PVC;CF,wp=PVC,a=+2300;HM,wp=PVC,rad=2470,td=R,a=+2300
+KPVC,N25,~r~;PVC

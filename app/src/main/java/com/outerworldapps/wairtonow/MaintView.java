@@ -166,7 +166,7 @@ public class MaintView
 
     @SuppressLint("SetTextI18n")
     public MaintView (WairToNow ctx)
-            throws IOException
+            throws InterruptedException, IOException
     {
         super (ctx);
         wairToNow = ctx;
@@ -259,7 +259,7 @@ public class MaintView
     }
 
     private void GetChartNames ()
-            throws IOException
+            throws InterruptedException, IOException
     {
         /*
          * Read pixel and lat/lon limits that tell where the legend areas are.
@@ -269,7 +269,10 @@ public class MaintView
         try {
             limFileReader = new FileReader (WairToNow.dbdir + "/chartedlims.csv");
         } catch (FileNotFoundException fnfe) {
-            DownloadChartedLimsCSV ();
+            DownloadChartedLimsCSVThread dclt = new DownloadChartedLimsCSVThread ();
+            dclt.start ();
+            dclt.join ();
+            if (dclt.ioe != null) throw dclt.ioe;
             limFileReader = new FileReader (WairToNow.dbdir + "/chartedlims.csv");
         }
         BufferedReader limBufferedReader = new BufferedReader (limFileReader, 4096);
@@ -290,7 +293,10 @@ public class MaintView
         try {
             csvFileReader = new FileReader (WairToNow.dbdir + "/chartlimits.csv");
         } catch (FileNotFoundException fnfe) {
-            DownloadChartLimitsCSV ();
+            DownloadChartLimitsCSVThread dclt = new DownloadChartLimitsCSVThread ();
+            dclt.start ();
+            dclt.join ();
+            if (dclt.ioe != null) throw dclt.ioe;
             csvFileReader = new FileReader (WairToNow.dbdir + "/chartlimits.csv");
         }
         BufferedReader csvReader = new BufferedReader (csvFileReader, 4096);
@@ -316,6 +322,32 @@ public class MaintView
             }
         }
         csvReader.close ();
+    }
+
+    private class DownloadChartedLimsCSVThread extends Thread {
+        public IOException ioe;
+        @Override
+        public void run ()
+        {
+            try {
+                DownloadChartedLimsCSV ();
+            } catch (IOException ioe) {
+                this.ioe = ioe;
+            }
+        }
+    }
+
+    private class DownloadChartLimitsCSVThread extends Thread {
+        public IOException ioe;
+        @Override
+        public void run ()
+        {
+            try {
+                DownloadChartLimitsCSV ();
+            } catch (IOException ioe) {
+                this.ioe = ioe;
+            }
+        }
     }
 
     /**

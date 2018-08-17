@@ -340,7 +340,8 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
                 awaitgps.setTextColor (Color.WHITE);
                 awaitgps.setText ("You may need to wait for GPS positioning to " +
                         "get a list of available charts for this area.  " +
-                        "Click this text to go to Sensors page to see GPS status.");
+                        "Click this text to go to Sensors page to see GPS status, " +
+                        "then double-click Chart button to select chart menu.");
                 chartViews[i++] = awaitgps;
             }
             for (String spacename : displayableCharts.keySet ()) {

@@ -88,6 +88,7 @@ public class PlateCIFP {
 
     private AlertDialog selectMenu;
     private boolean   drawTextEnable;
+    private boolean   gotDrawError;
     public  CIFPSegment cifpSelected;
     private CIFPStep[] cifpSteps;
     private DashPathEffect dotsEffect;
@@ -421,7 +422,14 @@ public class PlateCIFP {
             // compute alt,hdg,lat,lon at end of this step
             // possibly alters step's internal state
             smallestAcraftDist = Double.MAX_VALUE;
-            step.drawStepDots ();
+            try {
+                step.drawStepDots ();
+            } catch (Throwable t) {
+                if (!gotDrawError) {
+                    Log.e (TAG, "error drawing CIFP path", t);
+                    gotDrawError = true;
+                }
+            }
             step.acrftdist = smallestAcraftDist;
 
             // save the values saying where the step ended.
@@ -3533,7 +3541,7 @@ public class PlateCIFP {
 
         /**
          * Start at the navwp, go outbound then turn inbound.
-         * - parallel: inbound radial, far-end turn to diagonal
+         * - parallel: inbound radial opposite direction, far-end turn to diagonal
          * - teardrop: diagonal radial, far-end turn to inbound
          * - direct: near-end turn to outbound line, outbound line, far-end turn to inbound
          */
@@ -3924,9 +3932,12 @@ public class PlateCIFP {
                     appTrueAsMag (sb, parahdg);
                     sb.append (DIRTOARR);
                     appendTurn (sb, turndir);
+                    // outbound heading from navwp
+                    appTrueAsMag (sb, inbound + 180.0);
+                } else {
+                    // teardrop, direct: inbound heading to navwp
+                    appTrueAsMag (sb, inbound);
                 }
-                // all: inbound heading to navwp
-                appTrueAsMag (sb, inbound);
                 sb.append (DIRTOARR);
                 sb.append (navwp.ident);
                 appendAlt (sb);
