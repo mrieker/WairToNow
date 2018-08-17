@@ -35,6 +35,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
 import android.os.SystemClock;
+import android.support.annotation.NonNull;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.util.TypedValue;
@@ -1357,6 +1358,18 @@ public class WairToNow extends Activity {
             SetCurrentTab (backView);
         } else {
             super.onBackPressed ();
+        }
+    }
+
+    // Permission granting
+    public final static int RC_INTGPS = 9876;
+    @Override
+    public void onRequestPermissionsResult (int requestCode,
+                                            @NonNull String[] permissions,
+                                            @NonNull int[] grantResults)
+    {
+        if (requestCode == RC_INTGPS) {
+            sensorsView.internalGPS.onRequestPermissionsResult ();
         }
     }
 

@@ -51,7 +51,7 @@ public class SensorsView
     private boolean displayOpen;
     private DetentHorizontalScrollView buttonScrollView;
     private DetentHorizontalScrollView statusScrollView;
-    private InternalGps internalGPS;
+    public  InternalGps internalGPS;
     private LinearLayout mainLinearLayout;
     private DecimalFormat formatter = new DecimalFormat ("#.#");
     public  GpsStatusView gpsStatusView;

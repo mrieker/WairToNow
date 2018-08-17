@@ -20,11 +20,21 @@
 
 package com.outerworldapps.wairtonow;
 
+import android.Manifest;
+import android.app.AlertDialog;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
-import android.location.*;
+import android.location.GpsSatellite;
+import android.location.GpsStatus;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
 import android.os.Bundle;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
+import android.util.Log;
 import android.view.View;
 import android.widget.CheckBox;
 import android.widget.LinearLayout;
@@ -36,6 +46,7 @@ import java.util.LinkedList;
  * Use Android device's internal GPS for location source.
  */
 public class InternalGps extends GpsAdsbReceiver implements GpsStatus.Listener, LocationListener {
+    public final static String TAG = "WairToNow";
     private boolean selected;
     private boolean displayOpen;
     private CheckBox intGPSEnable;
@@ -104,31 +115,43 @@ public class InternalGps extends GpsAdsbReceiver implements GpsStatus.Listener, 
     @Override  // GpsAdsbReceiver
     public void startSensor ()
     {
-        LocationManager locationManager = (LocationManager) wairToNow.getSystemService (Context.LOCATION_SERVICE);
-        Location lastLoc = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-        if (lastLoc == null) {
-            lastLoc = new Location ("InternalGps.start");
+        if (ContextCompat.checkSelfPermission (wairToNow, Manifest.permission.ACCESS_FINE_LOCATION) !=
+                PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions (wairToNow,
+                    new String[] { Manifest.permission.ACCESS_FINE_LOCATION },
+                    WairToNow.RC_INTGPS);
+            return;
         }
-        onLocationChanged (lastLoc);
-        locationManager.requestLocationUpdates (LocationManager.GPS_PROVIDER, 333L, 0.0F, this);
-        locationManager.addGpsStatusListener (this);
-        selected = true;
 
-        numLocations = 0;
-        numStatuses  = 0;
+        LocationManager locationManager = getLocationManager ();
+        if (locationManager != null) {
+            Location lastLoc = locationManager.getLastKnownLocation (LocationManager.GPS_PROVIDER);
+            if (lastLoc == null) {
+                lastLoc = new Location ("InternalGps.start");
+            }
+            onLocationChanged (lastLoc);
+            locationManager.requestLocationUpdates (LocationManager.GPS_PROVIDER, 333L, 0.0F, this);
+            locationManager.addGpsStatusListener (this);
+            selected = true;
 
-        // we are the default so make sure checkbox is checked
-        intGPSEnable.setChecked (true);
-        getButton ().setRingColor (Color.GREEN);
+            numLocations = 0;
+            numStatuses  = 0;
+
+            // we are the default so make sure checkbox is checked
+            intGPSEnable.setChecked (true);
+            getButton ().setRingColor (Color.GREEN);
+        }
     }
 
     @Override  // GpsAdsbReceiver
     public void stopSensor ()
     {
         selected = false;
-        LocationManager locationManager = (LocationManager) wairToNow.getSystemService (Context.LOCATION_SERVICE);
-        locationManager.removeUpdates (this);
-        locationManager.removeGpsStatusListener (this);
+        LocationManager locationManager = getLocationManager ();
+        if (locationManager != null) {
+            locationManager.removeUpdates (this);
+            locationManager.removeGpsStatusListener (this);
+        }
     }
 
     @Override  // GpsAdsbReceiver
@@ -141,6 +164,24 @@ public class InternalGps extends GpsAdsbReceiver implements GpsStatus.Listener, 
     public boolean isSelected ()
     {
         return selected;
+    }
+
+    // callback when ACCESS_FINE_LOCATION granted or denied
+    // check/uncheck enable checkbox
+    public void onRequestPermissionsResult ()
+    {
+        boolean granted = ContextCompat.checkSelfPermission (wairToNow,
+                Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+        if (!granted) {
+            AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
+            adb.setTitle ("Internal GPS Access");
+            adb.setMessage ("Internal GPS access permission not granted, internal GPS disabled.  " +
+                    "To enable it later, go to Sensors page and enable Internal GPS.");
+            adb.setPositiveButton ("OK", null);
+            adb.show ();
+        }
+        intGPSEnable.setChecked (granted);
+        intGPSEnabClicked ();
     }
 
     /**
@@ -177,6 +218,25 @@ public class InternalGps extends GpsAdsbReceiver implements GpsStatus.Listener, 
          * Fill in/Blank out center of compass dial display.
          */
         SetInternalGPSStatus ();
+    }
+
+    /**
+     * Try to get location manager.  If not present, output alert dialog.
+     */
+    private LocationManager getLocationManager ()
+    {
+        LocationManager lm = (LocationManager) wairToNow.getSystemService (Context.LOCATION_SERVICE);
+        if (lm == null) {
+            AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
+            adb.setTitle ("Internal GPS Access");
+            adb.setMessage ("No location manager available, cannot access internal GPS");
+            adb.show ();
+            if (!selected) {
+                intGPSEnable.setChecked (false);
+                intGPSEnabClicked ();
+            }
+        }
+        return lm;
     }
 
     /**
@@ -254,11 +314,19 @@ public class InternalGps extends GpsAdsbReceiver implements GpsStatus.Listener, 
         switch (event) {
             case GpsStatus.GPS_EVENT_SATELLITE_STATUS: {
                 if (selected) {
-                    LocationManager locationManager = (LocationManager) wairToNow.getSystemService (Context.LOCATION_SERVICE);
-                    gpsStatus = locationManager.getGpsStatus (gpsStatus);
-                    SetInternalGPSStatus ();
-                    numStatuses ++;
-                    updateStats ();
+                    LocationManager locationManager = getLocationManager ();
+                    if (locationManager != null) {
+                        try {
+                            gpsStatus = locationManager.getGpsStatus (gpsStatus);
+                            SetInternalGPSStatus ();
+                            numStatuses++;
+                            updateStats ();
+                        } catch (SecurityException se) {
+                            Log.w (TAG, "error reading gps status", se);
+                            intGPSEnable.setChecked (false);
+                            intGPSEnabClicked ();
+                        }
+                    }
                 }
             }
         }
