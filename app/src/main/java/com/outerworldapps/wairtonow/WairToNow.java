@@ -80,6 +80,7 @@ public class WairToNow extends Activity {
 
     ////private AltimeterView altimeterView;
     public  volatile boolean downloadCancelled;
+    private boolean atAMinimumShown;
     private boolean gpsAvailable;
     private boolean hasAgreed;
     private boolean lastLocQueued;
@@ -969,7 +970,8 @@ public class WairToNow extends Activity {
         agreeButton.setVisibility (View.GONE);
         sensorsView.startGPSReceiver ();
 
-        if (MaintView.GetWaypointExpDate () <= 0) {
+        if (!atAMinimumShown && (MaintView.GetWaypointExpDate () <= 0)) {
+            atAMinimumShown = true;
             AlertDialog.Builder adb = new AlertDialog.Builder (this);
             adb.setTitle ("Chart Maint");
             adb.setMessage ("At a minimum you should download a nearby chart.");

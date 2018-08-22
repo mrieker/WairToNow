@@ -64,6 +64,8 @@ import java.util.LinkedList;
 public class WaypointView extends LinearLayout
         implements WairToNow.CanBeMainView {
     public final static String TAG = "WairToNow";
+    public final static String metarurl =
+        "https://www.aviationweather.gov/taf/data?format=decoded&metars=on&date=&submit=Get+TAF+data&ids=";
 
     private DestinationButton destinationButton;
     private DownloadButton downloadButton;
@@ -821,8 +823,7 @@ public class WaypointView extends LinearLayout
         {
             try {
                 Intent intent = new Intent (Intent.ACTION_VIEW);
-                intent.setData (Uri.parse ("http://aviationweather.gov/adds/tafs/?station_ids=" + selectedWaypoint.ident +
-                                           "&std_trans=translated&submit_both=Get+TAFs+and+METARs"));
+                intent.setData (Uri.parse (metarurl + selectedWaypoint.ident));
                 wairToNow.startActivity (intent);
             } catch (Throwable e) {
                 AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
