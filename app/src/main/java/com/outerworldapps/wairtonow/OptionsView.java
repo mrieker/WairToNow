@@ -329,8 +329,8 @@ public class OptionsView
             showNexrad.setCheckedNoWrite        (true);
             showTraffic.setCheckedNoWrite       (true);
             showWxSumDot.setCheckedNoWrite      (true);
-            chartOrientOption.setKeyNoWrite     (chartOrientOption.keys[0]);
-            chartTrackOption.setKeyNoWrite      (chartTrackOption.keys[0]);
+            chartOrientOption.setKeyNoWrite     (chartOrientOption.keys[0]);  // unlocked
+            chartTrackOption.setKeyNoWrite      (chartTrackOption.keys[2]);   // north up
             magTrueOption.setAltNoWrite         (false);
             latLonOption.setKeyNoWrite          (latLonOption.keys[0]);
             ktsMphOption.setAltNoWrite          (false);

@@ -55,6 +55,8 @@ import android.widget.TableLayout;
 import android.widget.TableRow;
 import android.widget.TextView;
 
+import org.acra.ACRA;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -160,7 +162,7 @@ public class WairToNow extends Activity {
 
         File efd = getExternalFilesDir (null);
         if (efd == null) {
-            StartupError ("external storage not available");
+            StartupError ("external storage not available", null);
             return;
         }
         dbdir = efd.getAbsolutePath ();
@@ -175,8 +177,8 @@ public class WairToNow extends Activity {
 
         /*
          * Make sure database directory exists.
-         * Also mark it nomedia so meadia scanner will leave it alone
-         * as it will contain thoushands of .png files.
+         * Also mark it nomedia so media scanner will leave it alone
+         * as it will contain thousands of .png files.
          */
         File dbdirfile = new File (dbdir);
         Lib.Ignored (dbdirfile.mkdirs ());
@@ -645,13 +647,15 @@ public class WairToNow extends Activity {
     private void StartupError (String msg, Exception e)
     {
         Log.d (TAG, "StartupError: " + msg, e);
-        String emsg = e.getMessage ();
-        if (emsg == null) emsg = e.getClass ().getSimpleName ();
-        StartupError (msg + ": " + emsg);
-    }
 
-    private void StartupError (String msg)
-    {
+        ACRA.getErrorReporter ().handleException (new StartupErrorException (msg, e));
+
+        if (e != null) {
+            String emsg = e.getMessage ();
+            if (emsg == null) emsg = e.getClass ().getSimpleName ();
+            msg += ":  " + emsg;
+        }
+
         AlertDialog.Builder adb = new AlertDialog.Builder (this);
         adb.setTitle ("Startup error");
         adb.setMessage (msg + "\nTry clearing data or removing and re-installing app.");
@@ -687,6 +691,20 @@ public class WairToNow extends Activity {
             }
         });
         adb.show ();
+    }
+
+    private static class StartupErrorException extends Exception {
+        private String msg;
+        public StartupErrorException (String m, Exception e)
+        {
+            super (e);
+            msg = m;
+        }
+        @Override
+        public String toString ()
+        {
+            return "StartupErrorException: " + msg + "\n" + super.toString ();
+        }
     }
 
     /**

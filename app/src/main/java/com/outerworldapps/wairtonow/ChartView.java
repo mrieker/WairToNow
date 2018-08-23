@@ -339,9 +339,13 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
                 awaitgps.setBackgroundColor (Color.BLACK);
                 awaitgps.setTextColor (Color.WHITE);
                 awaitgps.setText ("You may need to wait for GPS positioning to " +
-                        "get a list of available charts for this area.  " +
+                        "get a list of available charts for this area.\n\n" +
                         "Click this text to go to Sensors page to see GPS status, " +
-                        "then double-click Chart button to select chart menu.");
+                        "then double-click Chart button to select chart menu.\n\n" +
+                        "You can always select Street, however it may just show blue " +
+                        "ocean until a proper GPS position is received.  Then when it " +
+                        "receives GPS position, and shows your local area with Street " +
+                        "map, click Chart to select and download an aviation chart.");
                 chartViews[i++] = awaitgps;
             }
             for (String spacename : displayableCharts.keySet ()) {
