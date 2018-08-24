@@ -26,7 +26,9 @@ import android.content.pm.ActivityInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.view.View;
+import android.webkit.WebResourceRequest;
 import android.webkit.WebView;
+import android.webkit.WebViewClient;
 
 /**
  * Display help page in a web view.
@@ -43,6 +45,8 @@ public class HelpView extends WebView
     {
         super (wtn);
         wairToNow = wtn;
+
+        setWebViewClient (new MyWebViewClient ());
 
         getSettings ().setBuiltInZoomControls (true);
         getSettings ().setJavaScriptEnabled (true);
@@ -81,6 +85,20 @@ public class HelpView extends WebView
     public boolean IsPowerLocked ()
     {
         return false;
+    }
+
+    /**
+     * Tell newer Android it is OK for it to access the file:// URLs on this web page.
+     * Otherwise it gets
+     *   android.os.FileUriExposedException:
+     *     file:///android_asset/p_crumbs.html exposed beyond app through Intent.getData()
+     */
+    private static class MyWebViewClient extends WebViewClient {
+        @Override
+        public boolean shouldOverrideUrlLoading (WebView view, WebResourceRequest request)
+        {
+            return false;
+        }
     }
 
     /**
