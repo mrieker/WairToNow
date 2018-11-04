@@ -6,6 +6,7 @@
 #
 #  https://www.faa.gov/air_traffic/flight_info/aeronav/digital_products/cifp/
 #
+#  http://aeronav.faa.gov/Upload_313-d/cifp/cifp_181011.zip
 
 set -e
 
@@ -52,7 +53,9 @@ fi
 
 if [ ! -f datums/iapcifps_$cycles28.gz ]
 then
-    wget -nv http://www.aeronav.faa.gov/Upload_313-d/cifp/cifp_20$airac28.zip -O datums/iapcifps_$cycles28.zip
+    effyyyymmdd=`./cureffdate -28 yyyymmdd`
+    effyymmdd=${effyyyymmdd:2}
+    wget -nv http://www.aeronav.faa.gov/Upload_313-d/cifp/cifp_$effyymmdd.zip -O datums/iapcifps_$cycles28.zip
     unzip -p datums/iapcifps_$cycles28.zip CIFP_20$airac28/FAACIFP18 | gzip -c > datums/iapcifps_$cycles28.gz.tmp
     mv datums/iapcifps_$cycles28.gz.tmp datums/iapcifps_$cycles28.gz
     rm -f datums/iapcifps_$cycles28.zip

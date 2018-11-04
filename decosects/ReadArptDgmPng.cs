@@ -406,7 +406,12 @@ public class ReadArptDgmPng {
          * Some charts simply contain broken strings.
          * List any here.
          */
+        // also have some characters on ends obscured by chart graphics
+        // and have some simply misread strings
         badStrings = new Dictionary<string,string> ();
+        badStrings["KABY:31^32.0'"]   = "31^32.0'N";
+        badStrings["KACK:1^15.0'N"]   = "41^15.0'N";
+        badStrings["KATL:33^39'"]     = "33^39'N";
         badStrings["KAVL:86^32.0'W"]  = "82^32.0'W";
         badStrings["KAVP:41^20.0\"N"] = "41^20.0'N";
         badStrings["KAVP:41^20.5\"N"] = "41^20.5'N";
@@ -414,38 +419,49 @@ public class ReadArptDgmPng {
         badStrings["KAVP:75^43.5\"W"] = "75^43.5'W";
         badStrings["KAVP:75^44.0\"W"] = "75^44.0'W";
         badStrings["KBAZ:29^42'5'N"]  = "29^42.5'N";
+        badStrings["KBDR:1^09.5'N"]   = "41^09.5'N";
         badStrings["KBNA:36^06'W"]    = "36^06'N";
         badStrings["KBNA:36^07'W"]    = "36^07'N";
         badStrings["KBNA:36^08'W"]    = "36^08'N";
         badStrings["KBNA:36^09'W"]    = "36^09'N";
+        badStrings["KBPT:96^01.0'W"]  = "94^01.0'W";
+        badStrings["KCBF:1^16'N"]     = "41^16'N";
+        badStrings["KCIU:6^15'N"]     = "46^15'N";
         badStrings["KDVL:48^06.5'W"]  = "48^06.5'N";
         badStrings["KDVL:48^07.0'W"]  = "48^07.0'N";
         badStrings["KDVL:48^07.5'W"]  = "48^07.5'N";
         badStrings["KDVL:98^55.0W"]   = "98^55.0'W";
-        badStrings["KEAT:47^23.5'"]   = "47^23.5'N";
-        badStrings["KEAT:47^24.0'"]   = "47^24.0'N";
-        badStrings["KEAT:47^24.5'"]   = "47^24.5'N";
         badStrings["KEAT:120^12.0'"]  = "120^12.0'W";
         badStrings["KEAT:120^12.5'"]  = "120^12.5'W";
         badStrings["KEAT:120^13.0'"]  = "120^13.0'W";
+        badStrings["KEAT:47^23.5'"]   = "47^23.5'N";
+        badStrings["KEAT:47^24.0'"]   = "47^24.0'N";
+        badStrings["KEAT:47^24.5'"]   = "47^24.5'N";
+        badStrings["KEOD:87^28.S"]    = "87^28.5'W";
         badStrings["KEVB:29^02.5'W"]  = "29^02.5'N";
         badStrings["KEVB:29^03.0'W"]  = "29^03.0'N";
         badStrings["KEVB:29^03.5'W"]  = "29^03.5'N";
         badStrings["KEVB:29^04.0'W"]  = "29^04.0'N";
+        badStrings["KFHB:0^37.0'N"]   = "30^37.0'N";
+        badStrings["KFMH:1^40.0'N"]   = "41^40.0'N";
         badStrings["KFRG:73^24.5'"]   = "73^24.5'W";
         badStrings["KFRG:73^25.0'"]   = "73^25.0'W";
         badStrings["KGTB:44^05'N"]    = "--";
-        badStrings["KHDC:90^25.5'N"]  = "90^25.5'W";
-        badStrings["KHDC:90^25.0'N"]  = "90^25.0'W";
         badStrings["KHDC:90^24.5'N"]  = "90^24.5'W";
+        badStrings["KHDC:90^25.0'N"]  = "90^25.0'W";
+        badStrings["KHDC:90^25.5'N"]  = "90^25.5'W";
         badStrings["KHRT:86^41W"]     = "86^41'W";
         badStrings["KLNS:40^07.0'W"]  = "40^07.0'N";
         badStrings["KLNS:40^07.5'W"]  = "40^07.5'N";
         badStrings["KLXT:38^58.0N"]   = "38^58.0'N";
         badStrings["KMBL:44^16.0\"N"] = "44^16.0'N";
         badStrings["KMCN:31^41.5'N"]  = "32^41.5'N";
+        badStrings["KMCO:8^25'N"]     = "28^25'N";
         badStrings["KMDW:1^46.5'N"]   = "41^46.5'N";
+        badStrings["KMIA:47'N"]       = "25^47'N";
         badStrings["KMSY:90^16'W"]    = "90^17'W";
+        badStrings["KNSI:33'^14'N"]   = "33^14'N";
+        badStrings["KNSI:33^1S"]      = "33^15'N";
         badStrings["KOGS:75^27'N"]    = "75^27'W";
         badStrings["KOGS:75^28'N"]    = "75^28'W";
         badStrings["KOZR:85^42'30\""] = "85^42'30\"W";
@@ -455,41 +471,23 @@ public class ReadArptDgmPng {
         badStrings["KPBG:73^27.0'N"]  = "73^27.0'W";
         badStrings["KPBG:73^28.0'N"]  = "73^28.0'W";
         badStrings["KPBG:73^29.0'N"]  = "73^29.0'W";
-        badStrings["KSBN:41^42.0'"]   = "41^42.0'N";
-        badStrings["KSJC:121^55'N"]   = "121^55'W";
-        badStrings["KSJC:121^56'N"]   = "121^56'W";
-
-        // technically not a broken chart
-        // but characters on ends obscured by chart graphics
-        badStrings["KABY:31^32.0'"]   = "31^32.0'N";
-        badStrings["KACK:1^15.0'N"]   = "41^15.0'N";
-        badStrings["KATL:33^39'"]     = "33^39'N";
-        badStrings["KCBF:1^16'N"]     = "41^16'N";
-        badStrings["KCIU:6^15'N"]     = "46^15'N";
-        badStrings["KFHB:0^37.0'N"]   = "30^37.0'N";
-        badStrings["KFMH:1^40.0'N"]   = "41^40.0'N";
-        badStrings["KMCO:8^25'N"]     = "28^25'N";
+        badStrings["KPIT:440^29'N"]   = "40^29'N";
+        badStrings["KPOB:^10'N"]      = "35^10'N";
         badStrings["KPOB:79^^00'W"]   = "79^00'W";
         badStrings["KPTK:2^39.5'N"]   = "42^39.5'N";
+        badStrings["KPVD:2112071^26.0'W"] = "71^26.0'W";
+        badStrings["KRND:^29^31'N"]   = "29^31'N";
+        badStrings["KRND:29^3^'N"]    = "29^32'N";
         badStrings["KSAV:2^08'N"]     = "32^08'N";
+        badStrings["KSBN:41^42.0'"]   = "41^42.0'N";
         badStrings["KSEE:16^58.0'W"]  = "116^58.0'W";
         badStrings["KSEE:6^58.0'W"]   = "116^58.0'W";
+        badStrings["KSJC:121^55'N"]   = "121^55'W";
+        badStrings["KSJC:121^56'N"]   = "121^56'W";
         badStrings["KTVL:8^54.5'N"]   = "38^54.5'N";
+        badStrings["KVDF:82^20.05'W"] = "82^20.5'W";
         badStrings["KVPS:586^31'W"]   = "86^31'W";
         badStrings["KWRB:83^36'"]     = "83^36'W";
-
-        // simply misread strings
-        badStrings["KBDR:1^09.5'N"]   = "41^09.5'N";
-        badStrings["KBPT:96^01.0'W"]  = "94^01.0'W";
-        badStrings["KEOD:87^28.S"]    = "87^28.5'W";
-        badStrings["KMIA:47'N"]       = "25^47'N";
-        badStrings["KNSI:33^1S"]      = "33^15'N";
-        badStrings["KNSI:33'^14'N"]   = "33^14'N";
-        badStrings["KPOB:^10'N"]      = "35^10'N";
-        badStrings["KPIT:440^29'N"]   = "40^29'N";
-        badStrings["KPVD:2112071^26.0'W"] = "71^26.0'W";
-        badStrings["KRND:29^3^'N"]    = "29^32'N";
-        badStrings["KRND:^29^31'N"]   = "29^31'N";
 
         /*
          * Non-square pixels.

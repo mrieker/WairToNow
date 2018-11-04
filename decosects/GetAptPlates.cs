@@ -51,7 +51,7 @@ using System.Net;
 using System.Text;
 
 public class GetAptPlates {
-    private static string searchUrl = "http://www.faa.gov/air_traffic/flight_info/aeronav/digital_products/dtpp/search/";
+    private static string searchUrl = "https://www.faa.gov/air_traffic/flight_info/aeronav/digital_products/dtpp/search/";
 
     public static void Main (string[] args)
     {
@@ -79,6 +79,7 @@ public class GetAptPlates {
                 do {
                     string url      = searchUrl + "results/?cycle=" + airac + "&ident=" + faaid + "&page=" + page;
                     string diagpage = MakeRequest (url).Replace ("\r", "").Replace ("\n", "");
+                    if (diagpage.Length < 1000) throw new Exception ("only " + diagpage.Length + " bytes from url " + url);
                     parts           = diagpage.Split (tdsplit, StringSplitOptions.None);
                     for (k = 0; k < parts.Length; k ++) {
                         string apidpart = parts[k];  // BVY (KBVY)

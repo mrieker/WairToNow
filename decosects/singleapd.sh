@@ -52,6 +52,7 @@ rm -rf aptplates.tmp
 mkdir aptplates.tmp
 grep "^$1," datums/airports_$cycles28.csv | \
     mono --debug GetAptPlates.exe $airac | doairportdiagram
+ls -l aptplates.tmp
 
 #
 # Merge that single line into datums/aptplates_$cycles28/state/<state>.csv

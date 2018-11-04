@@ -52,6 +52,7 @@ public class OptionsView
     public  CheckOption  capGridOption;
     public  CheckOption  faaWPOption;
     public  CheckOption  gpsCompassOption;
+    public  CheckOption  invPlaColOption;
     public  CheckOption  powerLockOption;
     public  CheckOption  showNexrad;
     public  CheckOption  showTraffic;
@@ -92,6 +93,7 @@ public class OptionsView
         capGridOption     = new CheckOption  ("Show CAP grids",              false);
         faaWPOption       = new CheckOption  ("Show FAA waypoints",          false);
         userWPOption      = new CheckOption  ("Show User waypoints",         true);
+        invPlaColOption   = new CheckOption  ("Invert plate colors",         false);
         synthILSDMEOption = new CheckOption  ("Show Synth ILS/DME Plates",   false);
         typeBOption       = new TypeBOption  ();
         powerLockOption   = new CheckOption  ("Power Lock",                  false);
@@ -158,6 +160,7 @@ public class OptionsView
         ll1.addView (capGridOption);
         ll1.addView (faaWPOption);
         ll1.addView (userWPOption);
+        ll1.addView (invPlaColOption);
         ll1.addView (synthILSDMEOption);
         ll1.addView (typeBOption);
         ll1.addView (showNexrad);
@@ -299,6 +302,7 @@ public class OptionsView
                     if (name.equals ("capGrid"))      capGridOption.setCheckedNoWrite     (valu.equals (boolTrue));
                     if (name.equals ("faaWPs"))       faaWPOption.setCheckedNoWrite       (valu.equals (boolTrue));
                     if (name.equals ("userWPs"))      userWPOption.setCheckedNoWrite      (valu.equals (boolTrue));
+                    if (name.equals ("invPlaCol"))    invPlaColOption.setCheckedNoWrite   (valu.equals (boolTrue));
                     if (name.equals ("synthILSDMEs")) synthILSDMEOption.setCheckedNoWrite (valu.equals (boolTrue));
                     if (name.equals ("typeB"))        typeBOption.setCheckedNoWrite       (valu.equals (boolTrue));
                     if (name.equals ("powerLock"))    powerLockOption.setCheckedNoWrite   (valu.equals (boolTrue));
@@ -322,6 +326,7 @@ public class OptionsView
             capGridOption.setCheckedNoWrite     (false);
             faaWPOption.setCheckedNoWrite       (false);
             userWPOption.setCheckedNoWrite      (true);
+            invPlaColOption.setCheckedNoWrite   (false);
             synthILSDMEOption.setCheckedNoWrite (false);
             typeBOption.setCheckedNoWrite       (false);
             powerLockOption.setCheckedNoWrite   (true);
@@ -353,6 +358,7 @@ public class OptionsView
                 csvwriter.write ("capGrid,"      + Boolean.toString (capGridOption.checkBox.isChecked ())     + "\n");
                 csvwriter.write ("faaWPs,"       + Boolean.toString (faaWPOption.checkBox.isChecked ())       + "\n");
                 csvwriter.write ("userWPs,"      + Boolean.toString (userWPOption.checkBox.isChecked ())      + "\n");
+                csvwriter.write ("invPlaCol,"    + Boolean.toString (invPlaColOption.checkBox.isChecked ())   + "\n");
                 csvwriter.write ("synthILSDMEs," + Boolean.toString (synthILSDMEOption.checkBox.isChecked ()) + "\n");
                 csvwriter.write ("typeB,"        + Boolean.toString (typeBOption.checkBox.isChecked ())       + "\n");
                 csvwriter.write ("powerLock,"    + Boolean.toString (powerLockOption.checkBox.isChecked ())   + "\n");

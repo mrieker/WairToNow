@@ -34,6 +34,7 @@ import android.graphics.Rect;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
+import android.os.StrictMode;
 import android.os.SystemClock;
 import android.support.annotation.NonNull;
 import android.util.DisplayMetrics;
@@ -148,10 +149,17 @@ public class WairToNow extends Activity {
     {
         super.onCreate (savedInstanceState);
 
+        // allow startIntent() to let other apps read our files
+        // https://stackoverflow.com/questions/38200282/android-os-fileuriexposedexception-file-storage-emulated-0-test-txt-exposed
+        // also allows links in the HelpView to work so they don't get FileUriExposedException
+        StrictMode.VmPolicy.Builder builder = new StrictMode.VmPolicy.Builder ();
+        StrictMode.setVmPolicy (builder.build ());
+
         if (wtnHandler == null) wtnHandler = new WTNHandler ();
 
         ctvllp.weight = 1;
 
+        // get display and pixel size
         DisplayMetrics metrics = new DisplayMetrics ();
         getWindowManager ().getDefaultDisplay ().getMetrics (metrics);
         dotsPerInchX = metrics.xdpi;
@@ -160,6 +168,8 @@ public class WairToNow extends Activity {
         thickLine    = dotsPerInch / 12.0F;
         thinLine     = dotsPerInch / 24.0F;
 
+        // find out where we put our downloaded data
+        // use external storage cuz it can be very large
         File efd = getExternalFilesDir (null);
         if (efd == null) {
             StartupError ("external storage not available", null);
@@ -167,12 +177,14 @@ public class WairToNow extends Activity {
         }
         dbdir = efd.getAbsolutePath ();
 
+        // dump prefs to logcat for debugging
         SharedPreferences prefs = getPreferences (MODE_PRIVATE);
         Map<String,?> keys = prefs.getAll ();
         for (Map.Entry<String,?> entry : keys.entrySet ()) {
             Log.d (TAG, "pref[" + entry.getKey () + "]=" + entry.getValue ().toString ());
         }
 
+        // get last GPS position in case GPS not synchronized yet
         loadLastKnownPosition ();
 
         /*

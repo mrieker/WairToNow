@@ -28,6 +28,8 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.ColorMatrix;
+import android.graphics.ColorMatrixColorFilter;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.PorterDuff;
@@ -86,8 +88,10 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
     private final static byte CRT_OLD  = 2;  // circling radius type old style (oldcircrad10ths)
     private final static Object shadeCirclingAreaLock = new Object ();
     private static ShadeCirclingAreaThread shadeCirclingAreaThread;
+    private final static Paint invertpaint = makeInvertPaint ();
 
     private boolean full;               // plate occupies full screen, draw GPS available outline
+    private boolean invcolors;          // invert plate colors (black<->white and everything else)
     private int expdate;                // plate expiration date, eg, 20150917
     private int screenOrient;
     private Paint exppaint;
@@ -100,6 +104,25 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
     private final static String[] columns_apdgeorefs1 = new String[] { "gr_wfta", "gr_wftb", "gr_wftc", "gr_wftd", "gr_wfte", "gr_wftf" };
     private final static String[] columns_georefs21 = new String[] { "gr_clat", "gr_clon", "gr_stp1", "gr_stp2", "gr_rada", "gr_radb",
             "gr_tfwa", "gr_tfwb", "gr_tfwc", "gr_tfwd", "gr_tfwe", "gr_tfwf", "gr_circtype", "gr_circrweps" };
+
+    // adapted from https://gist.github.com/moneytoo/87e3772c821cb1e86415
+    private static Paint makeInvertPaint ()
+    {
+        ColorMatrix matrixgrayscale = new ColorMatrix ();
+        matrixgrayscale.setSaturation (0.0F);
+        ColorMatrix matrixinvert = new ColorMatrix ();
+        matrixinvert.set (new float [] {
+                -1.0F, 0.0F, 0.0F, 0.0F, 255.0F,
+                0.0F, -1.0F, 0.0F, 0.0F, 255.0F,
+                0.0F, 0.0F, -1.0F, 0.0F, 255.0F,
+                0.0F, 0.0F, 0.0F, 1.0F, 0.0F
+        });
+        matrixinvert.preConcat (matrixgrayscale);
+        ColorMatrixColorFilter cmcf = new ColorMatrixColorFilter (matrixinvert);
+        Paint invpaint = new Paint ();
+        invpaint.setColorFilter (cmcf);
+        return invpaint;
+    }
 
     public PlateView (WaypointView wv, String fn, Waypoint.Airport aw, String pd, int ex, boolean fu)
     {
@@ -228,6 +251,16 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
             Bitmap bm = BitmapFactory.decodeStream (is);
             if (bm == null) {
                 throw new IOException ("bitmap " + fn + " corrupt in state " + airport.state);
+            }
+            invcolors = wairToNow.optionsView.invPlaColOption.checkBox.isChecked ();
+            if (invcolors) {
+                int h = bm.getHeight ();
+                int w = bm.getWidth ();
+                Bitmap newbm = Bitmap.createBitmap (w, h, Bitmap.Config.ARGB_8888);
+                Canvas canvas = new Canvas (newbm);
+                canvas.drawBitmap (bm, 0, 0, invertpaint);
+                bm.recycle ();
+                bm = newbm;
             }
             return bm;
         } finally {
@@ -1267,7 +1300,7 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
 
                 // draw arc
                 Paint paint = new Paint ();
-                paint.setColor (Color.BLACK);
+                paint.setColor (invcolors ? Color.WHITE : Color.BLACK);
                 paint.setFlags (Paint.ANTI_ALIAS_FLAG);
                 paint.setStrokeWidth (6.0F);
                 paint.setStyle (Paint.Style.STROKE);
@@ -1830,10 +1863,11 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
                 // use darken mode to leave black stuff fully black
                 Canvas canvas = new Canvas (fgbitmap);
                 Paint  paint  = new Paint  ();
-                paint.setColor (Color.argb (255, 255, 215, 0));
+                paint.setColor (invcolors ? Color.argb (170, 170, 143, 0) : Color.argb (255, 255, 215, 0));
                 paint.setStrokeWidth (0);
                 paint.setStyle (Paint.Style.FILL_AND_STROKE);
-                paint.setXfermode (new PorterDuffXfermode (PorterDuff.Mode.DARKEN));
+                paint.setXfermode (new PorterDuffXfermode (
+                        invcolors ? PorterDuff.Mode.LIGHTEN : PorterDuff.Mode.DARKEN));
                 canvas.drawPath (path, paint);
             } catch (Exception e) {
                 Log.w (TAG, "error shading circling area", e);
