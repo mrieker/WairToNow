@@ -20,9 +20,10 @@ function processdiagrams
     while read line  # eg, BVY,"APD-AIRPORT DIAGRAM",gif_150/050/39ad.gif
     do
         faaid=${line%%,*}
-        gifname=${line##*,}
-        pdfname=${gifname/gif_150/pdftemp}
-        pdfname=datums/aptplates_$cycles28/${pdfname/.gif/.pdf}
+        gifname=${line##*,gif_150/}
+        pdfname=${gifname/\//}
+        pdfname=${pdfname/[.]gif/.PDF}
+        pdfname=datums/aptplates_$cycles28/pdftemp/$pdfname
 
         csvname=decodeallplates.apdcsv_$faaid.csv
         logname=decodeallplates.apdcsv_$faaid.log

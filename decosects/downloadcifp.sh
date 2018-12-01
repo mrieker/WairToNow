@@ -55,7 +55,7 @@ if [ ! -f datums/iapcifps_$cycles28.gz ]
 then
     effyyyymmdd=`./cureffdate -28 yyyymmdd`
     effyymmdd=${effyyyymmdd:2}
-    wget -nv http://www.aeronav.faa.gov/Upload_313-d/cifp/cifp_$effyymmdd.zip -O datums/iapcifps_$cycles28.zip
+    wget -nv --no-check-certificate http://www.aeronav.faa.gov/Upload_313-d/cifp/cifp_$effyymmdd.zip -O datums/iapcifps_$cycles28.zip
     unzip -p datums/iapcifps_$cycles28.zip CIFP_20$airac28/FAACIFP18 | gzip -c > datums/iapcifps_$cycles28.gz.tmp
     mv datums/iapcifps_$cycles28.gz.tmp datums/iapcifps_$cycles28.gz
     rm -f datums/iapcifps_$cycles28.zip

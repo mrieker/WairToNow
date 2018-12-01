@@ -231,8 +231,9 @@ public class DecodePlate2 {
         if (!gifName.startsWith ("gif_") || !gifName.endsWith (".gif")) {
             throw new Exception ("bad gif name " + gifName);
         }
-        pdfName = basedir + "/datums/aptplates_" + cycles28expdate + "/pdftemp" +
-                gifName.substring (gifName.indexOf ('/'), gifName.length () - 4) + ".pdf";
+        pdfName = basedir + "/datums/aptplates_" + cycles28expdate + "/pdftemp/" +
+                gifName.substring (gifName.indexOf ('/'),
+                        gifName.length () - 4).replace ("/", "") + ".PDF";
 
         // Process the plate
 
@@ -260,7 +261,7 @@ public class DecodePlate2 {
             pages.getAllKids (kids);
             if (kids.size () != 1) throw new Exception ("pdf not a single Page");
             pdPage = (PDPage) kids.get (0);
-            ////if (verbose) printCOSObject ("", "pdPage", pdPage.getCOSObject ());
+            if (verbose) printCOSObject ("", "pdPage", pdPage.getCOSObject ());
 
             // Analyze PDF to locate waypoints depicted thereon.
 
