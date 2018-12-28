@@ -44,6 +44,21 @@
             }
         }
         echo "datums/waypoints_$cycles28.db.gz\n";
+    } else if ($undername == 'Obstructions') {
+
+        /*
+         * Obstructions (gives height, type, lat/lon of all obstructions):
+         *   the datums/obstructions_<expdate>.db.gz file
+         */
+        $dir_entries = scandir ('datums');
+        $cycles28 = 0;
+        foreach ($dir_entries as $dir_entry) {
+            if (strpos ($dir_entry, 'obstructions_') === 0) {
+                $xd = intval (substr ($dir_entry, 13, 8));
+                if ($cycles28 < $xd) $cycles28 = $xd;
+            }
+        }
+        echo "datums/obstructions_$cycles28.db.gz\n";
     } else if ($undername == 'Topography') {
 
         /*

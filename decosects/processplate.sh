@@ -47,7 +47,6 @@ function convertpngtemptogifperm
         then
             break
         fi
-        echo "@@$statecode $faaid converting $1.p$p => $2.p$p"
         convert -alpha Remove $1.p$p $2.$3.gif
         mv -f $2.$3.gif $2.p$p
     done
@@ -95,7 +94,6 @@ case $chartcode in
         ## If not, convert from PDF file
         if [ ! -f $pngtemp.p1 ]
         then
-            echo "@@$statecode $faaid ghostscripting $pdftemp => $pngtemp.$streamid.p*"
             mkdir -p `dirname $pngtemp`
             gs -q -dQuiet -dSAFER -dBATCH -dNOPAUSE -dNOPROMT -dMaxBitmap=500000000 -dAlignToPixels=0 -dGridFitTT=2 \
                 -sDEVICE=pngalpha -dTextAlphaBits=4 -dGraphicsAlphaBits=4 -r300x300 \
@@ -131,7 +129,6 @@ case $chartcode in
                 gifpermpn=$dir/$gifbasepn
                 if [ ! -f $gifpermpn ]
                 then
-                    echo "@@$statecode $faaid converting $pngtemp.p1 => $gifpermpn"
                     convert -alpha Remove $pngtemp.p1 $gifpermpn.$streamid.gif
                     mv -f $gifpermpn.$streamid.gif $gifpermpn
                 fi

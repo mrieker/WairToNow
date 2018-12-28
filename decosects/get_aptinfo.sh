@@ -86,86 +86,112 @@ then
     mcs -debug -out:MakeWaypoints.exe MakeWaypoints.cs -reference:System.Data.dll -reference:Mono.Data.Sqlite.dll
 fi
 
+if [ MakeObstructions.exe -ot MakeObstructions.cs ]
+then
+    mcs -debug -out:MakeObstructions.exe MakeObstructions.cs -reference:System.Data.dll -reference:Mono.Data.Sqlite.dll
+fi
+
 #
 #  See if we already have this 28-day cycle done
 #
 expdate=`./cureffdate -28 -x yyyymmdd`
-if [ -f datums/waypoints_$expdate.db.gz ]
+if [ ! -f datums/waypoints_$expdate.db.gz ]
 then
-    exit
+
+    #
+    #  Fetch FAA data files
+    #
+    rm -rf APT.txt AWY.txt FIX.txt ILS.txt NAV.txt TWR.txt aptinfo.tmp
+    mkdir -p datums
+
+    effdate=`./cureffdate -28`
+    getzip APT
+    getzip AWY
+    getzip FIX
+    getzip ILS
+    getzip NAV
+    getzip TWR
+
+    #
+    #  Generate airport and runway info
+    #
+    unzip datums/APT_$expdate.zip
+    unzip datums/TWR_$expdate.zip
+    mkdir aptinfo.tmp
+    cat APT.txt TWR.txt | mono --debug GetAirportIDs.exe airports.tmp runways.tmp aptinfo.tmp aptinfo.html
+    rm -f APT.txt TWR.txt
+
+    #
+    #  Generate airway info
+    #
+    unzip datums/AWY_$expdate.zip
+    mono --debug WriteAirwaysCsv.exe < AWY.txt
+    rm -f AWY.txt
+
+    #
+    #  Generate fix info
+    #
+    unzip datums/FIX_$expdate.zip
+    mono --debug GetFixes.exe < FIX.txt | sort > fixes.csv
+    rm -f FIX.txt
+
+    #
+    #  Generate localizer info
+    #
+    unzip datums/ILS_$expdate.zip
+    mono --debug WriteLocalizersCsv.exe < ILS.txt | sort > localizers.csv
+    rm -f ILS.txt
+
+    #
+    #  Generate navaid info
+    #
+    unzip datums/NAV_$expdate.zip
+    mono --debug WriteNavaidsCsv.exe < NAV.txt | sort > navaids.csv
+    rm -f NAV.txt
+
+    #
+    #  Generate summary files named by the expiration date
+    #
+    rm -rf datums/aptinfo_$expdate datums/airports_$expdate.csv datums/fixes_$expdate.csv datums/intersections_$expdate.csv
+    rm -rf datums/localizers_$expdate.csv datums/navaids_$expdate.csv datums/runways_$expdate.csv
+
+    ls aptinfo.tmp | moveaptinfofiles datums/aptinfo_$expdate
+    sort airports.tmp >  datums/airports_$expdate.csv
+    mv airways.csv       datums/airways_$expdate.csv
+    mv fixes.csv         datums/fixes_$expdate.csv
+    mv intersections.csv datums/intersections_$expdate.csv
+    mv localizers.csv    datums/localizers_$expdate.csv
+    mv navaids.csv       datums/navaids_$expdate.csv
+    sort runways.tmp  >  datums/runways_$expdate.csv
+
+    rm -rf aptinfo.tmp airports.tmp runways.tmp
+
+    #
+    #  Generate SQLite databases for downloading
+    #
+    mono --debug MakeWaypoints.exe $expdate
+    gzip datums/waypoints_$expdate.db
 fi
 
 #
-#  Fetch FAA data files
+# Get obstruction data file
 #
-rm -rf APT.txt AWY.txt FIX.txt ILS.txt NAV.txt TWR.txt aptinfo.tmp
-mkdir -p datums
+if [ ! -f datums/obstructions_$expdate.db.gz ]
+then
 
-effdate=`./cureffdate -28`
-getzip APT
-getzip AWY
-getzip FIX
-getzip ILS
-getzip NAV
-getzip TWR
+    #
+    # Download from FAA
+    #
+    if [ ! -f datums/DOF_$expdate.zip ]
+    then
+        rm -f datums/DOF_$expdate.zip*
+        wget -nv -O datums/DOF_$expdate.zip.tmp https://aeronav.faa.gov/Obst_Data/DAILY_DOF_DAT.ZIP
+        mv datums/DOF_$expdate.zip.tmp datums/DOF_$expdate.zip
+    fi
 
-#
-#  Generate airport and runway info
-#
-unzip datums/APT_$expdate.zip
-unzip datums/TWR_$expdate.zip
-mkdir aptinfo.tmp
-cat APT.txt TWR.txt | mono --debug GetAirportIDs.exe airports.tmp runways.tmp aptinfo.tmp aptinfo.html
-rm -f APT.txt TWR.txt
-
-#
-#  Generate airway info
-#
-unzip datums/AWY_$expdate.zip
-mono --debug WriteAirwaysCsv.exe < AWY.txt
-rm -f AWY.txt
-
-#
-#  Generate fix info
-#
-unzip datums/FIX_$expdate.zip
-mono --debug GetFixes.exe < FIX.txt | sort > fixes.csv
-rm -f FIX.txt
-
-#
-#  Generate localizer info
-#
-unzip datums/ILS_$expdate.zip
-mono --debug WriteLocalizersCsv.exe < ILS.txt | sort > localizers.csv
-rm -f ILS.txt
-
-#
-#  Generate navaid info
-#
-unzip datums/NAV_$expdate.zip
-mono --debug WriteNavaidsCsv.exe < NAV.txt | sort > navaids.csv
-rm -f NAV.txt
-
-#
-#  Generate summary files named by the expiration date
-#
-rm -rf datums/aptinfo_$expdate datums/airports_$expdate.csv datums/fixes_$expdate.csv datums/intersections_$expdate.csv
-rm -rf datums/localizers_$expdate.csv datums/navaids_$expdate.csv datums/runways_$expdate.csv
-
-ls aptinfo.tmp | moveaptinfofiles datums/aptinfo_$expdate
-sort airports.tmp >  datums/airports_$expdate.csv
-mv airways.csv       datums/airways_$expdate.csv
-mv fixes.csv         datums/fixes_$expdate.csv
-mv intersections.csv datums/intersections_$expdate.csv
-mv localizers.csv    datums/localizers_$expdate.csv
-mv navaids.csv       datums/navaids_$expdate.csv
-sort runways.tmp  >  datums/runways_$expdate.csv
-
-rm -rf aptinfo.tmp airports.tmp runways.tmp
-
-#
-#  Generate SQLite database for downloading
-#
-mono --debug MakeWaypoints.exe $expdate
-gzip datums/waypoints_$expdate.db
-
+    #
+    # Convert to SQLite database
+    #
+    unzip -q -p datums/DOF_$expdate.zip DOF.DAT | mono --debug MakeObstructions.exe datums/obstructions_$expdate.db
+    gzip datums/obstructions_$expdate.db
+fi

@@ -478,7 +478,7 @@ public class MaintView
                                         // remember which day we last prompted on
                                         SharedPreferences.Editor editr = prefs.edit ();
                                         editr.putInt ("chartMaintDelay", today);  // yyyymmdd
-                                        editr.commit ();
+                                        editr.apply ();
                                     }
                                 });
                                 adb.show ();
@@ -1126,11 +1126,7 @@ public class MaintView
 
     /**
      * Enable download waypoints files.
-     * datums/airports_<expdate>.csv
-     * datums/fixes_<expdate>.csv
-     * datums/localizers_<expdate>.csv
-     * datums/navaids_<expdate>.csv
-     * datums/runways_<expdate>.csv
+     * datums/waypoints_<expdate>.db.gz
      */
     private class WaypointsCheckBox extends DownloadCheckBox {
         private int enddate;

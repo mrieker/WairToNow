@@ -50,7 +50,7 @@ public class OpenStreetMap {
     private final static String TAG = "WairToNow";
 
     public  static final int BitmapSize = 256;  // all OSM tiles are this size
-    public  static final int MAXZOOM = 16;      // openstreepmap.org doesn't like serving zoom 17
+    public  static final int MAXZOOM = 17;
     private static final double MAXPIXPERSQIN = 14400;  // max tile pixels per square inch
     private static final long TILE_FILE_AGE_MS = 1000L*60*60*24*365;
     private static final long TILE_RETRY_MS = 1000L*10;

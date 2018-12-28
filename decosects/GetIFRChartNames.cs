@@ -1,4 +1,4 @@
-//    Copyright (C) 2015,2016, Mike Rieker, Beverly, MA USA
+//    Copyright (C) 2015,2016,2018 Mike Rieker, Beverly, MA USA
 //    www.outerworldapps.com
 //
 //    This program is free software; you can redistribute it and/or modify
@@ -32,7 +32,7 @@
                         Nov 10 2016
                         <br>
                         <cfoutput>
-                          <a href="http://aeronav.faa.gov/enroute/11-10-2016/enr_l01.zip">
+                          <a href="https://aeronav.faa.gov/enroute/11-10-2016/enr_l01.zip">
                             GEO-TIFF
                           </a>
                           <small>
@@ -41,7 +41,7 @@
                         </cfoutput>
                         <br>
                         <cfoutput>
-                          <a href="http://aeronav.faa.gov/enroute/11-10-2016/delus1.zip">
+                          <a href="https://aeronav.faa.gov/enroute/11-10-2016/delus1.zip">
                             PDF
                           </a>
                           <small>
@@ -53,7 +53,7 @@
                         Jan 05 2017
                         <br>
                         <cfoutput>
-                          <a href="http://aeronav.faa.gov/enroute/01-05-2017/enr_l01.zip">
+                          <a href="https://aeronav.faa.gov/enroute/01-05-2017/enr_l01.zip">
                             GEO-TIFF
                           </a>
                           <small>
@@ -63,7 +63,7 @@
                         </cfoutput>
                         <br>
                         <cfoutput>
-                          <a href="http://aeronav.faa.gov/enroute/01-05-2017/delus1.zip">
+                          <a href="https://aeronav.faa.gov/enroute/01-05-2017/delus1.zip">
                             PDF
                           </a>
                           <small>
@@ -84,7 +84,7 @@ public class GetIFRChartNames {
         while ((line = Console.ReadLine ()) != null) htm += line;
 
         string effdate_mm = args[0];
-        string urlbase = "http://aeronav.faa.gov/enroute/" + effdate_mm + "/";
+        string urlbase = "https://aeronav.faa.gov/enroute/" + effdate_mm + "/";
 
         for (int i = 0; (i = htm.IndexOf ("<a href=\"" + urlbase, i)) > 0;) {
             i = htm.IndexOf (urlbase, i);
@@ -97,7 +97,7 @@ public class GetIFRChartNames {
             string nam = htm.Substring (k, m - k).Replace (" ", "");
 
             if (fnm.StartsWith ("enr") && (nam.StartsWith ("EL") || nam.StartsWith ("Area") || (nam == "EPHI2"))) {
-                Console.WriteLine (url);  // eg, http://aeronav.faa.gov/enroute/01-05-2017/enr_l01.zip
+                Console.WriteLine (url);  // eg, https://aeronav.faa.gov/enroute/01-05-2017/enr_l01.zip
                 Console.WriteLine (nam);  // eg, ELUS1
             }
         }

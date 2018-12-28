@@ -42,8 +42,7 @@ then
     rm -f *.class
 fi
 
-airac=`./cureffdate -28 airac`
-aixd=`./cureffdate -28 -x yyyymmdd`
+effdate=`./cureffdate -28 yyyymmdd`
 expdate=`./cureffdate -28 -x yyyymmdd`
 if [ "$expdate" == "" ]
 then
@@ -57,7 +56,7 @@ for fid in A B C D E
 do
     if [ ! -f datums/DDTPP${fid}_$expdate.zip ]
     then
-        wget -q -O datums/DDTPP${fid}_$expdate.zip.tmp https://aeronav.faa.gov/upload_313-d/terminal/DDTPP${fid}_20$airac.zip
+        wget -q -O datums/DDTPP${fid}_$expdate.zip.tmp https://aeronav.faa.gov/upload_313-d/terminal/DDTPP${fid}_${effdate:2}.zip
         mv datums/DDTPP${fid}_$expdate.zip.tmp datums/DDTPP${fid}_$expdate.zip
     fi
     if [ $fid == E ]

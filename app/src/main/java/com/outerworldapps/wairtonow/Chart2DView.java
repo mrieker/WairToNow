@@ -59,7 +59,8 @@ public class Chart2DView extends View
     private final static double[] scalesteps = new double[] {       // manual scale stepping
         0.10, 0.15, 0.20, 0.25, 0.30, 0.40, 0.50, 0.60, 0.80, 1.00,
         1.25, 1.50, 2.00, 2.50, 3.00, 4.00, 5.00, 6.00, 8.00, 10.0,
-        12.5, 15.0, 20.0, 25.0, 30.0, 40.0, 50.0, 60.0, 80.0, 100.0
+        12.5, 15.0, 20.0, 25.0, 30.0, 40.0, 50.0, 60.0, 80.0, 100.0,
+        125., 150., 200.
     };
     private final static boolean enablesteps = true;   // enables discrete steps
     private final static boolean blinknexrad = false;

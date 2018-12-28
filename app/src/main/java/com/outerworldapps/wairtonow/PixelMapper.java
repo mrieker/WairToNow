@@ -109,20 +109,18 @@ public class PixelMapper {
          */
         canvasSouthLat = Math.min (Math.min (tlLat, trLat), Math.min (blLat, brLat));
         canvasNorthLat = Math.max (Math.max (tlLat, trLat), Math.max (blLat, brLat));
-        if (canvasNorthLat - canvasSouthLat > 90.0) throw new RuntimeException ("too much latitude");
 
         /*
          * Find east/west limits of canvas no matter how it is twisted on the charts.
          */
-        canvasWestLon = Math.min (Math.min (tlLon, trLon), Math.min (blLon, brLon));
-        canvasEastLon = Math.max (Math.max (tlLon, trLon), Math.max (blLon, brLon));
-        if (canvasEastLon - canvasWestLon > 90.0) throw new RuntimeException ("too much longitude");
+        canvasWestLon = Lib.Westmost (Lib.Westmost (tlLon, trLon), Lib.Westmost (blLon, brLon));
+        canvasEastLon = Lib.Eastmost (Lib.Eastmost (tlLon, trLon), Lib.Eastmost (blLon, brLon));
 
         /*
          * Calculate latitude and longitude in center of canvas.
          */
         centerLat = (canvasNorthLat + canvasSouthLat) / 2.0;
-        centerLon = (canvasEastLon + canvasWestLon) / 2.0;
+        centerLon = Lib.AvgLons (canvasEastLon, canvasWestLon);
 
         /*
          * Set up matrix to convert latlon -> canvas pixel.

@@ -52,7 +52,7 @@
         $parts = explode ('/', $tile);
         if (!is_numeric ($parts[0])) die ("bad or missing zoom level");
         $z = intval ($parts[0]);
-        if (($z < 0) || ($z > 16)) die ("bad zoom level $z");
+        if (($z < 0) || ($z > 17)) die ("bad zoom level $z");
 
         $lock = fopen ("streets/lock.file", "c");
         if (!$lock) die ("error opening lock file");

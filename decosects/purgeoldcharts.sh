@@ -60,6 +60,11 @@ function purgedatum
             mv "$file" "purged-$file"
             continue
         fi
+        if [ "${file:0:12}" == "datums/DDTPP" ]
+        then
+            mv "$file" "purged-$file"
+            continue
+        fi
         if [ "${file:0:12}" == "datums/fixes" ]
         then
             rm -rf "$file"
