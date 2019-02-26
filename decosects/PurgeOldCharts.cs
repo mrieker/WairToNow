@@ -19,7 +19,7 @@
 //    http://www.gnu.org/licenses/gpl-2.0.html
 
 
-// gmcs -out:PurgeOldCharts.exe PurgeOldCharts.cs
+// mcs -debug -out:PurgeOldCharts.exe PurgeOldCharts.cs
 // mono --debug PurgeOldCharts.exe <chartdir>
 
 using System;
@@ -34,16 +34,17 @@ public class PurgeOldCharts {
 
         foreach (string file in files) {
             string spacename = file.Replace ("_", " ");
-            string ext = "";
-            int i = spacename.IndexOf ('.');
-            if (i >= 0) {
-                ext = spacename.Substring (i);
-                spacename = spacename.Substring (0, i);
-            }
             int j = spacename.LastIndexOf (' ');
             if (j < 0) continue;
+            string lastword = spacename.Substring (j + 1);
+            string ext = "";
+            int i = lastword.IndexOf ('.');
+            if (i >= 0) {
+                ext = lastword.Substring (i);
+                lastword = lastword.Substring (0, i);
+            }
             int rev;
-            if (!int.TryParse (spacename.Substring (j + 1), out rev)) continue;
+            if (!int.TryParse (lastword, out rev)) continue;
             string basename = spacename.Substring (0, j) + ext;  // eg "Chicago TAC.tif"
             SortedDictionary<int,String> chart;
             if (!charts.TryGetValue (basename, out chart)) {

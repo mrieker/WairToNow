@@ -465,6 +465,8 @@ public class OpenStreetMap {
                 tilePixelsPerCanvasSqIn *= 0.25;
             }
 
+            //Log.d (TAG, "DrawTiles*: w=" + w + " h=" + h + " zoom=" + zoom);
+
             /*
              * See what range of tile numbers are needed to cover the canvas.
              */
@@ -571,9 +573,6 @@ public class OpenStreetMap {
     private class RunwayDownloadThread extends Thread {
         private HashSet<String> bulkDownloads = new HashSet<> ();
 
-        private long downloadStatus;  // =0: last download succeeded
-                                      // >0: time of last download failure
-
         private RWYPrefecthTileDrawer rwyPrefecthTileDrawer = new RWYPrefecthTileDrawer ();
 
         @Override  // Thread
@@ -587,7 +586,6 @@ public class OpenStreetMap {
                  * Download needed tile files one-by-one.
                  */
                 while (true) {
-                    boolean delay = false;
 
                     /*
                      * Prefetch some runway diagram tiles.
@@ -616,15 +614,6 @@ public class OpenStreetMap {
                         }
                         try {
                             do {
-                                // if recently tried this one, don't keep pounding on it,
-                                // retry in a little while
-                                long lastry = result.getLong (1);
-                                long now = System.currentTimeMillis ();
-                                if (lastry > now - TILE_RETRY_MS) {
-                                    delay = true;
-                                    break;
-                                }
-
                                 rwyPrefecthTileDrawer.successful = true;
 
                                 String faaid = result.getString (0);
@@ -648,9 +637,8 @@ public class OpenStreetMap {
                                             wairToNow.maintView.UpdateRunwayDiagramDownloadStatus ();
                                         }
                                     } else {
-                                        now = System.currentTimeMillis ();
+                                        long now = System.currentTimeMillis ();
                                         sqldb.execSQL ("UPDATE rwypreloads SET rp_lastry=" + now + " WHERE rp_faaid='" + faaid + "'");
-                                        delay = true;
                                     }
                                 }
 
@@ -662,8 +650,6 @@ public class OpenStreetMap {
                     } catch (Exception e) {
                         Log.e (TAG, "error reading " + dbname, e);
                     }
-
-                    if (delay) try { Thread.sleep (TILE_RETRY_MS); } catch (InterruptedException ie) { Lib.Ignored (); }
                 }
             } finally {
                 SQLiteDBs.CloseAll ();
@@ -699,15 +685,11 @@ public class OpenStreetMap {
                 File pathfile = new File (pathname);
                 long lastmod = pathfile.lastModified ();
                 long now = System.currentTimeMillis ();
-                if (lastmod > now - TILE_FILE_AGE_MS) {
+                if (now - lastmod < TILE_FILE_AGE_MS) {
 
                     // we already have a recent copy of that file
                     it.remove ();
                 } else {
-
-                    // if we recently failed (probably no internet connection),
-                    // don't keep pounding away at it, just fail
-                    if (downloadStatus > now - TILE_RETRY_MS) return false;
 
                     // last download was successful or we are retrying,
                     // save the tilename to be downloaded
@@ -759,13 +741,12 @@ public class OpenStreetMap {
                             Lib.RenameFile (tempname, permname);
                             bulkDownloads.remove (tilename);
                         }
-                        downloadStatus = 0;
                     } finally {
                         httpCon.disconnect ();
                     }
                 } catch (Exception e) {
                     Log.e (TAG, "error downloading tiles: " + e.getMessage (), e);
-                    downloadStatus = System.currentTimeMillis ();
+                    try { Thread.sleep (TILE_RETRY_MS); } catch (InterruptedException ie) { Lib.Ignored (); }
                     return false;
                 }
             }
@@ -871,6 +852,7 @@ public class OpenStreetMap {
         } catch (Exception e) {
             Log.e (TAG, "error downloading tile: " + tilename, e);
             Lib.Ignored (permfile.delete ());
+            try { Thread.sleep (TILE_RETRY_MS); } catch (InterruptedException ie) { Lib.Ignored (); }
             return null;
         }
     }
