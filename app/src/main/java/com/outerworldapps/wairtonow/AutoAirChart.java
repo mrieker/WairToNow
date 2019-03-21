@@ -38,7 +38,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 
 /**
- * Group of same-scaled air (eg, SEC or WAC) charts (that are downloaded) sown together.
+ * Group of same-scaled air (eg, SEC) charts (that are downloaded) sown together.
  */
 public class AutoAirChart implements DisplayableChart, Comparator<AirChart> {
     private double macroNLat, macroSLat;

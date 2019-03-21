@@ -83,8 +83,7 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
         autoAirChartSEC = new AutoAirChart (wairToNow, "SEC");
         autoAirCharts = new AutoAirChart[] {
             new AutoAirChart (wairToNow, "ENR"),
-            autoAirChartSEC,
-            new AutoAirChart (wairToNow, "WAC")
+            autoAirChartSEC
         };
 
         pmap = new PixelMapper ();
@@ -568,7 +567,7 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
             SharedPreferences prefs = wairToNow.getPreferences (Activity.MODE_PRIVATE);
             SharedPreferences.Editor editr = prefs.edit ();
             editr.putString ("selectedChart", dc.GetSpacenameSansRev ());
-            editr.commit ();
+            editr.apply ();
         }
         if (backing != null) backing.ChartSelected ();
     }

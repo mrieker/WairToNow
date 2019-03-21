@@ -186,7 +186,10 @@ public class DecodePlate2 {
                     faaid   = csvs[0];
                     plateid = csvs[1];
                     airport = allAirports.get (faaid);
-                    if (airport == null) throw new Exception ("airport " + faaid + " not found");
+                    if (airport == null) {
+                        System.out.println ("airport " + faaid + " not found");
+                        continue;
+                    }
                     String key = airport.icaoid + ":" + plateid;
                     if (!existingDecodes.containsKey (key)) {
                         existingDecodes.put (key, true);

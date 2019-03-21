@@ -21,6 +21,11 @@ pdfsplit=${pdfbase:0:3}/${pdfbase:3}    ## 000/26POUNC.PDF
 
 ##echo "streamid=[$streamid] statecode=[$statecode] faaid=[$faaid] icaoid=[$icaoid] chartcode=[$chartcode] chartname=[$chartname] pdfbase=[$pdfbase]"
 
+if [ "$pdfbase" == "DELETED_JOB.PDF" ]
+then
+    exit 0
+fi
+
 # Rename the temp PNG files created by ghostscript to their permanent names
 #  $1 = pngtemp, eg datums/aptplates_20150625/pngtemp/ne1/to.png
 #  $2 = streamid, eg 2

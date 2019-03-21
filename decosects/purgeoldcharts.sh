@@ -125,6 +125,11 @@ function purgedatum
             mv "$file" "purged-$file"
             continue
         fi
+        if [ "${file:0:11}" == "datums/DOF_" ]
+        then
+            mv "$file" "purged-$file"
+            continue
+        fi
         if [ "${file:0:11}" == "datums/FIX_" ]
         then
             mv "$file" "purged-$file"

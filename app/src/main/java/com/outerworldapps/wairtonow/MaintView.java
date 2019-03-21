@@ -107,7 +107,6 @@ public class MaintView
     private Category otherCategory;
     private Category secCategory;
     private Category tacCategory;
-    private Category wacCategory;
     private CheckExpdateThread checkExpdateThread;
     private DownloadButton downloadButton;
     private DownloadThread downloadThread;
@@ -202,7 +201,6 @@ public class MaintView
         helCategory   = new Category ("HEL");
         secCategory   = new Category ("SEC");
         tacCategory   = new Category ("TAC");
-        wacCategory   = new Category ("WAC");
         otherCategory = new Category ("Other");
 
         LinearLayout ll1 = new LinearLayout (ctx);
@@ -213,7 +211,6 @@ public class MaintView
         ll1.addView (helCategory.selButton);
         ll1.addView (secCategory.selButton);
         ll1.addView (tacCategory.selButton);
-        ll1.addView (wacCategory.selButton);
         ll1.addView (otherCategory.selButton);
 
         DetentHorizontalScrollView hs1 = new DetentHorizontalScrollView (ctx);
@@ -238,7 +235,6 @@ public class MaintView
 
         enrCategory.addView (new ChartDiagView (R.drawable.low_index_us));
         secCategory.addView (new ChartDiagView (R.drawable.faa_sec_diag));
-        wacCategory.addView (new ChartDiagView (R.drawable.faa_wac_diag));
 
         GetChartNames ();
 
@@ -308,8 +304,6 @@ public class MaintView
                 possibleCharts.put (airChart.spacenamenr, chartCheckBox);
                 if (airChart.spacenamenr.contains ("TAC")) {
                     tacCategory.addView (chartCheckBox);
-                } else if (airChart.spacenamenr.contains ("WAC")) {
-                    wacCategory.addView (chartCheckBox);
                 } else if (airChart.spacenamenr.contains ("ENR")) {
                     enrCategory.addView (chartCheckBox);
                 } else if (airChart.spacenamenr.contains ("HEL")) {
@@ -555,13 +549,10 @@ public class MaintView
         int maintColor = Color.TRANSPARENT;
         for (Category cat : allCategories) {
             int catColor = cat.UpdateButtonColor ();
-            if (cat != wacCategory) {
-                maintColor = ComposeButtonColor (maintColor, catColor);
-            }
+            maintColor = ComposeButtonColor (maintColor, catColor);
         }
 
         // update maint button color
-        // exclude WACs cuz we don't have any updates
         wairToNow.maintButton.setRingColor (maintColor);
         return maintColor;
     }
@@ -731,9 +722,11 @@ public class MaintView
                 break;
             }
             case MaintViewHandlerWhat_DLERROR: {
+                DlError dlerror = (DlError) msg.obj;
                 AlertDialog.Builder builder = new AlertDialog.Builder (wairToNow);
-                builder.setTitle ("Error downloading files");
-                builder.setMessage (msg.obj.toString ());
+                builder.setTitle ("Error downloading " +
+                        ((dlerror.dcb == null) ? "files" : dlerror.dcb.GetSpaceNameNoRev ()));
+                builder.setMessage (dlerror.msg);
                 builder.setNegativeButton ("Cancel", new DialogInterface.OnClickListener () {
                     public void onClick (DialogInterface dialog, int which)
                     {
@@ -2246,6 +2239,7 @@ public class MaintView
         {
             setName ("MaintView downloader");
 
+            Downloadable curdcb = null;
             Message dlmsg;
 
             try {
@@ -2255,6 +2249,7 @@ public class MaintView
 
                 for (Downloadable dcb : allDownloadables) {
                     if (!dcb.IsChecked ()) continue;
+                    curdcb = dcb;
 
                     /*
                      * Display progress dialog box saying we're starting to download files.
@@ -2281,20 +2276,29 @@ public class MaintView
                      * Uncheck the download checkbox because it is all downloaded.
                      * Also call dcb.DownloadFileComplete() method in GUI thread.
                      */
+                    curdcb = null;
                     dlmsg = maintViewHandler.obtainMessage (MaintViewHandlerWhat_UNCHECKBOX, 1, 0, dcb);
                     maintViewHandler.sendMessage(dlmsg);
                 }
             } catch (Exception e) {
-                Log.e (TAG, "MaintView thread exception", e);
+                Log.e (TAG, "MaintView DownloadThread exception", e);
                 String emsg = e.getMessage ();
                 if (emsg == null) emsg = e.getClass ().toString ();
-                dlmsg = maintViewHandler.obtainMessage (MaintViewHandlerWhat_DLERROR, emsg);
+                DlError dlerror = new DlError ();
+                dlerror.dcb = curdcb;
+                dlerror.msg = emsg;
+                dlmsg = maintViewHandler.obtainMessage (MaintViewHandlerWhat_DLERROR, dlerror);
                 maintViewHandler.sendMessage (dlmsg);
             } finally {
                 maintViewHandler.sendEmptyMessage (MaintViewHandlerWhat_DLCOMPLETE);
                 SQLiteDBs.CloseAll ();
             }
         }
+    }
+
+    private static class DlError {
+        public Downloadable dcb;
+        public String msg;
     }
 
     private void DownloadChartedLimsCSV () throws IOException
