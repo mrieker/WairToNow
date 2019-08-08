@@ -130,7 +130,7 @@
                     }
                     echo "<LI>" . htmlspecialchars ($diffline) . "\n";
                     if (strpos ($diffline, ">") === 0) {
-                        echo "try <TT>decosects/singleapd.sh " . htmlspecialchars (substr ($diffline, 1)) . "</TT>\n";
+                        echo "try <TT>decosects/get_marked_png.sh " . htmlspecialchars (substr ($diffline, 1)) . "</TT>\n";
                     }
                     @flush (); @ob_flush (); @flush ();
                 }

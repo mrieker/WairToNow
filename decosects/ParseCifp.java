@@ -23,7 +23,7 @@
  * IAP waypoint sequence info.
  *
  * cycles28=20170202
- * javac ParseCifp.java
+ * javac ParseCifp.java Waypts.java Lib.java
  * java ParseCifp $cycles28 datums/iapcifps_$cycles28 < FAACIFP18
  *
  * outputs one .csv file per state
@@ -309,7 +309,9 @@ public class ParseCifp {
         {
             // output transition and final and missed segments
             for (Segment seg : segments.values ()) {
+                cur_seg = seg.segid;
                 seg.print (pw);
+                cur_seg = "";
             }
 
             // some IAFs are buried inside transition segments
@@ -375,29 +377,35 @@ public class ParseCifp {
 
         public void print (PrintWriter pw)
         {
-            if (printed == null) {
-                StringBuilder sb = new StringBuilder ();
-                sb.append (approach.airport.icaoid);
-                sb.append (',');
-                sb.append (approach.appid);
-                sb.append (',');
-                sb.append (segid);
-                boolean first = true;
-                for (Leg leg : legs.values ()) {
-                    int startlen = sb.length ();
-                    sb.append (';');
-                    try {
+            try {
+                if (printed == null) {
+                    StringBuilder sb = new StringBuilder ();
+                    sb.append (approach.airport.icaoid);
+                    sb.append (',');
+                    sb.append (approach.appid);
+                    sb.append (',');
+                    sb.append (segid);
+                    boolean first = true;
+                    for (Leg leg : legs.values ()) {
+                        cur_leg = leg.pathterm + " " + leg.legnum;
+                        cur_lin = leg.line;
+                        int startlen = sb.length ();
+                        sb.append (';');
                         leg.print (sb, first);
-                    } catch (BadWayptException bwe) {
-                        System.out.println (approach.airport.icaoid + "." + approach.appid + "." + segid +
-                            ": bad waypoint <" + bwe.wp + ">");
-                        return;
+                        first = false;
+                        cur_leg = "";
+                        cur_lin = "";
                     }
-                    first = false;
+                    printed = sb.toString ();
                 }
-                printed = sb.toString ();
+                pw.println (printed);
+            } catch (Exception e) {
+                System.err.println ("exception <" + cur_sta + "><" + cur_apt + "><" + cur_app + "><" + cur_seg + "><" + cur_leg + ">:");
+                System.err.println (cur_lin);
+                e.printStackTrace ();
+                cur_leg = "";
+                cur_lin = "";
             }
-            pw.println (printed);
         }
 
         // print referenced navaids
@@ -640,6 +648,13 @@ public class ParseCifp {
 
     public static TreeMap<String,State> states = new TreeMap<> ();
 
+    public static String cur_sta = "";
+    public static String cur_apt = "";
+    public static String cur_app = "";
+    public static String cur_seg = "";
+    public static String cur_leg = "";
+    public static String cur_lin = "";
+
     public static void main (String[] args)
     {
         try {
@@ -753,18 +768,23 @@ public class ParseCifp {
                         // but if there is an IAF, is must be CF, FC, HF, HM, PI
                         for (Iterator<Segment> itseg = approach.segments.values ().iterator (); itseg.hasNext ();) {
                             Segment segment = itseg.next ();
-                            for (Leg leg : segment.legs.values ()) {
-                                if (leg.line.charAt (42) == 'A') {
-                                    StringBuilder sb = new StringBuilder ();
-                                    leg.print (sb, false);
-                                    sb.append ("   ");
-                                    String st = sb.toString ().substring (0, 3);
-                                    if (!"CF,FC,HF,HM,PI,".contains (st)) {
-                                        System.out.println (airport.icaoid + "." + approach.appid + "." + segment.segid + ": IAF not CF,FC,HF,HM,PI");
-                                        itseg.remove ();
-                                        break;
+                            try {
+                                for (Leg leg : segment.legs.values ()) {
+                                    if (leg.line.charAt (42) == 'A') {
+                                        StringBuilder sb = new StringBuilder ();
+                                        leg.print (sb, false);
+                                        sb.append ("   ");
+                                        String st = sb.toString ().substring (0, 3);
+                                        if (!"CF,FC,HF,HM,PI,".contains (st)) {
+                                            System.out.println (airport.icaoid + "." + approach.appid + "." + segment.segid + ": IAF not CF,FC,HF,HM,PI");
+                                            itseg.remove ();
+                                            break;
+                                        }
                                     }
                                 }
+                            } catch (BadWayptException bwe) {
+                                System.out.println (airport.icaoid + "." + approach.appid + "." + segment.segid + ": " + bwe.toString ());
+                                itseg.remove ();
                             }
                         }
 
@@ -833,13 +853,18 @@ public class ParseCifp {
 
             // output one .csv file per state
             for (State state : states.values ()) {
+                cur_sta = state.stateid;
                 PrintWriter pw = new PrintWriter (args[1] + "/" + state.stateid + ".csv");
                 for (Airport airport : state.airports.values ()) {
+                    cur_apt = airport.icaoid;
                     for (Approach approach : airport.approaches.values ()) {
+                        cur_app = approach.appid;
 
                         // output one line per approach segment (transitions, final, missed)
                         approach.print (pw);
+                        cur_app = "";
                     }
+                    cur_apt = "";
                 }
                 pw.close ();
             }

@@ -100,6 +100,11 @@ function purgedatum
             rm -rf "$file"
             continue
         fi
+        if [ "${file:0:20}" == "datums/obstructions_" ]
+        then
+            rm -rf "$file"
+            continue
+        fi
         if [ "${file:0:14}" == "datums/runways" ]
         then
             rm -rf "$file"

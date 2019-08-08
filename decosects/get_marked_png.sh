@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-#  Get marked-up airprot diagram png (debugging only)
+#  Get marked-up airport diagram png (debugging only)
 #
 #   $1 = FAAID
 #

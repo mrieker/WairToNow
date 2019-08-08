@@ -451,6 +451,7 @@ public class ReadArptDgmPng {
         badStrings["KHDC:90^25.0'N"]  = "90^25.0'W";
         badStrings["KHDC:90^25.5'N"]  = "90^25.5'W";
         badStrings["KHRT:86^41W"]     = "86^41'W";
+        badStrings["KLHW:11^54'N"]    = "31^54'N";
         badStrings["KLNS:40^07.0'W"]  = "40^07.0'N";
         badStrings["KLNS:40^07.5'W"]  = "40^07.5'N";
         badStrings["KLXT:38^58.0N"]   = "38^58.0'N";
@@ -494,6 +495,7 @@ public class ReadArptDgmPng {
          * Value is our computed non-square ratio.
          */
         notsquare["KHLR"] = 1.094;
+        notsquare["KMIA"] = 0.843;
         notsquare["KNYG"] = 0.664;
         notsquare["PADQ"] = 0.944;
 
