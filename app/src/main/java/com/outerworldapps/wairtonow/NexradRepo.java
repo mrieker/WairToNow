@@ -20,6 +20,7 @@
 
 package com.outerworldapps.wairtonow;
 
+import android.support.annotation.NonNull;
 import android.util.SparseArray;
 
 import java.util.Iterator;
@@ -67,6 +68,7 @@ public class NexradRepo implements Iterable<NexradImage> {
      * Iterate through the list from oldest image to newest one.
      * ** CALLER MUST HAVE the repo LOCKED **
      */
+    @NonNull
     public Iterator<NexradImage> iterator ()
     {
         return new MyIterator ();

@@ -245,6 +245,7 @@ public class PixelMapper {
      * @param canpix = where to return resultant canvas x,y
      * @return true iff lat/lon is on display
      */
+    @SuppressWarnings("UnusedReturnValue")
     public boolean LatLon2CanPixAprox (double lat, double lon, PointD canpix)
     {
         lon = Lib.NormalLon (lon);

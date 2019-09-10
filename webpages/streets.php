@@ -24,9 +24,14 @@
      *        streets.php?tile=zoom/x/y.png
      */
 
+    $datadir = "../webdata/streets";
+
+    writelog ("ip=" . $_SERVER["REMOTE_ADDR"] . " uri=" . $_SERVER["REQUEST_URI"]);
+
     // single download
     if (isset ($_REQUEST['tile'])) {
         $tile = $_REQUEST['tile'];
+        writelog ("tile=$tile");
         $newpath = download ($tile);
         header ('Content-Type: image/png');
         readfile ($newpath);
@@ -34,19 +39,28 @@
     }
 
     // bulk download
+    ob_start (NULL, 4000);
     for ($i = 1; isset ($_REQUEST["tile_$i"]); $i ++) {
         $tile = $_REQUEST["tile_$i"];
-        $newpath = download ($tile);
-        $size = filesize ($newpath);
+        writelog ("tile_$i=$tile");
+        $path = download ($tile);
+        $size = filesize ($path);
+        writelog ("$path - sending $size");
         echo "@@tile=$tile\n";
         echo "@@size=$size\n";
-        readfile ($newpath);
+        $sent = readfile ($path);
+        if ($sent != $size) writelog ("$path - only sent $sent", TRUE);
         echo "@@eof\n";
+        writelog ("$path - send complete");
     }
     echo "@@done\n";
+    ob_end_flush ();
+    exit;
 
     function download ($tile)
     {
+        global $datadir;
+
         if (strpos ($tile, "..") !== FALSE) return FALSE;
 
         $parts = explode ('/', $tile);
@@ -54,21 +68,18 @@
         $z = intval ($parts[0]);
         if (($z < 0) || ($z > 17)) die ("bad zoom level $z");
 
-        $lock = fopen ("streets/lock.file", "c");
-        if (!$lock) die ("error opening lock file");
-        if (!flock ($lock, LOCK_EX)) die ("error locking lock file");
-
         // see if we already have the file
         // also re-download if file is a year old
-        $newpath = "streets/$tile";
+        $newpath = "$datadir/$tile";
+        writelog ("newpath=$newpath");
         if (!file_exists ($newpath) || (filemtime ($newpath) < time () - 60*60*24*365)) {
 
             // if not, pick a tile server at random
             // http://wiki.openstreetmap.org/wiki/Slippy_map_tilenames
             $servers = array (
-                'http://a.tile.openstreetmap.org',
-                'http://b.tile.openstreetmap.org',
-                'http://c.tile.openstreetmap.org',
+                'a.tile.openstreetmap.org',
+                'b.tile.openstreetmap.org',
+                'c.tile.openstreetmap.org',
                 //'http://a.tile.opencyclemap.org/cycle',
                 //'http://b.tile.opencyclemap.org/cycle',
                 //'http://c.tile.opencyclemap.org/cycle',
@@ -78,35 +89,105 @@
                 //'http://otile4.mqcdn.com/tiles/1.0.0/osm',
             );
             $i = rand (0, count ($servers) - 1);
-            $server = $servers[$i];
 
-            // try to open the url for downloading
-            $ifile = fopen ("$server/$tile", 'rb');
-            if ($ifile) {
+            $hostname = $servers[$i];
+            $location = "/$tile";
 
-                // create its directory
-                $i = strrpos ($newpath, '/');
-                $dirpath = substr ($newpath, 0, $i);
-                if (!file_exists ($dirpath)) {
-                    mkdir ($dirpath, 0777, true);
+            // download the tile into temp file
+            $timeout = 45;
+            writelog ("hostname=$hostname location=$location - connecting");
+            $tempath = "$newpath.tmp";
+            $fp = fsockopen ($hostname, 80, $errno, $errstr, $timeout);
+            if (!$fp) {
+                writelog ("hostname=$hostname connect error $errstr", TRUE);
+            }
+            stream_set_timeout ($fp, $timeout);
+            fwrite ($fp, "GET $location HTTP/1.1\r\n");
+            fwrite ($fp, "Host: $hostname\r\n");
+            fwrite ($fp, "\r\n");
+
+            $status = fgets ($fp);
+            $status = trim ($status);
+            if (strpos ($status, "HTTP/1.1 200") !== 0) {
+                fclose ($fp);
+                writelog ("- status=$status", TRUE);
+            }
+
+            $contentlength = FALSE;
+            while (TRUE) {
+                $line = fgets ($fp);
+                if (!$line) {
+                    fclose ($fp);
+                    writelog ("- error/timeout reading headers", TRUE);
                 }
-
-                // copy to a temporary file
-                $tmppath = "$newpath.tmp";
-                $ofile = fopen ($tmppath, 'wb');
-                if (!$ofile) die ("error creating temp file");
-                while (!feof ($ifile)) {
-                    fwrite ($ofile, fread ($ifile, 8192));
+                $line = strtolower (trim ($line));
+                if ($line == "") break;
+                writelog ("header=$line");
+                if (strpos ($line, "content-length:") === 0) {
+                    $contentlength = intval (trim (substr ($line, 15)));
                 }
-                fclose ($ifile);
-                fclose ($ofile);
+            }
+            if (!$contentlength) {
+                fclose ($fp);
+                writelog ("- missing content-length", TRUE);
+            }
 
-                // all downloaded, rename to permanent file
-                rename ($tmppath, $newpath);
+            makedirectories ($tempath);
+            $of = fopen ($tempath, "w");
+            if (!$of) {
+                fclose ($fp);
+                writelog ("- error creating $tempath", TRUE);
+            }
+            writelog ("hostname=$hostname location=$location - receiving $contentlength");
+            for ($i = 0; $i < $contentlength; $i += $rc) {
+                $buff = fread ($fp, $contentlength - $i);
+                if ($buff === FALSE) {
+                    fclose ($fp);
+                    writelog ("hostname=$hostname location=$location read error at $i", TRUE);
+                }
+                $rc = strlen ($buff);
+                if ($rc == 0) {
+                    fclose ($fp);
+                    writelog ("hostname=$hostname location=$location received null buffer at $i", TRUE);
+                }
+                fwrite ($of, $buff);
+            }
+            fclose ($fp);
+            fclose ($of);
+
+            rename ($tempath, $newpath);
+            writelog ("newpath=$newpath - success");
+        }
+        return $newpath;
+    }
+
+    // given a/b/c/d, make sure directories a/, a/b/, a/b/c/ exist
+    function makedirectories ($file)
+    {
+        $parts = explode ("/", $file);
+        $n = count ($parts);
+        $path  = "";
+        for ($i = 0; $i < $n - 1; $i ++) {
+            $path .= $parts[$i] . "/";
+            if (!file_exists ($path)) {
+                writelog ("mkdir $path");
+                mkdir ($path);
             }
         }
-        flock ($lock, LOCK_UN);
-        fclose ($lock);
-        return $newpath;
+    }
+
+    function writelog ($msg, $die = FALSE)
+    {
+        global $datadir;
+
+        date_default_timezone_set ("UTC");
+        $pid = getmypid ();
+        $now = date ("Y-m-d@H:i:s");
+        $split = explode ("@", $now);
+        file_put_contents ("$datadir/streets.log." . $split[0], $split[1] . " $pid $die $msg\n", FILE_APPEND);
+        if ($die) {
+            ob_end_flush ();
+            die ("@@error=$msg\n");
+        }
     }
 ?>

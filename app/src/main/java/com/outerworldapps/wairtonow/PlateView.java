@@ -1170,11 +1170,15 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
     /**
      * Get default (not zoomed or panned) runway diagram mapping of OpenStreetMap tiles.
      */
-    public static PixelMapper GetRWYPlateImageDefaultOSMMapping (Waypoint.Airport apt, WairToNow wairToNow)
+    public static PixelMapper GetRWYPlateImageDefaultOSMMapping (Waypoint.Airport apt, WairToNow wairToNow, boolean landscape)
     {
         PlateView pv = new PlateView (wairToNow, null, apt, "RWY-RUNWAY", 99999999, false);
         int width  = wairToNow.displayWidth;
         int height = wairToNow.displayHeight;
+        int lower  = width < height ? width : height;
+        int higher = width ^ height ^ lower;
+        width  = landscape ? higher : lower;
+        height = landscape ? lower : higher;
         ((RWYPlateImage) pv.plateImage).CalcOSMBackground (width, height);
         return ((RWYPlateImage) pv.plateImage).pmap;
     }

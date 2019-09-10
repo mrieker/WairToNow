@@ -624,14 +624,16 @@ public class OpenStreetMap {
                                     Log.i (TAG, "preloading runway diagram background for " + apt.ident);
 
                                     // get mapping of the runway to the default canvas size
-                                    PixelMapper pmap = PlateView.GetRWYPlateImageDefaultOSMMapping (apt, wairToNow);
+                                    PixelMapper pmapland = PlateView.GetRWYPlateImageDefaultOSMMapping (apt, wairToNow, true);
+                                    PixelMapper pmapport = PlateView.GetRWYPlateImageDefaultOSMMapping (apt, wairToNow, false);
 
                                     // gather the tiles needed into a bulk download request
                                     bulkDownloads.clear ();
-                                    rwyPrefecthTileDrawer.DrawTiles (wairToNow, pmap);
+                                    rwyPrefecthTileDrawer.DrawTiles (wairToNow, pmapland);
+                                    rwyPrefecthTileDrawer.DrawTiles (wairToNow, pmapport);
 
                                     // if successfully downloaded all the tiles, mark that airport as complete
-                                    if (FetchTiles ()) {
+                                    if (FetchTiles (apt.ident)) {
                                         sqldb.execSQL ("DELETE FROM rwypreloads WHERE rp_faaid='" + faaid + "'");
                                         if (wairToNow.maintView != null) {
                                             wairToNow.maintView.UpdateRunwayDiagramDownloadStatus ();
@@ -675,7 +677,7 @@ public class OpenStreetMap {
         /**
          * Try to fetch the bulkDownload files.
          */
-        private boolean FetchTiles ()
+        private boolean FetchTiles (String ident)
         {
             StringBuilder q = new StringBuilder ();
             int n = 0;
@@ -702,8 +704,9 @@ public class OpenStreetMap {
             }
 
             if (n > 0) {
+                String tilename = null;
                 try {
-                    URL url = new URL (MaintView.dldir + "/streets.php");
+                    URL url = new URL (MaintView.dldir + "/streets.php/" + ident);
                     HttpURLConnection httpCon = (HttpURLConnection)url.openConnection ();
                     try {
                         byte[] qbytes = q.toString ().getBytes ();
@@ -726,7 +729,7 @@ public class OpenStreetMap {
                             String sizetag  = Lib.ReadStreamLine (is);
                             if (!tiletag.startsWith ("@@tile=")) throw new IOException ("bad download tile tag " + tiletag);
                             if (!sizetag.startsWith ("@@size=")) throw new IOException ("bad download size tag " + sizetag);
-                            String tilename = tiletag.substring (7);
+                            tilename = tiletag.substring (7);
                             String permname = WairToNow.dbdir + "/streets/" + tilename;
                             String tempname = permname + ".tmp";
                             int bytelen;
@@ -740,12 +743,13 @@ public class OpenStreetMap {
                             if (!eoftag.equals ("@@eof")) throw new IOException ("bad end-of-file tag " + eoftag);
                             Lib.RenameFile (tempname, permname);
                             bulkDownloads.remove (tilename);
+                            tilename = null;
                         }
                     } finally {
                         httpCon.disconnect ();
                     }
                 } catch (Exception e) {
-                    Log.e (TAG, "error downloading tiles: " + e.getMessage (), e);
+                    Log.e (TAG, "error downloading tiles" + ((tilename == null) ? "" : (" (" + tilename + ")")), e);
                     try { Thread.sleep (TILE_RETRY_MS); } catch (InterruptedException ie) { Lib.Ignored (); }
                     return false;
                 }

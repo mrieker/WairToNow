@@ -25,6 +25,7 @@ import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.hardware.GeomagneticField;
+import android.support.annotation.NonNull;
 import android.util.Log;
 
 import java.io.File;
@@ -1097,15 +1098,25 @@ public class Lib {
      */
     public static String ValToString (int val, int dpt)
     {
-        String str = Integer.toString (val);
+        if (val == 0) return "0";  // happens a lot
+        StringBuilder sb = new StringBuilder (12);
+        sb.append (val);
         if (dpt > 0) {
-            while (str.length () <= dpt) str = "0" + str;
-            int len = str.length ();
-            str = str.substring (0, len - dpt) + "." + str.substring (len - dpt);
-            while (str.charAt (str.length () - 1) == '0') str = str.substring (0, str.length () -1);
-            if (str.charAt (str.length () - 1) == '.') str = str.substring (0, str.length () - 1);
+            int neg = (val < 0) ? 1 : 0;
+            int len = sb.length ();
+            while (len - neg <= dpt) {
+                sb.insert (neg, '0');
+                len ++;
+            }
+            sb.insert (len - dpt, '.');
+            while (sb.charAt (len) == '0') {
+                sb.deleteCharAt (len --);
+            }
+            if (sb.charAt (len) == '.') {
+                sb.deleteCharAt (len);
+            }
         }
-        return str;
+        return sb.toString ();
     }
 
     /**
@@ -1189,12 +1200,12 @@ public class Lib {
             throws IOException
     {
         int c;
-        String s = "";
+        StringBuilder s = new StringBuilder ();
         while ((c = is.read ()) != '\n') {
             if (c < 0) throw new IOException ("EOF reading stream");
-            s += (char)c;
+            s.append ((char) c);
         }
-        return s;
+        return s.toString ();
     }
 
     /**
@@ -1297,6 +1308,22 @@ public class Lib {
                 Log.w ("WairToNow", "exception dismissing dialog", e);
             }
         }
+    }
+
+    /**
+     * Convert a byte array to hexadecimal string.
+     */
+    private final static String hexbytes = "0123456789abcdef";
+    public static @NonNull String bytesToHex (@NonNull byte[] bytes)
+    {
+        int len = bytes.length;
+        char[] hex = new char[len*2];
+        for (int i = 0; i < len; i ++) {
+            byte b = bytes[i];
+            hex[i*2] = hexbytes.charAt ((b >> 4) & 15);
+            hex[i*2+1] = hexbytes.charAt (b & 15);
+        }
+        return new String (hex);
     }
 
     /**

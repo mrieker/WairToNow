@@ -68,6 +68,8 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Calendar;
 import java.util.Enumeration;
 import java.util.GregorianCalendar;
@@ -539,10 +541,8 @@ public class MaintView
         for (Downloadable dcb : allDownloadables) {
             int enddate = dcb.GetEndDate ();
             int textColor = DownloadLinkColor (enddate);
-            dcb.UpdateSingleLinkText (textColor,
-                    (enddate == 0) ? "not downloaded" :
-                            (enddate == INDEFINITE) ? "valid indefinitely" :
-                                    ("valid to " + enddate));
+            String textString = DownloadLinkText (enddate);
+            dcb.UpdateSingleLinkText (textColor, textString);
         }
 
         // update category button color
@@ -673,7 +673,12 @@ public class MaintView
                 } else {
                     dcb.RemovedDownloadedChart ();
                 }
+
                 dcb.UncheckBox ();
+                int enddate = dcb.GetEndDate ();
+                int textColor = DownloadLinkColor (enddate);
+                String textString = DownloadLinkText (enddate);
+                dcb.UpdateSingleLinkText (textColor, textString);
                 break;
             }
 
@@ -909,6 +914,12 @@ public class MaintView
         if (enddate < deaddate) return Color.RED;
         if (enddate < warndate) return Color.YELLOW;
         return Color.GREEN;
+    }
+    public static String DownloadLinkText (int enddate)
+    {
+        return (enddate == 0) ? "not downloaded" :
+               (enddate == INDEFINITE) ? "valid indefinitely" :
+               ("valid to " + enddate);
     }
 
     /**
@@ -1838,7 +1849,7 @@ public class MaintView
                                     values.put ("rp_faaid", result.getString (0));
                                     values.put ("rp_state", statecode);
                                     values.put ("rp_lastry", 0);
-                                    sqldb.insertWithOnConflict ("rwypreloads", null, values, SQLiteDatabase.CONFLICT_IGNORE);
+                                    sqldb.insertWithOnConflict ("rwypreloads", values, SQLiteDatabase.CONFLICT_IGNORE);
 
                                     if (++ numAdded == 256) {
                                         sqldb.yieldIfContendedSafely ();
@@ -1861,7 +1872,7 @@ public class MaintView
                     values.put ("pl_faaid",    cols[0]);  // eg, "BVY"
                     values.put ("pl_descrip",  cols[1]);  // eg, "IAP-LOC RWY 16"
                     values.put ("pl_filename", cols[2]);  // eg, "gif_150/050/39r16.gif"
-                    sqldb.insertWithOnConflict ("plates", null, values, SQLiteDatabase.CONFLICT_IGNORE);
+                    sqldb.insertWithOnConflict ("plates", values, SQLiteDatabase.CONFLICT_IGNORE);
 
                     if (++ numAdded == 256) {
                         sqldb.yieldIfContendedSafely ();
@@ -1914,7 +1925,7 @@ public class MaintView
                     values.put ("gr_wftd", Double.parseDouble (cols[10]));
                     values.put ("gr_wfte", Double.parseDouble (cols[11]));
                     values.put ("gr_wftf", Double.parseDouble (cols[12]));
-                    sqldb.insertWithOnConflict ("apdgeorefs", null, values, SQLiteDatabase.CONFLICT_IGNORE);
+                    sqldb.insertWithOnConflict ("apdgeorefs", values, SQLiteDatabase.CONFLICT_IGNORE);
 
                     if (++ numAdded == 256) {
                         sqldb.yieldIfContendedSafely ();
@@ -1976,7 +1987,7 @@ public class MaintView
                     values.put ("cp_appid",  appid);      // eg, "L16"
                     values.put ("cp_segid",  segid);      // eg, "~f~"
                     values.put ("cp_legs",   legs);
-                    sqldb.insertWithOnConflict ("iapcifps", null, values, SQLiteDatabase.CONFLICT_IGNORE);
+                    sqldb.insertWithOnConflict ("iapcifps", values, SQLiteDatabase.CONFLICT_IGNORE);
 
                     // if we have added a handful, flush them out
                     if (++ numAdded == 256) {
@@ -2032,7 +2043,7 @@ public class MaintView
                     values.put ("gr_tfwd",   Double.parseDouble (cols[11]));
                     values.put ("gr_tfwe",   Double.parseDouble (cols[12]));
                     values.put ("gr_tfwf",   Double.parseDouble (cols[13]));
-                    sqldb.insertWithOnConflict ("iapgeorefs2", null, values, SQLiteDatabase.CONFLICT_IGNORE);
+                    sqldb.insertWithOnConflict ("iapgeorefs2", values, SQLiteDatabase.CONFLICT_IGNORE);
 
                     // if we have added a handful, flush them out
                     if (++ numAdded == 256) {
@@ -2389,16 +2400,29 @@ public class MaintView
                 throw new IOException ("download cancelled");
             }
             long skip = tempfile.length ();
-            URL url = new URL (dldir + "/bulkdownload.php?h0=sum&f0=" + servername + "&s0=" + skip);
+            URL url = new URL (dldir + "/bulkdownload.php?h0=md5&f0=" + servername + "&s0=" + skip);
             try {
                 HttpURLConnection httpCon = (HttpURLConnection)url.openConnection ();
                 try {
-                    SumThread sumThread = null;
+                    byte[] buf = new byte[32768];
+                    MessageDigest digest;
+                    try {
+                        digest = MessageDigest.getInstance ("MD5");
+                    } catch (NoSuchAlgorithmException e) {
+                        throw new RuntimeException (e);
+                    }
                     if (skip > 0) {
-                        sumThread = new SumThread ();
-                        sumThread.tempfile = tempfile;
-                        sumThread.skip = skip;
-                        sumThread.start ();
+                        FileInputStream fis = new FileInputStream (tempfile);
+                        long ofs = 0;
+                        while (ofs < skip) {
+                            int amount = buf.length;
+                            if (amount > skip - ofs) amount = (int) (skip - ofs);
+                            int rc = fis.read (buf, 0, amount);
+                            if (rc != amount) throw new IOException ("only read " + rc + " of " + amount);
+                            ofs += rc;
+                            digest.update (buf, 0, rc);
+                        }
+                        fis.close ();
                     }
 
                     // tell server what file to send us
@@ -2427,10 +2451,8 @@ public class MaintView
                     }
                     long size = Long.parseLong (sizeLine.substring (7));
 
-                    // start downloading the rest of the file and sum as we go along
-                    long serversum;
-                    long localsum = 0;
-                    byte[] buf = new byte[32768];
+                    // start downloading the rest of the file and hash as we go along
+                    String servermd5;
                     Lib.Ignored (tempfile.getParentFile ().mkdirs ());
                     FileOutputStream outputStream = new FileOutputStream (tempfile, true);
                     try {
@@ -2459,36 +2481,26 @@ public class MaintView
                             }
 
                             // update sum
-                            for (int i = 0; i < rc; i ++) {
-                                localsum += buf[i] & 0xFF;
-                            }
+                            digest.update (buf, 0, rc);
                         }
 
                         // there should be an @@sum exactly here
                         // giving us what the server has for the whole file
                         String sumLine = Lib.ReadStreamLine (inputStream);
-                        if (!sumLine.startsWith ("@@sum=")) {
+                        if (!sumLine.startsWith ("@@md5=")) {
                             Lib.Ignored (tempfile.delete ());
-                            throw new IOException ("bad @@sum " + sumLine);
+                            throw new IOException ("bad @@md5 " + sumLine);
                         }
-                        serversum = Long.parseLong (sumLine.substring (6));
+                        servermd5 = sumLine.substring (6);
                     } finally {
                         outputStream.close ();
                     }
 
                     // make sure the two sums match
-                    if (sumThread != null) {
-                        try {
-                            sumThread.join ();
-                        } catch (InterruptedException ie) {
-                            Lib.Ignored ();
-                        }
-                        if (sumThread.error != null) throw sumThread.error;
-                        localsum += sumThread.localsum;
-                    }
-                    if (localsum != serversum) {
+                    String localmd5 = Lib.bytesToHex (digest.digest ());
+                    if (!localmd5.equals (servermd5)) {
                         Lib.Ignored (tempfile.delete ());
-                        throw new IOException ("sum mismatch");
+                        throw new IOException ("md5 mismatch");
                     }
 
                     // have complete verified file, rename to permanent name
@@ -2502,43 +2514,6 @@ public class MaintView
             } catch (IOException ioe) {
                 if (++ retry > 3) throw ioe;
                 Log.i (TAG, "retrying download of " + servername, ioe);
-            }
-        }
-    }
-
-    /**
-     * Compute checksum of a file.
-     */
-    private class SumThread extends Thread {
-        public File tempfile;       // file to compute checksum of
-        public IOException error;   // null if success, else IO exception
-        public long localsum;       // resultant checksum
-        public long skip;           // number of bytes in file to process
-
-        @Override
-        public void run ()
-        {
-            try {
-                FileInputStream fis = new FileInputStream (tempfile);
-                try {
-                    byte[] buf = new byte[32768];
-                    int rc;
-                    long sum = 0;
-                    for (long offs = 0; offs < skip; offs += rc) {
-                        long len = skip - offs;
-                        if (len > buf.length) len = buf.length;
-                        rc = fis.read (buf, 0, (int) len);
-                        if (rc <= 0) throw new EOFException ("EOF reading file");
-                        for (int i = 0; i < rc; i ++) {
-                            sum += buf[i] & 0xFF;
-                        }
-                    }
-                    localsum = sum;
-                } finally {
-                    fis.close ();
-                }
-            } catch (IOException ioe) {
-                error = ioe;
             }
         }
     }

@@ -68,6 +68,7 @@
      *  Then after all files:
      *    @@done\n
      */
+    ob_start (NULL, 4000);
     $n = 0;
     while (isset ($_REQUEST["f$n"])) {
 
@@ -92,7 +93,9 @@
         echo "@@name=$name\n";
         if ($skip > 0) echo "@@skip=$skip\n";
         $size = filesize ($name);
+        if ($size === FALSE) die ("file $name not found\n");
         echo "@@size=$size\n";
+        ob_end_flush ();
 
         // send file contents
         if (($skip > 0) || ($size > 1024 * 1024)) {
@@ -116,6 +119,7 @@
         }
 
         // wait for hash
+        ob_start (NULL, 4000);
         if ($hash) {
             echo fgets ($hashpipe);
             pclose ($hashpipe);
@@ -127,4 +131,5 @@
         $n ++;
     }
     echo "@@done\n";
+    ob_end_flush ();
 ?>

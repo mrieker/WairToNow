@@ -338,7 +338,7 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
             SharedPreferences prefs = wairToNow.getPreferences (Activity.MODE_PRIVATE);
             SharedPreferences.Editor editr = prefs.edit ();
             editr.putInt ("crumbPlaybackSpeed", rtplayback);
-            editr.commit ();
+            editr.apply ();
 
             // set button blue meaning this is a playback
             setTextColor (Color.BLUE);

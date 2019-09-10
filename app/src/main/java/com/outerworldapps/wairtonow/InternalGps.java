@@ -196,7 +196,7 @@ public class InternalGps extends GpsAdsbReceiver implements GpsStatus.Listener, 
         SharedPreferences prefs = wairToNow.getPreferences (Context.MODE_PRIVATE);
         SharedPreferences.Editor editr = prefs.edit ();
         editr.putBoolean ("selectedGPSReceiverKey_" + getPrefKey (), selected);
-        editr.commit ();
+        editr.apply ();
 
         /*
          * Start or stop the sensor likewise.

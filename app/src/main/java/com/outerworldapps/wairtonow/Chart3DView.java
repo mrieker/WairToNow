@@ -196,6 +196,7 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
     /**
      * Handle mouse touches for panning and zooming.
      */
+    @SuppressLint("ClickableViewAccessibility")
     @Override  // GLSurfaceView
     public boolean onTouchEvent (MotionEvent event)
     {
@@ -556,6 +557,7 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
             return handle;
         }
 
+        @SuppressWarnings("SameParameterValue")
         private int getUnifLoc (String attrname)
         {
             int handle = GLES20.glGetUniformLocation (mProgramHandle, attrname);
@@ -1035,6 +1037,7 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
          * @param xy  = where to put the resultant XY
          * @return true iff pixel is visible
          */
+        @SuppressWarnings("UnusedReturnValue")
         private boolean LatLon2PixelXY (double lat, double lon, PointD xy)
         {
             int alt = Topography.getElevMetres (lat, lon);

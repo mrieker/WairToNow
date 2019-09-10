@@ -249,6 +249,7 @@ public class AltimeterView extends View implements WairToNow.CanBeMainView {
         invalidate ();
     }
 
+    @SuppressWarnings("SameParameterValue")
     public void setGPSAltitude (double altitude)
     {
         gpsaltft  = altitude * Lib.FtPerM;

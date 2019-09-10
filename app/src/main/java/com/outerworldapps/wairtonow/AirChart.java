@@ -204,7 +204,7 @@ public abstract class AirChart implements DisplayableChart {
      * Get entry for chart selection menu.
      * This is called whether or not the chart is downloaded.
      */
-    @SuppressLint("SetTextI18n")
+    @SuppressLint({ "SetTextI18n", "RtlHardcoded" })
     @Override  // DisplayableChart
     public View GetMenuSelector (@NonNull ChartView chartView)
     {

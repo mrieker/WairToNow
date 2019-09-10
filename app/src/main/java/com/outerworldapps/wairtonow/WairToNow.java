@@ -844,7 +844,7 @@ public class WairToNow extends Activity {
         SharedPreferences prefs = getPreferences (MODE_PRIVATE);
         SharedPreferences.Editor editr = prefs.edit ();
         editr.putBoolean ("tabVisibility", vis);
-        editr.commit ();
+        editr.apply ();
 
         // rebuild screen contents with/without button row
         SetCurrentView ();
@@ -1250,7 +1250,7 @@ public class WairToNow extends Activity {
         editr.putFloat ("lastKnownLon", (float) currentGPSLon);
         editr.putFloat ("lastKnownSpd", (float) currentGPSSpd);
         editr.putLong ("lastKnownTime", currentGPSTime);
-        editr.commit ();
+        editr.apply ();
     }
 
     /**

@@ -410,7 +410,7 @@ public class PlateDME {
                             values.put ("dc_plate", plateid);
                             values.put ("dc_dmeid", wp.ident);
                             values.put ("dc_checked", DMECB_DIST);
-                            sqldb.insertWithOnConflict ("dmecheckboxes", null, values, SQLiteDatabase.CONFLICT_REPLACE);
+                            sqldb.insertWithOnConflict ("dmecheckboxes", values, SQLiteDatabase.CONFLICT_REPLACE);
 
                             dmeShowing = true;
                         }

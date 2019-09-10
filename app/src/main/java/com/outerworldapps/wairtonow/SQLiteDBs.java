@@ -211,6 +211,7 @@ public class SQLiteDBs {
     /**
      * See if the given column exists within the given table of the database.
      */
+    @SuppressWarnings("SameParameterValue")
     public boolean columnExists (String table, String column)
     {
         dblock.lock ();
@@ -294,11 +295,12 @@ public class SQLiteDBs {
         }
     }
 
-    public long insertWithOnConflict (String table, String dummy1, ContentValues values, int conflict)
+    @SuppressWarnings("UnusedReturnValue")
+    public long insertWithOnConflict (String table, ContentValues values, int conflict)
     {
         dblock.lock ();
         try {
-            return tlsqldb.get ().insertWithOnConflict (table, dummy1, values, conflict);
+            return tlsqldb.get ().insertWithOnConflict (table, null, values, conflict);
         } finally {
             dblock.unlock ();
         }
