@@ -597,7 +597,7 @@ public class ReadArptDgmPng {
          * Find sloped line segments with tick marks.
          * Try various sizes as the tick mark must fit completely inside the box.
          */
-        for (slopesz = 24; slopesz <= 38; slopesz += 2) {
+        for (slopesz = 24; slopesz <= 44; slopesz += 2) {
             FindSegments ();
         }
 

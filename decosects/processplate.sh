@@ -69,8 +69,6 @@ then
 fi
 
 dir=datums/aptplates_$expdate       ## datums/aptplates_20190103
-statedir=$dir/state                 ## datums/aptplates_20190103/state
-statecsv=$dir/state/$statecode.csv  ## datums/aptplates_20190103/state/MA.csv
 pdfdir=$dir/pdftemp                 ## datums/aptplates_20190103/pdftemp
 pngdir=$dir/pngtemp                 ## datums/aptplates_20190103/pngtemp
 gifdir=$dir/gif_150                 ## datums/aptplates_20190103/gif_150
@@ -91,7 +89,7 @@ case $chartcode in
     ##  STAR- standard approach routes
     APD|DP|IAP|MIN|ODP|STAR)
 
-        pdftemp=$dir/pdftemp/$pdfbase
+        pdftemp=$pdfdir/$pdfbase
 
         pngtemp=$pngdir/${pdfsplit/[.]PDF/.png}
 

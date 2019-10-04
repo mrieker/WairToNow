@@ -80,7 +80,7 @@ then
 fi
 
 export CLASSPATH=ProcessPlates.jar
-java ProcessPlates $nt datums/aptplates_$expdate/pdftemp/d-TPP_Metafile.xml
+java ProcessPlates $nt datums/aptplates_$expdate/pdftemp/d-TPP_Metafile.xml datums/airports_$expdate.csv
 
 # concat all the aptplates.tmp/*.* files
 

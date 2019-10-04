@@ -25,4 +25,4 @@ pngname=datums/aptplates_$cycles28/pngtemp/$gifname.png.p1
 echo pngname=$pngname
 
 mono --debug ReadArptDgmPng.exe -stages -verbose -csvoutfile $faaid.csv -csvoutid $icaoid -markedpng ${faaid}_marked.png $pngname
-ls -l ${faaid}_marked.png
+ls -l $faaid.csv ${faaid}_marked.png
