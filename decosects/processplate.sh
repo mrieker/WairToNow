@@ -118,7 +118,7 @@ case $chartcode in
             then
                 contpage=1
 
-                ## Found primary page GIF file name, eg, gif_150/050/39beverly_c.gif
+                ## Found primary page GIF file name, eg, 050/39beverly_c.gif
                 primary_gifbase=${primary_gifbase##*,}
 
                 ## Convert the single PNG file to single GIF file
@@ -128,8 +128,7 @@ case $chartcode in
                 pagenum=$((contnum+1))
 
                 ## See if we already have corresponding continuation page GIF file
-                gifbasepn=$primary_gifbase.p$pagenum
-                gifpermpn=$dir/$gifbasepn
+                gifpermpn=$gifdir/$primary_gifbase.p$pagenum
                 if [ ! -f $gifpermpn ]
                 then
                     convert -alpha Remove $pngtemp.p1 $gifpermpn.$streamid.gif
@@ -144,8 +143,8 @@ case $chartcode in
             ## Not a continuation page
             ## Maybe we already have the corresponding GIF file(s)
             ## If not, convert from the PNG file(s)
-            gifbase=gif_150/${pdfsplit/[.]PDF/.gif}
-            gifperm=$dir/$gifbase
+            gifname=${pdfsplit/[.]PDF/.gif}
+            gifperm=$dir/gif_150/$gifname
             if [ ! -f $gifperm.p1 ]
             then
                 mkdir -p `dirname $gifperm`
@@ -155,7 +154,7 @@ case $chartcode in
             ## Set up the .csv line: FAAID,TYPE-TITLE,GIFFILE
             if [ -f $gifperm.p1 ]
             then
-                echo $faaid,"\"$chartcode-$chartname\"",$gifbase >> aptplates.tmp/$statecode.$streamid
+                echo $faaid,"\"$chartcode-$chartname\"",$gifname >> aptplates.tmp/$statecode.$streamid
             fi
         fi
     ;;

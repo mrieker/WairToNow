@@ -126,6 +126,7 @@ public class MaintView
     private UnloadButton unloadButton;
     private UnloadThread unloadThread;
     public  WairToNow wairToNow;
+    public  Waypoint.Airport downloadingRunwayDiagram;
     private WaypointsCheckBox waypointsCheckBox;
 
     private static final int MaintViewHandlerWhat_OPENDLPROG   = 0;
@@ -804,8 +805,23 @@ public class MaintView
                         runwayDiagramDownloadStatus.setText ("");
                         runwayDiagramDownloadStatus.setVisibility (GONE);
                     } else {
-                        String s = (n == 1) ? "" : "s";
-                        runwayDiagramDownloadStatus.setText ("  " + n + " remaining runway diagram background" + s + " to download");
+                        StringBuilder sb = new StringBuilder ();
+                        sb.append ("  ");
+                        sb.append (n);
+                        sb.append (" remaining runway diagram background");
+                        if (n != 1) sb.append ('s');
+                        sb.append (" to download");
+                        Waypoint.Airport aptwp = downloadingRunwayDiagram;
+                        if (aptwp != null) {
+                            sb.append (" (");
+                            sb.append (aptwp.faaident);
+                            if (! aptwp.ident.equals (aptwp.faaident)) {
+                                sb.append ('/');
+                                sb.append (aptwp.ident);
+                            }
+                            sb.append (')');
+                        }
+                        runwayDiagramDownloadStatus.setText (sb);
                         runwayDiagramDownloadStatus.setVisibility (VISIBLE);
                     }
                 } finally {

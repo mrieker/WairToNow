@@ -383,6 +383,7 @@ public class TopDecoder {
      * @param skip = first byte of 6-byte lat/lon field
      * @return floatingpoint degrees latitude
      */
+    @SuppressWarnings("SameParameterValue")
     public static double calculateLatDegrees (byte[] msg, int skip)
     {
         int lat;
@@ -404,6 +405,7 @@ public class TopDecoder {
      * @param skip = first byte of 6-byte lat/lon field
      * @return floatingpoint degrees longitude
      */
+    @SuppressWarnings("SameParameterValue")
     public static double calculateLonDegrees (byte[] msg, int skip)
     {
         int lon = 0 - (msg[skip+2] & 0x01);  // get top bit, sign extended

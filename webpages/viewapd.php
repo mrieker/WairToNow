@@ -43,8 +43,8 @@
                 echo "<H3> Marked up $icaoid Airport Diagram </H3>\n";
                 @flush (); @ob_flush (); @flush ();
                 $cleanname = $_REQUEST['gifname'];
-                $cleanname = str_replace ("gif_150", "pngtemp", $cleanname);
-                $cleanname = str_replace (".gif",    ".png.p1", $cleanname);
+                $cleanname = "pngtemp/$cleanname";
+                $cleanname = str_replace (".gif", ".png.p1", $cleanname);
                 $cleanname = "$mydir/datums/aptplates_$cycles28/$cleanname";
                 $cleantime = filemtime ($cleanname);
                 $markdname = "$mydir/apdreview/$icaoid.markd.png";

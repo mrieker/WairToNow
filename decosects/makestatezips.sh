@@ -72,7 +72,7 @@ function addplates
     set -e
     while read csvline
     do
-        gifwild=${csvline##*,gif_150/}
+        gifwild=${csvline##*\",}
         ls $gifwild*
     done
 }

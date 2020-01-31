@@ -622,6 +622,10 @@ public class OpenStreetMap {
                                 Waypoint.Airport apt = Waypoint.Airport.GetByFaaID (faaid, wairToNow);
                                 if (apt != null) {
                                     Log.i (TAG, "preloading runway diagram background for " + apt.ident);
+                                    if (wairToNow.maintView != null) {
+                                        wairToNow.maintView.downloadingRunwayDiagram = apt;
+                                        wairToNow.maintView.UpdateRunwayDiagramDownloadStatus ();
+                                    }
 
                                     // get mapping of the runway to the default canvas size
                                     PixelMapper pmapland = PlateView.GetRWYPlateImageDefaultOSMMapping (apt, wairToNow, true);
@@ -635,9 +639,6 @@ public class OpenStreetMap {
                                     // if successfully downloaded all the tiles, mark that airport as complete
                                     if (FetchTiles (apt.ident)) {
                                         sqldb.execSQL ("DELETE FROM rwypreloads WHERE rp_faaid='" + faaid + "'");
-                                        if (wairToNow.maintView != null) {
-                                            wairToNow.maintView.UpdateRunwayDiagramDownloadStatus ();
-                                        }
                                     } else {
                                         long now = System.currentTimeMillis ();
                                         sqldb.execSQL ("UPDATE rwypreloads SET rp_lastry=" + now + " WHERE rp_faaid='" + faaid + "'");
@@ -648,6 +649,10 @@ public class OpenStreetMap {
                             } while (result.moveToNext ());
                         } finally {
                             result.close ();
+                            if (wairToNow.maintView != null) {
+                                wairToNow.maintView.downloadingRunwayDiagram = null;
+                                wairToNow.maintView.UpdateRunwayDiagramDownloadStatus ();
+                            }
                         }
                     } catch (Exception e) {
                         Log.e (TAG, "error reading " + dbname, e);

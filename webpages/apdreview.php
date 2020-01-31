@@ -122,9 +122,8 @@
                             fclose ($csvfile);
                         }
                         if ($gifname != "") {
-                            $pngname = str_replace ("gif_150", "pngtemp", $gifname);
-                            $pngname = str_replace (".gif",    ".png.p1", $pngname);
-                            echo "<A HREF=\"$thisscript?icaoid=$lasticaoid&pngname=datums/aptplates_$cycles28/$pngname\" TARGET=_BLANK>\n";
+                            $pngname = str_replace (".gif", ".png.p1", $gifname);
+                            echo "<A HREF=\"$thisscript?icaoid=$lasticaoid&pngname=datums/aptplates_$cycles28/pngtemp/$pngname\" TARGET=_BLANK>\n";
                         }
                         echo "<UL>\n";
                     }

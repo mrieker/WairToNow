@@ -231,12 +231,11 @@ public class DecodePlate2 {
         //   datums/aptplates_20150917/state
         //   BVY,"IAP-RNAV (GPS) RWY 27",gif_150/050/39r27.gif
 
-        if (!gifName.startsWith ("gif_") || !gifName.endsWith (".gif")) {
+        if (!gifName.endsWith (".gif")) {
             throw new Exception ("bad gif name " + gifName);
         }
         pdfName = basedir + "/datums/aptplates_" + cycles28expdate + "/pdftemp/" +
-                gifName.substring (gifName.indexOf ('/'),
-                        gifName.length () - 4).replace ("/", "") + ".PDF";
+                gifName.substring (0, gifName.length () - 4).replace ("/", "") + ".PDF";
 
         // Process the plate
 

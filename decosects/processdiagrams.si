@@ -17,10 +17,10 @@ function processdiagrams
         touch $csvoutfile
     fi
 
-    while read line  # eg, BVY,"APD-AIRPORT DIAGRAM",gif_150/050/39ad.gif
+    while read line  # eg, BVY,"APD-AIRPORT DIAGRAM",050/39ad.gif
     do
         faaid=${line%%,*}
-        gifname=${line##*,gif_150/}
+        gifname=${line##*,}
         pdfname=${gifname/\//}
         pdfname=${pdfname/[.]gif/.PDF}
         pdfname=datums/aptplates_$cycles28/pdftemp/$pdfname
@@ -29,14 +29,22 @@ function processdiagrams
         logname=decodeallplates.apdcsv_$faaid.log
         pngname=decodeallplates.apdcsv_$faaid.png
 
+        set +e
         icaoid=`grep "^[0-9A-Z]*,$faaid," datums/airports_$cycles28.csv`
+        set -e
         icaoid=${icaoid%%,*}
+
+        if [ "$icaoid" == "" ]
+        then
+            echo faaid $faaid has no icaoid
+            continue
+        fi
 
         if ! grep -q "^$icaoid," $csvoutfile
         then
             rm -f $csvname $logname $pngname
 
-            ##echo "---------------- $faaid APD-AIRPORT DIAGRAM"
+            ##echo "---------------- $faaid APD-AIRPORT DIAGRAM ($stateid)"
 
             if ! gs -q -dQuiet -dSAFER -dBATCH -dNOPAUSE -dNOPROMT -dMaxBitmap=500000000 -dAlignToPixels=0 -dGridFitTT=2 \
                 -sDEVICE=pngalpha -dTextAlphaBits=4 -dGraphicsAlphaBits=4 -r300x300 -dFirstPage=1 -dLastPage=1 \

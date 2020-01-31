@@ -20,9 +20,9 @@
 
 package com.apps4av.avarehelper.connections;
 
-import com.outerworldapps.wairtonow.Lib;
+import android.util.SparseArray;
 
-import java.util.HashMap;
+import com.outerworldapps.wairtonow.Lib;
 
 import org.opensky.libadsb.Decoder;
 import org.opensky.libadsb.Position;
@@ -85,7 +85,7 @@ public class Dump1090Decoder extends MidDecoder {
         }
     }
 
-    private HashMap<Integer,Aircraft> aircrafts = new HashMap<> ();  // indexed by icao24
+    private SparseArray<Aircraft> aircrafts = new SparseArray<> ();  // indexed by icao24
     private TopDecoder topDecoder;
 
     public Dump1090Decoder (TopDecoder td)

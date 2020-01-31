@@ -54,6 +54,7 @@ echo END READALLTIFFS.SH ; date
 echo END MAKEDATUMSTOPO.SH ; date
 
 ./makestatezips.sh
+echo END MAKESTATEZIPS.SH ; date
 ./makewtnzipfiles.sh
 echo END MAKEWTNZIPFILES.SH ; date
 

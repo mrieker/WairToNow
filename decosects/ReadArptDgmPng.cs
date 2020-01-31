@@ -437,7 +437,7 @@ public class ReadArptDgmPng {
         badStrings["KEAT:47^23.5'"]   = "47^23.5'N";
         badStrings["KEAT:47^24.0'"]   = "47^24.0'N";
         badStrings["KEAT:47^24.5'"]   = "47^24.5'N";
-        badStrings["KEOD:87^28.S"]    = "87^28.5'W";
+        badStrings["KEOD:87^28'00\"W"] = "87^28'30\"W";
         badStrings["KEVB:29^02.5'W"]  = "29^02.5'N";
         badStrings["KEVB:29^03.0'W"]  = "29^03.0'N";
         badStrings["KEVB:29^03.5'W"]  = "29^03.5'N";

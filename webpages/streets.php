@@ -33,6 +33,7 @@
         $tile = $_REQUEST['tile'];
         writelog ("tile=$tile");
         $newpath = download ($tile);
+        header ('Content-Length: ' . filesize ($newpath));
         header ('Content-Type: image/png');
         readfile ($newpath);
         return;
@@ -74,6 +75,15 @@
         writelog ("newpath=$newpath");
         if (!file_exists ($newpath) || (filemtime ($newpath) < time () - 60*60*24*365)) {
 
+            // make sure it has been at least 1.25 seconds since last download or openstreetmap will complain
+            $lockfile = fopen ("$datadir/streets.lock", "c+");
+            if (! $lockfile) writelog ("error opening lock file", TRUE);
+            if (! flock ($lockfile, LOCK_EX)) writelog ("error locking lock file", TRUE);
+            $lastdownload = fgets ($lockfile);
+            $lastdownload = $lastdownload ? floatval ($lastdownload) : 0;
+            writelog ("lastdownload=$lastdownload");
+            @time_sleep_until ($lastdownload + 1.25);
+
             // if not, pick a tile server at random
             // http://wiki.openstreetmap.org/wiki/Slippy_map_tilenames
             $servers = array (
@@ -104,13 +114,20 @@
             stream_set_timeout ($fp, $timeout);
             fwrite ($fp, "GET $location HTTP/1.1\r\n");
             fwrite ($fp, "Host: $hostname\r\n");
+            fwrite ($fp, "Http-Referer: https://play.google.com/store/apps/details?id=com.outerworldapps.wairtonow\r\n");
+            fwrite ($fp, "User-Agent: WairToNow aviation EFB app\r\n");
             fwrite ($fp, "\r\n");
 
             $status = fgets ($fp);
             $status = trim ($status);
             if (strpos ($status, "HTTP/1.1 200") !== 0) {
+                writelog ("- status=$status", FALSE);
+                while ($line = fgets ($fp)) {
+                    $line = trim ($line);
+                    writelog ("- header=$line", FALSE);
+                }
+                writelog ("- end headers", TRUE);
                 fclose ($fp);
-                writelog ("- status=$status", TRUE);
             }
 
             $contentlength = FALSE;
@@ -157,6 +174,11 @@
 
             rename ($tempath, $newpath);
             writelog ("newpath=$newpath - success");
+
+            $nowbin = microtime (TRUE);
+            rewind ($lockfile);
+            fputs ($lockfile, "$nowbin\n");
+            fclose ($lockfile);
         }
         return $newpath;
     }

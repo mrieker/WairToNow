@@ -76,9 +76,6 @@ public class GetAirportIDs {
 
             // write airport record
             if (line.StartsWith ("APT")) {
-                if (line.Substring (1210, 4) == "K2I0") {
-                    line = line.Substring (0, 1210) + "    " + line.Substring (1214);
-                }
 
                 string keyid = line.Substring (3, 11).Trim ();
 
@@ -88,7 +85,9 @@ public class GetAirportIDs {
                 }
                 apt.faaid  = line.Substring (27, 4).Trim ();
                 apt.icaoid = line.Substring (1210, 4).Trim ();
-                if (apt.faaid == "RGA") apt.icaoid = "KRGA";
+                if (apt.faaid  == "2I0") apt.icaoid = "2I0";
+                if (apt.faaid  == "FHB") apt.icaoid = "KFHB";
+                if (apt.faaid  == "RGA") apt.icaoid = "KRGA";
                 if (apt.icaoid == "") apt.icaoid = apt.faaid;
 
                 aptsbyfaaid[apt.faaid] = apt;
