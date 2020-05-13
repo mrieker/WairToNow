@@ -3,8 +3,8 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     package="com.outerworldapps.wairtonow"
-	android:versionCode="31103"
-	android:versionName="3.11.3">
+	android:versionCode="31104"
+	android:versionName="3.11.4">
 
 	<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
 	<uses-permission android:name="android.permission.BLUETOOTH"/>

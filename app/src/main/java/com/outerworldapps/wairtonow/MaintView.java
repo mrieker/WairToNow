@@ -318,7 +318,14 @@ public class MaintView
             }
         }
         csvReader.close ();
-        getChartNamesBusy = false;
+
+        wairToNow.runOnUiThread (new Runnable () {
+            @Override
+            public void run () {
+                getChartNamesBusy = false;
+                ExpdateCheck ();
+            }
+        });
     }
 
     private class DownloadChartedLimsCSVThread extends Thread {
@@ -353,10 +360,12 @@ public class MaintView
      */
     public void ExpdateCheck ()
     {
-        UpdateAllButtonColors ();
-        if (checkExpdateThread == null) {
-            checkExpdateThread = new CheckExpdateThread ();
-            checkExpdateThread.start ();
+        if (! getChartNamesBusy) {
+            UpdateAllButtonColors ();
+            if (checkExpdateThread == null) {
+                checkExpdateThread = new CheckExpdateThread ();
+                checkExpdateThread.start ();
+            }
         }
     }
 
