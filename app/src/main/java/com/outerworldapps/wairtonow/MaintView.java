@@ -24,12 +24,10 @@ import android.annotation.SuppressLint;
 import android.app.AlarmManager;
 import android.app.AlertDialog;
 import android.app.PendingIntent;
-import android.content.BroadcastReceiver;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.content.res.AssetManager;
@@ -102,6 +100,7 @@ public class MaintView
 
     private boolean checkExpdateAlarmed;
     private boolean downloadAgain;
+    private boolean getChartNamesBusy;
     private boolean updateDLProgSent;
     private Category enrCategory;
     private Category helCategory;
@@ -168,7 +167,7 @@ public class MaintView
 
     @SuppressLint("SetTextI18n")
     public MaintView (WairToNow ctx)
-            throws InterruptedException, IOException
+            throws IOException
     {
         super (ctx);
         wairToNow = ctx;
@@ -239,22 +238,22 @@ public class MaintView
         enrCategory.addView (new ChartDiagView (R.drawable.low_index_us));
         secCategory.addView (new ChartDiagView (R.drawable.faa_sec_diag));
 
-        GetChartNames ();
+        getChartNamesBusy = true;
+        new GetChartNamesThread ().start ();
 
         miscCategory.onClick (null);
+    }
 
-        // used by CheckExpdateThread to wake itself back up
-        BroadcastReceiver receiver = new BroadcastReceiver () {
-            @Override
-            public void onReceive (Context context, Intent intent) {
-                checkExpdateAlarmed = false;
-                ExpdateCheck ();
+    private class GetChartNamesThread extends Thread {
+        @Override
+        public void run ()
+        {
+            try {
+                GetChartNames ();
+            } catch (Exception e) {
+                Log.e (TAG, "exception getting chart names", e);
             }
-        };
-
-        IntentFilter filter = new IntentFilter ();
-        filter.addAction ("WairToNow.CheckExpdateThread.WakeUp");
-        wairToNow.registerReceiver (receiver, filter);
+        }
     }
 
     private void GetChartNames ()
@@ -319,6 +318,7 @@ public class MaintView
             }
         }
         csvReader.close ();
+        getChartNamesBusy = false;
     }
 
     private class DownloadChartedLimsCSVThread extends Thread {
@@ -539,11 +539,13 @@ public class MaintView
                 Calendar.JANUARY + 1) * 100 + now.get (Calendar.DAY_OF_MONTH);
 
         // update text color based on current date
-        for (Downloadable dcb : allDownloadables) {
-            int enddate = dcb.GetEndDate ();
-            int textColor = DownloadLinkColor (enddate);
-            String textString = DownloadLinkText (enddate);
-            dcb.UpdateSingleLinkText (textColor, textString);
+        if (! getChartNamesBusy) {
+            for (Downloadable dcb : allDownloadables) {
+                int enddate = dcb.GetEndDate ();
+                int textColor = DownloadLinkColor (enddate);
+                String textString = DownloadLinkText (enddate);
+                dcb.UpdateSingleLinkText (textColor, textString);
+            }
         }
 
         // update category button color
@@ -1462,6 +1464,7 @@ public class MaintView
         }
         public boolean hasNext ()
         {
+            if (getChartNamesBusy) return false;
             if (nextOne != null) return true;
             while (pcit.hasNext ()) {
                 Downloadable d = pcit.next ();
@@ -2404,7 +2407,6 @@ public class MaintView
      * Downloads to a temp file, then when complete, renames the temp file.
      * Will resume downloading a partial download.
      */
-    @SuppressWarnings("ConstantConditions")
     private void DownloadBigFile (String servername, String localname)
             throws IOException
     {

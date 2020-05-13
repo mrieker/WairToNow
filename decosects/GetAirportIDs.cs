@@ -237,8 +237,11 @@ public class GetAirportIDs {
                 Airport apt;
                 if (aptsbyfaaid.TryGetValue (faaid, out apt)) {
                     apt.nvp["towertype"] = line.Substring (238, 12).Trim ();
-                    apt.nvp["numhours"]  = line.Substring (250, 2).Trim ();
-                    apt.nvp["hourdays"]  = line.Substring (252, 3).Trim ();
+                    apt.nvp["numhours"]  = line.Substring (250,  2).Trim ();
+                    apt.nvp["hourdays"]  = line.Substring (252,  3).Trim ();
+                    apt.nvp["twrname"]   = line.Substring (804, 26).Trim ();
+                    apt.nvp["appname"]   = line.Substring (856, 26).Trim ();
+                    apt.nvp["depname"]   = line.Substring (908, 26).Trim ();
                 }
             }
 

@@ -85,6 +85,9 @@
                     document.write ('<TR><TD VALIGN=TOP>' + type + ':</TD><TD>' + apt[name] + '</TD></TR>');
                 }
             }
+            if (apt['twrname'] != '') document.write ('<TR><TD VALIGN=TOP>Tower:</TD><TD><I>'     + apt['twrname'] + '</I></TD></TR>');
+            if (apt['appname'] != '') document.write ('<TR><TD VALIGN=TOP>Approach:</TD><TD><I>'  + apt['appname'].replace (' ARTCC', ' CENTER') + '</I></TD></TR>');
+            if (apt['depname'] != '') document.write ('<TR><TD VALIGN=TOP>Departure:</TD><TD><I>' + apt['depname'].replace (' ARTCC', ' CENTER') + '</I></TD></TR>');
             document.write ('</TABLE>');
 
             document.write ('<P></P><B>Remarks</B><TABLE>');

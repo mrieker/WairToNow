@@ -20,7 +20,7 @@
 
 // Combine all waypoint csv files into sqlite db file
 
-// gmcs -debug -out:MakeWaypoints.exe MakeWaypoints.cs -reference:System.Data.dll -reference:Mono.Data.Sqlite.dll
+// mcs -debug -out:MakeWaypoints.exe MakeWaypoints.cs -reference:System.Data.dll -reference:Mono.Data.Sqlite.dll
 // mono --debug MakeWaypoints.exe 20150820
 
 using Mono.Data.Sqlite;
@@ -184,13 +184,15 @@ public class MakeWaypoints {
             /*
              * Load localizer info into database.
              */
-            DoCommand (dbcon, "CREATE TABLE localizers (loc_type TEXT, loc_faaid TEXT, loc_elev INTEGER, loc_name TEXT NOT NULL, " +
+            DoCommand (dbcon, "CREATE TABLE localizers (loc_type TEXT, loc_faaid TEXT, loc_elev REAL, loc_name TEXT NOT NULL, " +
+                    "loc_aptfid TEXT NOT NULL, loc_rwyid TEXT NOT NULL, loc_freq INTEGER NOT NULL, " +
                     "loc_lat REAL NOT NULL, loc_lon REAL NOT NULL, loc_thdg REAL NOT NULL, gs_elev REAL, gs_tilt REAL, gs_lat REAL, gs_lon REAL, " +
                     "dme_elev REAL, dme_lat REAL, dme_lon REAL);");
             DoCommand (dbcon, "CREATE TABLE lockeys (kw_key TEXT NOT NULL, kw_rowid INTEGER NOT NULL);");
             DoCommand (dbcon, "CREATE INDEX localizers_faaid ON localizers (loc_faaid);");
             DoCommand (dbcon, "CREATE INDEX localizers_lats  ON localizers (loc_lat);");
             DoCommand (dbcon, "CREATE INDEX localizers_lons  ON localizers (loc_lon);");
+            DoCommand (dbcon, "CREATE INDEX localizers_freqs ON localizers (loc_freq);");
             DoCommand (dbcon, "CREATE INDEX lockeys_keys ON lockeys (kw_key);");
 
             csvrdr = new StreamReader ("datums/localizers_" + expdate + ".csv");
@@ -200,8 +202,8 @@ public class MakeWaypoints {
                 long rowid;
                 IDbCommand dbcmd1 = dbcon.CreateCommand ();
                 try {
-                    dbcmd1.CommandText = "INSERT INTO localizers (loc_type,loc_faaid,loc_elev,loc_name,loc_lat,loc_lon,loc_thdg,gs_elev,gs_tilt,gs_lat,gs_lon,dme_elev,dme_lat,dme_lon) " +
-                            "VALUES (@loc_type,@loc_faaid,@loc_elev,@loc_name,@loc_lat,@loc_lon,@loc_thdg,@gs_elev,@gs_tilt,@gs_lat,@gs_lon,@dme_elev,@dme_lat,@dme_lon); SELECT last_insert_rowid ()";
+                    dbcmd1.CommandText = "INSERT INTO localizers (loc_type,loc_faaid,loc_elev,loc_name,loc_lat,loc_lon,loc_thdg,gs_elev,gs_tilt,gs_lat,gs_lon,dme_elev,dme_lat,dme_lon,loc_aptfid,loc_rwyid,loc_freq) " +
+                            "VALUES (@loc_type,@loc_faaid,@loc_elev,@loc_name,@loc_lat,@loc_lon,@loc_thdg,@gs_elev,@gs_tilt,@gs_lat,@gs_lon,@dme_elev,@dme_lat,@dme_lon,@loc_aptfid,@loc_rwyid,@loc_freq); SELECT last_insert_rowid ()";
                     dbcmd1.Parameters.Add (new SqliteParameter ("@loc_type",   cols[0]));
                     dbcmd1.Parameters.Add (new SqliteParameter ("@loc_faaid",  cols[1]));
                     dbcmd1.Parameters.Add (new SqliteParameter ("@loc_elev",   ParseElev (cols[2])));
@@ -216,7 +218,13 @@ public class MakeWaypoints {
                     dbcmd1.Parameters.Add (new SqliteParameter ("@dme_elev",   ParseElev (cols[11])));
                     dbcmd1.Parameters.Add (new SqliteParameter ("@dme_lat",    ParseElev (cols[12])));
                     dbcmd1.Parameters.Add (new SqliteParameter ("@dme_lon",    ParseElev (cols[13])));
+                    dbcmd1.Parameters.Add (new SqliteParameter ("@loc_aptfid", cols[14]));
+                    dbcmd1.Parameters.Add (new SqliteParameter ("@loc_rwyid",  cols[15]));
+                    dbcmd1.Parameters.Add (new SqliteParameter ("@loc_freq",   int.Parse (cols[16])));
                     rowid = (long) dbcmd1.ExecuteScalar ();
+                } catch (Exception) {
+                    Console.WriteLine (csv);
+                    throw;
                 } finally {
                     dbcmd1.Dispose ();
                 }
@@ -254,12 +262,13 @@ public class MakeWaypoints {
             /*
              * Load navaid info into database.
              */
-            DoCommand (dbcon, "CREATE TABLE navaids (nav_type TEXT, nav_faaid TEXT, nav_elev INTEGER, nav_name TEXT NOT NULL, " +
-                    "nav_lat REAL NOT NULL, nav_lon REAL NOT NULL, nav_magvar INTEGER);");
+            DoCommand (dbcon, "CREATE TABLE navaids (nav_type TEXT NOT NULL, nav_faaid TEXT NOT NULL, nav_elev INTEGER, nav_name TEXT NOT NULL, " +
+                    "nav_lat REAL NOT NULL, nav_lon REAL NOT NULL, nav_magvar INTEGER, nav_freq INTEGER, nav_power TEXT NOT NULL);");
             DoCommand (dbcon, "CREATE TABLE navkeys (kw_key TEXT NOT NULL, kw_rowid INTEGER NOT NULL);");
             DoCommand (dbcon, "CREATE INDEX navaids_faaid ON navaids (nav_faaid);");
             DoCommand (dbcon, "CREATE INDEX navaids_lats  ON navaids (nav_lat);");
             DoCommand (dbcon, "CREATE INDEX navaids_lons  ON navaids (nav_lon);");
+            DoCommand (dbcon, "CREATE INDEX navaids_freqs ON navaids (nav_freq);");
             DoCommand (dbcon, "CREATE INDEX navkeys_keys  ON navkeys (kw_key);");
 
             csvrdr = new StreamReader ("datums/navaids_" + expdate + ".csv");
@@ -269,8 +278,9 @@ public class MakeWaypoints {
                 long rowid;
                 IDbCommand dbcmd1 = dbcon.CreateCommand ();
                 try {
-                    dbcmd1.CommandText = "INSERT INTO navaids (nav_type,nav_faaid,nav_elev,nav_name,nav_lat,nav_lon,nav_magvar) " +
-                            "VALUES (@nav_type,@nav_faaid,@nav_elev,@nav_name,@nav_lat,@nav_lon,@nav_magvar); SELECT last_insert_rowid ()";
+                    dbcmd1.CommandText = "INSERT INTO navaids (nav_type,nav_faaid,nav_elev,nav_name,nav_lat,nav_lon,nav_magvar,nav_freq,nav_power) " +
+                            "VALUES (@nav_type,@nav_faaid,@nav_elev,@nav_name,@nav_lat,@nav_lon,@nav_magvar,@nav_freq,@nav_power); " +
+                            "SELECT last_insert_rowid ()";
                     dbcmd1.Parameters.Add (new SqliteParameter ("@nav_type"  , cols[0]));
                     dbcmd1.Parameters.Add (new SqliteParameter ("@nav_faaid" , cols[1]));
                     dbcmd1.Parameters.Add (new SqliteParameter ("@nav_elev"  , ParseElev (cols[2])));
@@ -278,7 +288,12 @@ public class MakeWaypoints {
                     dbcmd1.Parameters.Add (new SqliteParameter ("@nav_lat"   , double.Parse (cols[4])));
                     dbcmd1.Parameters.Add (new SqliteParameter ("@nav_lon"   , double.Parse (cols[5])));
                     dbcmd1.Parameters.Add (new SqliteParameter ("@nav_magvar", (cols[6] == "") ? null : (object) int.Parse (cols[6])));
+                    dbcmd1.Parameters.Add (new SqliteParameter ("@nav_freq"  , (cols[7] == "") ? null : (object) int.Parse (cols[7])));
+                    dbcmd1.Parameters.Add (new SqliteParameter ("@nav_power" , cols[8]));
                     rowid = (long) dbcmd1.ExecuteScalar ();
+                } catch (Exception) {
+                    Console.WriteLine (csv);
+                    throw;
                 } finally {
                     dbcmd1.Dispose ();
                 }

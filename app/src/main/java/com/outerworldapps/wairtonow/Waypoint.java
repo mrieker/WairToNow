@@ -821,12 +821,15 @@ public abstract class Waypoint {
     }
 
     // get magnetic variation
+    //  input:
+    //   altmsl = altitude (feet MSL)
+    //  output:
+    //   returns amount to add to a true course to get a magnetic course (degrees)
+    //           ie, >0 on east coast, <0 on west coast
     public double GetMagVar (double altmsl)
     {
         if (magvar != VAR_UNKNOWN) return magvar;
-        if (elev != ELEV_UNKNOWN) {
-            altmsl = elev / Lib.FtPerM;
-        }
+        if (elev != ELEV_UNKNOWN) altmsl = elev;
         return Lib.MagVariation (lat, lon, altmsl);
     }
 

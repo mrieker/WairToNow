@@ -33,7 +33,7 @@ import java.io.RandomAccessFile;
  */
 public class Topography {
     public final static String TAG = "WairToNow";
-    public final static short INVALID_ELEV = (short) -1;
+    public final static short INVALID_ELEV = (short) -0x8000;
 
     private final static SparseArray<short[]> loadedTopos = new SparseArray<> ();
 
@@ -68,6 +68,12 @@ public class Topography {
         int ilatdeg = ilatmin / 60 - 1000;
         int ilondeg = ilonmin / 60 - 1000;
 
+        ilatmin %= 60;
+        ilonmin %= 60;
+
+        if (ilatmin < 0) { ilatmin += 60; -- ilatdeg; }
+        if (ilonmin < 0) { ilonmin += 60; -- ilondeg; }
+
         if (ilatdeg >= 90) return INVALID_ELEV;
         if (ilatdeg < -90) return INVALID_ELEV;
 
@@ -98,11 +104,7 @@ public class Topography {
         /*
          * Loaded in memory, return value.
          */
-        ilatmin %= 60;
-        ilonmin %= 60;
-        short topo = topos[ilatmin*60+ilonmin];
-        if (topo < INVALID_ELEV) topo = INVALID_ELEV;
-        return topo;
+        return topos[ilatmin*60+ilonmin];
     }
 
     /**
@@ -118,7 +120,7 @@ public class Topography {
          * Open corresponding topo/ilatdeg.zip file if not already.
          */
         String name = WairToNow.dbdir + "/datums/topo/" + ilatdeg + ".zip";
-        if (!name.equals (topoZipName)) {
+        if (! name.equals (topoZipName)) {
 
             // close currently open zip file
             if (topoZipFile != null) {
@@ -127,12 +129,14 @@ public class Topography {
                 } catch (IOException ioe) {
                     Lib.Ignored ();
                 }
+                topoZipFile = null;
+                topoZipName = null;
             }
 
             // null files are for areas not covered by air charts
             // so just return INVALID_ELEV
             File file = new File (name);
-            if (!file.exists () || (file.length () == 0)) return null;
+            if (! file.exists () || (file.length () == 0)) return null;
 
             // otherwise, open the zip file
             try {

@@ -22,7 +22,7 @@
  * @brief Read the ILS.txt file from the FAA
  *        and extract localizer information and write to localizers.csv.
  *
- *  gmcs -debug -out:WriteLocalizersCsv.exe WriteLocalizersCsv.cs
+ *  mcs -debug -out:WriteLocalizersCsv.exe WriteLocalizersCsv.cs
  *  mono --debug WriteLocalizersCsv.exe < ILS.txt | sort > localizers.csv
  */
 
@@ -53,13 +53,15 @@ public class WriteNavaidsCsv {
         string dmealt = "";
         double dmelat = 0.0;
         double dmelon = 0.0;
+        string aptid  = "";      // faaid eg "BVY"
+        string rwyid  = "";      // eg "04R"
 
         string line;
         while ((line = Console.ReadLine ()) != null) {
             if (line.StartsWith ("ILS1")) {
                 if (type != "") {
                     // name string format relied on by Waypoint.java Localizer class constructor
-                    Console.WriteLine (type + "," + ident + "," + elev + ",\"" + name + " - " + freq + " - " + city + "\"," + lat + "," + lon + "," + thdg + "," + gsalt + "," + gsang + "," + gslat + "," + gslon + "," + dmealt + "," + dmelat + "," + dmelon);
+                    Console.WriteLine (type + "," + ident + "," + elev + ",\"" + name + " - " + freq + " - " + city + "\"," + lat + "," + lon + "," + thdg + "," + gsalt + "," + gsang + "," + gslat + "," + gslon + "," + dmealt + "," + dmelat + "," + dmelon + "," + aptid + "," + rwyid + "," + Math.Round (double.Parse (freq) * 1000.0));
                     type   = "";
                     ident  = "";
                     name   = "";
@@ -76,12 +78,16 @@ public class WriteNavaidsCsv {
                     dmealt = "";
                     dmelat = 0.0;
                     dmelon = 0.0;
+                    aptid  = "";
+                    rwyid  = "";
                 }
                 type   = line.Substring (18, 10).Trim ();
                 ident  = line.Substring (28,  6).Trim ();
-                name   = line.Substring (44, 50).Trim () + " rwy " + line.Substring (15, 3).Trim ();  // airport name and runway number
+                rwyid  = line.Substring (15,  3).Trim ();
+                name   = line.Substring (44, 50).Trim () + " rwy " + rwyid;  // airport name and runway number
                 city   = line.Substring (94, 40).Trim () + ", " + line.Substring (136, 20).Trim ();   // city and state
                 thdg   = Double.Parse (line.Substring (281, 6).Trim ()) - ParseVariation (line.Substring (287, 3).Trim ());
+                aptid  = line.Substring (159, 3).Trim ();
             }
             if (line.StartsWith ("ILS2")) {
                 lat    = DecodeLatLon (line.Substring (74, 11).Trim (), 'N', 'S');
@@ -110,13 +116,15 @@ public class WriteNavaidsCsv {
                 string markername = line.Substring (152, 30).Trim ();   // long name
                 string markerfreq = line.Substring (182,  3).Trim ();   // marker beacon frequency
 
+                if (markerfreq == "75") markerfreq = "75000";
+
                 if ((markeridnt != "") && (markerfreq != "")) {
-                    Console.WriteLine (markertype + "," + markeridnt + "," + markerelev + ",\"" + markername + " - " + markerfreq + " - " + city + "\"," + markerlat + "," + markerlon + ",,,,,,,,");
+                    Console.WriteLine (markertype + "," + markeridnt + "," + markerelev + ",\"" + markername + " - " + markerfreq + " - " + city + "\"," + markerlat + "," + markerlon + ",,,,,,,,,,," + markerfreq);
                 }
             }
         }
         if (type != "") {
-            Console.WriteLine (type + "," + ident + "," + elev + ",\"" + name + " - " + freq + " - " + city + "\"," + lat + "," + lon + "," + thdg + "," + gsalt + "," + gsang + "," + gslat + "," + gslon + "," + dmealt + "," + dmelat + "," + dmelon);
+            Console.WriteLine (type + "," + ident + "," + elev + ",\"" + name + " - " + freq + " - " + city + "\"," + lat + "," + lon + "," + thdg + "," + gsalt + "," + gsang + "," + gslat + "," + gslon + "," + dmealt + "," + dmelat + "," + dmelon + "," + aptid + "," + rwyid + "," + Math.Round (double.Parse (freq) * 1000.0));
         }
     }
 
