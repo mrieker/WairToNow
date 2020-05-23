@@ -533,22 +533,28 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
     {
         if (reselectLastChart) {
             reselectLastChart = false;
-            SharedPreferences prefs = wairToNow.getPreferences (Activity.MODE_PRIVATE);
-            String spacenamesansrev = prefs.getString ("selectedChart", null);
-            if (spacenamesansrev != null) {
-                TreeMap<String,DisplayableChart> charts = new TreeMap<> ();
-                charts.put (streetChart.GetSpacenameSansRev (), streetChart);
-                for (AutoAirChart aac : autoAirCharts) charts.put (aac.GetSpacenameSansRev (), aac);
-                for (Iterator<AirChart> it = wairToNow.maintView.GetAirChartIterator (); it.hasNext ();) {
-                    AirChart ac = it.next ();
-                    charts.put (ac.GetSpacenameSansRev (), ac);
+            wairToNow.maintView.callbackWhenChartsLoaded (new Runnable () {
+                @Override
+                public void run ()
+                {
+                    SharedPreferences prefs = wairToNow.getPreferences (Activity.MODE_PRIVATE);
+                    String spacenamesansrev = prefs.getString ("selectedChart", null);
+                    if (spacenamesansrev != null) {
+                        TreeMap<String,DisplayableChart> charts = new TreeMap<> ();
+                        charts.put (streetChart.GetSpacenameSansRev (), streetChart);
+                        for (AutoAirChart aac : autoAirCharts) charts.put (aac.GetSpacenameSansRev (), aac);
+                        for (Iterator<AirChart> it = wairToNow.maintView.GetAirChartIterator (); it.hasNext ();) {
+                            AirChart ac = it.next ();
+                            charts.put (ac.GetSpacenameSansRev (), ac);
+                        }
+                        DisplayableChart dc = charts.get (spacenamesansrev);
+                        if ((dc != null) && dc.IsDownloaded ()) {
+                            selectedChart = dc;
+                            if (backing != null) backing.ChartSelected ();
+                        }
+                    }
                 }
-                DisplayableChart dc = charts.get (spacenamesansrev);
-                if ((dc != null) && dc.IsDownloaded ()) {
-                    selectedChart = dc;
-                    if (backing != null) backing.ChartSelected ();
-                }
-            }
+            });
         }
     }
 

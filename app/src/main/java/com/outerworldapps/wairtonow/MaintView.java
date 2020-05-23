@@ -115,6 +115,7 @@ public class MaintView
     public  HashMap<String,String[]> chartedLims;
     private LinkedList<Category> allCategories = new LinkedList<> ();
     private LinkedList<Downloadable> allDownloadables = new LinkedList<> ();
+    private LinkedList<Runnable> callbacksWhenChartsLoaded = new LinkedList<> ();
     private final Object postDLProgLock = new Object ();
     private ScrollView itemsScrollView;
     private StateMapView stateMapView;
@@ -162,7 +163,7 @@ public class MaintView
         } catch (IOException ioe) {
             Log.e (TAG, "error reading dlurl.txt", ioe);
         }
-        return "http://www.outerworldapps.com/WairToNow";
+        return "https://www.outerworldapps.com/WairToNow";
     }
 
     @SuppressLint("SetTextI18n")
@@ -242,6 +243,13 @@ public class MaintView
         new GetChartNamesThread ().start ();
 
         miscCategory.onClick (null);
+    }
+
+    // call the given runnable in GUI thread when GetChartNamesThread exits
+    public void callbackWhenChartsLoaded (Runnable r)
+    {
+        if (getChartNamesBusy) callbacksWhenChartsLoaded.add (r);
+        else r.run ();
     }
 
     private class GetChartNamesThread extends Thread {
@@ -324,6 +332,8 @@ public class MaintView
             public void run () {
                 getChartNamesBusy = false;
                 ExpdateCheck ();
+                for (Runnable r : callbacksWhenChartsLoaded) r.run ();
+                callbacksWhenChartsLoaded = null;
             }
         });
     }
