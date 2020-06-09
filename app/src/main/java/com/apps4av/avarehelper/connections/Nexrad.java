@@ -23,7 +23,7 @@ public class Nexrad {
     public static final int HEIGHT = 4;
 
     public static final int INTENSITY_0 = 0;
-    public static final int INTENSITY[] = {
+    public static final int[] INTENSITY = {
             INTENSITY_0,
             0x00000000,
             0xFF007F00, // dark green

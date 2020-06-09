@@ -38,6 +38,7 @@ import java.util.Locale;
 import java.util.TimeZone;
 
 public class Lib {
+    public final static String[] nullarrayString = new String[0];
 
     // fine-tuned constants
     public static final double FtPerM    = 3.28084;
@@ -227,14 +228,12 @@ public class Lib {
 
         // if a segment wraps, split it into two segments
         if (aEastLon1 < aWestLon1) {
-            aEastLon2 = aEastLon1;
             aWestLon2 = -180.0;
             aEastLon1 =  180.0;
         }
 
         // likewise with b segment
         if (bEastLon1 < bWestLon1) {
-            bEastLon2 = bEastLon1;
             bWestLon2 = -180.0;
             bEastLon1 =  180.0;
         }
@@ -260,7 +259,6 @@ public class Lib {
 
         // if a segment wraps, split it into two segments
         if (aEastLon1 < aWestLon1) {
-            aEastLon2 = aEastLon1;
             aWestLon2 = -180.0;
             aEastLon1 =  180.0;
         }
@@ -1130,12 +1128,12 @@ public class Lib {
             int dist100ths = (int)(dist * 100.0 + 0.5);
             int distwhole  = dist100ths / 100;
             dist100ths %= 100;
-            diststr = Integer.toString (distwhole) + "." + Integer.toString (dist100ths + 100).substring (1);
+            diststr = distwhole + "." + Integer.toString (dist100ths + 100).substring (1);
         } else if (dist < 1000) {
             int dist10ths = (int)(dist * 10.0 + 0.5);
             int distwhole = dist10ths / 10;
             dist10ths %= 10;
-            diststr = Integer.toString (distwhole) + "." + Integer.toString (dist10ths);
+            diststr = distwhole + "." + dist10ths;
         } else {
             int distwhole = (int)(dist + 0.5);
             diststr = Integer.toString (distwhole);

@@ -79,7 +79,7 @@ public class LogPlayGpsAdsb extends GpsAdsbReceiver {
         linearLayout.addView (btAdsbStatus);
 
         btAdsbName.setTitle ("Select log");
-        btAdsbName.setLabels (new String[0], "Cancel", "(select)", null);
+        btAdsbName.setLabels (Lib.nullarrayString, "Cancel", "(select)", null);
         btAdsbName.setIndex (TextArraySpinner.NOTHING);
         btAdsbName.setOnClickListener (new View.OnClickListener () {
             @Override
@@ -178,9 +178,9 @@ public class LogPlayGpsAdsb extends GpsAdsbReceiver {
             ArrayList<String> namelist = new ArrayList<> (files.length);
             for (File file : files) {
                 String name = file.getName ();
-                namelist.add (name.substring (0, name.length ()));
+                namelist.add (name);
             }
-            namearray = namelist.toArray (new String[namelist.size()]);
+            namearray = namelist.toArray (Lib.nullarrayString);
             btAdsbName.setLabels (namearray, "Cancel", "(select)", null);
         }
     }
@@ -330,7 +330,7 @@ public class LogPlayGpsAdsb extends GpsAdsbReceiver {
         }
 
         @Override  // InputStream
-        public void close () throws IOException
+        public void close ()
         {
             streamClosed = true;
             adsbContext.interrupt ();

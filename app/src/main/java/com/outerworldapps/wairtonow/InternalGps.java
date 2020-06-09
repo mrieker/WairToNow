@@ -241,7 +241,6 @@ public class InternalGps extends GpsAdsbReceiver implements GpsStatus.Listener, 
 
     /**
      * Internal GPS receiver got a status update, post it on through to the display.
-     * But if bluetooth selected instead, blank out the display.
      */
     private void SetInternalGPSStatus ()
     {

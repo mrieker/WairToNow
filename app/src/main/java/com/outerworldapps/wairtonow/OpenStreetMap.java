@@ -408,7 +408,6 @@ public class OpenStreetMap {
          * @param wairToNow = our activity
          * @param pmap = what pixels to draw to and the corresponding lat/lon mapping
          */
-        @SuppressWarnings("ConstantConditions")
         public boolean DrawTiles (WairToNow wairToNow, PixelMapper pmap)
         {
             boolean gotatile = false;
@@ -591,7 +590,7 @@ public class OpenStreetMap {
                      * Prefetch some runway diagram tiles.
                      */
                     int platesexpdate = MaintView.GetPlatesExpDate ();
-                    String dbname = "plates_" + platesexpdate + ".db";
+                    String dbname = "nobudb/plates_" + platesexpdate + ".db";
                     try {
 
                         // get a few airports that haven't been processed yet
@@ -628,8 +627,8 @@ public class OpenStreetMap {
                                     }
 
                                     // get mapping of the runway to the default canvas size
-                                    PixelMapper pmapland = PlateView.GetRWYPlateImageDefaultOSMMapping (apt, wairToNow, true);
-                                    PixelMapper pmapport = PlateView.GetRWYPlateImageDefaultOSMMapping (apt, wairToNow, false);
+                                    PixelMapper pmapland = RWYPlateImage.GetRWYPlateImageDefaultOSMMapping (apt, wairToNow, true);
+                                    PixelMapper pmapport = RWYPlateImage.GetRWYPlateImageDefaultOSMMapping (apt, wairToNow, false);
 
                                     // gather the tiles needed into a bulk download request
                                     bulkDownloads.clear ();

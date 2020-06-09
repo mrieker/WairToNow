@@ -135,7 +135,7 @@ public class CurrentCloud {
 
             if (gpsInfoAltitude != altitude) {
                 gpsInfoAltitude = altitude;
-                gpsInfoAltStr   = Long.toString (Math.round (altitude * Lib.FtPerM)) + " ft";
+                gpsInfoAltStr   = Math.round (altitude * Lib.FtPerM) + " ft";
             }
 
             if ((gpsInfoMphOpt != mphOpt) || (gpsInfoSpeed != speed)) {

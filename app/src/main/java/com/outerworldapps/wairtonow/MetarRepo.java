@@ -38,8 +38,8 @@ public class MetarRepo {
     public  int ceilingft;   // feet or -1 if unknown
     private int lastSeqno = Integer.MIN_VALUE;
     public  long ceilingms;  // timestamp (ms) or 0 if unknown
-    private TreeMap<Integer,Metar> metarAges = new TreeMap<> ();
-    public  TreeMap<String,TreeMap<Long,Metar>> metarTypes = new TreeMap<> ();
+    private NNTreeMap<Integer,Metar> metarAges = new NNTreeMap<> ();
+    public  NNTreeMap<String,TreeMap<Long,Metar>> metarTypes = new NNTreeMap<> ();
 
     public MetarRepo (double lat, double lon)
     {
@@ -70,8 +70,8 @@ public class MetarRepo {
         // delete oldest metar overall to make room if we now have too many
         while (metarAges.size () > MAXMETARS) {
             int oldseqno = metarAges.keySet ().iterator ().next ();
-            oldmet = metarAges.remove (oldseqno);
-            metarTypes.get (oldmet.type).remove (oldmet.time);
+            oldmet = metarAges.nnremove (oldseqno);
+            metarTypes.nnget (oldmet.type).remove (oldmet.time);
         }
 
         // if it contains altimeter setting, save it

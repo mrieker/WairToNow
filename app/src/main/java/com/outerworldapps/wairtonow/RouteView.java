@@ -265,6 +265,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
         {
             return "@PP";
         }
+        public String GetName () { return GetDetailText (); }
         public String GetDetailText ()
         {
             return "present position";
@@ -274,7 +275,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
     /**
      * Steps along the route.
      */
-    private abstract class RouteStep {
+    private static abstract class RouteStep {
         public RouteStep nextStep;
         public RouteStep prevStep;
         public String ident;
@@ -288,7 +289,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
      * We select the specific waypoint when attempting to solve the route by
      * picking the one that gives the shortest total route distance.
      */
-    private class RouteStepWaypt extends RouteStep {
+    private static class RouteStepWaypt extends RouteStep {
         private LinkedList<Waypoint> waypoints;
 
         public int selectedsolution;
@@ -306,7 +307,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
      * The entry and exit points are selected by selecting an alternative
      * of the waypoint steps just before and after the airway step.
      */
-    private class RouteStepAirwy extends RouteStep {
+    private static class RouteStepAirwy extends RouteStep {
         private Collection<Waypoint.Airway> airways;
 
         public RouteStepAirwy (String id, Collection<Waypoint.Airway> awys)
@@ -695,7 +696,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
          * Enable tracking checkbox if remaining route has any waypoints.
          */
         if (!arlist.isEmpty ()) {
-            analyzedRouteArray = arlist.toArray (new Waypoint[arlist.size()]);
+            analyzedRouteArray = arlist.toArray (Waypoint.nullarray);
             buttonTrack.setEnabled (true);
         }
 

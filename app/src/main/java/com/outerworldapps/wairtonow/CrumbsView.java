@@ -811,7 +811,6 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
      * @param all = true: read all records; false: read just first record
      * @return null: success; else: error
      */
-    @SuppressWarnings("ConstantConditions")
     private static Exception ReadTrailFile (LinkedList<Position> displaytrail,
                                             LinkedList<Position> playbacktrail,
                                             String name, int type, boolean all)

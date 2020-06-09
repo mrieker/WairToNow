@@ -20,6 +20,7 @@
 
 package com.outerworldapps.wairtonow;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
@@ -52,6 +53,7 @@ public class DetentHorizontalScrollView extends HorizontalScrollView {
         delta = d;
     }
 
+    @SuppressLint("ClickableViewAccessibility")
     @Override
     public boolean onTouchEvent (MotionEvent me)
     {

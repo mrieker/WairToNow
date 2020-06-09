@@ -34,7 +34,6 @@ import android.widget.TextView;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.TreeMap;
 import java.util.TreeSet;
 
 /**
@@ -45,10 +44,10 @@ public class AutoAirChart implements DisplayableChart, Comparator<AirChart> {
     private double macroELon, macroWLon;
     private HashSet<String> dontAskAboutDownloading = new HashSet<> ();
     private long viewDrawCycle;
+    private NNTreeMap<AirChart,Long> airChartsAsync = new NNTreeMap<> (this);
+    private NNTreeMap<AirChart,Long> airChartsSync = new NNTreeMap<> (this);
     private String basename;
     private String category;
-    private TreeMap<AirChart,Long> airChartsAsync = new TreeMap<> (this);
-    private TreeMap<AirChart,Long> airChartsSync = new TreeMap<> (this);
     private WairToNow wairToNow;
 
     public AutoAirChart (WairToNow wtn, String cat)
@@ -291,7 +290,7 @@ public class AutoAirChart implements DisplayableChart, Comparator<AirChart> {
     /**
      * Select list of charts that are viewable and get rid of ones that aren't.
      */
-    private void SelectCharts (TreeMap<AirChart,Long> airCharts, PixelMapper pmap)
+    private void SelectCharts (NNTreeMap<AirChart,Long> airCharts, PixelMapper pmap)
     {
         // get list of the 2 or 3 charts we will be drawing this time
         long dcn = ++ viewDrawCycle;
@@ -310,7 +309,7 @@ public class AutoAirChart implements DisplayableChart, Comparator<AirChart> {
             AirChart ac = it.next ();
 
             // if chart no longer needed, close its bitmaps to save memory
-            long drawcycle = airCharts.get (ac);
+            long drawcycle = airCharts.nnget (ac);
             if (drawcycle < dcn) {
                 ac.CloseBitmaps ();
                 it.remove ();

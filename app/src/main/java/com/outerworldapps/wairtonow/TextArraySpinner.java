@@ -50,7 +50,7 @@ public class TextArraySpinner extends Button implements View.OnClickListener {
     private int index = NOTHING;
     private String title;
     private String[] unlabels = new String[3];
-    private String[] labels = new String[0];
+    private String[] labels = Lib.nullarrayString;
     private OnClickListener userListener;
     private OnItemSelectedListener clicked;
 

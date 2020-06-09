@@ -19,14 +19,14 @@ package com.apps4av.avarehelper.connections;
  */
 public class BitInputStream {
 
-    private byte mBuffer[];
+    private byte[] mBuffer;
     private byte mIBuffer;   // contents of mBuffer[mLocation-1]
     private int  mLocation;  // where to read if something needed and mBitsLeft is zero
     private int  mBitsLeft;  // number of bits in bottom of mIBuffer yet to be read
     private int  mOffset;    // offset we started at in mBuffer[]
     private int  mLength;    // length of valid bytes including mOffset
  
-    public BitInputStream (byte buffer[], int offset, int length) {
+    public BitInputStream (byte[] buffer, int offset, int length) {
         mBuffer = buffer;
         mLocation = mOffset = offset;
         mLength = length + offset;

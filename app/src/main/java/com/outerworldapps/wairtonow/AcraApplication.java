@@ -137,7 +137,7 @@ public class AcraApplication extends Application {
                 File temp  = new File (dir, nowms + ".acra.gz.tmp");
                 PrintWriter pw = new PrintWriter (new GZIPOutputStream (new FileOutputStream (temp)));
                 try {
-                    pw.println (Long.toString (nowms));
+                    pw.println (nowms);
                     for (ReportField reportField : report.keySet ()) {
                         String reportValue = report.get (reportField);
                         pw.println ("::" + reportField.toString () + "::" + reportValue);

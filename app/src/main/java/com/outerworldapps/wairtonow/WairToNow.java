@@ -30,7 +30,6 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
-import android.graphics.Rect;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
@@ -49,7 +48,6 @@ import android.view.ViewParent;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.FrameLayout;
-import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TableLayout;
@@ -65,7 +63,6 @@ import java.io.InputStream;
 import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Locale;
 import java.util.Map;
@@ -89,6 +86,7 @@ public class WairToNow extends Activity {
     private boolean lastLocQueued;
     private boolean tabsVisible;
     public  ChartView chartView;
+    private CollDetThread colldetthread;
     public  CrumbsView crumbsView;
     public  CurrentCloud currentCloud;
     private DetentHorizontalScrollView tabButtonScroller;
@@ -99,9 +97,7 @@ public class WairToNow extends Activity {
     public  double currentGPSSpd;    // metres per second
     public  float dotsPerInch, dotsPerInchX, dotsPerInchY;
     public  float textSize, thickLine, thinLine;
-    private FrameLayout toolbarLayout;
     private GlassView glassView;
-    public  final HashMap<String,MetarRepo> metarRepos = new HashMap<> ();
     public  volatile InputStream downloadStream;
     public  int displayWidth;
     public  int displayHeight;
@@ -120,11 +116,15 @@ public class WairToNow extends Activity {
     private long lastLocUpdate;
     public  MaintView maintView;
     public  final NexradRepo nexradRepo = new NexradRepo ();
+    public  final NNHashMap<String,MetarRepo> metarRepos = new NNHashMap<> ();
     public  OpenStreetMap openStreetMap;
     public  OptionsView optionsView;
     private Paint airplanePaint = new Paint ();
+    private Paint collPaint = new Paint ();
     private Paint gpsAvailablePaint;
     private Path airplanePath = new Path ();
+    public  PlanView  planView;
+    private PointD pt = new PointD ();
     public  RouteView routeView;
     public  SensorsView sensorsView;
     private TabButton agreeButton;
@@ -251,6 +251,13 @@ public class WairToNow extends Activity {
         airplanePaint.setTextAlign (Paint.Align.CENTER);
 
         /*
+         * Obstacle and terrain collision detection thread runs in background.
+         */
+        colldetthread = new CollDetThread (this);
+        collPaint.setColor (Color.argb (127, 255, 0, 0));
+        collPaint.setStyle (Paint.Style.FILL_AND_STROKE);
+
+        /*
          * License agreement.
          */
         AgreeView agreeView = new AgreeView (this);
@@ -273,7 +280,7 @@ public class WairToNow extends Activity {
         /*
          * Planning page.
          */
-        PlanView planView = new PlanView (this);
+        planView = new PlanView (this);
 
         /*
          * Create a view that views charts based on lat/lon.
@@ -350,35 +357,6 @@ public class WairToNow extends Activity {
         virtNav2Button = new TabButton (virtNav2View);
 
         /*
-         * Toolbar at top of screen.
-         */
-        ImageView iconImageView = new ImageView (this);
-        iconImageView.setAdjustViewBounds (true);
-        iconImageView.setImageResource (R.drawable.icon);
-        iconImageView.setMaxHeight (Math.round (textSize));
-
-        LinearLayout tbl = new LinearLayout (this);
-        tbl.setOrientation (LinearLayout.HORIZONTAL);
-        tbl.addView (iconImageView);
-        tbl.addView (new ToolbarText (" WairToNow"));
-
-        FrameLayout.LayoutParams omblp = new FrameLayout.LayoutParams (
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        omblp.gravity = Gravity.TOP | Gravity.END;
-        ToolbarText omb = new ToolbarText (" Menu");
-        omb.setLayoutParams (omblp);
-        omb.setOnClickListener (new View.OnClickListener () {
-            @Override
-            public void onClick (View view) {
-                ExpandMenu ();
-            }
-        });
-
-        toolbarLayout = new FrameLayout (this);
-        toolbarLayout.addView (tbl);
-        toolbarLayout.addView (omb);
-
-        /*
          * Download status box near top of screen.
          */
         downloadStatusRow = new LinearLayout (this);
@@ -437,7 +415,6 @@ public class WairToNow extends Activity {
 
         tabViewLayout = new LinearLayout (this);
         tabViewLayout.setOrientation (LinearLayout.VERTICAL);
-        tabViewLayout.addView (toolbarLayout);
         tabViewLayout.addView (downloadStatusRow);
         tabViewLayout.addView (tabButtonScroller);
 
@@ -471,146 +448,6 @@ public class WairToNow extends Activity {
     private void CollapseMenu ()
     {
         menuButtonColumn.removeAllViews ();
-    }
-
-    /**
-     * Expand the upper right corner menu to show the buttons.
-     */
-    private void ExpandMenu ()
-    {
-        menuButtonColumn.removeAllViews ();
-
-        AddMenuItem ("Chart", new View.OnClickListener () {
-            @Override
-            public void onClick (View view) {
-                CollapseMenu ();
-                chartButton.onClick (chartButton);
-            }
-        });
-
-        AddMenuItem ("Exit", new View.OnClickListener () {
-            @Override
-            public void onClick (View view) {
-                CollapseMenu ();
-                MyFinish ();
-            }
-        });
-
-        if (tabsVisible) {
-            AddMenuItem ("Hide Tabs", new View.OnClickListener () {
-                @Override
-                public void onClick (View view) {
-                    CollapseMenu ();
-                    SetTabVisibility (false);
-                }
-            });
-        }
-
-        AddMenuItem ("\u25B6 \u25B6", new View.OnClickListener () {
-            @Override  // 25B6=right triangle
-            public void onClick (View view) {
-                CollapseMenu ();
-            }
-        });
-
-        if (!tabsVisible) {
-            AddMenuItem ("Pages", new View.OnClickListener () {
-                @Override
-                public void onClick (View view) {
-                    CollapseMenu ();
-                    ShowMoreMenu ();
-                }
-            });
-        }
-
-        AddMenuItem ("Re-center", new View.OnClickListener () {
-            @Override
-            public void onClick (View view) {
-                CollapseMenu ();
-                if (hasAgreed) {
-                    if (currentTabButton != chartButton) {
-                        chartButton.DisplayNewTab ();
-                    }
-                    chartView.ReCenter ();
-                }
-            }
-        });
-
-        if (!tabsVisible) {
-            AddMenuItem ("Show Tabs", new View.OnClickListener () {
-                @Override
-                public void onClick (View view) {
-                    CollapseMenu ();
-                    SetTabVisibility (true);
-                }
-            });
-        }
-    }
-
-    /**
-     * Strings at top of screen in toolbar.
-     * Standard TextView has a little margin at the top and so everything looks crooked.
-     */
-    private class ToolbarText extends View {
-        private Paint paint;
-        private Rect bounds;
-        private String text;
-
-        public ToolbarText (String txt)
-        {
-            super (WairToNow.this);
-            paint  = new Paint ();
-            bounds = new Rect ();
-            text   = txt;
-            paint.setColor (Color.WHITE);
-            paint.setTextSize (textSize);
-            paint.getTextBounds (text, 0, text.length (), bounds);
-        }
-
-        @Override
-        protected void onMeasure (int widthMeasureSpec, int heightMeasureSpec)
-        {
-            // bounds.width() leaves out the leading space
-            // ...so use bounds.right to include it
-            // +3 on the height to leave extra room below the icon and the chart
-            setMeasuredDimension (bounds.right, Math.round (textSize) + 3);
-        }
-
-        @Override
-        public void onDraw (Canvas canvas)
-        {
-            canvas.drawText (text, 0, (textSize + bounds.height ()) / 2.0F, paint);
-        }
-    }
-
-    /**
-     * Add an entry to the menu button column in upper right corner of screen.
-     * @param label = what button is named
-     * @param action = what to do when button is clicked
-     */
-    private void AddMenuItem (String label, View.OnClickListener action)
-    {
-        Button showMenuButton = new MenuButton ();
-        showMenuButton.setOnClickListener (action);
-        showMenuButton.setText (label);
-        menuButtonColumn.addView (showMenuButton);
-    }
-
-    // like Button except gives black background instead of transparent
-    private class MenuButton extends Button {
-        public MenuButton ()
-        {
-            super (WairToNow.this);
-            SetTextSize (this);
-        }
-
-        // overriding onDraw() just makes the whole thing black
-        @Override
-        public void draw (Canvas canvas)
-        {
-            canvas.drawColor (Color.BLACK);
-            super.draw (canvas);
-        }
     }
 
     /**
@@ -713,7 +550,7 @@ public class WairToNow extends Activity {
             msg = m;
         }
         @Override
-        public String toString ()
+        public @NonNull String toString ()
         {
             return "StartupErrorException: " + msg + "\n" + super.toString ();
         }
@@ -856,7 +693,6 @@ public class WairToNow extends Activity {
     private void SetCurrentView ()
     {
         tabViewLayout.removeAllViews ();
-        tabViewLayout.addView (toolbarLayout);
         tabViewLayout.addView (downloadStatusRow);
         if (currentTabButton != null) {
             View v = currentTabButton.view;
@@ -1140,6 +976,27 @@ public class WairToNow extends Activity {
     }
 
     /**
+     * Draw collision point circles on the chart.
+     * @param canvas = chart to draw on
+     * @param mapper = maps lat,lon to pixel x,y for the chart
+     */
+    public void DrawCollisionPoints (Canvas canvas, ExactMapper mapper)
+    {
+        if (optionsView.collDetOption.checkBox.isChecked () &&
+                ! blinkingRedOn () &&
+                ((System.currentTimeMillis () & 1024) != 0)) {
+            float cprad = (float) mapper.CanPixPerNMAprox ();
+            for (int llmin : colldetthread.getBadLLMins ()) {
+                double lat = (llmin >> 16) / 60.0;
+                double lon = ((short) llmin) / 60.0;
+                if (mapper.LatLon2CanPixExact (lat, lon, pt)) {
+                    canvas.drawCircle ((float) pt.x, (float) pt.y, cprad, collPaint);
+                }
+            }
+        }
+    }
+
+    /**
      * Draw the airplane location arrow symbol.
      * @param canvas     = canvas to draw it on
      * @param pt         = where on canvas to draw symbol
@@ -1201,7 +1058,7 @@ public class WairToNow extends Activity {
     {
         // main menu
         menu.add ("Chart");
-        menu.add ("Pages");
+        menu.add ("<< MORE");
         menu.add ("Hide Tabs");
         menu.add ("Show Tabs");
         menu.add ("Re-center");
@@ -1216,22 +1073,22 @@ public class WairToNow extends Activity {
     public boolean onOptionsItemSelected(MenuItem menuItem)
     {
         CharSequence sel = menuItem.getTitle ();
-        if ("Chart".equals (sel)) {
+        if ("Chart".contentEquals (sel)) {
             chartButton.onClick (chartButton);
         }
-        if ("Exit".equals (sel)) {
+        if ("Exit".contentEquals (sel)) {
             MyFinish ();
         }
-        if ("Hide Tabs".equals (sel)) {
+        if ("Hide Tabs".contentEquals (sel)) {
             SetTabVisibility (false);
         }
-        if ("Pages".equals (sel)) {
+        if ("<< MORE".contentEquals (sel)) {
             ShowMoreMenu ();
         }
-        if ("Re-center".equals (sel) && hasAgreed) {
+        if ("Re-center".contentEquals (sel) && hasAgreed) {
             chartView.ReCenter ();
         }
-        if ("Show Tabs".equals (sel)) {
+        if ("Show Tabs".contentEquals (sel)) {
             SetTabVisibility (true);
         }
         return true;

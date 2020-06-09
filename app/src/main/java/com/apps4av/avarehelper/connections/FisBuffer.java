@@ -39,7 +39,7 @@ public class FisBuffer {
      * Parse products out of the Fis
      */
     @SuppressWarnings("SameParameterValue")
-    public static void makeProducts (byte buffer[], int offset, Reporter reporter)
+    public static void makeProducts (byte[] buffer, int offset, Reporter reporter)
     {
         int bufend = offset + 424;
 

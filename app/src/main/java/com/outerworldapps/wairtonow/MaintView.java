@@ -38,6 +38,7 @@ import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Matrix;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Message;
 import android.support.annotation.NonNull;
@@ -75,7 +76,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Locale;
-import java.util.TreeMap;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -163,6 +163,9 @@ public class MaintView
         } catch (IOException ioe) {
             Log.e (TAG, "error reading dlurl.txt", ioe);
         }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            return "http://www.outerworldapps.com/WairToNow";
+        }
         return "https://www.outerworldapps.com/WairToNow";
     }
 
@@ -177,6 +180,7 @@ public class MaintView
 
         Lib.Ignored (new File (WairToNow.dbdir + "/charts").mkdirs ());
         Lib.Ignored (new File (WairToNow.dbdir + "/datums").mkdirs ());
+        Lib.Ignored (new File (WairToNow.dbdir + "/nobudb").mkdirs ());
 
         maintViewHandler = new Handler (this);
 
@@ -225,10 +229,10 @@ public class MaintView
         addView (itemsScrollView);
 
         waypointsCheckBox = new WaypointsCheckBox ();
-        TopographyCheckBox topographyCheckBox = new TopographyCheckBox ();
 
         miscCategory.addView (waypointsCheckBox);
-        miscCategory.addView (topographyCheckBox);
+        miscCategory.addView (new ObstructionsCheckBox ());
+        miscCategory.addView (new TopographyCheckBox ());
         miscCategory.addView (new TextView (wairToNow));
         miscCategory.addView (new UpdateAllButton ());
 
@@ -258,8 +262,19 @@ public class MaintView
         {
             try {
                 GetChartNames ();
-            } catch (Exception e) {
+            } catch (final Exception e) {
                 Log.e (TAG, "exception getting chart names", e);
+                wairToNow.runOnUiThread (new Runnable () {
+                    @Override
+                    public void run ()
+                    {
+                        AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
+                        adb.setTitle ("Error Getting Chart Names");
+                        adb.setMessage (e.getMessage ());
+                        adb.setPositiveButton ("OK", null);
+                        adb.show ();
+                    }
+                });
             }
         }
     }
@@ -805,8 +820,8 @@ public class MaintView
         /*
          * Count the records in the rwypreloads table, as it is updated as tiles are downloaded.
          */
-        int expdate = MaintView.GetPlatesExpDate ();
-        String dbname = "plates_" + expdate + ".db";
+        int expdate = GetPlatesExpDate ();
+        String dbname = "nobudb/plates_" + expdate + ".db";
         SQLiteDBs sqldb = SQLiteDBs.open (dbname);
         if (sqldb != null) {
             if (sqldb.tableExists ("rwypreloads")) {
@@ -863,7 +878,7 @@ public class MaintView
     public ZipFile getStateZipFile (String ss)
             throws IOException
     {
-        return stateMapView.stateCheckBoxes.get (ss).getStateZipFile ();
+        return stateMapView.stateCheckBoxes.nnget (ss).getStateZipFile ();
     }
 
     /**
@@ -1107,6 +1122,7 @@ public class MaintView
                 }
                 Lib.RenameFile (topopn + PARTIAL, topopn);
                 Lib.Ignored (new File (topopn + ".zip").delete ());
+                Topography.purge ();
             } catch (IOException ioe) {
                 Log.w (TAG, "error unpacking topo.zip", ioe);
             }
@@ -1135,6 +1151,7 @@ public class MaintView
                         Lib.RecursiveDelete (file);
                     }
                 }
+                Topography.purge ();
             }
         }
 
@@ -1200,8 +1217,8 @@ public class MaintView
             // if deleting all but latest, get name of latest waypoint file
             if (!all) {
                 for (String dbname : dbnames) {
-                    if (dbname.startsWith ("waypoints_") && dbname.endsWith (".db")) {
-                        int i = Integer.parseInt (dbname.substring (10, dbname.length () - 3));
+                    if (dbname.startsWith ("nobudb/waypoints_") && dbname.endsWith (".db")) {
+                        int i = Integer.parseInt (dbname.substring (17, dbname.length () - 3));
                         if (latestexdate < i) {
                             latestexdate = i;
                             latestdbname = dbname;
@@ -1212,7 +1229,7 @@ public class MaintView
 
             // delete all versions except possibly the latest version
             for (String dbname : dbnames) {
-                if (dbname.startsWith ("waypoints_") && !dbname.equals (latestdbname)) {
+                if (dbname.startsWith ("nobudb/waypoints_") && !dbname.equals (latestdbname)) {
                     SQLiteDBs sqldb = SQLiteDBs.open (dbname);
                     if (sqldb != null) sqldb.markForDelete ();
                 }
@@ -1220,7 +1237,7 @@ public class MaintView
 
             // delete any partial downloads
             if (all) {
-                File[] files = new File (WairToNow.dbdir).listFiles ();
+                File[] files = new File (WairToNow.dbdir, "nobudb").listFiles ();
                 for (File file : files) {
                     if (file.getName ().startsWith ("waypoints_")) {
                         Lib.Ignored (file.delete ());
@@ -1248,7 +1265,7 @@ public class MaintView
             /*
              * Download that file and gunzip it iff we don't already have it.
              */
-            String localname = servername.substring (7, servername.length () - 3);
+            String localname = "nobudb/" + servername.substring (7, servername.length () - 3);
             if (SQLiteDBs.open (localname) == null) {
                 DownloadStuffWaypoints dsw = new DownloadStuffWaypoints ();
                 dsw.dbname = localname;
@@ -1328,8 +1345,182 @@ public class MaintView
 
         String[] dbnames = SQLiteDBs.Enumerate ();
         for (String dbname : dbnames) {
-            if (dbname.startsWith ("waypoints_") && dbname.endsWith (".db")) {
-                int i = Integer.parseInt (dbname.substring (10, dbname.length () - 3));
+            if (dbname.startsWith ("nobudb/waypoints_") && dbname.endsWith (".db")) {
+                int i = Integer.parseInt (dbname.substring (17, dbname.length () - 3));
+                if (enddate_database < i) {
+                    enddate_database = i;
+                }
+            }
+        }
+
+        return enddate_database;
+    }
+
+    /**
+     * Enable download obstructions file.
+     * datums/obstructions_<expdate>.db.gz
+     */
+    private class ObstructionsCheckBox extends DownloadCheckBox {
+        private int enddate;
+
+        public ObstructionsCheckBox ()
+        {
+            enddate = GetObstructionExpDate ();
+        }
+
+        @Override  // DownloadCheckBox
+        public int GetEndDate ()
+        {
+            return enddate;
+        }
+
+        @Override  // DownloadCheckBox
+        public String GetSpaceNameNoRev ()
+        {
+            return "Obstructions";
+        }
+
+        @Override  // DownloadCheckBox
+        public void DeleteDownloadedFiles (boolean all)
+        {
+            int latestexdate = 0;
+            String latestdbname = "";
+
+            String[] dbnames = SQLiteDBs.Enumerate ();
+
+            // if deleting all but latest, get name of latest obstruction file
+            if (!all) {
+                for (String dbname : dbnames) {
+                    if (dbname.startsWith ("nobudb/obstructions_") && dbname.endsWith (".db")) {
+                        int i = Integer.parseInt (dbname.substring (20, dbname.length () - 3));
+                        if (latestexdate < i) {
+                            latestexdate = i;
+                            latestdbname = dbname;
+                        }
+                    }
+                }
+            }
+
+            // delete all versions except possibly the latest version
+            for (String dbname : dbnames) {
+                if (dbname.startsWith ("nobudb/obstructions_") && !dbname.equals (latestdbname)) {
+                    SQLiteDBs sqldb = SQLiteDBs.open (dbname);
+                    if (sqldb != null) sqldb.markForDelete ();
+                }
+            }
+
+            // delete any partial downloads
+            if (all) {
+                File[] files = new File (WairToNow.dbdir, "nobudb").listFiles ();
+                for (File file : files) {
+                    if (file.getName ().startsWith ("obstructions_")) {
+                        Lib.Ignored (file.delete ());
+                    }
+                }
+            }
+
+            // if deleted everything, say we ain't got nothing
+            if (all) enddate = 0;
+        }
+
+        /**
+         * Download the obstructions_<expdate>.db.gz file from the server.
+         */
+        public void DownloadFiles () throws IOException
+        {
+            /*
+             * Get name of latest obstructions file.
+             */
+            String servername = ReadSingleLine ("filelist.php?undername=Obstructions");
+            if (!servername.startsWith ("datums/obstructions_") || !servername.endsWith (".db.gz")) {
+                throw new IOException ("bad obstruction filename " + servername);
+            }
+
+            /*
+             * Download that file and gunzip it iff we don't already have it.
+             */
+            String localname = "nobudb/" + servername.substring (7, servername.length () - 3);
+            if (SQLiteDBs.open (localname) == null) {
+                DownloadStuffObstructions dso = new DownloadStuffObstructions ();
+                dso.dbname = localname;
+                dso.DownloadWhat (servername);
+            }
+        }
+
+        /**
+         * Obstruction file download has completed.
+         */
+        @Override  // DownloadCheckBox
+        public void DownloadFileComplete ()
+        { }
+
+        @Override  // DownloadCheckBox
+        public void DownloadThreadExited ()
+        { }
+
+        @Override  // DownloadCheckBox
+        public void RemovedDownloadedChart ()
+        {
+            enddate = 0;
+        }
+
+        @Override  // DownloadCheckBox
+        public void UncheckBox ()
+        {
+            super.UncheckBox ();
+            enddate = GetObstructionExpDate ();
+            wairToNow.waypointView1.waypointsWithin.clear ();
+            wairToNow.waypointView2.waypointsWithin.clear ();
+        }
+
+        /**
+         * Download datums/obstructions_<expdate>.db.gz file from web server and expand it.
+         */
+        private class DownloadStuffObstructions extends DownloadStuff {
+            public String dbname;
+
+            @Override
+            public void DownloadContents () throws IOException
+            {
+                // read and gunzip to a temp file
+                String dbpath = SQLiteDBs.creating (dbname);
+                GZIPInputStream gis = new GZIPInputStream (this);
+                FileOutputStream fos = new FileOutputStream (dbpath + PARTIAL);
+                try {
+                    wairToNow.downloadStream = this;
+                    byte[] buff = new byte[32768];
+                    int rc;
+                    while ((rc = gis.read (buff)) > 0) {
+                        if (wairToNow.downloadCancelled) throw new IOException ("download cancelled");
+                        fos.write (buff, 0, rc);
+                        UpdateBytesProgress ();
+                    }
+                } finally {
+                    wairToNow.downloadStream = null;
+                    fos.close ();
+                }
+
+                // completely downloaded and expanded
+                // rename temp file to permanent and
+                // tell SQLiteDBs it has a new database file
+                Lib.RenameFile (dbpath + PARTIAL, dbpath);
+                SQLiteDBs.created (dbname);
+            }
+        }
+    }
+
+    /**
+     * Get name of current valid obstruction files (56-day cycle).
+     * @return 0: no such files; else: expiration date of files
+     */
+    public static int GetObstructionExpDate ()
+    {
+        int enddate_database = 0;
+
+        String[] dbnames = SQLiteDBs.Enumerate ();
+        for (String dbname : dbnames) {
+            if (dbname.startsWith ("nobudb/obstructions_") && dbname.endsWith (".db")) {
+                int i = Integer.parseInt (dbname.substring (20, dbname.length () - 3));
                 if (enddate_database < i) {
                     enddate_database = i;
                 }
@@ -1418,7 +1609,7 @@ public class MaintView
             String undername = airChart.spacenamenr.replace (' ', '_');
             String servername = ReadSingleLine ("filelist.php?undername=" + undername);
             if (!servername.startsWith ("charts/" + undername + "_") || !servername.endsWith (".wtn.zip")) {
-                throw new IOException ("bad waypoint filename " + servername);
+                throw new IOException ("bad chart filename " + servername);
             }
 
             /*
@@ -1529,7 +1720,7 @@ public class MaintView
      * Displays a list of checkboxes for each state for downloading plates for those states.
      */
     private class StateMapView extends HorizontalScrollView {
-        public  TreeMap<String,StateCheckBox> stateCheckBoxes = new TreeMap<> ();
+        public NNTreeMap<String,StateCheckBox> stateCheckBoxes = new NNTreeMap<> ();
 
         public StateMapView () throws IOException
         {
@@ -1557,7 +1748,7 @@ public class MaintView
          */
         public void StartDwnld (String state, Runnable done)
         {
-            stateCheckBoxes.get (state).StartDwnld (done);
+            stateCheckBoxes.nnget (state).StartDwnld (done);
         }
     }
 
@@ -1782,10 +1973,10 @@ public class MaintView
 
             // remove the corresponding records from the SQLite database
             // if SQLite database is empty, delete it
-            String latestplates = "plates_" + latestrevno + ".db";
+            String latestplates = "nobudb/plates_" + latestrevno + ".db";
             String[] dbnames = SQLiteDBs.Enumerate ();
             for (String dbname : dbnames) {
-                if (dbname.startsWith ("plates_") && !dbname.equals (latestplates)) {
+                if (dbname.startsWith ("nobudb/plates_") && !dbname.equals (latestplates)) {
                     SQLiteDBs sqldb = SQLiteDBs.open (dbname);
                     if (sqldb == null) continue;
                     boolean dbempty = true;
@@ -1847,7 +2038,7 @@ public class MaintView
         private void WritePlatesDatabase (BufferedReader br, int expdate, String statecode)
                 throws IOException
         {
-            String dbname = "plates_" + expdate + ".db";
+            String dbname = "nobudb/plates_" + expdate + ".db";
 
             SQLiteDBs sqldb = SQLiteDBs.create (dbname);
             if (!sqldb.tableExists ("plates")) {
@@ -1873,7 +2064,7 @@ public class MaintView
 
                 // get list of all airports in the state and request OpenStreetMap tiles for runway diagrams
                 int waypointexpdate = GetWaypointExpDate ();
-                SQLiteDBs wpdb = SQLiteDBs.open ("waypoints_" + waypointexpdate + ".db");
+                SQLiteDBs wpdb = SQLiteDBs.open ("nobudb/waypoints_" + waypointexpdate + ".db");
                 if (wpdb != null) {
                     Cursor result = wpdb.query (
                             true, "airports", columns_apt_faaid_faciluse,
@@ -1930,7 +2121,7 @@ public class MaintView
         private void WriteApdGeorefsDatabase (BufferedReader br, int expdate, String statecode)
                 throws IOException
         {
-            String dbname = "plates_" + expdate + ".db";
+            String dbname = "nobudb/plates_" + expdate + ".db";
 
             SQLiteDBs sqldb = SQLiteDBs.create (dbname);
             if (!sqldb.tableExists ("apdgeorefs")) {
@@ -1982,7 +2173,7 @@ public class MaintView
         private void WriteCifpsDatabase (BufferedReader br, int expdate, String statecode)
                 throws IOException
         {
-            String dbname = "plates_" + expdate + ".db";
+            String dbname = "nobudb/plates_" + expdate + ".db";
 
             SQLiteDBs sqldb = SQLiteDBs.create (dbname);
             if (! sqldb.tableExists ("iapcifps")) {
@@ -2047,7 +2238,7 @@ public class MaintView
         private void WriteIapGeorefsDatabase (BufferedReader br, int expdate, String statecode)
                 throws IOException
         {
-            String dbname = "plates_" + expdate + ".db";
+            String dbname = "nobudb/plates_" + expdate + ".db";
 
             SQLiteDBs sqldb = SQLiteDBs.create (dbname);
             if (! sqldb.tableExists ("iapgeorefs2")) {

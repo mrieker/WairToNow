@@ -63,7 +63,6 @@ public class PixelMapper {
      * @param brLat  = bottom right corner latitude
      * @param brLon  = bottom right corner longitude
      */
-    @SuppressWarnings("ConstantConditions")
     public void setup (int width, int height,
             double tlLat, double tlLon, double trLat, double trLon,
             double blLat, double blLon, double brLat, double brLon)

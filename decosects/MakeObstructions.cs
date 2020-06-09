@@ -65,6 +65,7 @@ public class MakeObstructions {
                 string type = csv.Substring (62, 18).Trim ();
                 int agl = int.Parse (csv.Substring (83, 5).Trim ());
                 int msl = int.Parse (csv.Substring (89, 5).Trim ());
+                if (agl < 200) continue;  // min height for sectional
 
                 IDbCommand dbcmd1 = dbcon.CreateCommand ();
                 try {

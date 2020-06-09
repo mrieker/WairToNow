@@ -24,7 +24,7 @@ public class DeviceReportMessage {
     /**
      *
      */
-    public static void parse (byte msg[], int len, Reporter reporter)
+    public static void parse (byte[] msg, int len, Reporter reporter)
     {
         if (len < 6) throw new IllegalArgumentException ();
 

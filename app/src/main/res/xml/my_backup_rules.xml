@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <exclude domain="external" path="charts" />
+    <exclude domain="external" path="datums" />
+    <exclude domain="external" path="nobudb" />
+    <exclude domain="external" path="streets" />
+    <exclude domain="external" path="synth_ilsdme" />
+</full-backup-content>

@@ -23,7 +23,6 @@ package com.outerworldapps.wairtonow;
 import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.app.ProgressDialog;
-import android.content.ActivityNotFoundException;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
@@ -31,10 +30,10 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Typeface;
 import android.net.Uri;
-import android.os.Handler;
-import android.os.Message;
 import android.util.Log;
 import android.view.View;
+import android.view.ViewGroup;
+import android.view.ViewParent;
 import android.webkit.WebView;
 import android.widget.Button;
 import android.widget.EditText;
@@ -44,16 +43,19 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.FileReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.InputStream;
 import java.io.OutputStreamWriter;
 import java.util.Arrays;
+import java.util.Enumeration;
+import java.util.LinkedList;
+import java.util.Stack;
 import java.util.zip.GZIPInputStream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 
 /**
  * Display a menu to display file system contents.
@@ -61,29 +63,23 @@ import java.util.zip.GZIPInputStream;
 @SuppressLint({ "SetTextI18n", "ViewConstructor" })
 public class FilesView
         extends LinearLayout
-        implements Handler.Callback, WairToNow.CanBeMainView {
+        implements WairToNow.CanBeMainView {
     private final static String TAG = "WairToNow";
 
-    private DeleteFileThread deleteFileThread;
-    private Handler filesViewHandler;
-    private LinearLayout currentFileList;
+    private Stack<FilePage> filePageStack;
     private WairToNow wairToNow;
-    private String currentFileName;
 
-    private static final int FilesViewHandlerWhat_OPENFILE = 0;
-    private static final int FilesViewHandlerWhat_DELFILE  = 1;
-    private static final int FilesViewHandlerWhat_DFPROG   = 2;
+    private final static String[] textends = { ".csv", ".txt", ".xml" };
 
     public FilesView (WairToNow ctx)
     {
         super (ctx);
         wairToNow = ctx;
-        filesViewHandler = new Handler (this);
         setOrientation (VERTICAL);
-        currentFileName = WairToNow.dbdir;
+        filePageStack = new Stack<> ();
     }
 
-    @Override  // WairToNow.CanBeMainView
+    @Override  // CanBeMainView
     public String GetTabName ()
     {
         return "Files";
@@ -101,13 +97,16 @@ public class FilesView
         return false;
     }
 
-    @Override  // WairToNow.CanBeMainView
+    @Override  // CanBeMainView
     public void OpenDisplay()
     {
-        FillList (currentFileName);
+        if (filePageStack.isEmpty ()) {
+            filePageStack.push (new DirFilePage (new File (WairToNow.dbdir)));
+        }
+        ReshowPage ();
     }
 
-    @Override  // WairToNow.CanBeMainView
+    @Override  // CanBeMainView
     public void CloseDisplay()
     {
         removeAllViews ();
@@ -115,390 +114,672 @@ public class FilesView
 
     /**
      * Tab is being re-clicked when already active.
+     * Set to top-level directory.
      */
-    @Override  // WairToNow.CanBeMainView
+    @Override  // CanBeMainView
     public void ReClicked ()
     {
-        /*
-         * Set to top-level directory.
-         */
-        FillList (WairToNow.dbdir);
+        filePageStack.clear ();
+        DirFilePage toppage = new DirFilePage (new File (WairToNow.dbdir));
+        filePageStack.push (toppage);
+        ReshowPage ();
     }
 
-    @Override  // WairToNow.CanBeMainView
+    @Override  // CanBeMainView
     public View GetBackPage()
     {
-        /*
-         * If already at our top-level directory, go back to chart page.
-         */
-        if (currentFileName.equals (WairToNow.dbdir)) {
+        if (filePageStack.isEmpty ()) {
             return wairToNow.chartView;
         }
-        int i = currentFileName.lastIndexOf ('/');
-        if (i < 0) {
+        filePageStack.pop ();
+        if (filePageStack.isEmpty ()) {
             return wairToNow.chartView;
         }
-
-        /*
-         * Not at top-level directory, pop up one level and display it.
-         */
-        currentFileName = currentFileName.substring (0, i);
+        ReshowPage ();
         return this;
     }
 
-    @Override
-    public boolean handleMessage (Message msg)
-    {
-        switch (msg.what) {
-
-            case FilesViewHandlerWhat_OPENFILE: {
-                FillList (msg.obj.toString ());
-                break;
-            }
-
-            case FilesViewHandlerWhat_DELFILE: {
-                if (deleteFileThread == null) {
-                    deleteFileThread = new DeleteFileThread ((FileButton)msg.obj);
-                }
-                break;
-            }
-
-            case FilesViewHandlerWhat_DFPROG: {
-                if (deleteFileThread != null) {
-                    deleteFileThread.UpdateProg (msg.obj);
-                }
-                break;
-            }
-        }
-        return true;
-    }
-
-    /**
-     * Open and display the named file on the screen.
-     * If it is a directory, the contents are a list of buttons
-     * that can be clicked to open the corresponding file.
+    /*
+     * Display title and contents of current file.
      */
-    @SuppressLint("SetJavaScriptEnabled")
-    private void FillList (String name)
+    private void ReshowPage ()
     {
-        currentFileName = name;
+        FilePage fp = filePageStack.peek ();
 
         removeAllViews ();
 
-        TextView tv1 = new TextView (wairToNow);
-        tv1.setText ("Files Browser");
-        wairToNow.SetTextSize (tv1);
-        addView (tv1);
+        TextView tv2 = new TextView (wairToNow);
+        tv2.setText (fp.getPath ());
+        wairToNow.SetTextSize (tv2);
+        addView (tv2);
 
-        File currentFile = new File (name);
-        if (currentFile.isDirectory ()) {
+        try {
+            fp.showPage ();
+        } catch (IOException ioe) {
+            AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
+            adb.setTitle (fp.getPath ());
+            adb.setMessage ("error displaying page: " + ioe.getMessage ());
+        }
+    }
 
-            /*
-             * Directory, display list of buttons the user can click to open the file.
-             */
-            TextView tv2 = new TextView (wairToNow);
-            tv2.setText (name + "/...");
-            wairToNow.SetTextSize (tv2);
-            addView (tv2);
+    /*
+     * Page displaying file contents.
+     */
+    private static abstract class FilePage {
+        public abstract String getPath ();
+        public abstract void showPage ()
+                throws IOException;
+    }
 
+    /*
+     * Displays directory contents as a list of buttons.
+     * Each button can open or delete a file.
+     */
+    private class DirFilePage extends FilePage {
+        private DeleteFileThread deleteFileThread;
+        private File dirfile;
+
+        public DirFilePage (File dirfile)
+        {
+            this.dirfile = dirfile;
+        }
+
+        @Override
+        public String getPath ()
+        {
+            return dirfile.getPath ();
+        }
+
+        @Override
+        public void showPage ()
+        {
             ScrollView sv1 = new ScrollView (wairToNow);
             LinearLayout ll1 = new LinearLayout (wairToNow);
             ll1.setOrientation (VERTICAL);
-            File[] fileList = currentFile.listFiles ();
+            CreateFileButton cfb = new CreateFileButton ();
+            ll1.addView (cfb);
+            File[] fileList = dirfile.listFiles ();
             Arrays.sort (fileList);
             for (File file : fileList) {
-                if (!file.getName ().startsWith (".")) {
+                if (! file.getName ().equals (".") && ! file.getName ().equals ("..")) {
                     FileButton fileButton = new FileButton (file);
                     ll1.addView (fileButton);
                 }
             }
             sv1.addView (ll1);
             addView (sv1);
-            currentFileList = ll1;
-        } else {
-            currentFileList = null;
+        }
 
-            String namenotmp = name;
-            if (namenotmp.endsWith (".tmp")) namenotmp = namenotmp.substring (0, namenotmp.length () - 4);
+        /**
+         * One of these buttons at the top to create a text file.
+         */
+        private class CreateFileButton extends Button implements DialogInterface.OnClickListener, OnClickListener {
+            private EditText nameTextView;
 
-            /*
-             * If one of our .csv, .txt or .xml files, show file contents in a text view.
-             */
-            if (namenotmp.endsWith (".csv") || namenotmp.endsWith (".txt") || namenotmp.endsWith (".xml")) {
-                TextView tv2 = new TextView (wairToNow);
-                tv2.setText (name);
-                wairToNow.SetTextSize (tv2);
-                addView (tv2);
-                SaveTextButton stb = new SaveTextButton ();
-                stb.name = name;
-                addView (stb);
+            public CreateFileButton ()
+            {
+                super (wairToNow);
+                setText ("create text file");
+                wairToNow.SetTextSize (this);
 
-                try {
-                    char[] data = new char[(int)currentFile.length()];
-                    FileReader reader = new FileReader (name);
-                    Lib.Ignored (reader.read (data, 0, data.length));
-                    reader.close ();
-
-                    EditText editor = new EditText (wairToNow);
-                    editor.setTypeface (Typeface.MONOSPACE);
-                    editor.setText (new String (data));
-                    wairToNow.SetTextSize (editor);
-                    stb.editor = editor;
-                    HorizontalScrollView hsv1 = new HorizontalScrollView (wairToNow);
-                    hsv1.addView (editor);
-                    ScrollView vsv1 = new ScrollView (wairToNow);
-                    vsv1.addView (hsv1);
-                    addView (vsv1);
-                } catch (IOException ioe) {
-                    TextView viewer = new TextView (wairToNow);
-                    viewer.setText ("error reading file: " + ioe.getMessage ());
-                    wairToNow.SetTextSize (viewer);
-                    addView (viewer);
+                StringBuilder sb = new StringBuilder ();
+                sb.append ("end with");
+                for (String textend : textends) {
+                    sb.append (' ');
+                    sb.append (textend);
                 }
 
-                return;
+                nameTextView = new EditText (wairToNow);
+                nameTextView.setHint (sb);
+                nameTextView.setSingleLine ();
+                wairToNow.SetTextSize (nameTextView);
+
+                setOnClickListener (this);
             }
 
-            /*
-             * If one of our .gif or .png files, show file contents in an image view.
-             */
-            if (namenotmp.endsWith (".gif") || namenotmp.endsWith (".png") || namenotmp.contains (".gif.p")) {
-                Bitmap bitmap = BitmapFactory.decodeFile (name);
-                if (bitmap == null) {
-                    TextView tv2 = new TextView (wairToNow);
-                    tv2.setText (name);
-                    wairToNow.SetTextSize (tv2);
-                    addView (tv2);
-                    TextView viewer = new TextView (wairToNow);
-                    viewer.setText ("unable to decode image file");
-                    addView (viewer);
-                } else {
-                    TextView tv2 = new TextView (wairToNow);
-                    tv2.setText (name + " (" + bitmap.getWidth () + " x " + bitmap.getHeight () + ")");
-                    wairToNow.SetTextSize (tv2);
-                    addView (tv2);
-                    ImageView viewer = new ImageView (wairToNow);
-                    viewer.setImageBitmap (bitmap);
-                    addView (viewer);
+            // 'create text file' button clicked
+            @Override  // OnClickListner
+            public void onClick (View v)
+            {
+                ViewParent vp = nameTextView.getParent ();
+                if (vp instanceof ViewGroup) {
+                    ((ViewGroup) vp).removeAllViews ();
                 }
-                return;
+
+                AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
+                adb.setTitle ("Create Text File");
+                adb.setView (nameTextView);
+                adb.setPositiveButton ("Create", this);
+                adb.setNegativeButton ("Cancel", null);
+                adb.show ();
             }
 
-            /*
-             * We have .html.gz files, so display those in a web view.
-             */
-            if (namenotmp.endsWith (".html.gz")) {
-                try {
-                    BufferedReader br = new BufferedReader (new InputStreamReader
-                            (new GZIPInputStream (new FileInputStream (name))));
-                    StringBuilder sb = new StringBuilder ();
-                    String line;
-                    while ((line = br.readLine ()) != null) {
-                        sb.append (line);
-                        sb.append ('\n');
+            // 'Create' button clicked
+            @Override  // DialogInterface.OnClickListener
+            public void onClick (DialogInterface dialog, int which)
+            {
+                // if name is good, open editing box with a Save button at the top
+                String name = nameTextView.getText ().toString ().trim ();
+                if (!name.contains ("/")) {
+                    for (String textend : textends) {
+                        if (name.endsWith (textend)) {
+                            String path = new File (dirfile, name).getPath ();
+                            TextFilePage tfp = new TextFilePage (path);
+                            filePageStack.push (tfp);
+                            ReshowPage ();
+                            return;
+                        }
                     }
-                    br.close ();
-
-                    WebView wv = new WebView (wairToNow);
-                    wv.getSettings ().setBuiltInZoomControls (true);
-                    wv.getSettings ().setDefaultFontSize (Math.round (wairToNow.textSize / 2.0F));
-                    wv.getSettings ().setDefaultFixedFontSize (Math.round (wairToNow.textSize / 2.0F));
-                    wv.getSettings ().setJavaScriptEnabled (true);
-                    wv.loadData (sb.toString (), "text/html", null);
-
-                    addView (wv);
-                } catch (IOException ioe) {
-                    TextView viewer = new TextView (wairToNow);
-                    viewer.setText ("error reading file: " + ioe.getMessage ());
-                    wairToNow.SetTextSize (viewer);
-                    addView (viewer);
                 }
-                return;
-            }
 
-            /*
-             * Last resort, try an intent.
-             */
-            try {
-                Intent intent = new Intent (Intent.ACTION_VIEW);
-                intent.setData (Uri.parse ("file://" + name));
-                wairToNow.startActivity (intent);
-            } catch (ActivityNotFoundException anfe) {
-                TextView viewer = new TextView (wairToNow);
-                viewer.setText ("unable to open file: " + anfe.getMessage ());
-                wairToNow.SetTextSize (viewer);
-                addView (viewer);
-            }
-        }
-    }
-
-    private class SaveTextButton extends Button implements OnClickListener {
-        public EditText editor;
-        public String name;
-
-        public SaveTextButton ()
-        {
-            super (wairToNow);
-            setText ("Save");
-            wairToNow.SetTextSize (this);
-            setOnClickListener (this);
-        }
-
-        public void onClick (View v)
-        {
-            AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
-            try {
-                OutputStreamWriter osw = new OutputStreamWriter (new FileOutputStream (name));
-                try {
-                    osw.write (editor.getText ().toString ());
-                } finally {
-                    osw.close ();
+                // name is bad, display error message and retry
+                AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
+                adb.setTitle ("Create Text File");
+                StringBuilder sb = new StringBuilder ();
+                sb.append ("no / and must end with");
+                for (String textend : textends) {
+                    sb.append (' ');
+                    sb.append (textend);
                 }
-                adb.setMessage (name + " updated");
-            } catch (IOException ioe) {
-                Log.e (TAG, "error writing file", ioe);
-                adb.setMessage ("error writing " + name + ": " + ioe.getMessage ());
-            }
-            adb.setPositiveButton ("OK", null);
-            adb.show ();
-        }
-    }
-
-    /**
-     * Thread to delete files in the background.
-     * Deletes the files with a progress dialog then
-     * removes file from file button list when done.
-     * Delete can be canceled by pressing the Back button.
-     */
-    private class DeleteFileThread extends Thread implements DialogInterface.OnCancelListener {
-        private boolean canceled;
-        private boolean completed;
-        private FileButton fileButton;
-        private ProgressDialog progress;
-        private volatile boolean updateMsgPending;
-
-        public DeleteFileThread (FileButton fb)
-        {
-            fileButton = fb;
-
-            progress = new ProgressDialog (wairToNow);
-            progress.setTitle ("Deleting...");
-            progress.setProgressStyle (ProgressDialog.STYLE_SPINNER);
-            progress.setOnCancelListener (this);
-            progress.show ();
-
-            start ();
-        }
-
-        public void UpdateProg (Object obj)
-        {
-            if (obj != null) {
-                updateMsgPending = false;
-                if (progress != null) {
-                    progress.setMessage (obj.toString ());
-                }
-            } else {
-                deleteFileThread = null;
-                Lib.dismiss (progress);
-                progress = null;
-                if (completed && (currentFileList != null)) {
-                    currentFileList.removeView (fileButton);
-                }
-            }
-        }
-
-        @Override
-        public void onCancel (DialogInterface dialog)
-        {
-            canceled = true;
-        }
-
-        public void run ()
-        {
-            try {
-                DeleteFile (fileButton.file);
-                completed = true;
-            } catch (CanceledException ce) {
-                Lib.Ignored ();
-            } finally {
-                filesViewHandler.sendEmptyMessage (FilesViewHandlerWhat_DFPROG);
+                adb.setMessage (sb);
+                adb.setPositiveButton ("OK", new DialogInterface.OnClickListener () {
+                    @Override
+                    public void onClick (DialogInterface dialog, int which) {
+                        CreateFileButton.this.onClick (null);
+                    }
+                });
+                adb.setNegativeButton ("Cancel", null);
+                adb.show ();
             }
         }
 
         /**
-         * Delete the given file.  If it is a directory,
-         * delete all the files it contains as well as
-         * the directory itself.
+         * One of these buttons per file listed in the directory.
          */
-        private void DeleteFile (File file) throws CanceledException
-        {
-            if (file.isDirectory ()) {
-                File[] fileList = file.listFiles ();
-                Arrays.sort (fileList);
-                for (File f : fileList) {
-                    if (canceled) throw new CanceledException ();
-                    DeleteFile (f);
+        private class FileButton extends Button implements DialogInterface.OnClickListener, OnClickListener {
+            public File file;
+
+            public FileButton (File file)
+            {
+                super (wairToNow);
+                this.file = file;
+                if (file.isDirectory ()) {
+                    setText ("<dir> : " + file.getName ());
+                } else {
+                    setText (file.length () + " : " + file.getName ());
+                }
+                wairToNow.SetTextSize (this);
+                setOnClickListener (this);
+            }
+
+            @Override  // OnClickListner
+            public void onClick (View v)
+            {
+                AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
+                adb.setTitle (file.getName ());
+                String[] names = new String[] { "Open", "Delete" };
+                adb.setItems (names, this);
+                adb.show ();
+            }
+
+            @Override  // DialogInterface.OnClickListener
+            public void onClick (DialogInterface dialog, int which)
+            {
+                Lib.dismiss (dialog);
+                switch (which) {
+                    case 0: {
+                        OpenFile (file);
+                        break;
+                    }
+                    case 1: {
+                        AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
+                        adb.setTitle (file.getName ());
+                        adb.setMessage ("Confirm DELETE");
+                        adb.setPositiveButton ("DELETE", new DialogInterface.OnClickListener () {
+                            @Override
+                            public void onClick (DialogInterface dialog, int which)
+                            {
+                                if (deleteFileThread == null) {
+                                    deleteFileThread = new DeleteFileThread (FileButton.this);
+                                }
+                            }
+                        });
+                        adb.setNegativeButton ("KEEP IT", null);
+                        adb.show ();
+                        break;
+                    }
                 }
             }
-            if (!updateMsgPending) {
-                updateMsgPending = true;
-                Message msg = filesViewHandler.obtainMessage (FilesViewHandlerWhat_DFPROG, 0, 0, file.getPath ());
-                filesViewHandler.sendMessageDelayed (msg, 25);
-            }
-            Lib.Ignored (file.delete ());
         }
 
-        @SuppressWarnings("serial")
-        private class CanceledException extends Exception { }
+        /**
+         * Open and display the named file on the screen.
+         */
+        @SuppressLint("SetJavaScriptEnabled")
+        private void OpenFile (File file)
+        {
+            try {
+                FilePage fp;
+                if (file.isDirectory ()) {
+                    fp = new DirFilePage (file);
+                } else {
+                    FileInputStream fis = new FileInputStream (file);
+                    try {
+                        fp = OpenStream (file.getPath (), fis, false);
+                    } finally {
+                        fis.close ();
+                    }
+                }
+                if (fp != null) {
+                    filePageStack.push (fp);
+                    ReshowPage ();
+                } else {
+
+                    /*
+                     * Last resort, try an intent.
+                     */
+                    Intent intent = new Intent (Intent.ACTION_VIEW);
+                    intent.setData (Uri.parse ("file://" + file.getAbsolutePath ()));
+                    wairToNow.startActivity (intent);
+                }
+            } catch (Exception e) {
+                AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
+                adb.setTitle (file.getPath ());
+                adb.setMessage ("error opening file: " + e.getMessage ());
+            }
+        }
+
+        /**
+         * Thread to delete files in the background.
+         * Deletes the files with a progress dialog then
+         * removes file from file button list when done.
+         * Delete can be canceled by pressing the Back button.
+         */
+        private class DeleteFileThread extends Thread implements DialogInterface.OnCancelListener {
+            private boolean canceled;
+            private FileButton fileButton;
+            private ProgressDialog progress;
+            private volatile boolean updateMsgPending;
+
+            public DeleteFileThread (FileButton fb)
+            {
+                fileButton = fb;
+
+                progress = new ProgressDialog (wairToNow);
+                progress.setTitle ("Deleting...");
+                progress.setProgressStyle (ProgressDialog.STYLE_SPINNER);
+                progress.setOnCancelListener (this);
+                progress.show ();
+
+                start ();
+            }
+
+            @Override
+            public void onCancel (DialogInterface dialog)
+            {
+                canceled = true;
+            }
+
+            public void run ()
+            {
+                try {
+                    DeleteFile (fileButton.file);
+                } catch (CanceledException ce) {
+                    Lib.Ignored ();
+                } finally {
+                    WairToNow.wtnHandler.runDelayed (0, new Runnable () {
+                        @Override
+                        public void run ()
+                        {
+                            deleteFileThread = null;
+                            Lib.dismiss (progress);
+                            progress = null;
+                            ReshowPage ();
+                        }
+                    });
+                }
+            }
+
+            /**
+             * Delete the given file.  If it is a directory,
+             * delete all the files it contains as well as
+             * the directory itself.
+             */
+            private void DeleteFile (final File file) throws CanceledException
+            {
+                if (file.isDirectory ()) {
+                    File[] fileList = file.listFiles ();
+                    Arrays.sort (fileList);
+                    for (File f : fileList) {
+                        if (canceled) throw new CanceledException ();
+                        DeleteFile (f);
+                    }
+                }
+                if (! updateMsgPending) {
+                    updateMsgPending = true;
+                    WairToNow.wtnHandler.runDelayed (25, new Runnable () {
+                        @Override
+                        public void run ()
+                        {
+                            updateMsgPending = false;
+                            if (progress != null) {
+                                progress.setMessage (file.getPath ());
+                            }
+                        }
+                    });
+                }
+                Lib.Ignored (file.delete ());
+            }
+
+            @SuppressWarnings("serial")
+            private class CanceledException extends Exception { }
+        }
+    }
+
+    /*
+     * Displays HTML file in a WebView.
+     */
+    private class HtmlFilePage extends FilePage {
+        private String path;
+        private String text;
+
+        public HtmlFilePage (String path, InputStream istream)
+                throws IOException
+        {
+            this.path = path;
+            this.text = ReadWholeStream (istream);
+        }
+
+        @Override
+        public String getPath ()
+        {
+            return path;
+        }
+
+        @SuppressLint("SetJavaScriptEnabled")
+        @Override
+        public void showPage ()
+        {
+            WebView wv = new WebView (wairToNow);
+            wv.getSettings ().setBuiltInZoomControls (true);
+            wv.getSettings ().setDefaultFontSize (Math.round (wairToNow.textSize / 2.0F));
+            wv.getSettings ().setDefaultFixedFontSize (Math.round (wairToNow.textSize / 2.0F));
+            wv.getSettings ().setJavaScriptEnabled (true);
+            wv.loadData (text, "text/html", null);
+            addView (wv);
+        }
+    }
+
+    /*
+     * Displays image file in an ImageView.
+     */
+    private class ImageFilePage extends FilePage {
+        private Bitmap bitmap;
+        private String path;
+
+        public ImageFilePage (String path, InputStream istream)
+                throws IOException
+        {
+            bitmap = BitmapFactory.decodeStream (istream);
+            if (bitmap == null) throw new IOException ("bitmap corrupt");
+            this.path = path;
+        }
+
+        @Override
+        public String getPath ()
+        {
+            return path;
+        }
+
+        @Override
+        public void showPage ()
+        {
+            ImageView viewer = new ImageView (wairToNow);
+            viewer.setImageBitmap (bitmap);
+            addView (viewer);
+        }
+    }
+
+    /*
+     * Displays text file in an editable text view box.
+     */
+    private class TextFilePage extends FilePage {
+        private boolean readonly;
+        private String path;
+        private String text;
+
+        public TextFilePage (String path, InputStream istream, boolean readonly)
+                throws IOException
+        {
+            this.path = path;
+            this.text = ReadWholeStream (istream);
+            this.readonly = readonly;
+        }
+
+        public TextFilePage (String path)
+        {
+            this.path = path;
+            this.text = "";
+        }
+
+        @Override
+        public String getPath ()
+        {
+            return path;
+        }
+
+        @Override
+        public void showPage ()
+        {
+            SaveTextButton stb = null;
+            if (! readonly) {
+                stb = new SaveTextButton ();
+                addView (stb);
+            }
+
+            EditText editor = new EditText (wairToNow);
+            editor.setTypeface (Typeface.MONOSPACE);
+            editor.setText (text);
+            wairToNow.SetTextSize (editor);
+            if (stb != null) stb.editor = editor;
+
+            HorizontalScrollView hsv1 = new HorizontalScrollView (wairToNow);
+            hsv1.addView (editor);
+            ScrollView vsv1 = new ScrollView (wairToNow);
+            vsv1.addView (hsv1);
+            addView (vsv1);
+        }
+
+        private class SaveTextButton extends Button implements OnClickListener {
+            public EditText editor;
+
+            public SaveTextButton ()
+            {
+                super (wairToNow);
+                setText ("Save");
+                wairToNow.SetTextSize (this);
+                setOnClickListener (this);
+            }
+
+            public void onClick (View v)
+            {
+                AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
+                try {
+                    OutputStreamWriter osw = new OutputStreamWriter (new FileOutputStream (path));
+                    try {
+                        osw.write (editor.getText ().toString ());
+                    } finally {
+                        osw.close ();
+                    }
+                    adb.setMessage (path + " updated");
+                } catch (IOException ioe) {
+                    Log.e (TAG, "error writing file", ioe);
+                    adb.setMessage ("error writing " + path + ": " + ioe.getMessage ());
+                }
+                adb.setPositiveButton ("OK", null);
+                adb.show ();
+            }
+        }
+    }
+
+    /*
+     * Displays zip file contents as a list of buttons that can open the files.
+     */
+    private class ZipFilePage extends FilePage {
+        private String path;
+        private ZipFile zipfile;
+
+        public ZipFilePage (String path)
+        {
+            this.path = path;
+        }
+
+        @Override
+        public String getPath ()
+        {
+            return path;
+        }
+
+        @Override
+        public void showPage ()
+                throws IOException
+        {
+            zipfile = new ZipFile (path);  //TODO stream?
+            Enumeration<? extends ZipEntry> entries = zipfile.entries ();
+
+            ScrollView sv1 = new ScrollView (wairToNow);
+            LinearLayout ll1 = new LinearLayout (wairToNow);
+            ll1.setOrientation (VERTICAL);
+
+            while (entries.hasMoreElements ()) {
+                ZipEntry zipent = entries.nextElement ();
+                ll1.addView (new ZEntButton (zipent));
+            }
+
+            sv1.addView (ll1);
+            addView (sv1);
+        }
+
+        /**
+         * One of these buttons per zip entry in the zip file.
+         */
+        private class ZEntButton extends Button implements OnClickListener {
+            public ZipEntry zipent;
+
+            public ZEntButton (ZipEntry zipent)
+            {
+                super (wairToNow);
+                this.zipent = zipent;
+                setText (zipent.getSize () + " : " + zipent.getName ());
+                wairToNow.SetTextSize (this);
+                setOnClickListener (this);
+            }
+
+            @Override  // OnClickListner
+            public void onClick (View v)
+            {
+                String entpath = path + "/" + zipent.getName ();
+                try {
+                    InputStream fis = zipfile.getInputStream (zipent);
+                    try {
+                        FilePage fp = OpenStream (entpath, fis, true);
+                        if (fp != null) {
+                            filePageStack.push (fp);
+                            ReshowPage ();
+                        }
+                    } finally {
+                        fis.close ();
+                    }
+                } catch (IOException ioe) {
+                    AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
+                    adb.setTitle (entpath);
+                    adb.setMessage ("error displaying page: " + ioe.getMessage ());
+                }
+            }
+        }
     }
 
     /**
-     * One of these buttons per file listed in the current directory.
+     * Display the given file from the stream contents.
+     * @param name = path name of the file
+     * @param istream = file contents
+     * @param readonly = contents are read-only (no mods allowed)
+     *                   true: istream is processed path
+     *                  false: istream matches path exactly
      */
-    private class FileButton extends Button implements DialogInterface.OnClickListener, OnClickListener {
-        public File file;
+    @SuppressLint("SetJavaScriptEnabled")
+    private FilePage OpenStream (String name, InputStream istream, boolean readonly)
+            throws IOException
+    {
+        String namenotmp = name;
+        if (namenotmp.endsWith (".tmp")) namenotmp = namenotmp.substring (0, namenotmp.length () - 4);
 
-        public FileButton (File file)
-        {
-            super (wairToNow);
-            this.file = file;
-            if (file.isDirectory ()) {
-                setText ("<dir> : " + file.getName ());
-            } else {
-                setText (file.length () + " : " + file.getName ());
-            }
-            wairToNow.SetTextSize (this);
-            setOnClickListener (this);
-
+        /*
+         * If ends in .gz, wrap with an unzipper
+         */
+        if (namenotmp.endsWith (".gz")) {
+            istream = new GZIPInputStream (istream);
+            namenotmp = namenotmp.substring (0, namenotmp.length () - 3);
+            readonly = true;
         }
 
-        @Override  // OnClickListner
-        public void onClick (View v)
-        {
-            AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
-            adb.setTitle (file.getName ());
-            String[] names = new String[] { "Open", "Delete" };
-            adb.setItems (names, this);
-            AlertDialog alert = adb.create ();
-            alert.show ();
-        }
-
-        @Override  // DialogInterface.OnClickListener
-        public void onClick (DialogInterface dialog, int which)
-        {
-            Lib.dismiss (dialog);
-            switch (which) {
-                case 0: {
-                    Message msg = filesViewHandler.obtainMessage (FilesViewHandlerWhat_OPENFILE, 0, 0, file.getPath ());
-                    filesViewHandler.sendMessage (msg);
-                    break;
-                }
-                case 1: {
-                    Message msg = filesViewHandler.obtainMessage (FilesViewHandlerWhat_DELFILE, 0, 0, this);
-                    filesViewHandler.sendMessage (msg);
-                    break;
-                }
+        /*
+         * If one of our .csv, .txt or .xml files, show file contents in a text view.
+         */
+        for (String textend : textends) {
+            if (namenotmp.endsWith (textend)) {
+                return new TextFilePage (name, istream, readonly);
             }
         }
+
+        /*
+         * If one of our .gif or .png files, show file contents in an image view.
+         */
+        if (namenotmp.endsWith (".gif") || namenotmp.endsWith (".png") || namenotmp.contains (".gif.p")) {
+            return new ImageFilePage (name, istream);
+        }
+
+        /*
+         * We have .html.gz files, so display those in a web view.
+         */
+        if (namenotmp.endsWith (".html")) {
+            return new HtmlFilePage (name, istream);
+        }
+
+        /*
+         * Open a .zip file
+         */
+        if (! readonly && namenotmp.endsWith (".zip")) {
+            return new ZipFilePage (name);
+        }
+
+        return null;
+    }
+
+    /**
+     * Read whole stream into a string
+     */
+    private static String ReadWholeStream (InputStream istream)
+            throws IOException
+    {
+        int total = 0;
+        LinkedList<byte[]> blocks = new LinkedList<> ();
+        while (true) {
+            byte[] block = new byte[8000];
+            int rc = istream.read (block, 4, block.length - 4);
+            if (rc <= 0) break;
+            block[0] = (byte) rc;
+            block[1] = (byte) (rc >> 8);
+            blocks.add (block);
+            total += rc;
+        }
+        byte[] whole = new byte[total];
+        int offs = 0;
+        for (byte[] block : blocks) {
+            int rc = (block[0] & 0xFF) | ((block[1] & 0xFF) << 8);
+            System.arraycopy (block, 4, whole, offs, rc);
+            offs += rc;
+        }
+        return new String (whole);
     }
 }

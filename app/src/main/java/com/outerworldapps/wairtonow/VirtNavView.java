@@ -273,8 +273,8 @@ public class VirtNavView extends LinearLayout
 
         // if it is an IAP plate, get associated navaid or selected CIFP route
         if ((wpv.selectedPlateView != null) &&
-                (wpv.selectedPlateView.plateImage instanceof PlateView.IAPPlateImage)) {
-            PlateView.IAPPlateImage iappi = (PlateView.IAPPlateImage) wpv.selectedPlateView.plateImage;
+                (wpv.selectedPlateView.plateImage instanceof IAPPlateImage)) {
+            IAPPlateImage iappi = (IAPPlateImage) wpv.selectedPlateView.plateImage;
             PlateCIFP plateCIFP = iappi.plateCIFP;
 
             // if CIFP selected, track the CIFP route
@@ -630,7 +630,7 @@ public class VirtNavView extends LinearLayout
         SharedPreferences prefs = wairToNow.getPreferences (Context.MODE_PRIVATE);
         SharedPreferences.Editor editr = prefs.edit ();
         editr.putBoolean (label + ".hsiEnable", enab);
-        editr.commit ();
+        editr.apply ();
     }
 
     /**

@@ -311,7 +311,7 @@ public class LatLonView extends LinearLayout {
                         String dstr = str.substring (++ i);
                         if (dstr.length () <= dec) {
                             if (dstr.length () > 0) Lib.Ignored (Integer.parseInt (dstr));
-                            String tlz = Integer.toString (ival) + "." + dstr;
+                            String tlz = ival + "." + dstr;
                             if (tlz.equals (str)) {
                                 oldText = str;
                                 return;

@@ -32,7 +32,7 @@ public class NexradImage {
     public final static int HEIGHT = Nexrad.HEIGHT;
 
     // scale 3 is undefined so don't show anything if seen
-    private final static int scalefactors[] = new int[] { 1, 5, 9, 0 };
+    private final static int[] scalefactors = new int[] { 1, 5, 9, 0 };
 
     private Bitmap bitmap;
     private int[] data;
@@ -51,7 +51,7 @@ public class NexradImage {
      * @param block = <22>: southern hemisphere flag; <21:20>: scale; <19:00>: block number
      * @param conus = true: low-res; false: high-res
      */
-    public NexradImage (long time, int data[], int block, boolean conus)
+    public NexradImage (long time, int[] data, int block, boolean conus)
     {
         if (data.length != WIDTH * HEIGHT) throw new IllegalArgumentException ("data");
 
@@ -71,13 +71,14 @@ public class NexradImage {
         eastLon = Lib.NormalLon (westLon + (blockno >= 405000 ? 96.0 : 48.0) * scale / 60.0);
 
         // all blocks are 4*scale minutes high
+        int blkn = blockno / 450;
         if ((block & 0x400000) != 0) {  // <22> contains hemisphere flag
             // southern hemisphere - block 0's northern edge is on the equator
-            northLat = (blockno / 450) * -4.0 / 60.0;
+            northLat = blkn * -4.0 / 60.0;
             southLat = northLat - 4.0 * scale / 60.0;
         } else {
             // northern hemisphere - block 0's southern edge is on the equator
-            southLat = (blockno / 450) *  4.0 / 60.0;
+            southLat = blkn *  4.0 / 60.0;
             northLat = southLat + 4.0 * scale / 60.0;
         }
     }

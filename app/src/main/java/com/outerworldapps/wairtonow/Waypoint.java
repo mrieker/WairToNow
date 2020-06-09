@@ -67,6 +67,8 @@ public abstract class Waypoint {
 
     public final static ArrayList<Class<? extends Waypoint>> wpclasses = GetWaypointClasses ();
 
+    public final static Waypoint[] nullarray = new Waypoint[0];
+
     public double lat;                   // degrees north
     public double lon;                   // degrees east
     public double elev = ELEV_UNKNOWN;   // feet MSL
@@ -401,10 +403,10 @@ public abstract class Waypoint {
         ident = ident.toUpperCase (Locale.US);
 
         /*
-         * Maybe we have aptid.RWrwyid
+         * Maybe we have aptid.rwyid or aptid.RWrwyid
          * aptid can be faaid or icaoid
          *
-         * We can also have I-aptid.RWrwyid for synthetic ILS/DME.
+         * We can also have I-aptid.rwid or I-aptid.RWrwyid for synthetic ILS/DME.
          */
         int i = ident.indexOf ('.');
         if (i >= 0) {
@@ -470,9 +472,7 @@ public abstract class Waypoint {
             /*
              * Otherwise, just get the waypoint as named.
              */
-            int waypointexpdate = MaintView.GetWaypointExpDate ();
-            String dbname = "waypoints_" + waypointexpdate + ".db";
-            SQLiteDBs sqldb = SQLiteDBs.open (dbname);
+            SQLiteDBs sqldb = openWayptDB ();
             if (sqldb != null) {
                 try {
 
@@ -500,7 +500,7 @@ public abstract class Waypoint {
                         }
                     }
                 } catch (Exception e) {
-                    Log.e (TAG, "error reading " + dbname, e);
+                    Log.e (TAG, "error reading " + sqldb.mydbname, e);
                 }
                 if (wplist.isEmpty () && ident.startsWith ("I") && !ident.startsWith ("I-")) {
                     return GetWaypointsByIdent ("I-" + ident.substring (1), wairToNow);
@@ -515,9 +515,7 @@ public abstract class Waypoint {
      */
     public static Airport GetAirportByIdent (String ident, WairToNow wtn)
     {
-        int waypointexpdate = MaintView.GetWaypointExpDate ();
-        String dbname = "waypoints_" + waypointexpdate + ".db";
-        SQLiteDBs sqldb = SQLiteDBs.open (dbname);
+        SQLiteDBs sqldb = openWayptDB ();
         if (sqldb != null) {
             try {
                 Cursor result = sqldb.query (
@@ -532,7 +530,7 @@ public abstract class Waypoint {
                     result.close ();
                 }
             } catch (Exception e) {
-                Log.e (TAG, "error reading " + dbname, e);
+                Log.e (TAG, "error reading " + sqldb.mydbname, e);
             }
         }
         return null;
@@ -543,9 +541,7 @@ public abstract class Waypoint {
      */
     public static Airport GetAirportByName (String name, WairToNow wtn)
     {
-        int waypointexpdate = MaintView.GetWaypointExpDate ();
-        String dbname = "waypoints_" + waypointexpdate + ".db";
-        SQLiteDBs sqldb = SQLiteDBs.open (dbname);
+        SQLiteDBs sqldb = openWayptDB ();
         if (sqldb != null) {
             try {
                 Cursor result = sqldb.query (
@@ -560,7 +556,7 @@ public abstract class Waypoint {
                     result.close ();
                 }
             } catch (Exception e) {
-                Log.e (TAG, "error reading " + dbname, e);
+                Log.e (TAG, "error reading " + sqldb.mydbname, e);
             }
         }
         return null;
@@ -606,9 +602,7 @@ public abstract class Waypoint {
         /*
          * Scan database for match on first keyword in given string.
          */
-        int waypointexpdate = MaintView.GetWaypointExpDate ();
-        String dbname = "waypoints_" + waypointexpdate + ".db";
-        SQLiteDBs sqldb = SQLiteDBs.open (dbname);
+        SQLiteDBs sqldb = openWayptDB ();
         if (sqldb != null) {
             try {
                 String kw = keys[0];
@@ -647,7 +641,7 @@ public abstract class Waypoint {
                     }
                 }
             } catch (Exception e) {
-                Log.e (TAG, "error reading " + dbname, e);
+                Log.e (TAG, "error reading " + sqldb.mydbname, e);
             }
         } else {
             Log.w (TAG, "no database file");
@@ -765,6 +759,9 @@ public abstract class Waypoint {
     // eg, "AIRPORT", "NAVAID:NDB", "LOCALIZER:ILS/DME", "FIX", etc.
     public abstract String GetType ();
 
+    // eg, "BEVERLY RGNL", "LAWRENCE", etc.
+    public abstract String GetName ();
+
     // type string used on Street tiles
     public String GetTypeAbbr ()
     {
@@ -791,6 +788,7 @@ public abstract class Waypoint {
     public abstract String MenuKey ();
 
     // matches the given search keyword
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     public boolean MatchesKeyword (String key)
     {
         return GetDetailText ().toUpperCase (Locale.US).contains (key);
@@ -909,9 +907,7 @@ public abstract class Waypoint {
                 leftLon = lLon;
                 riteLon = rLon;
 
-                int waypointexpdate = MaintView.GetWaypointExpDate ();
-                String dbname = "waypoints_" + waypointexpdate + ".db";
-                SQLiteDBs sqldb = SQLiteDBs.open (dbname);
+                SQLiteDBs sqldb = openWayptDB ();
                 if (sqldb != null) {
                     try {
                         for (Class<? extends Waypoint> wpclass : Waypoint.wpclasses) {
@@ -937,7 +933,7 @@ public abstract class Waypoint {
                             }
                         }
                     } catch (Exception e) {
-                        Log.e (TAG, "error reading " + dbname, e);
+                        Log.e (TAG, "error reading " + sqldb.mydbname, e);
                     }
                 } else {
                     Log.w (TAG, "no database file");
@@ -961,8 +957,8 @@ public abstract class Waypoint {
         public  final String faaident;   // non-ICAO ident
         public  final String state;      // eg, "MA"
 
-        private HashMap<String,Runway> runways;
         private LinkedList<Runway> runwayPairs;
+        private NNHashMap<String,Runway> runways;
         private String details;
         private String menuKey;
         private WairToNow wairToNow;
@@ -982,9 +978,7 @@ public abstract class Waypoint {
 
         public static Airport GetByFaaID (String faaid, WairToNow wtn)
         {
-            int waypointexpdate = MaintView.GetWaypointExpDate ();
-            String db56name = "waypoints_" + waypointexpdate + ".db";
-            SQLiteDBs sql56db = SQLiteDBs.open (db56name);
+            SQLiteDBs sql56db = openWayptDB ();
             if (sql56db == null) return null;
             Cursor resultapt = sql56db.query (
                     "airports", Waypoint.Airport.dbcols,
@@ -1004,6 +998,12 @@ public abstract class Waypoint {
             return "AIRPORT";
         }
 
+        @Override
+        public String GetName ()
+        {
+            return name;
+        }
+
         /**
          * Get contents of the details for the given airport.
          * It consists of the detail text
@@ -1021,7 +1021,7 @@ public abstract class Waypoint {
                 if (repo != null) {
                     for (Iterator<String> it = repo.metarTypes.keySet ().iterator (); it.hasNext ();) {
                         String type = it.next ();
-                        TreeMap<Long,Metar> metars = repo.metarTypes.get (type);
+                        TreeMap<Long,Metar> metars = repo.metarTypes.nnget (type);
                         if (metars.isEmpty ()) {
                             it.remove ();
                         } else {
@@ -1043,12 +1043,12 @@ public abstract class Waypoint {
             // get list of plates from database and the corresponding .gif file name
             String[] dbnames = SQLiteDBs.Enumerate ();
             int latestexpdate = 0;
-            TreeMap<String,String> latestplates    = new TreeMap<> ();
-            HashMap<String,Integer> latestexpdates = new HashMap<> ();
+            TreeMap<String,String> latestplates = new TreeMap<> ();
+            NNHashMap<String,Integer> latestexpdates = new NNHashMap<> ();
 
             for (String dbname : dbnames) {
-                if (dbname.startsWith ("plates_") && dbname.endsWith (".db")) {
-                    int expdate = Integer.parseInt (dbname.substring (7, dbname.length () - 3));
+                if (dbname.startsWith ("nobudb/plates_") && dbname.endsWith (".db")) {
+                    int expdate = Integer.parseInt (dbname.substring (14, dbname.length () - 3));
                     if (latestexpdate < expdate) {
                         SQLiteDBs sqldb = SQLiteDBs.open (dbname);
                         if ((sqldb != null) && sqldb.tableExists ("plates")) {
@@ -1083,7 +1083,7 @@ public abstract class Waypoint {
             // maybe make up synthetic ILS/DME plate for each runway
             if (wairToNow.optionsView.synthILSDMEOption.checkBox.isChecked ()) {
                 for (String rwyno : GetRunways ().keySet ()) {
-                    String plateid = PlateView.IAPSynthPlateImage.prefix + rwyno;
+                    String plateid = IAPSynthPlateImage.prefix + rwyno;
                     latestplates.put (plateid, "-");
                     latestexpdates.put (plateid, 99999999);
                 }
@@ -1093,7 +1093,7 @@ public abstract class Waypoint {
             // and display them below the detail text
             for (String descrip : latestplates.keySet ()) {
                 String filename = latestplates.get (descrip);
-                int expdate = latestexpdates.get (descrip);
+                int expdate = latestexpdates.nnget (descrip);
                 PlateButton pb = new PlateButton (wpv, descrip, filename, expdate, this);
                 ll.addView (pb);
             }
@@ -1155,18 +1155,15 @@ public abstract class Waypoint {
 
         // get list of all runways for this airport
         // gets separate entries for each direction
-        public HashMap<String,Runway> GetRunways ()
+        public NNHashMap<String,Runway> GetRunways ()
         {
             if (runways == null) {
 
                 /*
                  * Read list of runways into airport waypoint list.
                  */
-                runways = new HashMap<> ();
-                int waypointexpdate = MaintView.GetWaypointExpDate ();
-
-                String dbname = "waypoints_" + waypointexpdate + ".db";
-                SQLiteDBs sqldb = SQLiteDBs.open (dbname);
+                runways = new NNHashMap<> ();
+                SQLiteDBs sqldb = openWayptDB ();
                 if (sqldb != null) {
                     try {
                         Cursor result = sqldb.query (
@@ -1184,7 +1181,7 @@ public abstract class Waypoint {
                             result.close ();
                         }
                     } catch (Exception e) {
-                        Log.e (TAG, "error reading " + dbname, e);
+                        Log.e (TAG, "error reading " + sqldb.mydbname, e);
                     }
                 }
             }
@@ -1264,12 +1261,10 @@ public abstract class Waypoint {
         /**
          * Retrieve the airport details field from the database file.
          */
-        private String GetArptDetails ()
+        public String GetArptDetails ()
         {
             if (details == null) {
-                int waypointexpdate = MaintView.GetWaypointExpDate ();
-                String dbname = "waypoints_" + waypointexpdate + ".db";
-                SQLiteDBs sqldb = SQLiteDBs.open (dbname);
+                SQLiteDBs sqldb = openWayptDB ();
                 if (sqldb == null) return "<missing>";
                 Cursor result = sqldb.query (
                         "airports", columns_apt_desc,
@@ -1368,6 +1363,12 @@ public abstract class Waypoint {
             return "SelfLL";
         }
 
+        @Override
+        public String GetName ()
+        {
+            return GetDetailText ();
+        }
+
         @Override  // Waypoint
         public String GetDetailText ()
         {
@@ -1386,7 +1387,6 @@ public abstract class Waypoint {
      */
     public static class RNavOffset extends Waypoint {
         private boolean magnetic;  // rnavradl is magnetic
-        private double hdgtrue;
         private double rnavdist;
         private double rnavradl;
         public Waypoint basewp;
@@ -1402,13 +1402,13 @@ public abstract class Waypoint {
         public RNavOffset (Waypoint basewp, double rnavdist, double rnavradl, boolean mag, String suffix)
         {
             if (rnavdist == 0) throw new IllegalArgumentException ("rnavdist zero");
-            this.basewp   = basewp;
-            this.rnavdist = rnavdist;
-            this.rnavradl = rnavradl;
-            this.magnetic = mag;
-            this.hdgtrue  = rnavradl;
+            this.basewp    = basewp;
+            this.rnavdist  = rnavdist;
+            this.rnavradl  = rnavradl;
+            this.magnetic  = mag;
+            double hdgtrue = rnavradl;
             if (mag) {
-                this.hdgtrue -= basewp.GetMagVar (basewp.elev);
+                hdgtrue -= basewp.GetMagVar (basewp.elev);
             }
 
             ident = basewp.ident + "[" + suffix;
@@ -1420,6 +1420,12 @@ public abstract class Waypoint {
         public String GetType ()
         {
             return "RNavOffset." + basewp.GetType ();
+        }
+
+        @Override
+        public String GetName ()
+        {
+            return MenuKey ();
         }
 
         @Override  // Waypoint
@@ -1442,16 +1448,17 @@ public abstract class Waypoint {
      * Every record in runways.csv that we are able to parse.
      */
     public static class Runway extends Waypoint {
-        public final static String[] dbcols = new String[] { "rwy_faaid", "rwy_number",
-                "rwy_truehdg", "rwy_tdze", "rwy_beglat", "rwy_beglon", "rwy_endlat", "rwy_endlon" };
+        public final static String[] dbcols = new String[] { "rwy_number",
+                "rwy_truehdg", "rwy_tdze", "rwy_beglat", "rwy_beglon", "rwy_endlat", "rwy_endlon",
+                "rwy_ritraf" };
 
         public Airport airport;
-        public String  aptid;    // faa ident
         public String  number;   // eg, "02L"
         public int     truehdg;  // published
         public double  endLat;
         public double  endLon;
         public double  trueHdg;  // computed
+        public boolean ritraf;   // true=right; false=left
 
         private int lengthFt = -1;
         private int widthFt  = -1;
@@ -1459,21 +1466,21 @@ public abstract class Waypoint {
 
         public Runway (Cursor result, Airport apt)
         {
-            aptid   = result.getString (0);
-            number  = result.getString (1);
-            elev    = result.isNull (3) ? apt.elev : result.getDouble (3);
-            lat     = result.getDouble (4);
-            lon     = result.getDouble (5);
-            endLat  = result.getDouble (6);
-            endLon  = result.getDouble (7);
+            number  = result.getString (0);
+            elev    = result.isNull (2) ? apt.elev : result.getDouble (2);
+            lat     = result.getDouble (3);
+            lon     = result.getDouble (4);
+            endLat  = result.getDouble (5);
+            endLon  = result.getDouble (6);
+            ritraf  = result.getString (7).equals ("Y");
             airport = apt;
 
             trueHdg = Lib.LatLonTC (lat, lon, endLat, endLon);
-            if (result.isNull (2)) {
+            if (result.isNull (1)) {
                 truehdg = (int) Math.round (trueHdg);
                 if (truehdg <= 0) truehdg += 360;
             } else {
-                truehdg = result.getInt (2);
+                truehdg = result.getInt (1);
             }
 
             // set up Waypoint values
@@ -1484,6 +1491,12 @@ public abstract class Waypoint {
         public String GetType ()
         {
             return "RUNWAY";
+        }
+
+        @Override
+        public String GetName ()
+        {
+            return airport.GetName () + " rwy " + number;
         }
 
         @Override  // Waypoint
@@ -1579,6 +1592,18 @@ public abstract class Waypoint {
         // Get associated airport
         @Override  // Waypoint
         public Airport GetAirport () { return airport; }
+
+        // Get opposite direction runway
+        public Runway GetOpposite ()
+        {
+            for (Runway rwy : airport.GetRunways ().values ()) {
+                if ((rwy.lat == endLat) && (rwy.lon == endLon) &&
+                        (rwy.endLat == lat) && (rwy.endLon == lon)) {
+                    return rwy;
+                }
+            }
+            return null;
+        }
     }
 
     public static class Localizer extends Waypoint {
@@ -1640,7 +1665,7 @@ public abstract class Waypoint {
         public Localizer (Runway rwy, double gstilt, double gsdist)
         {
             this.type     = "ILS/DME";
-            this.ident    = "I-" + rwy.aptid + "." + rwy.ident;  // eg, I-BVY.RW09
+            this.ident    = "I-" + rwy.airport.faaident + "." + rwy.number;  // eg, I-BVY.09
             this.elev     = rwy.elev;
             this.descr    = "Synth ILS/DME for " + rwy.ident + " of " + rwy.airport.name;
             this.lat      = rwy.endLat;     // located at far end of runway
@@ -1650,9 +1675,9 @@ public abstract class Waypoint {
             this.gs_tilt  = gstilt;
             this.gs_lat   = Lib.LatHdgDist2Lat (rwy.lat, rwy.trueHdg, gsdist / Lib.FtPerNM);
             this.gs_lon   = Lib.LatLonHdgDist2Lon (rwy.lat, rwy.lon, rwy.trueHdg, gsdist / Lib.FtPerNM);
-            this.dme_elev = rwy.elev;       // dme at beginning of runway
-            this.dme_lat  = rwy.lat;
-            this.dme_lon  = rwy.lon;
+            this.dme_elev = rwy.elev;       // dme at localizer (far end of runway)
+            this.dme_lat  = rwy.endLat;
+            this.dme_lon  = rwy.endLon;
             this.airport  = rwy.airport;
         }
 
@@ -1660,6 +1685,12 @@ public abstract class Waypoint {
         public String GetType ()
         {
             return "LOCALIZER:" + type;
+        }
+
+        @Override
+        public String GetName ()
+        {
+            return airport.GetName () + " loc " + ident;
         }
 
         @Override
@@ -1735,6 +1766,12 @@ public abstract class Waypoint {
         }
 
         @Override
+        public String GetName ()
+        {
+            return descr;
+        }
+
+        @Override
         public String GetDetailText ()
         {
             return type + " " + ident + ": " + descr;
@@ -1772,6 +1809,12 @@ public abstract class Waypoint {
         public String GetType ()
         {
             return "FIX";
+        }
+
+        @Override
+        public String GetName ()
+        {
+            return GetDetailText ();
         }
 
         @Override
@@ -1819,6 +1862,12 @@ public abstract class Waypoint {
         }
 
         @Override
+        public String GetName ()
+        {
+            return GetDetailText ();
+        }
+
+        @Override
         public String GetDetailText ()
         {
             return "Intersection " + ident + ": " + type;
@@ -1856,9 +1905,7 @@ public abstract class Waypoint {
         {
             Airway awy = new Airway ();
             awy.ident = ident + " " + region;
-            int waypointexpdate = MaintView.GetWaypointExpDate ();
-            String dbname = "waypoints_" + waypointexpdate + ".db";
-            SQLiteDBs sqldb = SQLiteDBs.open (dbname);
+            SQLiteDBs sqldb = openWayptDB ();
             if (sqldb == null) return null;
             Cursor cursor = sqldb.query (
                     "airways", new String[] { "awy_wpident", "awy_wplat", "awy_wplon" },
@@ -1893,5 +1940,13 @@ public abstract class Waypoint {
                 cursor.close ();
             }
         }
+    }
+
+    // open latest version of waypoint database
+    public static SQLiteDBs openWayptDB ()
+    {
+        int waypointexpdate = MaintView.GetWaypointExpDate ();
+        String dbname = "nobudb/waypoints_" + waypointexpdate + ".db";
+        return SQLiteDBs.open (dbname);
     }
 }

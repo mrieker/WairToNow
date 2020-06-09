@@ -310,7 +310,7 @@ public class WiFiTCPGpsAdsb extends GpsAdsbReceiver {
         int portno = Integer.parseInt (btAdsbPortNo.getText ().toString ());
         editr.putInt (prefKey + "PortNo", portno);
         putLogToPreferences (editr);
-        editr.commit ();
+        editr.apply ();
     }
 
     /**
@@ -366,7 +366,7 @@ public class WiFiTCPGpsAdsb extends GpsAdsbReceiver {
         }
 
         @Override  // InputStream
-        public void close () throws IOException
+        public void close ()
         {
             try { wrapped.close (); } catch (Exception e) { Lib.Ignored (); }
             synchronized (receiveStreams) {

@@ -325,7 +325,7 @@ public class GDL90Decoder extends MidDecoder {
     private int    dot_addr;   // <26:34>: address type; <23:00>: icao address
     private String dot_call;
 
-    private void decodeOwnshipTraffic (byte msg[], int len)
+    private void decodeOwnshipTraffic (byte[] msg, int len)
     {
         if (len < 28) throw new IllegalArgumentException ();
 
@@ -418,7 +418,7 @@ public class GDL90Decoder extends MidDecoder {
         /*
          * next 8 bytes are callsign
          */
-        byte callsign[] = new byte[8];
+        byte[] callsign = new byte[8];
         callsign[0] = msg[19];
         callsign[1] = msg[20];
         callsign[2] = msg[21];

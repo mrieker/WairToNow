@@ -336,7 +336,7 @@
                         $parts = QuotedCSVSplit (trim ($gifcsvline));
                         if (($parts[0] == $faaid) && ($parts[1] == $iapid)) {
                             $gifname = $parts[2];
-                            echo "<A HREF=\"datums/aptplates_$cycles28/$gifname.p1\" TARGET=_BLANK>(GIF)</A>\n";
+                            echo "<A HREF=\"datums/aptplates_$cycles28/gif_150/$gifname.p1\" TARGET=_BLANK>(GIF)</A>\n";
                             break;
                         }
                     }

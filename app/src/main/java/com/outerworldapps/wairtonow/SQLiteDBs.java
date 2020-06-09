@@ -23,12 +23,12 @@ package com.outerworldapps.wairtonow;
 import android.content.ContentValues;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.support.annotation.NonNull;
 import android.util.Log;
 
 import java.io.File;
 import java.security.InvalidParameterException;
 import java.util.Iterator;
-import java.util.TreeMap;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -41,7 +41,7 @@ public class SQLiteDBs {
     private final static String[] columns_sql  = new String[] { "sql"  };
 
     // one pointer per thread accessing this database
-    private ThreadLocal<SQLiteDatabase> tlsqldb = new ThreadLocal<> ();
+    private NNThreadLocal<SQLiteDatabase> tlsqldb = new NNThreadLocal<> ();
 
     // used by various threads to modify database
     private ReentrantLock dblock = new ReentrantLock ();
@@ -53,23 +53,46 @@ public class SQLiteDBs {
     // database will be deleted when refcount goes zero
     private boolean markedfordel;
 
-    // list of all databases we have in our directory
-    private final static TreeMap<String,SQLiteDBs> databases = MakeEmptyTreeMap ();
+    // name of database file relative to dbdir
+    @NonNull
+    public final String mydbname;
 
-    private static TreeMap<String,SQLiteDBs> MakeEmptyTreeMap ()
+    // list of all databases we have in our directory
+    private final static NNTreeMap<String,SQLiteDBs> databases = MakeEmptyTreeMap ();
+
+    private static NNTreeMap<String,SQLiteDBs> MakeEmptyTreeMap ()
     {
         // make sure to call the SQLiteThreadLocal.finalize() method on exit
         // ...so we close all the sqlite databases nicely
         System.runFinalizersOnExit (true);
 
         // get list of existing databases but don't open them yet
-        TreeMap<String,SQLiteDBs> tm = new TreeMap<> ();
+        NNTreeMap<String,SQLiteDBs> tm = new NNTreeMap<> ();
         File[] files = new File (WairToNow.dbdir).listFiles ();
         for (File file : files) {
             String dbname = file.getName ();
             if (dbname.endsWith (".db")) {
-                SQLiteDBs db = new SQLiteDBs ();
-                tm.put (dbname, db);
+                if (dbname.startsWith ("obstructions_") ||
+                    dbname.startsWith ("plates_") ||
+                    dbname.startsWith ("waypoints_")) {
+                    Lib.Ignored (new File (WairToNow.dbdir, "nobudb").mkdirs ());
+                    File nbfile = new File (WairToNow.dbdir, "nobudb/" + dbname);
+                    if (! file.renameTo (nbfile)) {
+                        Log.e (TAG, "error renaming " + file.getAbsolutePath () +
+                                " to " + nbfile.getAbsolutePath ());
+                    }
+                } else {
+                    SQLiteDBs db = new SQLiteDBs (dbname);
+                    tm.put (dbname, db);
+                }
+            }
+        }
+        files = new File (WairToNow.dbdir, "nobudb").listFiles ();
+        for (File file : files) {
+            String dbname = file.getName ();
+            if (dbname.endsWith (".db")) {
+                SQLiteDBs db = new SQLiteDBs ("nobudb/" + dbname);
+                tm.put ("nobudb/" + dbname, db);
             }
         }
 
@@ -93,7 +116,7 @@ public class SQLiteDBs {
     public static void created (String dbname)
     {
         synchronized (databases) {
-            SQLiteDBs db = new SQLiteDBs ();
+            SQLiteDBs db = new SQLiteDBs (dbname);
             databases.put (dbname, db);
         }
     }
@@ -112,7 +135,7 @@ public class SQLiteDBs {
             String[] names = new String[num];
             num = 0;
             for (String name : databases.keySet ()) {
-                if (!databases.get (name).markedfordel) {
+                if (!databases.nnget (name).markedfordel) {
                     names[num++] = name;
                 }
             }
@@ -126,13 +149,12 @@ public class SQLiteDBs {
      */
     public static SQLiteDBs create (String dbname)
     {
-        if (dbname.contains ("/")) throw new IllegalArgumentException (dbname);
         if (!dbname.endsWith (".db")) throw new IllegalArgumentException (dbname);
 
         synchronized (databases) {
             SQLiteDBs db = databases.get (dbname);
             if ((db == null) || db.markedfordel) {
-                db = new SQLiteDBs ();
+                db = new SQLiteDBs (dbname);
                 databases.put (dbname, db);
             }
 
@@ -152,7 +174,6 @@ public class SQLiteDBs {
      */
     public static SQLiteDBs open (String dbname)
     {
-        if (dbname.contains ("/")) throw new IllegalArgumentException (dbname);
         if (!dbname.endsWith (".db")) throw new IllegalArgumentException (dbname);
 
         synchronized (databases) {
@@ -169,6 +190,11 @@ public class SQLiteDBs {
         }
     }
 
+    private SQLiteDBs (@NonNull String mydbn)
+    {
+        mydbname = mydbn;
+    }
+
     /**
      * See if the given table exists within the database.
      */
@@ -176,7 +202,7 @@ public class SQLiteDBs {
     {
         dblock.lock ();
         try {
-            Cursor result = tlsqldb.get ().query (
+            Cursor result = tlsqldb.nnget ().query (
                     "sqlite_master", columns_name,
                     "type='table' AND name=?", new String[] { table },
                     null, null, null, null);
@@ -197,7 +223,7 @@ public class SQLiteDBs {
     {
         dblock.lock ();
         try {
-            Cursor result = tlsqldb.get ().rawQuery ("SELECT * FROM " + table + " LIMIT 1", null);
+            Cursor result = tlsqldb.nnget ().rawQuery ("SELECT * FROM " + table + " LIMIT 1", null);
             try {
                 return result.getCount () <= 0;
             } finally {
@@ -216,7 +242,7 @@ public class SQLiteDBs {
     {
         dblock.lock ();
         try {
-            Cursor result = tlsqldb.get ().query (
+            Cursor result = tlsqldb.nnget ().query (
                     "sqlite_master", columns_sql,
                     "type='table' AND name=?", new String[] { table },
                     null, null, null, null);
@@ -249,7 +275,7 @@ public class SQLiteDBs {
         boolean keep = false;
         dblock.lock ();
         try {
-            tlsqldb.get ().beginTransaction ();
+            tlsqldb.nnget ().beginTransaction ();
             keep = true;
         } finally {
             if (!keep) dblock.unlock ();
@@ -260,7 +286,7 @@ public class SQLiteDBs {
     {
         dblock.lock ();
         try {
-            return tlsqldb.get ().delete (table, where, whargs);
+            return tlsqldb.nnget ().delete (table, where, whargs);
         } finally {
             dblock.unlock ();
         }
@@ -269,7 +295,7 @@ public class SQLiteDBs {
     public void endTransaction ()
     {
         try {
-            tlsqldb.get ().endTransaction ();
+            tlsqldb.nnget ().endTransaction ();
         } finally {
             dblock.unlock ();
         }
@@ -279,7 +305,7 @@ public class SQLiteDBs {
     {
         dblock.lock ();
         try {
-            tlsqldb.get ().execSQL (stmt);
+            tlsqldb.nnget ().execSQL (stmt);
         } finally {
             dblock.unlock ();
         }
@@ -289,7 +315,7 @@ public class SQLiteDBs {
     {
         dblock.lock ();
         try {
-            return tlsqldb.get ().insert (table, dummy1, values);
+            return tlsqldb.nnget ().insert (table, dummy1, values);
         } finally {
             dblock.unlock ();
         }
@@ -300,7 +326,7 @@ public class SQLiteDBs {
     {
         dblock.lock ();
         try {
-            return tlsqldb.get ().insertWithOnConflict (table, null, values, conflict);
+            return tlsqldb.nnget ().insertWithOnConflict (table, null, values, conflict);
         } finally {
             dblock.unlock ();
         }
@@ -310,7 +336,7 @@ public class SQLiteDBs {
     {
         dblock.lock ();
         try {
-            return tlsqldb.get ().query (table, columns, where, whargs, groupBy, having, orderBy, limit);
+            return tlsqldb.nnget ().query (table, columns, where, whargs, groupBy, having, orderBy, limit);
         } finally {
             dblock.unlock ();
         }
@@ -320,7 +346,7 @@ public class SQLiteDBs {
     {
         dblock.lock ();
         try {
-            return tlsqldb.get ().query (distinct, table, columns, where, whargs, groupBy, having, orderBy, limit);
+            return tlsqldb.nnget ().query (distinct, table, columns, where, whargs, groupBy, having, orderBy, limit);
         } finally {
             dblock.unlock ();
         }
@@ -328,14 +354,14 @@ public class SQLiteDBs {
 
     public void setTransactionSuccessful ()
     {
-        tlsqldb.get ().setTransactionSuccessful ();
+        tlsqldb.nnget ().setTransactionSuccessful ();
     }
 
     public int update (String table, ContentValues values, String where, String[] whargs)
     {
         dblock.lock ();
         try {
-            return tlsqldb.get ().update (table, values, where, whargs);
+            return tlsqldb.nnget ().update (table, values, where, whargs);
         } finally {
             dblock.unlock ();
         }
@@ -369,8 +395,8 @@ public class SQLiteDBs {
         synchronized (databases) {
             for (Iterator<String> it = databases.keySet ().iterator (); it.hasNext ();) {
                 String dbname = it.next ();
-                SQLiteDBs db = databases.get (dbname);
-                ThreadLocal<SQLiteDatabase> tldb = db.tlsqldb;
+                SQLiteDBs db = databases.nnget (dbname);
+                NNThreadLocal<SQLiteDatabase> tldb = db.tlsqldb;
                 SQLiteDatabase sqldb = tldb.get ();
                 if (sqldb != null) {
                     Log.i (TAG, Thread.currentThread ().getName () + " closing " + dbname);

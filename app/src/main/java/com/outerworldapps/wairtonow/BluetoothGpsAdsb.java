@@ -178,7 +178,7 @@ public class BluetoothGpsAdsb extends GpsAdsbReceiver {
         boolean secure  = prefs.getBoolean ("bluetoothRcvrSecure_" + devident, false);
         boolean sendini = prefs.getBoolean ("bluetoothSendGdlIni_" + devident, false);
 
-        for (int tries = 0; tries < 2; tries ++) {
+        for (int tries = 0;; tries ++) {
             for (int i = btDeviceArray.length; -- i >= 0;) {
                 BluetoothDevice dev = btDeviceArray[i];
                 if (btIdentString (dev).equals (devident)) {
@@ -275,7 +275,7 @@ public class BluetoothGpsAdsb extends GpsAdsbReceiver {
     {
         btDeviceArray = new BluetoothDevice[0];
         btAdsbDevice.setTitle ("Select Bluetooth GPS/ADS-B device");
-        btAdsbDevice.setLabels (new String[0], "Cancel", "(select)", "Refresh");
+        btAdsbDevice.setLabels (Lib.nullarrayString, "Cancel", "(select)", "Refresh");
         btAdsbDevice.setIndex (TextArraySpinner.NOTHING);
 
         btAdsbDevice.setOnClickListener (new View.OnClickListener () {
@@ -328,7 +328,7 @@ public class BluetoothGpsAdsb extends GpsAdsbReceiver {
 
         btUUIDArray = new ParcelUuid[0];
         btAdsbUUID.setTitle ("Select Bluetooth UUID to connect to");
-        btAdsbUUID.setLabels (new String[0], "Cancel", "(select)", "Refresh");
+        btAdsbUUID.setLabels (Lib.nullarrayString, "Cancel", "(select)", "Refresh");
         btAdsbUUID.setIndex (TextArraySpinner.NOTHING);
 
         btAdsbUUID.setOnClickListener (new View.OnClickListener () {
@@ -514,7 +514,6 @@ public class BluetoothGpsAdsb extends GpsAdsbReceiver {
     private abstract class RefreshBtUUIDArray extends BroadcastReceiver implements Runnable {
         private AlertDialog pleaseWait;
         private boolean sdpComplete;
-        private Class<? extends BluetoothDevice> btDevClass;
         private String btdevname;
 
         public abstract void finished ();
@@ -526,7 +525,7 @@ public class BluetoothGpsAdsb extends GpsAdsbReceiver {
              * It sometimes get stuck with out-of-date information.
              */
             btdevname = btIdentString (btdev);
-            btDevClass = btdev.getClass ();
+            Class<? extends BluetoothDevice> btDevClass = btdev.getClass ();
             try {
                 Method fuws = btDevClass.getMethod ("fetchUuidsWithSdp");
                 wairToNow.registerReceiver (this, new IntentFilter ("android.bluetooth.device.action.UUID"));
@@ -703,7 +702,7 @@ public class BluetoothGpsAdsb extends GpsAdsbReceiver {
                     editr.putBoolean ("bluetoothRcvrSecure_" + devident, btAdsbSecure.isChecked ());
                     editr.putBoolean ("bluetoothSendGdlIni_" + devident, btSendInit.isChecked ());
                     putLogToPreferences (editr);
-                    editr.commit ();
+                    editr.apply ();
 
                     /*
                      * Start this one going.
@@ -720,7 +719,7 @@ public class BluetoothGpsAdsb extends GpsAdsbReceiver {
             SharedPreferences prefs = wairToNow.getPreferences (Context.MODE_PRIVATE);
             SharedPreferences.Editor editr = prefs.edit ();
             editr.putBoolean ("selectedGPSReceiverKey_" + prefKey, false);
-            editr.commit ();
+            editr.apply ();
 
             /*
              * Shut down whichever GPS receiver we are using now.

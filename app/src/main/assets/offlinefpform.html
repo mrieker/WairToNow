@@ -1,0 +1,924 @@
+<HTML>
+    <HEAD>
+        <TITLE> ICAO Flight Plan Form </TITLE>
+        <STYLE TYPE="text/css">
+            @font-face {
+                font-family: MyFont;
+                src: url("file:///android_asset/DejaVuSansMono.ttf");
+            }
+            body, input, option, select {
+                font-family: MyFont;
+                font-size: medium;
+                text-align: justify;
+            }
+            .cbtable {
+                white-space: nowrap;
+            }
+        </STYLE>
+        <SCRIPT LANGUAGE=JAVASCRIPT>
+            var alt1wp = null;
+            var alt2wp = null;
+            var depwp  = null;
+            var destwp = null;
+            var rtwps  = [ ];
+            var speed  = 0;
+            var wndcos = 0.0;
+            var wndsin = 0.0;
+
+            var equipnames = {
+                N:  'NIL',
+                S:  '(VOR, VHF Comm, ILS)',
+                A:  'GBAS Landing System',
+                B:  'LPV (APV with SBAS)',
+                C:  'LORAN C',
+                D:  'DME',
+                E1: 'FMC WPR ACARS',
+                E2: 'D-FIS ACARS',
+                E3: 'PDC ACARS',
+                F:  'ADF',
+                G:  'GNSS',
+                H:  'HF Comm',
+                I:  'Inertial Nav',
+                J1: 'CPDLC ATN VDL Mode 2',
+                J2: 'CPDLC FANS 1/A HFDL',
+                J3: 'CPDLC FANS 1/A VDL Mode A',
+                J4: 'CPDLC FANS 1/A VDL Mode 2',
+                J5: 'CPDLC FANS 1/A SAT COM (INMARSAT)',
+                J6: 'CPDLC FANS 1/A SAT COM (MTSAT)',
+                J7: 'CPDLC FANS 1/A SAT COM (Iridium)',
+                K:  'MLS',
+                L:  'ILS',
+                M1: 'ATC Comm SATCOM (INMARSAT)',
+                M2: 'ATC Comm (MTSAT)',
+                M3: 'ATC Comm (Iridium)',
+                O:  'VOR',
+                R:  'PBN Approved',
+                T:  'TACAN',
+                U:  'UHF Comm',
+                V:  'VHF Comm',
+                W:  'RVSM',
+                X:  'MNPS',
+                Y:  'VHF with 8.33 kHz channel spacing',
+                Z:  'Other (COM/, DAT/ or NAV/ in Field 18)'
+            };
+
+            var survnames = {
+                N:  '0NIL',
+                A:  '0Mode A',
+                C:  '0Modes A and C',
+                E:  '0Mode S, ID, Alt and Squitter',
+                H:  '0Mode S, ID, Alt and Enhanced Surv',
+                I:  '0Mode S, ID no Alt',
+                L:  '0Mode S, ID, Alt, Squitter and Enhanced Surv',
+                P:  '0Mode S, Alt no ID',
+                S:  '0Mode S, ID and Alt',
+                X:  '0Mode S, no ID no Alt',
+                B1: '1ADS-B, Dedicated 1090 MHz Out',
+                B2: '1ADS-B, Dedicated 1090 MHz Out and In',
+                U1: '2ADS-B, UAT Out',
+                U2: '2ADS-B, UAT Out and In',
+                V1: '3ADS-B, VDL Mode 4 Out',
+                V2: '3ADS-B, VDL Mode 4 Out and In',
+                D1: '4ADS-C, FANS',
+                G1: '5ADS-C, ATN'
+            };
+
+            function pageLoaded ()
+            {
+                var form = document.forms.fpform;
+                var now  = garbo.getUTCNow ().split (' ');
+                form.deptime.value = now[1];
+                form.pcinfo.value  = persist.get ('pcinfo', '');
+            }
+
+            // aircraft id changed, retrieve previously saved type and speed
+            function acidChanged ()
+            {
+                var form = document.forms.fpform;
+                var acid = form.acid.value.trim ().toUpperCase ();
+                form.acid.value = acid;
+                if (acid != '') {
+                    form.actype.value   = persist.get ('acid-' + acid + '-actype',   '');
+                    form.waketurb.value = persist.get ('acid-' + acid + '-waketurb', 'L');
+                    form.equip.value    = persist.get ('acid-' + acid + '-equip',    'S');
+                    form.cruspd.value   = persist.get ('acid-' + acid + '-cruspd',   '');
+                    form.surveq.value   = persist.get ('acid-' + acid + '-surveq',   'S');
+                    form.acolor.value   = persist.get ('acid-' + acid + '-acolor',   '');
+                    var emrad = persist.get ('acid-' + acid + '-emrad', 'VHF');
+                    form.emrad_UHF.checked  = (emrad.indexOf ('UHF')  >= 0);
+                    form.emrad_VHF.checked  = (emrad.indexOf ('VHF')  >= 0);
+                    form.emrad_ELBA.checked = (emrad.indexOf ('ELBA') >= 0);
+                    var surviv = persist.get ('acid-' + acid + '-surviv', '');
+                    form.surviv_Pol.checked = (surviv.indexOf ('Pol') >= 0);
+                    form.surviv_Des.checked = (surviv.indexOf ('Des') >= 0);
+                    form.surviv_Mar.checked = (surviv.indexOf ('Mar') >= 0);
+                    form.surviv_Jun.checked = (surviv.indexOf ('Jun') >= 0);
+                    var ding = persist.get ('acid-' + acid + '-ding', ';;;').split (';', 4);
+                    form.dingnum.value = ding[0];
+                    form.dingcap.value = ding[1];
+                    form.dingcov.checked = (ding[2] == 'Y');
+                    form.dingcol.value = ding[3];
+                    form.resfuel.value = persist.get ('acid-' + acid + '-resfuel', '45');
+                    speedChanged ();
+                }
+            }
+
+            // aircraft type changed, write to database
+            function actypeChanged ()
+            {
+                var form = document.forms.fpform;
+                var acid = form.acid.value;
+                var actype = form.actype.value.trim ().toUpperCase ();
+                form.actype.value = actype;
+                persist.put ('acid-' + acid + '-actype', actype);
+            }
+
+            // wake turbulence changed, write to database
+            function waketurbChanged ()
+            {
+                var form = document.forms.fpform;
+                var acid = form.acid.value;
+                var waketurb = form.waketurb.value;
+                persist.put ('acid-' + acid + '-waketurb', waketurb);
+            }
+
+            // clicked into equipment text box, display checkboxes
+            function equipFocused ()
+            {
+                var form = document.forms.fpform;
+                var equip = form.equip.value.trim ().toUpperCase ();
+                var cbhtml = '<TABLE CLASS=cbtable>';
+                for (key in equipnames) {
+                    var str = equipnames[key];
+                    cbhtml += '<TR><TD>';
+                    cbhtml += '<LABEL><INPUT TYPE=CHECKBOX NAME=equipcb_' + key + ' ONCLICK="equipcbClicked()"';
+                    if (equip.indexOf (key) >= 0) cbhtml += ' CHECKED';
+                    cbhtml += '>' + key + '</LABEL></TD><TD>=</TD><TD ONCLICK="equipstClicked(\'' + key + '\')">';
+                    cbhtml += str + '</TD></TR>';
+                }
+                cbhtml += '</TABLE>';
+                document.getElementById ('equipcbs').innerHTML = cbhtml;
+            }
+
+            // - equip checkbox changed, update string and write to database
+            function equipstClicked (key)
+            {
+                var form = document.forms.fpform;
+                form['equipcb_'+key].checked = ! form['equipcb_'+key].checked;
+                equipcbClicked ();
+            }
+            function equipcbClicked ()
+            {
+                var form = document.forms.fpform;
+                var equip = '';
+                for (key in equipnames) {
+                    if (form['equipcb_'+key].checked) equip += key;
+                }
+                form.equip.value = equip;
+                var acid = form.acid.value;
+                persist.put ('acid-' + acid + '-equip', equip);
+            }
+
+            // - equip text changed manually, write to database and update checkboxes
+            function equipChanged ()
+            {
+                var form = document.forms.fpform;
+                var equip = form.equip.value.trim ().toUpperCase ();
+                form.equip.value = equip;
+                var acid = form.acid.value;
+                persist.put ('acid-' + acid + '-equip', equip);
+                for (key in equipnames) {
+                    form['equipcb_'+key].checked = (equip.indexOf (key) >= 0);
+                }
+            }
+
+            // - focused on something else, clear checkboxes from screen
+            function equipBlurred ()
+            {
+                document.getElementById ('equipcbs').innerHTML = '';
+            }
+
+            function surveqFocused ()
+            {
+                var form = document.forms.fpform;
+                var surveq = form.surveq.value.trim ().toUpperCase ();
+                var cbhtml = '<TABLE CLASS=cbtable>';
+                for (key in survnames) {
+                    var str = survnames[key];
+                    cbhtml += '<TR><TD>';
+                    cbhtml += '<LABEL><INPUT TYPE=CHECKBOX NAME=survcb_' + key + ' ONCLICK="survcbClicked(\'' + key + '\')"';
+                    if (surveq.indexOf (key) >= 0) cbhtml += ' CHECKED';
+                    cbhtml += '>' + key + '</LABEL></TD><TD>=</TD><TD ONCLICK="survstClicked(\'' + key + '\')">';
+                    cbhtml += str.substring (1) + '</TD></TR>';
+                }
+                cbhtml += '</TABLE>';
+                document.getElementById ('survcbs').innerHTML = cbhtml;
+            }
+
+            // - surveillance checkbox manually changed,
+            //   update string and write to database
+            function survstClicked (key)
+            {
+                var form = document.forms.fpform;
+                form['survcb_'+key].checked = ! form['survcb_'+key].checked;
+                survcbClicked (key);
+            }
+            function survcbClicked (key)
+            {
+                var form = document.forms.fpform;
+                var surveq = '';
+                var group = survnames[key].charAt (0);
+                for (kkk in survnames) {
+                    if ((kkk != key) && (survnames[kkk].charAt (0) == group)) {
+                        form['survcb_'+kkk].checked = false;
+                    } else if (form['survcb_'+kkk].checked) {
+                        surveq += kkk;
+                    }
+                }
+                form.surveq.value = surveq;
+                var acid = form.acid.value;
+                persist.put ('acid-' + acid + '-surveq', surveq);
+            }
+
+            // - surveillance string manually changed,
+            //   write to database and update checkboxes
+            function surveqChanged ()
+            {
+                var form = document.forms.fpform;
+                var acid = form.acid.value;
+                var surveq = form.surveq.value.trim ().toUpperCase ();
+                persist.put ('acid-' + acid + '-surveq', surveq);
+                for (kkk in survnames) {
+                    form['survcb_'+kkk].checked = (surveq.indexOf (kkk) >= 0);
+                }
+            }
+
+            // - focused on something else, clear checkboxes from screen
+            function surveqBlurred ()
+            {
+                document.getElementById ('survcbs').innerHTML = '';
+            }
+
+            // departure airport changed
+            // display airport name
+            function depChanged ()
+            {
+                depwp = getAirportWaypt ('depicaoid', 'depstatus', 'DEP');
+                calcEstElapsedTime ();
+            }
+
+            // cruise speed changed
+            function speedChanged ()
+            {
+                speed = 0;
+                var form = document.forms.fpform;
+                var acid = form.acid.value;
+                var sp = form.cruspd.value.trim ();
+                if (sp != '') {
+                    var kt = parseInt (sp, 10);
+                    if (! isNaN (kt) && (kt > 0)) {
+                        speed = kt;
+                        form.cruspd.value = sp = rjzf (kt, 4);
+                        persist.put ('acid-' + acid + '-cruspd', sp);
+                    } else {
+                        form.cruspd.value = '';
+                    }
+                }
+                calcEstElapsedTime ();
+            }
+
+            // flight level changed
+            // just pad to 3 digits
+            function fltlevChanged ()
+            {
+                var form = document.forms.fpform;
+                var fltlev = form.fltlev.value.trim ();
+                if (fltlev != '') {
+                    var fl = parseInt (fltlev, 10);
+                    if (! isNaN (fl) && (fl > 0)) {
+                        form.fltlev.value = rjzf (fl, 3);
+                    } else {
+                        form.fltlev.value = '';
+                    }
+                }
+            }
+
+            // route changed, recompute distances and times
+            function routeChanged ()
+            {
+                var sts   = document.getElementById ('routests');
+                sts.innerHTML = '';
+                var form  = document.forms.fpform;
+                var rtstr = form.route.value.trim ().toUpperCase ();
+                var ids = rtstr.split (' ');
+                var shown = '';
+                rtwps = [ ];
+                var prevwp = depwp;
+                for (var i = 0; i < ids.length; i ++) {
+                    var id = ids[i];
+                    if (id == '') continue;
+                    if (shown != '') shown += ' ';
+                    shown += id;
+                    if (id == 'DCT') continue;
+                    var wp = wayptdb.getRouteWaypt (
+                        prevwp,
+                        id,
+                        (i + 1 < ids.length) ? ids[i+1] : null);
+                    if (wp == null) {
+                        rtwps = [ ];
+                        var er = wayptdb.getError ();
+                        sts.innerHTML = ' <FONT COLOR=RED>' + id + ': ' + er + '</FONT>';
+                        return;
+                    }
+                    rtwps.push (wp);
+                    prevwp = wp;
+                }
+                form.route.value = shown;
+                calcEstElapsedTime ();
+            }
+
+            // destination airport changed
+            // display airport name
+            function destChanged ()
+            {
+                destwp = getAirportWaypt ('desticaoid', 'deststatus', 'DEST');
+                calcEstElapsedTime ();
+            }
+
+            // alternate 1 airport changed
+            // display airport name
+            function alt1Changed ()
+            {
+                alt1wp = getAirportWaypt ('alt1icaoid', 'alt1status', 'ALT1');
+                calcEstElapsedTime ();
+            }
+
+            // alternate 2 airport changed
+            // display airport name
+            function alt2Changed ()
+            {
+                alt2wp = getAirportWaypt ('alt2icaoid', 'alt2status', 'ALT2');
+                calcEstElapsedTime ();
+            }
+
+            // other info changed
+            // re-do all the airport entries in case there is a ZZZZ one
+            // ...that spills into the other info
+            function othinfChanged ()
+            {
+                depwp  = getAirportWaypt ('depicaoid',  'depstatus',  'DEP');
+                destwp = getAirportWaypt ('desticaoid', 'deststatus', 'DEST');
+                alt1wp = getAirportWaypt ('alt1icaoid', 'alt1status', 'ALT1');
+                alt2wp = getAirportWaypt ('alt2icaoid', 'alt2status', 'ALT2');
+                calcEstElapsedTime ();
+            }
+
+            // one of the emergency radio checkboxes was [un]checked
+            // write to database
+            function emradClicked ()
+            {
+                var form = document.forms.fpform;
+                var acid = form.acid.value;
+                var emrad = '';
+                if (form.emrad_UHF.checked)  emrad += ' UHF';
+                if (form.emrad_VHF.checked)  emrad += ' VHF';
+                if (form.emrad_ELBA.checked) emrad += ' ELBA';
+                persist.put ('acid-' + acid + '-emrad', emrad.trim ());
+            }
+
+            // one of the survival equipment checkboxes was [un]checked
+            // write to database
+            function survivClicked ()
+            {
+                var form = document.forms.fpform;
+                var acid = form.acid.value;
+                var surviv = '';
+                if (form.surviv_Pol.checked) surviv += ' Pol';
+                if (form.surviv_Des.checked) surviv += ' Des';
+                if (form.surviv_Mar.checked) surviv += ' Mar';
+                if (form.surviv_Jun.checked) surviv += ' Jun';
+                persist.put ('acid-' + acid + '-surviv', surviv.trim ());
+            }
+
+            // one of the dinghy boxes was changed
+            // write to database
+            function dingChanged ()
+            {
+                var form = document.forms.fpform;
+                var acid = form.acid.value;
+                var ding =
+                        form.dingnum.value.trim ().toUpperCase () + ';' +
+                        form.dingcap.value.trim ().toUpperCase () + ';' +
+                        (form.dingcov.checked ? 'Y;' : 'N;') +
+                        form.dingcol.value.trim ().toUpperCase ();
+                persist.put ('acid-' + acid + '-ding', ding.trim ());
+            }
+
+            // aircraft color changed, write to database
+            function acolorChanged ()
+            {
+                var form = document.forms.fpform;
+                var acid = form.acid.value;
+                var acolor = form.acolor.value.trim ().toUpperCase ();
+                form.acolor.value = acolor;
+                persist.put ('acid-' + acid + '-acolor', acolor);
+            }
+
+            // pilot contact info was changed
+            // write to database
+            function pcinfoChanged ()
+            {
+                var form = document.forms.fpform;
+                var pcinfo = form.pcinfo.value.trim ();
+                form.pcinfo.value = pcinfo;
+                persist.put ('pcinfo', pcinfo);
+            }
+
+            // winds aloft direction or speed manually changed
+            // recompute estimated elapsed time
+            function windChanged ()
+            {
+                var form = document.forms.fpform;
+                var wdir = parseInt (form.wnddir.value);
+                var wspd = parseInt (form.wndspd.value);
+                form.wnddir.value = wdir.toString ();
+                form.wndspd.value = wspd.toString ();
+                wndcos = Math.cos (wdir * Math.PI / 180.0) * wspd;
+                wndsin = Math.sin (wdir * Math.PI / 180.0) * wspd;
+                calcEstElapsedTime ();
+            }
+
+            // reserve fuel changed, save in database and recompute times
+            function resfuelChanged ()
+            {
+                var form = document.forms.fpform;
+                var acid = form.acid.value;
+                var resfuel = form.resfuel.value;
+                persist.put ('acid-' + acid + '-resfuel', resfuel);
+                calcEstElapsedTime ();
+            }
+
+            // display distance from departure to destination
+            // calculate estimated elapsed time based on given speed
+            // also calculate fuel required including alternates if any
+            function calcEstElapsedTime ()
+            {
+                var etests = document.getElementById ('etestatus');
+                var fendsts = document.getElementById ('fendstatus');
+                etests.innerHTML = '';
+                fendsts.innerHTML = '';
+                if ((depwp != null) && (destwp != null)) {
+                    var form = document.forms.fpform;
+
+                    // accum distance and time starting at departure along any route waypoints
+                    var dist = 0.0;
+                    var time = 0.0;
+                    var lastwp = depwp;
+                    for (var i = 0; i < rtwps.length; i ++) {
+                        var rtwp = rtwps[i];
+                        var segdist = lastwp.distTo (rtwp);
+                        if (segdist < 0.0) {
+                            // assume a route of KBVY GDM V14 BUF KIAG:
+                            // dist   = all distance to get on airway, eg, dist (KBVY to GDM)
+                            // lastwp = the airway itself, eg, V14
+                            // rtwp   = where getting off airway, eg, BUF
+                            var airway = lastwp;
+                            var lastwp = airway.getWaypt (0);
+                            for (var j = 0; (rtwp = airway.getWaypt (++ j)) != null;) {
+                                dist += lastwp.distTo (rtwp);
+                                time += calcSegTime (lastwp, rtwp);
+                                lastwp = rtwp;
+                            }
+                            // dist = all distance up to getting off airway, eg, dist (KBVY ... BUF)
+                            // lastwp = waypoint getting off airway, eg, BUF
+                        } else {
+                            dist += segdist;
+                            time += calcSegTime (lastwp, rtwp);
+                            lastwp = rtwp;
+                        }
+                        // dist = all distance from departure airport to lastwp
+                    }
+
+                    // accum distance from last waypoint to destination
+                    dist += lastwp.distTo (destwp);
+                    time += calcSegTime (lastwp, destwp);
+
+                    // compute elapsed time if we have speed
+                    if (time > 0.0) {
+                        etests.innerHTML = ' ' + Math.round (dist) + ' nm @ ' + Math.round (dist / time) + ' kts';
+                        var mins = Math.round (time * 60.0);
+                        form.elapsed.value = formathhmm (mins);
+                    } else {
+                        etests.innerHTML = ' ' + Math.round (dist) + ' nm';
+                    }
+
+                    // accum distance from destination to the alternates if any
+                    lastwp = destwp;
+                    if (alt1wp != null) {
+                        dist += lastwp.distTo (alt1wp);
+                        time += calcSegTime (lastwp, alt1wp);
+                        lastwp = alt1wp;
+                    }
+                    if (alt2wp != null) {
+                        dist += lastwp.distTo (alt2wp);
+                        time += calcSegTime (lastwp, alt2wp);
+                        lastwp = alt2wp;
+                    }
+
+                    // compute fuel endurance if we have speed
+                    if (time > 0.0) {
+                        var html = ' ' + Math.round (dist) + ' nm @ ' + Math.round (dist / time) + ' kts';
+                        var resfuel = parseInt (form.resfuel.value);
+                        if (resfuel > 0) {
+                            html += ' + ' + resfuel + 'm rsrv';
+                            time += resfuel / 60.0;
+                        }
+                        fendsts.innerHTML = html;
+                        var mins = Math.round (time * 60.0);
+                        form.fuelend.value = formathhmm (mins);
+                    } else {
+                        fendsts.innerHTML = ' ' + Math.round (dist) + ' nm';
+                    }
+                }
+            }
+
+            // get airport waypoint
+            //  input:
+            //   aptname = name of airport input field
+            //   stsname = ident of status SPAN
+            //   othname = name of tag in other info (DEP, DEST, ALT1, ALT2)
+            //  output:
+            //   returns waypoint object or null
+            //   form fields updated
+            function getAirportWaypt (aptname, stsname, othname)
+            {
+                var form = document.forms.fpform;
+                var id   = form[aptname].value.trim ().toUpperCase ();
+                var oth  = form.othinf;
+                var sts  = document.getElementById (stsname);
+
+                // if ZZZZ, get id from otherinfo
+                var othinf = getOthInf ();
+                if (id == 'ZZZZ') {
+                    id = (othname in othinf) ? othinf[othname] : '';
+                }
+
+                // lookup waypoint in database
+                var wp = null;
+                sts.innerHTML = '';
+                if (id != '') {
+                    wp = wayptdb.getAptByICAOId (id);
+                    if (wp == null) {
+                        sts.innerHTML = ' <FONT COLOR=RED>' + id + ': no such airport</FONT>';
+                        return null;
+                    }
+                    sts.innerHTML = ' ' + wp.getName ();
+                    if (isICAOId (id)) {
+                        form[aptname].value = id;
+                        id = '';
+                    } else {
+                        form[aptname].value = 'ZZZZ';
+                    }
+                }
+                othinf[othname] = id;
+                setOthInf (othinf);
+                return wp;
+            }
+
+            function isICAOId (id)
+            {
+                if (id.length != 4) return false;
+                for (var i = 0; i < 4; i ++) {
+                    if ('ABCDEFGHIJKLMNOPQRSTUVWXYZ'.indexOf (id.charAt (i)) < 0) return false;
+                }
+                return true;
+            }
+
+            // calculate estimated time between the two waypoints
+            // given airspeed and winds aloft
+            function calcSegTime (fromwp, towp)
+            {
+                if (speed <= 0.0) return 0.0;
+
+                // get ground distance and true course between the two waypoints
+                var gnddist = fromwp.distTo (towp);
+                var gndtcrs = fromwp.tcrsTo (towp);
+
+                // ground = air - wind
+                //   gndx = cos (gndtcrs) * gndkts
+                //   gndy = sin (gndtcrs) * gndkts
+                //   wndx = cos (wndtcrs) * wndkts
+                //   wndy = sin (wndtcrs) * wndkts
+                //   airx = cos (airthdg) * speed
+                //   airy = sin (airthdg) * speed
+
+                // solve for gndkts (we also don't know airthdg)...
+
+                //   gndx,y = airx,y - wndx,y
+
+                //   sin (gndtcrs) * gndkts = sin (airthdg) * speed - sin (wndtcrs) * wndkts
+
+                //   cos (gndtcrs) * gndkts = cos (airthdg) * speed - wndx
+                //   cos (gndtcrs) * gndkts + wndx = cos (airthdg) * speed
+                //   (cos (gndtcrs) * gndkts + wndx) / speed = cos (airthdg)
+
+                //   sin (gndtcrs) * gndkts = sin (airthdg) * speed - wndy
+                //   sin (gndtcrs) * gndkts + wndy = sin (airthdg) * speed
+                //   (sin (gndtcrs) * gndkts + wndy) / speed = sin (airthdg)
+
+                //   1.0 = cos (airthdg) ** 2 + sin (airthdg) ** 2
+                //   1.0 = ((cos (gndtcrs) * gndkts + wndx) / speed) ** 2 + ((sin (gndtcrs) * gndkts + wndy) / speed) ** 2
+                //   speed ** 2 = (cos (gndtcrs) * gndkts + wndx) ** 2 + (sin (gndtcrs) * gndkts + wndy) ** 2
+                //   speed ** 2 = (cos (gndtcrs) * gndkts) ** 2 + wndx ** 2 + 2 * cos (gndtcrs) * gndkts * wndx + (sin (gndtcrs) * gndkts) ** 2 + 2 * sin (gndtcrs) * gndkts * wndy + wndy ** 2
+                //   speed ** 2 = [cos (gndtcrs) ** 2 + sin (gndtcrs) ** 2] * gndkts ** 2 + [2 * cos (gndtcrs) * wndx + 2 * sin (gndtcrs) * wndy] * gndkts + wndx ** 2 + wndy ** 2
+                //   speed ** 2 = gndkts ** 2 + [cos (gndtcrs) * wndx + sin (gndtcrs) * wndy] * 2 * gndkts + wndkts ** 2
+                //   gndkts ** 2 + [cos (gndtcrs) * wndx + sin (gndtcrs) * wndy] * 2 * gndkts + wndkts ** 2 - speed ** 2 = 0
+
+                var halfb  = Math.cos (gndtcrs * Math.PI / 180.0) * wndcos +
+                                Math.sin (gndtcrs * Math.PI / 180.0) * wndsin;
+                var negc   = speed * speed;
+                var gndspd = Math.sqrt (halfb * halfb + negc) - halfb;
+
+                return gnddist / gndspd;
+            }
+
+            // parse other info into an object
+            //  key1/val1 val1 ... key2/val2 ...
+            function getOthInf ()
+            {
+                var str = document.forms.fpform.othinf.value.trim ().toUpperCase ();
+                var ary = str.split (' ');
+                var obj = { };
+                var key = '';
+                var val = '';
+                for (var i = 0; i < ary.length; i ++) {
+                    var word = ary[i];
+                    if (word == '') continue;
+                    var j = word.indexOf ('/');
+                    if (j >= 0) {
+                        if (val != '') obj[key] = val;
+                        key = word.substring (0, j);
+                        val = word.substring (++ j);
+                    } else {
+                        if (val != '') val += ' ';
+                        val += word;
+                    }
+                }
+                if (val != '') obj[key] = val;
+                return obj;
+            }
+
+            // put other info object back in form
+            function setOthInf (sra)
+            {
+                var str = '';
+                for (key in sra) {
+                    var val = sra[key];
+                    if (val != '') {
+                        if (str != '') str += ' ';
+                        str += key + '/' + val;
+                    }
+                }
+                document.forms.fpform.othinf.value = str;
+            }
+
+            // format a number of minutes as hh:mm string
+            function formathhmm (mins)
+            {
+                var mm = mins % 60;
+                var hh = (mins - mm) / 60;
+                var form = document.forms.fpform;
+                return rjzf (hh, 2) + ':' + rjzf (mm, 2);
+            }
+
+            // right justify zero fill
+            function rjzf (num, len)
+            {
+                var str = num.toString ();
+                while (str.length < len) str = '0' + str;
+                return str;
+            }
+
+            function zzzz (x)
+            {
+                var z = document.getElementById ('zzzz');
+                z.innerHTML += x;
+            }
+        </SCRIPT>
+    </HEAD>
+    <BODY ONLOAD="pageLoaded()">
+        <H3> ICAO Flight Plan Form </H3>
+        <P>For use when filing via telephone or radio.</P>
+        <PRE ID=zzzz></PRE>
+        <FORM NAME=fpform>
+            <TABLE>
+                <TR>
+                    <TD ALIGN=RIGHT>7</TD>
+                    <TH ALIGN=RIGHT>Aircraft ID:</TH>
+                    <TD><INPUT SIZE=8 NAME=acid VALUE="N" ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="acidChanged()"></TD>
+                </TR>
+                <TR>
+                    <TD ALIGN=RIGHT>8</TD>
+                    <TH ALIGN=RIGHT>Flight Rules:</TH>
+                    <TD>
+                        <LABEL><INPUT TYPE=RADIO NAME=rules VALUE=VFR ONFOCUS="equipBlurred();surveqBlurred()">VFR</LABEL> &nbsp;
+                        <LABEL><INPUT TYPE=RADIO NAME=rules VALUE=IFR ONFOCUS="equipBlurred();surveqBlurred()">IFR</LABEL> &nbsp;
+                        <LABEL><INPUT TYPE=RADIO NAME=rules VALUE=YFR ONFOCUS="equipBlurred();surveqBlurred()">YFR</LABEL> &nbsp;
+                        <LABEL><INPUT TYPE=RADIO NAME=rules VALUE=ZFR ONFOCUS="equipBlurred();surveqBlurred()">ZFR</LABEL>
+                    </TD>
+                </TR>
+                <TR>
+                    <TD ALIGN=RIGHT></TD>
+                    <TH ALIGN=RIGHT>Flight Type:</TH>
+                    <TD>
+                        <SELECT NAME=ftype ONFOCUS="equipBlurred();surveqBlurred()">
+                            <OPTION></OPTION>
+                            <OPTION VALUE="S">S cheduled</OPTION>
+                            <OPTION VALUE="N">N on-scheduled</OPTION>
+                            <OPTION VALUE="G">G eneral aviation</OPTION>
+                            <OPTION VALUE="M">M ilitary</OPTION>
+                            <OPTION VALUE="X">X other</OPTION>
+                        </SELECT>
+                    </TD>
+                </TR>
+                <TR>
+                    <TD ALIGN=RIGHT>9</TD>
+                    <TH ALIGN=RIGHT>No. of Aircraft:</TH>
+                    <TD><INPUT SIZE=2 NAME=numacft VALUE="1" ONFOCUS="equipBlurred();surveqBlurred()"></TD>
+                </TR>
+                <TR>
+                    <TD ALIGN=RIGHT></TD>
+                    <TH ALIGN=RIGHT>Aircraft Type:</TH>
+                    <TD><INPUT NAME=actype SIZE=6 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="actypeChanged()"></TD>
+                </TR>
+                <TR>
+                    <TD ALIGN=RIGHT></TD>
+                    <TH ALIGN=RIGHT>Wake Turbulence:</TH>
+                    <TD>
+                        <SELECT NAME=waketurb ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="waketurbChanged()">
+                            <OPTION></OPTION>
+                            <OPTION VALUE="L">L ight</OPTION>
+                            <OPTION VALUE="M">M edium</OPTION>
+                            <OPTION VALUE="H">H eavy</OPTION>
+                        </SELECT>
+                    </TD>
+                </TR>
+                <TR>
+                    <TD ALIGN=RIGHT>10</TD>
+                    <TH ALIGN=RIGHT>Equipment:</TH>
+                    <TD>
+                        <INPUT NAME=equip SIZE=10 VALUE="S" ONFOCUS="surveqBlurred();equipFocused()" ONCHANGE="equipChanged()"> /
+                        <INPUT NAME=surveq SIZE=10 VALUE="CB1" ONFOCUS="equipBlurred();surveqFocused()" ONCHANGE="surveqChanged()">
+                    </TD>
+                </TR>
+                <TR>
+                    <TD ALIGN=RIGHT></TD>
+                    <TH ALIGN=RIGHT></TH>
+                    <TD ID=equipcbs></TD>
+                </TR>
+                <TR>
+                    <TD ALIGN=RIGHT></TD>
+                    <TH ALIGN=RIGHT></TH>
+                    <TD ID=survcbs></TD>
+                </TR>
+                <TR>
+                    <TD ALIGN=RIGHT>13</TD>
+                    <TH ALIGN=RIGHT>Departure:</TH>
+                    <TD><INPUT NAME=depicaoid SIZE=8 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="depChanged()"><SPAN ID=depstatus></SPAN></TD>
+                </TR>
+                <TR>
+                    <TD ALIGN=RIGHT></TD>
+                    <TH ALIGN=RIGHT>Time:</TH>
+                    <TD><INPUT NAME=deptime SIZE=5 ONFOCUS="equipBlurred();surveqBlurred()"> UTC</TD>
+                </TR>
+                <TR>
+                    <TD ALIGN=RIGHT>15</TD>
+                    <TH ALIGN=RIGHT>Cruise Speed:</TH>
+                    <TD><TT>N</TT><INPUT NAME=cruspd SIZE=4 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="speedChanged()">knots</TD>
+                </TR>
+                <TR>
+                    <TD ALIGN=RIGHT></TD>
+                    <TH ALIGN=RIGHT>Flight Level:</TH>
+                    <TD><TT>A</TT><INPUT NAME=fltlev SIZE=4 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="fltlevChanged()"><TT>00</TT> ft</TD>
+                </TR>
+                <TR>
+                    <TD ALIGN=RIGHT></TD>
+                    <TH ALIGN=RIGHT>Route:</TH>
+                    <TD><INPUT NAME=route SIZE=40 VALUE="DCT" ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="routeChanged()"></TD>
+                </TR>
+                <TR>
+                    <TD ALIGN=RIGHT></TD>
+                    <TH ALIGN=RIGHT></TH>
+                    <TD><SPAN ID=routests></SPAN></TD>
+                </TR>
+                <TR>
+                    <TD ALIGN=RIGHT>16</TD>
+                    <TH ALIGN=RIGHT>Destination:</TH>
+                    <TD><INPUT NAME=desticaoid SIZE=8 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="destChanged()"><SPAN ID=deststatus></SPAN></TD>
+                </TR>
+                <TR>
+                    <TD ALIGN=RIGHT></TD>
+                    <TH ALIGN=RIGHT>Est Elapsed Time:</TH>
+                    <TD><INPUT NAME=elapsed SIZE=5 ONFOCUS="equipBlurred();surveqBlurred()"><SPAN ID=etestatus></SPAN></TD>
+                </TR>
+                <TR>
+                    <TD ALIGN=RIGHT></TD>
+                    <TH ALIGN=RIGHT>Alternate 1:</TH>
+                    <TD><INPUT NAME=alt1icaoid SIZE=8 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="alt1Changed()"><SPAN ID=alt1status></SPAN></TD>
+                </TR>
+                <TR>
+                    <TD ALIGN=RIGHT></TD>
+                    <TH ALIGN=RIGHT>Alternate 2:</TH>
+                    <TD><INPUT NAME=alt2icaoid SIZE=8 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="alt2Changed()"><SPAN ID=alt2status></SPAN></TD>
+                </TR>
+                <TR>
+                    <TD ALIGN=RIGHT>18</TD>
+                    <TH ALIGN=RIGHT>Other Info:</TH>
+                    <TD><INPUT NAME=othinf SIZE=40 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="othinfChanged()"></TD>
+                </TR>
+                <TR>
+                    <TD ALIGN=RIGHT>19</TD>
+                    <TH ALIGN=RIGHT>Fuel Endurance:</TH>
+                    <TD><INPUT NAME=fuelend SIZE=4 ONFOCUS="equipBlurred();surveqBlurred()"><SPAN ID=fendstatus></SPAN></TD>
+                </TR>
+                <TR>
+                    <TD ALIGN=RIGHT></TD>
+                    <TH ALIGN=RIGHT>Persons on Board:</TH>
+                    <TD><INPUT NAME=persons SIZE=3 ONFOCUS="equipBlurred();surveqBlurred()"></TD>
+                </TR>
+                <TR>
+                    <TD ALIGN=RIGHT></TD>
+                    <TH ALIGN=RIGHT>Emergency Radios:</TH>
+                    <TD>
+                        <LABEL><INPUT TYPE=CHECKBOX NAME=emrad_UHF  ONFOCUS="equipBlurred();surveqBlurred()" ONCLICK="emradClicked()">UHF</LABEL> &nbsp;
+                        <LABEL><INPUT TYPE=CHECKBOX NAME=emrad_VHF  ONFOCUS="equipBlurred();surveqBlurred()" ONCLICK="emradClicked()">VHF</LABEL> &nbsp;
+                        <LABEL><INPUT TYPE=CHECKBOX NAME=emrad_ELBA ONFOCUS="equipBlurred();surveqBlurred()" ONCLICK="emradClicked()">ELBA</LABEL>
+                    </TD>
+                </TR>
+                <TR>
+                    <TD ALIGN=RIGHT></TD>
+                    <TH ALIGN=RIGHT>Survival Equipment:</TH>
+                    <TD>
+                        <LABEL><INPUT TYPE=CHECKBOX NAME=surviv_Pol ONFOCUS="equipBlurred();surveqBlurred()" ONCLICK="survivClicked()">Polar</LABEL> &nbsp;
+                        <LABEL><INPUT TYPE=CHECKBOX NAME=surviv_Des ONFOCUS="equipBlurred();surveqBlurred()" ONCLICK="survivClicked()">Desert</LABEL> &nbsp;
+                        <LABEL><INPUT TYPE=CHECKBOX NAME=surviv_Mar ONFOCUS="equipBlurred();surveqBlurred()" ONCLICK="survivClicked()">Maritime</LABEL> &nbsp;
+                        <LABEL><INPUT TYPE=CHECKBOX NAME=surviv_Jun ONFOCUS="equipBlurred();surveqBlurred()" ONCLICK="survivClicked()">Jungle</LABEL>
+                    </TD>
+                </TR>
+                <TR>
+                    <TD ALIGN=RIGHT></TD>
+                    <TH ALIGN=RIGHT>Dinghies:</TH>
+                    <TD><INPUT NAME=dingnum SIZE=2 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="dingChanged()"> number</TD>
+                </TR>
+                <TR>
+                    <TD ALIGN=RIGHT></TD>
+                    <TH ALIGN=RIGHT></TH>
+                    <TD><INPUT NAME=dingcap SIZE=2 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="dingChanged()"> capacity</TD>
+                </TR>
+                <TR>
+                    <TD ALIGN=RIGHT></TD>
+                    <TH ALIGN=RIGHT></TH>
+                    <TD><INPUT NAME=dingcol SIZE=20 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="dingChanged()"> color</TD>
+                </TR>
+                <TR>
+                    <TD ALIGN=RIGHT></TD>
+                    <TH ALIGN=RIGHT></TH>
+                    <TD><LABEL><INPUT TYPE=CHECKBOX NAME=dingcov ONFOCUS="equipBlurred();surveqBlurred()" ONCLICK="dingChanged()"> covered</LABEL></TD>
+                </TR>
+                <TR>
+                    <TD ALIGN=RIGHT></TD>
+                    <TH ALIGN=RIGHT>Aircraft Color:</TH>
+                    <TD><INPUT NAME=acolor SIZE=20 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="acolorChanged()"></TD>
+                </TR>
+                <TR>
+                    <TD ALIGN=RIGHT></TD>
+                    <TH ALIGN=RIGHT>Remarks:</TH>
+                    <TD><INPUT NAME=remarks SIZE=40 ONFOCUS="equipBlurred();surveqBlurred()"></TD>
+                </TR>
+                <TR>
+                    <TD ALIGN=RIGHT></TD>
+                    <TH ALIGN=RIGHT>Pilot In Command:</TH>
+                    <TD><INPUT NAME=pilincmd SIZE=40 ONFOCUS="equipBlurred();surveqBlurred()"></TD>
+                </TR>
+                <TR>
+                    <TD ALIGN=RIGHT></TD>
+                    <TH ALIGN=RIGHT>Pilot Contact Info:</TH>
+                    <TD><INPUT NAME=pcinfo SIZE=40 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="pcinfoChanged()"></TD>
+                </TR>
+            </TABLE>
+            <P>Supplemental Info</P>
+            <TABLE>
+                <TR><TH ALIGN=RIGHT>Avg Winds Aloft:</TH><TD>
+                    <INPUT NAME=wnddir SIZE=3 VALUE=0 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="windChanged()">&#176;T @
+                    <INPUT NAME=wndspd SIZE=3 VALUE=0 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="windChanged()"> kts
+                </TD></TR>
+                <TR><TH ALIGN=RIGHT>Reserve Fuel:</TH><TD>
+                    <NOBR><LABEL><INPUT TYPE=RADIO NAME=resfuel VALUE=30 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="resfuelChanged()">30 mins</LABEL></NOBR> &nbsp;
+                    <NOBR><LABEL><INPUT TYPE=RADIO NAME=resfuel VALUE=45 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="resfuelChanged()">45 mins</LABEL></NOBR> &nbsp;
+                    <NOBR><LABEL><INPUT TYPE=RADIO NAME=resfuel VALUE=60 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="resfuelChanged()">60 mins</LABEL></NOBR>
+                </TD></TR>
+            </TABLE>
+            <P>&nbsp;</P>
+        </FORM>
+    </BODY>
+</HTML>

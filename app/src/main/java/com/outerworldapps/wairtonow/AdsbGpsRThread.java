@@ -32,7 +32,6 @@ import java.io.OutputStream;
 import java.util.Collection;
 import java.util.LinkedList;
 import java.util.Locale;
-import java.util.TreeMap;
 
 /**
  * Receive information from external GPS/ADS-B receiver connected via bluetooth, WiFi etc.
@@ -160,7 +159,7 @@ public class AdsbGpsRThread extends Thread implements Reporter {
         }
         synchronized (instanceCounts) {
             for (String type : instanceCounts.keySet ()) {
-                int[] count = instanceCounts.get (type);
+                int[] count = instanceCounts.nnget (type);
                 sb.append ('\n');
                 sb.append (type);
                 sb.append (": ");
@@ -175,7 +174,7 @@ public class AdsbGpsRThread extends Thread implements Reporter {
     \***********************/
 
     private String batteryLevel;
-    private final TreeMap<String,int[]> instanceCounts = new TreeMap<> ();
+    private final NNTreeMap<String,int[]> instanceCounts = new NNTreeMap<> ();
 
     @Override  // Reporter
     public void adsbGpsLog (String message)

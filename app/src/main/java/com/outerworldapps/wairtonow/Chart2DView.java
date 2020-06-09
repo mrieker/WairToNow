@@ -31,7 +31,6 @@ import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.Rect;
 import android.graphics.RectF;
-import android.os.SystemClock;
 import android.support.annotation.NonNull;
 import android.util.Log;
 import android.view.MotionEvent;
@@ -50,7 +49,7 @@ import java.util.LinkedList;
  */
 @SuppressLint("ViewConstructor")
 public class Chart2DView extends View
-        implements ChartView.Backing, DisplayableChart.Invalidatable {
+        implements ChartView.Backing, DisplayableChart.Invalidatable, ExactMapper {
     public final static String TAG = "WairToNow";
 
     private final static double nearbynm = 5.0;
@@ -97,11 +96,12 @@ public class Chart2DView extends View
     private double rotStart, scaStart;
     private double mouseDownPosX, mouseDownPosY;
     private float[] poly2polyFloats = new float[16];
+    private int mappingCanvasHeight;
+    private int mappingCanvasWidth;
     private LatLon drawCourseLineISect = new LatLon ();
     private LatLon newCtrLL = new LatLon ();
     private LinkedList<CapGrid> capgrids;
-    private int mappingCanvasHeight;
-    private int mappingCanvasWidth;
+    private long nowms;
     private long waypointOpenAt     = Long.MAX_VALUE;
     private Matrix poly2polyMatrix  = new Matrix ();
     private Paint capGridBGPaint    = new Paint ();
@@ -326,6 +326,13 @@ public class Chart2DView extends View
     }
 
     /**
+     * Draw any overlay info (not scaled, panned, rotated).
+     */
+    @Override  // Backing
+    public void drawOverlay (Canvas canvas)
+    { }
+
+    /**
      * Callback for mouse events on the image.
      * We use this for scrolling the map around.
      */
@@ -528,8 +535,8 @@ public class Chart2DView extends View
         MapLatLonsToCanvasPixels (chartView.pmap.canvasWidth, chartView.pmap.canvasHeight);
 
         // figure out where new center point is in the old canvas
-        double newCtrX = chartView.pmap.canvasWidth  / 2;
-        double newCtrY = chartView.pmap.canvasHeight / 2;
+        double newCtrX = chartView.pmap.canvasWidth  / 2.0;
+        double newCtrY = chartView.pmap.canvasHeight / 2.0;
         double oldCtrX = fc * newCtrX + fs * newCtrY + tx;
         double oldCtrY = fc * newCtrY - fs * newCtrX + ty;
 
@@ -637,9 +644,9 @@ public class Chart2DView extends View
              * Draw airplane icon centered on screen.
              */
             canvas.save ();
-            canvas.translate (cw / 2, ch / 2);      // anything drawn below will be translated this much
+            canvas.translate (cw / 2.0F, ch / 2.0F);    // anything drawn below will be translated this much
             wairToNow.DrawAirplaneSymbol (canvas, wairToNow.textSize * 1.5);  // draw airplane symbol unrotated
-            canvas.restore ();                      // remove translation/scaling/rotation
+            canvas.restore ();                          // remove translation/scaling/rotation
 
             /*
              * Draw startup text below splash image.
@@ -665,6 +672,8 @@ public class Chart2DView extends View
      */
     private void DrawSelectedChart (Canvas canvas)
     {
+        nowms = System.currentTimeMillis ();
+
         /*
          * Draw map image as background.
          */
@@ -676,7 +685,8 @@ public class Chart2DView extends View
             recycle ();
             System.gc ();
             canvas.drawText ("out of memory error",
-                    chartView.pmap.canvasWidth / 2, chartView.pmap.canvasHeight * 3/4, courseTxPaint);
+                    chartView.pmap.canvasWidth * 0.50F,
+                    chartView.pmap.canvasHeight * 0.75F, courseTxPaint);
         }
 
         /*
@@ -784,6 +794,11 @@ public class Chart2DView extends View
         if ((chartView.clDest != null) && wairToNow.chartView.stateView.showCourseInfo) {
             DrawCourseLine (canvas);
         }
+
+        /*
+         * Draw collision points.
+         */
+        wairToNow.DrawCollisionPoints (canvas, this);
 
         /*
          * Draw an airplane icon where the GPS (current) lat/lon point is.
@@ -916,7 +931,7 @@ public class Chart2DView extends View
                         // add dwj to dwi's intersector list.
                         dwj.intersector = dwi.intersector;
                         dwj.intersector.add (dwj);
-                    } else if ((dwi.intersector == null) && (dwj.intersector != null)) {
+                    } else if (dwi.intersector == null) {
 
                         // dwj already is in an intersector list but dwi isn't.
                         // add dwi to dwj's intersector list.
@@ -1225,7 +1240,6 @@ public class Chart2DView extends View
 
         // maybe we are on an off-blink cycle
         if (blinknexrad) {
-            long nowms = SystemClock.uptimeMillis ();
             if (!reDrawQueued) {
                 reDrawQueued = true;
                 WairToNow.wtnHandler.runDelayed (2048 - nowms % 2048, reDraw);
@@ -1312,12 +1326,11 @@ public class Chart2DView extends View
     private void DrawWxSumDots (Canvas canvas)
     {
         synchronized (wairToNow.metarRepos) {
-            long nowms = System.currentTimeMillis ();
 
             // go through all airports we have metars for
             // will probably be just nearby ones anyway
             for (String icaoid : wairToNow.metarRepos.keySet ()) {
-                MetarRepo repo = wairToNow.metarRepos.get (icaoid);
+                MetarRepo repo = wairToNow.metarRepos.nnget (icaoid);
 
                 // only bother with reports less than 3 hours old
                 if (nowms - repo.ceilingms < 3 * 3600 * 1000) {
@@ -1506,6 +1519,7 @@ public class Chart2DView extends View
      * Use currently selected chart projection to compute exact canvas pixel for a given lat/lon.
      * If no chart selected, use linear interpolation from the four corners of the screen.
      */
+    @Override  // ExactMapper
     public boolean LatLon2CanPixExact (double lat, double lon, PointD canpix)
     {
         PixelMapper pmap = chartView.pmap;
@@ -1520,12 +1534,25 @@ public class Chart2DView extends View
      * Use currently selected chart projection to compute exact lat/lon for a given canvas pixel.
      * If no chart selected, use linear interpolation from the four corners of the screen.
      */
+    @Override  // ExactMapper
     public void CanPix2LatLonExact (double canvasPixX, double canvasPixY, LatLon ll)
     {
         DisplayableChart sc = chartView.selectedChart;
         if ((sc == null) || !sc.CanPix2LatLonExact (canvasPixX, canvasPixY, ll)) {
             chartView.pmap.CanPix2LatLonAprox (canvasPixX, canvasPixY, ll);
         }
+    }
+
+    /**
+     * Compute number of canvas pixels per nautical mile.
+     */
+    @Override  // ExactMapper
+    public double CanPixPerNMAprox ()
+    {
+        double pixelspercanvasinch = wairToNow.dotsPerInch;
+        double pixelsperrealworldinch = pixelspercanvasinch / scalebase * chartView.scaling;
+        double pixelsperrealworldfoot = pixelsperrealworldinch * 12.0;
+        return pixelsperrealworldfoot * Lib.FtPerNM;
     }
 
     /**

@@ -20,7 +20,6 @@
 
 package com.outerworldapps.wairtonow;
 
-
 import android.annotation.SuppressLint;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageInfo;
@@ -87,6 +86,13 @@ public class HelpView extends WebView
      * Accessed via javascript in the internal .HTML files.
      */
     private class JavaScriptObject {
+
+        @SuppressWarnings ("unused")
+        @android.webkit.JavascriptInterface
+        public String getBaseUrl ()
+        {
+            return MaintView.dldir;
+        }
 
         @SuppressWarnings ("unused")
         @android.webkit.JavascriptInterface

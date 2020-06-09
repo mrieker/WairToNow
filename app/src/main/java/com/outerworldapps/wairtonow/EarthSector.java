@@ -20,6 +20,7 @@
 
 package com.outerworldapps.wairtonow;
 
+import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.opengl.GLES20;
 import android.opengl.GLUtils;
@@ -29,6 +30,7 @@ import android.util.Log;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
+import java.util.LinkedList;
 
 /**
  * OpenGL 3D sector of the earth.
@@ -39,18 +41,22 @@ public class EarthSector {
     public final static int MBMSIZE = 512;    // macro bitmap size
     public final static int MAXSTEPS = 32;    // maximum steps (intervals between vertices)
 
+    private static class Obstr {
+        public double lat, lon;
+        public int agl, msl;
+    }
+
     private final static int FLOAT_SIZE_BYTES = 4;
     private final static int TRIANGLES_DATA_STRIDE = 5;
-    private final static int TRIANGLES_DATA_STRIDE_BYTES = TRIANGLES_DATA_STRIDE * FLOAT_SIZE_BYTES;
 
     private final static Object loaderLock = new Object ();
     private static EarthSector loaderSectorsHead, loaderSectorsTail;
     private static LoaderThread loaderThread;
 
     public boolean refd;        // seen by camera and is one of MAXSECTORS closest to camera
-    public double slat, wlon;    // southwest corner lat/lon
-    public double nlat, elon;    // northeast corner lat/lon
-    public double nmfromcam;     // naut miles from camera
+    public double slat, wlon;   // southwest corner lat/lon
+    public double nlat, elon;   // northeast corner lat/lon
+    public double nmfromcam;    // naut miles from camera
     public int hashkey;
 
     public EarthSector nextAll;
@@ -65,6 +71,8 @@ public class EarthSector {
     private int mTextureID;
     private PointD intpoint;
     private Runnable onLoad;
+
+    private final static String[] obstrs_col_names = new String[] { "ob_agl", "ob_msl", "ob_lat", "ob_lon" };
 
     public EarthSector (@NonNull DisplayableChart dc, double slat, double nlat, double wlon, double elon)
     {
@@ -122,8 +130,23 @@ public class EarthSector {
     private void loadIt ()
     {
         try {
+
+            // get triangles for all the obstructions in the sector
+            float[] obstrtris = GetObstructions ();
+            // get bitmap for chart overlaying the sector
             mBitmap = displayableChart.GetMacroBitmap (slat, nlat, wlon, elon);
-            mTriangles = MakeEarthSector ();
+            // get triangles for the surface of the sector
+            float[] surfctris = MakeEarthSector ();
+            // put in a FloatBuffer
+            int nfloats = ((obstrtris == null) ? 0 : obstrtris.length) + surfctris.length;
+            FloatBuffer tribuf = ByteBuffer.allocateDirect (nfloats * FLOAT_SIZE_BYTES).
+                    order (ByteOrder.nativeOrder ()).asFloatBuffer ();
+            tribuf.position (0);
+            if (obstrtris != null) tribuf.put (obstrtris);
+            tribuf.put (surfctris);
+
+            // publish it
+            mTriangles = tribuf;
             synchronized (loaderLock) {
                 loaded = true;
             }
@@ -190,9 +213,65 @@ public class EarthSector {
     }
 
     /**
+     * Get all the obstructions in the sector.
+     */
+    private float[] GetObstructions ()
+    {
+        int expdate = MaintView.GetObstructionExpDate ();
+        if (expdate == 0) return null;
+        SQLiteDBs sqldb = SQLiteDBs.open ("nobudb/obstructions_" + expdate + ".db");
+        if (sqldb == null) return null;
+        Cursor result = sqldb.query ("obstrs", obstrs_col_names,
+                "ob_lat>" + slat + " AND ob_lat<" + nlat + " AND ob_lon>" + wlon +
+                        " AND ob_lon<" + elon,
+                null, null, null, null, null);
+        try {
+            if (result.moveToFirst ()) {
+                LinkedList<Obstr> obstrs = new LinkedList<> ();
+                do {
+                    Obstr ob = new Obstr ();
+                    ob.agl = result.getInt (0);
+                    ob.msl = result.getInt (1);
+                    ob.lat = result.getDouble (2);
+                    ob.lon = result.getDouble (3);
+                    obstrs.add (ob);
+                } while (result.moveToNext ());
+                if (! obstrs.isEmpty ()) {
+                    Vector3 southxyz = new Vector3 ();
+                    Vector3 northxyz = new Vector3 ();
+                    Vector3 eastxyz = new Vector3 ();
+                    Vector3 westxyz = new Vector3 ();
+                    Vector3 tipxyz = new Vector3 ();
+                    float[] triangles = new float[obstrs.size () * 6 * 5 * FLOAT_SIZE_BYTES];
+                    int j = 0;
+                    for (Obstr obstr : obstrs) {
+                        LatLonAlt2XYZ (obstr.lat, obstr.lon, obstr.msl / Lib.FtPerM, tipxyz);
+                        double dlat = 0.5 / 60.0 * obstr.msl / Lib.FtPerNM;
+                        LatLonAlt2XYZ (obstr.lat + dlat, obstr.lon, 0.0, northxyz);
+                        LatLonAlt2XYZ (obstr.lat - dlat, obstr.lon, 0.0, southxyz);
+                        double dlon = dlat / Math.cos (Math.toRadians (obstr.lat));
+                        LatLonAlt2XYZ (obstr.lat, obstr.lon - dlon, 0.0, westxyz);
+                        LatLonAlt2XYZ (obstr.lat, obstr.lon + dlon, 0.0, eastxyz);
+                        j = copyObstToTriangles (triangles, j, tipxyz);
+                        j = copyObstToTriangles (triangles, j, eastxyz);
+                        j = copyObstToTriangles (triangles, j, westxyz);
+                        j = copyObstToTriangles (triangles, j, tipxyz);
+                        j = copyObstToTriangles (triangles, j, northxyz);
+                        j = copyObstToTriangles (triangles, j, southxyz);
+                    }
+                    return triangles;
+                }
+            }
+        } finally {
+            result.close ();
+        }
+        return null;
+    }
+
+    /**
      * Generate triangles for a sector of the earth.
      */
-    private FloatBuffer MakeEarthSector ()
+    private float[] MakeEarthSector ()
     {
         // do vertices in steps of a minute cuz that's Topography.getElevMetres() resolution
         int islat = (int) Math.floor (slat * 60);   // get southern minute limit just outside area
@@ -228,9 +307,7 @@ public class EarthSector {
                 double lat = ilat / 60.0;
                 double lon = ilon / 60.0;
                 int alt = Topography.getElevMetres (lat, lon);
-                if ((alt < 0) || (alt == Topography.INVALID_ELEV)) {
-                    alt = 0;
-                }
+                if (alt < 0) alt = 0;
 
                 // fill in x,y,z for the lat/lon
                 LatLonAlt2XYZ (lat, lon, alt, xyz);
@@ -249,11 +326,8 @@ public class EarthSector {
          * Make triangles out of those vertices.
          * The vertices form squares and we make two triangles out of each square.
          */
-        FloatBuffer triangles = ByteBuffer.allocateDirect (
-                nlats * nlons * 6 * TRIANGLES_DATA_STRIDE_BYTES).
-                order (ByteOrder.nativeOrder ()).asFloatBuffer ();
-        triangles.position (0);
-
+        float[] triangles = new float[nlats*nlons*6*TRIANGLES_DATA_STRIDE];
+        k = 0;
         for (int j = 0; j < nlats; j ++) {
             for (int i = 0; i < nlons; i ++) {
                 int a = (nlons + 1) * (j + 1) + i + 1;
@@ -264,27 +338,36 @@ public class EarthSector {
                 //noinspection PointlessArithmeticExpression
                 int d = (nlons + 1) * (j + 0) + i + 1;
 
-                copyToTriangles (triangles, vertices, a);
-                copyToTriangles (triangles, vertices, b);
-                copyToTriangles (triangles, vertices, c);
-                copyToTriangles (triangles, vertices, a);
-                copyToTriangles (triangles, vertices, c);
-                copyToTriangles (triangles, vertices, d);
+                k = copySurfToTriangles (triangles, k, vertices, a);
+                k = copySurfToTriangles (triangles, k, vertices, b);
+                k = copySurfToTriangles (triangles, k, vertices, c);
+                k = copySurfToTriangles (triangles, k, vertices, a);
+                k = copySurfToTriangles (triangles, k, vertices, c);
+                k = copySurfToTriangles (triangles, k, vertices, d);
             }
         }
-
-        triangles.position (0);
         return triangles;
     }
 
-    private static void copyToTriangles (FloatBuffer triangles, float[] squares, int m)
+    private static int copySurfToTriangles (float[] triangles, int k, float[] squares, int m)
     {
         m *= TRIANGLES_DATA_STRIDE;
-        triangles.put (squares[m++]);
-        triangles.put (squares[m++]);
-        triangles.put (squares[m++]);
-        triangles.put (squares[m++]);
-        triangles.put (squares[m]);
+        triangles[k++] = (squares[m++]);
+        triangles[k++] = (squares[m++]);
+        triangles[k++] = (squares[m++]);
+        triangles[k++] = (squares[m++]);
+        triangles[k++] = (squares[m]);
+        return k;
+    }
+
+    private static int copyObstToTriangles (float[] triangles, int j, Vector3 xyz)
+    {
+        triangles[j++] = ((float) xyz.x);
+        triangles[j++] = ((float) xyz.y);
+        triangles[j++] = ((float) xyz.z);
+        triangles[j++] = (-999.0F);  // shader makes it solid red
+        triangles[j++] = (-999.0F);
+        return j;
     }
 
     /**
@@ -348,7 +431,6 @@ public class EarthSector {
         double z = xyz.z;
         double r = Math.sqrt (x * x + y * y + z * z);
         double latrad = Math.atan2 (y, Math.hypot (x, z));
-        @SuppressWarnings("SuspiciousNameCombination")
         double lonrad = Math.atan2 (x, z);
         lla.x = Math.toDegrees (latrad);
         lla.y = Math.toDegrees (lonrad);
@@ -358,7 +440,7 @@ public class EarthSector {
     /**
      * Thread that reads in bitmaps that we use to make textures from.
      */
-    private class LoaderThread extends Thread {
+    private static class LoaderThread extends Thread {
         @Override
         public void run ()
         {

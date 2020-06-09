@@ -22,8 +22,6 @@ package com.outerworldapps.wairtonow;
 
 import android.util.SparseArray;
 
-import java.util.TreeMap;
-
 /**
  * Holds the current Traffic from all sources.
  */
@@ -31,8 +29,8 @@ public class TrafficRepo {
     private final static int MAXIMAGES = 1000;
 
     public  volatile boolean amEmpty;
+    public  NNTreeMap<Integer,Traffic> trafficAges = new NNTreeMap<> ();
     public  SparseArray<Traffic> trafficAddr = new SparseArray<> ();
-    public  TreeMap<Integer,Traffic> trafficAges = new TreeMap<> ();
 
     private int lastSeqno = Integer.MIN_VALUE;
 
@@ -56,7 +54,7 @@ public class TrafficRepo {
         // delete oldest traffic overall to make room if we have too many
         while (trafficAges.size () >= MAXIMAGES) {
             int oldseqno = trafficAges.keySet ().iterator ().next ();
-            oldtr = trafficAges.remove (oldseqno);
+            oldtr = trafficAges.nnremove (oldseqno);
             trafficAddr.remove (oldtr.address);
         }
 

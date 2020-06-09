@@ -20,7 +20,7 @@ import com.apps4av.avarehelper.connections.TopDecoder;
  *
  */
 public class HeartbeatMessage {
-    public static void parse (GDL90Decoder mf, byte msg[], int len)
+    public static void parse (GDL90Decoder mf, byte[] msg, int len)
     {
         if (len < 5) throw new IllegalArgumentException ();
 

@@ -1,12 +1,20 @@
 <HTML>
     <BODY>
-        <H2>Options page</H2>
+        <H2>Options Page</H2>
         <P>This page gives access to the selectable options.</P>
         <UL>
             <LI><B>Show CAP grids</B> - will draw CAP grid identifiers
                 and numbers on the currently selected
                 <B><A HREF="p_chart.html">chart</A></B>.  Only valid
                 for the continental US, does not do Alaska or Hawaii.
+            <LI><B>Show obstacle/terrain collision</B> - will highlight
+                potential obstacle/terrain collisions based on current
+                position, speed and heading.  Will highlight locations
+                within 10 sec to 2 mins at current speed and within 30&#176;
+                of current heading.  The highlights will be depicted as
+                blinking red dots in the area of the collision hazard.
+                Requires that the <A HREF="p_maint.html">topography
+                and obstructions</A> databases be downloaded and current.
             <LI><B>Show FAA waypoints</B> - will draw a dot and the
                 name of all known FAA waypoints on the currently
                 selected <B><A HREF="p_chart.html">chart</A></B>.
@@ -28,7 +36,7 @@
                 displayed.  <I>Use with caution as it can wear the
                 battery down.</I>
             <LI><B>GPS status compass</B> - enable compass on the
-                <A HREF="p_gps.html">GPS status</A> page.
+                <A HREF="p_sensors.html">sensors</A> page.
             <LI><B>Chart orientation Unlocked</B><BR>
                 <B>Chart locked in Portrait</B><BR>
                 <B>Chart locked in Landscape</B> - locks/unlocks

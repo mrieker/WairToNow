@@ -101,11 +101,13 @@ then
     #
     #  Fetch FAA data files
     #
-    rm -rf APT.txt AWY.txt FIX.txt ILS.txt NAV.txt TWR.txt aptinfo.tmp
+    rm -rf AFF.txt APT.txt AWOS.txt AWY.txt FIX.txt ILS.txt NAV.txt TWR.txt aptinfo.tmp
     mkdir -p datums
 
     effdate=`./cureffdate -28`
+    getzip AFF
     getzip APT
+    getzip AWOS
     getzip AWY
     getzip FIX
     getzip ILS
@@ -115,11 +117,14 @@ then
     #
     #  Generate airport and runway info
     #
+    unzip datums/AFF_$expdate.zip
     unzip datums/APT_$expdate.zip
+    unzip datums/AWOS_$expdate.zip
     unzip datums/TWR_$expdate.zip
     mkdir aptinfo.tmp
-    cat APT.txt TWR.txt | mono --debug GetAirportIDs.exe airports.tmp runways.tmp aptinfo.tmp aptinfo.html
-    rm -f APT.txt TWR.txt
+    # - APT.txt must be first
+    cat APT.txt AFF.txt AWOS.txt TWR.txt | mono --debug GetAirportIDs.exe airports.tmp runways.tmp aptinfo.tmp aptinfo.html
+    rm -f APT.txt AFF.txt AWOS.txt TWR.txt
 
     #
     #  Generate airway info

@@ -184,6 +184,7 @@ public class GlassView
     /**
      * The screen is about to be made current so force portrait mode.
      */
+    @SuppressLint("SourceLockedOrientationActivity")
     @Override  // WairToNow.CanBeMainView
     public void OpenDisplay ()
     {
@@ -359,7 +360,7 @@ public class GlassView
                 int canHeight = getHeight ();
                 int canCentX = canWidth / 2;
                 int canCentY = canHeight / 2;
-                canvas.translate (centX - canCentX, centY + radius / 2 - canCentY);
+                canvas.translate (centX - canCentX, centY + radius / 2.0F - canCentY);
                 wairToNow.chartView.ReCenter ();
                 chart2DView.SetCanvasHdgRad (Math.toRadians (course));
                 chart2DView.DrawChart (canvas, canWidth, canHeight);
@@ -520,12 +521,12 @@ public class GlassView
             canvas.save ();
             canvas.rotate ((float) (360 - heading + i));
             if (i % 30 == 0) {
-                canvas.drawText (Integer.toString (i / 10), 0, -radius * 10 / 16, dgPaintNum);
-                canvas.drawLine (0, -radius, 0, -radius * 13 / 16, dgPaintMaj);
+                canvas.drawText (Integer.toString (i / 10), 0, -radius * 10.0F / 16, dgPaintNum);
+                canvas.drawLine (0, -radius, 0, -radius * 13.0F / 16, dgPaintMaj);
             } else if (i % 10 == 0) {
-                canvas.drawLine (0, -radius, 0, -radius * 13 / 16, dgPaintMid);
+                canvas.drawLine (0, -radius, 0, -radius * 13.0F / 16, dgPaintMid);
             } else {
-                canvas.drawLine (0, -radius, 0, -radius * 14 / 16, dgPaintMin);
+                canvas.drawLine (0, -radius, 0, -radius * 14.0F / 16, dgPaintMin);
             }
             canvas.restore ();
         }
@@ -718,7 +719,7 @@ public class GlassView
         fgPaint.getTextBounds (text, 0, text.length (), dtwbBounds);
         int htw = dtwbBounds.width  ();
         int hth = dtwbBounds.height ();
-        canvas.drawRect (x - htw / 2 - 3, y - hth - 3, x + htw / 2 + 3, y + 3, bgPaint);
+        canvas.drawRect (x - htw / 2.0F - 3.0F, y - hth - 3, x + htw / 2.0F + 3.0F, y + 3, bgPaint);
         canvas.drawText (text, x, y, fgPaint);
     }
 
@@ -738,7 +739,7 @@ public class GlassView
     {
         canvas.save ();
         canvas.translate (centX, centY);
-        canvas.drawRect (-width/2, -height/2, width/2, height/2, dgPaintBack);
+        canvas.drawRect (-width/2.0F, -height/2.0F, width/2.0F, height/2.0F, dgPaintBack);
 
         // comments use example of the airspeed indicator
         // with val=87 (current speed), perstep=10 (show markings every 10kts), numsteps=8 (show 80kts from top to bottom)
@@ -797,7 +798,7 @@ public class GlassView
             double targetStepsBelowCenter = (double)(target - val) / perstep;
             int targetPixBelowCenter = (int)(targetStepsBelowCenter / numsteps * height + 0.5);
             if ((targetPixBelowCenter >= -height / 2) && (targetPixBelowCenter <= height / 2)) {
-                canvas.drawLine (-width * 3 / 8, targetPixBelowCenter, width * 3 / 8, targetPixBelowCenter, dgPaintHSI);
+                canvas.drawLine (-width * 3.0F / 8, targetPixBelowCenter, width * 3.0F / 8, targetPixBelowCenter, dgPaintHSI);
             }
         }
 

@@ -296,7 +296,7 @@ public class WiFiUDPGpsAdsb extends GpsAdsbReceiver {
         int portno = Integer.parseInt (btAdsbPortNo.getText ().toString ());
         editr.putInt (prefKey + "PortNo", portno);
         putLogToPreferences (editr);
-        editr.commit ();
+        editr.apply ();
     }
 
     /**
@@ -429,7 +429,7 @@ public class WiFiUDPGpsAdsb extends GpsAdsbReceiver {
          * Close UDP socket and tell thread to terminate.
          */
         @Override  // InputStream
-        public void close () throws IOException
+        public void close ()
         {
             try { udpSocket.close (); } catch (Exception e) { Lib.Ignored (); }
             udpSocket = null;

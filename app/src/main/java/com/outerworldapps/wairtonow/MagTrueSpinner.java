@@ -20,6 +20,7 @@
 
 package com.outerworldapps.wairtonow;
 
+import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.view.View;
@@ -74,6 +75,7 @@ public class MagTrueSpinner extends Spinner implements View.OnClickListener {
     /**
      * The given popup is really ugly so supply our own.
      */
+    @SuppressLint("ClickableViewAccessibility")
     @Override  // Spinner
     public boolean performClick ()
     {

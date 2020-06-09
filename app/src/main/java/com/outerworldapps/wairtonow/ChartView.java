@@ -26,6 +26,7 @@ import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.SharedPreferences;
 import android.database.DataSetObserver;
+import android.graphics.Canvas;
 import android.graphics.Color;
 import android.view.View;
 import android.view.ViewGroup;
@@ -50,6 +51,7 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
         double GetCanvasHdgRads ();
         void recycle ();
         boolean LatLonAlt2CanPixExact (double lat, double lon, double alt, PointD pix);
+        void drawOverlay (Canvas canvas);
     }
 
     private boolean reselectLastChart = true;
@@ -60,7 +62,6 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
     private ChartSelectDialog chartSelectDialog;
     private DisplayableChart waitingForChartDownload;
     public  DisplayableChart selectedChart;
-    public  int undrawn;
     public  PixelMapper pmap;
     public  StateView stateView;
     private StreetChart streetChart;
@@ -130,7 +131,6 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
             newbacking.ChartSelected ();
             newbacking.SetGPSLocation ();
             addView (newbacking.getView ());
-            undrawn = 0;
             addView (stateView);
         }
     }
@@ -286,7 +286,7 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
      */
     private class ChartSelectDialog implements ListAdapter,
             DialogInterface.OnClickListener {
-        private TreeMap<String,DisplayableChart> displayableCharts;
+        private NNTreeMap<String,DisplayableChart> displayableCharts;
         private View[] chartViews;
 
         /**
@@ -303,7 +303,7 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
              * Find charts that cover each of the corners and edges.
              * Street chart coverts the whole world so it is always downloaded.
              */
-            displayableCharts = new TreeMap<> ();
+            displayableCharts = new NNTreeMap<> ();
             displayableCharts.put (streetChart.GetSpacenameSansRev (), streetChart);
 
             boolean[] autoAirChartHits = new boolean[autoAirCharts.length];
@@ -348,7 +348,7 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
                 chartViews[i++] = awaitgps;
             }
             for (String spacename : displayableCharts.keySet ()) {
-                DisplayableChart dc = displayableCharts.get (spacename);
+                DisplayableChart dc = displayableCharts.nnget (spacename);
 
                 View v = dc.GetMenuSelector (ChartView.this);
                 v.setBackgroundColor ((dc == selectedChart) ? Color.DKGRAY : Color.BLACK);
@@ -491,7 +491,7 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
             View tv = chartViews[which];
             String spacename = (String) tv.getTag ();
             if (spacename != null) {
-                final DisplayableChart dc = displayableCharts.get (spacename);
+                final DisplayableChart dc = displayableCharts.nnget (spacename);
                 if (dc.IsDownloaded ()) {
                     SelectChart (dc);
                 } else {

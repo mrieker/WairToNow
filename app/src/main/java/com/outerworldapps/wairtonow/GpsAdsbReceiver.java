@@ -123,7 +123,6 @@ public abstract class GpsAdsbReceiver {
      */
     protected OutputStream createLogFile ()
     {
-        //noinspection PointlessBooleanExpression,ConstantConditions
         if (LOGGING_ENABLED && logEnable.isChecked ()) {
 
             // make log file name based on date/time

@@ -67,8 +67,7 @@ public class TopoZipEntry implements ZipConstants {
 
         byte[] hdrBuf = mByteBuf;
 
-        int rc = in.read (hdrBuf, 0, CENHDR);
-        if (rc != CENHDR) throw new IOException ("only read " + rc + " of " + CENHDR + " bytes");
+        readAll (in, hdrBuf, CENHDR);
 
         long sig = (hdrBuf[0] & 0xff) | ((hdrBuf[1] & 0xff) << 8) |
             ((hdrBuf[2] & 0xff) << 16) | ((hdrBuf[3] << 24) & 0xffffffffL);
@@ -96,10 +95,24 @@ public class TopoZipEntry implements ZipConstants {
                 | (hdrBuf[45] << 24);
 
         if (mByteBuf.length < nameLen) mByteBuf = new byte[(nameLen+31)&-32];
-        rc = in.read (mByteBuf, 0, nameLen);
-        if (rc != nameLen) throw new IOException ("only read " + rc + " of " + nameLen + " bytes");
+        readAll (in, mByteBuf, nameLen);
         name = new String (mByteBuf, 0, nameLen);
 
-        Lib.Ignored (in.skip (commentLen + extraLen));
+        int skipLen = commentLen + extraLen;
+        while (skipLen > 0) {
+            long skipped = in.skip (skipLen);
+            skipLen -= skipped;
+        }
+    }
+
+    private static void readAll (InputStream in, byte[] buf, int len)
+            throws IOException
+    {
+        int ofs = 0;
+        while (len > 0) {
+            int rc = in.read (buf, ofs, len);
+            if (rc <= 0) throw new IOException ("eof during read");
+            len -= rc;
+        }
     }
 }

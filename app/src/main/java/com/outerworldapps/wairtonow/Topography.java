@@ -58,8 +58,12 @@ public class Topography {
      * @param lat = latitude, rounded to nearest minute
      * @param lon = longitude, rounded to nearest minute
      * @return INVALID_ELEV: elevation unknown; else: elevation in metres MSL
+     *
+     * Data is 'grid registered', ie, value covers area centered on lat/lon minute,
+     * so is valid when rounding the given lat/lon to nearest minute.
      */
-    public static short getElevMetres (double lat, double lon) {
+    public static short getElevMetres (double lat, double lon)
+    {
         /*
          * Split given lat,lon into degrees and minutes.
          */

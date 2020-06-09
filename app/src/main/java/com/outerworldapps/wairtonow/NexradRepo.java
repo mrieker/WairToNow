@@ -24,7 +24,6 @@ import android.support.annotation.NonNull;
 import android.util.SparseArray;
 
 import java.util.Iterator;
-import java.util.TreeMap;
 
 /**
  * Holds the current Nexrad images from all sources.
@@ -38,7 +37,7 @@ public class NexradRepo implements Iterable<NexradImage> {
     private SparseArray<NexradImage> imageConus = new SparseArray<> ();
     private SparseArray<NexradImage> imageRegnl = new SparseArray<> ();
     private int lastSeqno = Integer.MIN_VALUE;
-    private TreeMap<Integer,NexradImage> imageAges  = new TreeMap<> ();
+    private NNTreeMap<Integer,NexradImage> imageAges  = new NNTreeMap<> ();
 
     /**
      * See if there are any images before locking and looping.
@@ -158,7 +157,7 @@ public class NexradRepo implements Iterable<NexradImage> {
         // delete oldest bitmap overall to make room if we have too many
         while (imageAges.size () >= MAXIMAGES) {
             int oldseqno = imageAges.keySet ().iterator ().next ();
-            oldni = imageAges.remove (oldseqno);
+            oldni = imageAges.nnremove (oldseqno);
             removedOldNexrad (oldni);
         }
 

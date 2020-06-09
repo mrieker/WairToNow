@@ -1,6 +1,6 @@
 <HTML>
     <BODY>
-        <H2>Files page</H2>
+        <H2>Files Page</H2>
         <P>A simple file browser showing the data files.</P>
         <P><B>&lt;dir&gt;</B> - indicates a directory (folder) that you
             can navigate into.  Otherwise the size of the file in bytes
@@ -13,5 +13,17 @@
         <P>After making changes, use <B>Menu</B> then <B>Exit</B>, to
             be sure the changes are used by the app.  Otherwise, the
             app may still use in-memory copies of data from the files.</P>
+        <P>These directories are excluded from standard Android app backup
+            as they can be re-downloaded from the WairToNow server or
+            automatically re-generated:</P>
+        <UL>
+            <LI><B>charts</B> - downloaded charts
+            <LI><B>datums</B> - other downloaded data
+            <LI><B>nobudb</B> - downloaded SQLite databases
+            <LI><B>streets</B> - OpenStreetMap tiles
+            <LI><B>synth_ilsdme</B> - <A HREF="iap_plate.html#synth">synthetic ILS/DME plates</A>
+        </UL>
+        <P>The remaining directories and files are included in the standard
+            Android app backups.</P>
     </BODY>
 </HTML>

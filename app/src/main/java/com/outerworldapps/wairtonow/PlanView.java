@@ -26,11 +26,13 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.database.Cursor;
+import android.graphics.Color;
 import android.net.Uri;
 import android.text.InputType;
 import android.util.Log;
 import android.util.TypedValue;
 import android.view.View;
+import android.view.ViewParent;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
@@ -44,6 +46,9 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.Socket;
+import java.net.URL;
 import java.util.Locale;
 import java.util.TreeMap;
 
@@ -52,13 +57,17 @@ import static android.widget.LinearLayout.VERTICAL;
 @SuppressLint("ViewConstructor")
 public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
     private final static String TAG = "WairToNow";
+    private final static long inetcheckInterval = 3000;
     private final static long pretendInterval = 1000;
 
     private boolean displayOpen;
+    private boolean initialized;
     private boolean pretendEnabled;
     private boolean ptendTimerPend;
     private Button ptendCapCen;
     private CheckBox ptendCheckbox;
+    private double lastPtendLat;
+    private double lastPtendLon;
     private EditText fromAirport;
     private EditText fromDistEdit;
     private EditText fromHdgEdit;
@@ -67,221 +76,31 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
     private EditText ptendHeading;
     private EditText ptendSpeed;
     private EditText ptendTurnRt;
+    private EditText rwyMinLen;
     private EditText toDistEdit;
     private EditText toHdgEdit;
-    private double lastPtendLat;
-    private double lastPtendLon;
+    private OfflineFPFormView fpfv;
+    private InetThread inetthread;
     private LatLonView ptendLat;
     private LatLonView ptendLon;
     private LinearLayout linearLayout;
     private LinearLayout lp1, lp2, lp3, lp4, lp5, lp6;
-    private LinearLayout lv0, lv1, lv2, lv3;
+    private LinearLayout lv0, lv1, lv2, lv3, lv4;
     private long ptendTime;
+    private final Object inetlock = new Object ();
     private OnClickListener locateListener;
     private Runnable pretendStepper;
+    private TextView inetStatusView;
     private TextView tp0;
     private TextView tv0;
+    private TrueMag findTrueHdg;
+    private TrueMag ptendHdgFrame;
     private WairToNow wairToNow;
 
-    @SuppressLint("SetTextI18n")
     public PlanView (WairToNow ctx)
     {
         super (ctx);
         wairToNow = ctx;
-        pretendStepper = new Runnable () {
-            @Override
-            public void run ()
-            {
-                PretendStep ();
-            }
-        };
-
-        // Pretend ...
-
-        tp0 = TextString ("----------------------------");
-
-        ptendCheckbox = new CheckBox (ctx);
-        ptendCheckbox.setOnClickListener (new OnClickListener () {
-            @Override
-            public void onClick (View view) {
-                SetPretendEnabled (ptendCheckbox.isChecked ());
-            }
-        });
-
-        lp1 = new LinearLayout (ctx);
-        lp1.setOrientation (LinearLayout.HORIZONTAL);
-        lp1.addView (ptendCheckbox);
-        lp1.addView (TextString ("Pretend to be at "));
-
-        ptendLat = new LatLonView (ctx, false);
-        ptendLon = new LatLonView (ctx, true);
-        ptendLat.setTextSize (TypedValue.COMPLEX_UNIT_PX, wairToNow.textSize);
-        ptendLon.setTextSize (TypedValue.COMPLEX_UNIT_PX, wairToNow.textSize);
-
-        ptendCapCen = new Button (ctx);
-        ptendCapCen.setText ("(capture center)");
-        wairToNow.SetTextSize (ptendCapCen);
-        ptendCapCen.setOnClickListener (new OnClickListener () {
-            @Override
-            public void onClick (View view) {
-                PixelMapper pmap = wairToNow.chartView.pmap;
-                ptendLat.setVal (pmap.centerLat);
-                ptendLon.setVal (pmap.centerLon);
-            }
-        });
-
-        ptendSpeed = new EditText (ctx);
-        ptendSpeed.setInputType (InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        ptendSpeed.setEms (5);
-        wairToNow.SetTextSize (ptendSpeed);
-
-        lp2 = new LinearLayout (ctx);
-        lp2.setOrientation (LinearLayout.HORIZONTAL);
-        lp2.addView (TextString ("speed "));
-        lp2.addView (ptendSpeed);
-        lp2.addView (TextString ("kts"));
-
-        ptendHeading = new EditText (ctx);
-        ptendHeading.setInputType (InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        ptendHeading.setEms (5);
-        wairToNow.SetTextSize (ptendHeading);
-
-        lp3 = new LinearLayout (ctx);
-        lp3.setOrientation (LinearLayout.HORIZONTAL);
-        lp3.addView (TextString ("heading "));
-        lp3.addView (ptendHeading);
-        lp3.addView (TextString ("deg true"));
-
-        ptendAltitude = new EditText (ctx);
-        ptendAltitude.setInputType (InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        ptendAltitude.setEms (5);
-        wairToNow.SetTextSize (ptendAltitude);
-
-        lp5 = new LinearLayout (ctx);
-        lp5.setOrientation (LinearLayout.HORIZONTAL);
-        lp5.addView (TextString ("altitude "));
-        lp5.addView (ptendAltitude);
-        lp5.addView (TextString ("feet"));
-
-        ptendTurnRt = new EditText (ctx);
-        ptendTurnRt.setInputType (InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL | InputType.TYPE_NUMBER_FLAG_SIGNED);
-        ptendTurnRt.setEms (3);
-        wairToNow.SetTextSize (ptendTurnRt);
-
-        lp4 = new LinearLayout (ctx);
-        lp4.setOrientation (LinearLayout.HORIZONTAL);
-        lp4.addView (TextString ("turn rate "));
-        lp4.addView (ptendTurnRt);
-        lp4.addView (TextString ("deg per sec"));
-
-        ptendClimbRt = new EditText (ctx);
-        ptendClimbRt.setInputType (InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL | InputType.TYPE_NUMBER_FLAG_SIGNED);
-        ptendClimbRt.setEms (6);
-        wairToNow.SetTextSize (ptendClimbRt);
-
-        lp6 = new LinearLayout (ctx);
-        lp6.setOrientation (LinearLayout.HORIZONTAL);
-        lp6.addView (TextString ("climb rate "));
-        lp6.addView (ptendClimbRt);
-        lp6.addView (TextString ("ft per min"));
-
-        // Find ...
-
-        tv0 = TextString ("----------------------------");
-
-        Button findButton = new Button (ctx);
-        findButton.setText ("Find");
-        wairToNow.SetTextSize (findButton);
-        findButton.setOnClickListener (new OnClickListener () {
-            @Override
-            public void onClick (View view)
-            {
-                FindButtonClicked ();
-            }
-        });
-
-        lv0 = new LinearLayout (ctx);
-        lv0.setOrientation (LinearLayout.HORIZONTAL);
-        lv0.addView (findButton);
-        lv0.addView (TextString (" airports"));
-
-        fromDistEdit = new EditText (ctx);
-        fromDistEdit.setInputType (InputType.TYPE_CLASS_NUMBER);
-        fromDistEdit.setEms (5);
-        wairToNow.SetTextSize (fromDistEdit);
-
-        toDistEdit = new EditText (ctx);
-        toDistEdit.setInputType (InputType.TYPE_CLASS_NUMBER);
-        toDistEdit.setEms (5);
-        wairToNow.SetTextSize (toDistEdit);
-
-        lv1 = new LinearLayout (ctx);
-        lv1.setOrientation (LinearLayout.HORIZONTAL);
-        lv1.addView (TextString ("between distances "));
-        lv1.addView (fromDistEdit);
-        lv1.addView (TextString (" and "));
-        lv1.addView (toDistEdit);
-        lv1.addView (TextString ("nm"));
-
-        fromHdgEdit = new EditText (ctx);
-        fromHdgEdit.setInputType (InputType.TYPE_CLASS_NUMBER);
-        fromHdgEdit.setEms (3);
-        wairToNow.SetTextSize (fromHdgEdit);
-
-        toHdgEdit = new EditText (ctx);
-        toHdgEdit.setInputType (InputType.TYPE_CLASS_NUMBER);
-        toHdgEdit.setEms (3);
-        wairToNow.SetTextSize (toHdgEdit);
-
-        lv2 = new LinearLayout (ctx);
-        lv2.setOrientation (LinearLayout.HORIZONTAL);
-        lv2.addView (TextString ("between headings "));
-        lv2.addView (fromHdgEdit);
-        lv2.addView (TextString (" and "));
-        lv2.addView (toHdgEdit);
-        lv2.addView (TextString ("deg true"));
-
-        fromAirport = new EditText (ctx);
-        fromAirport.setEms (5);
-        fromAirport.setInputType (InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
-        fromAirport.setSingleLine ();
-        wairToNow.SetTextSize (fromAirport);
-
-        lv3 = new LinearLayout (ctx);
-        lv3.setOrientation (LinearLayout.HORIZONTAL);
-        lv3.addView (TextString ("from airport icao id "));
-        lv3.addView (fromAirport);
-
-        locateListener = new OnClickListener () {
-            @Override
-            public void onClick (View view)
-            {
-                LocateListener (view);
-            }
-        };
-
-        /*
-         * Layout the screen and display it.
-         */
-        linearLayout = new LinearLayout (ctx);
-        linearLayout.setOrientation (VERTICAL);
-
-        Reset ();
-
-        addView (linearLayout);
-
-        /*// set up a course for debugging
-        ptendCheckbox.setChecked (true);
-        ptendAltitude.setText ("3000");
-        ptendHeading.setText ("212");
-        ptendSpeed.setText ("360");
-        ptendTurnRt.setText ("0");
-        lastPtendLat =  41.724;    //   38.8; // 42.5;
-        lastPtendLon = -71.428224; // -104.7; // -71.0;
-        ptendLat.setVal (lastPtendLat);
-        ptendLon.setVal (lastPtendLon);
-        SetPretendEnabled (true);
-        */
     }
 
     @Override  // WairToNow.CanBeMainView
@@ -305,7 +124,17 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
     @Override  // WairToNow.CanBeMainView
     public void OpenDisplay ()
     {
-        displayOpen = true;
+        if (! initialized) {
+            initialize ();
+            initialized = true;
+        }
+        synchronized (inetlock) {
+            displayOpen = true;
+            if (inetthread == null) {
+                inetthread = new InetThread ();
+                inetthread.start ();
+            }
+        }
         String format = wairToNow.optionsView.LatLonString (10.0/3600.0, 'N', 'S');
         ptendLat.setFormat (format);
         ptendLon.setFormat (format);
@@ -319,7 +148,9 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
     @Override  // WairToNow.CanBeMainView
     public void CloseDisplay ()
     {
-        displayOpen = false;
+        synchronized (inetlock) {
+            displayOpen = false;
+        }
         if (pretendEnabled && !ptendTimerPend) {
             ptendTimerPend = true;
             WairToNow.wtnHandler.runDelayed (pretendInterval, pretendStepper);
@@ -336,6 +167,320 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
         return this;
     }
 
+    @SuppressLint("SetTextI18n")
+    private void initialize ()
+    {
+        inetStatusView = TextString ("");
+
+        pretendStepper = new Runnable () {
+            @Override
+            public void run ()
+            {
+                PretendStep ();
+            }
+        };
+
+        // Pretend ...
+
+        tp0 = TextString ("----------------------------");
+
+        ptendCheckbox = new CheckBox (wairToNow);
+        ptendCheckbox.setOnClickListener (new OnClickListener () {
+            @Override
+            public void onClick (View view) {
+                SetPretendEnabled (ptendCheckbox.isChecked ());
+            }
+        });
+
+        lp1 = new LinearLayout (wairToNow);
+        lp1.setOrientation (LinearLayout.HORIZONTAL);
+        lp1.addView (ptendCheckbox);
+        lp1.addView (TextString ("Pretend to be at "));
+
+        ptendLat = new LatLonView (wairToNow, false);
+        ptendLon = new LatLonView (wairToNow, true);
+        ptendLat.setTextSize (TypedValue.COMPLEX_UNIT_PX, wairToNow.textSize);
+        ptendLon.setTextSize (TypedValue.COMPLEX_UNIT_PX, wairToNow.textSize);
+
+        ptendCapCen = new Button (wairToNow);
+        ptendCapCen.setText ("(capture center)");
+        wairToNow.SetTextSize (ptendCapCen);
+        ptendCapCen.setOnClickListener (new OnClickListener () {
+            @Override
+            public void onClick (View view) {
+                PixelMapper pmap = wairToNow.chartView.pmap;
+                ptendLat.setVal (pmap.centerLat);
+                ptendLon.setVal (pmap.centerLon);
+            }
+        });
+
+        ptendSpeed = new EditText (wairToNow);
+        ptendSpeed.setInputType (InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        ptendSpeed.setEms (5);
+        wairToNow.SetTextSize (ptendSpeed);
+
+        lp2 = new LinearLayout (wairToNow);
+        lp2.setOrientation (LinearLayout.HORIZONTAL);
+        lp2.addView (TextString ("speed "));
+        lp2.addView (ptendSpeed);
+        lp2.addView (TextString ("kts"));
+
+        ptendHeading = new EditText (wairToNow);
+        ptendHeading.setInputType (InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        ptendHeading.setEms (5);
+        wairToNow.SetTextSize (ptendHeading);
+
+        ptendHdgFrame = new TrueMag ();
+
+        lp3 = new LinearLayout (wairToNow);
+        lp3.setOrientation (LinearLayout.HORIZONTAL);
+        lp3.addView (TextString ("heading "));
+        lp3.addView (ptendHeading);
+        lp3.addView (TextString ("deg "));
+        lp3.addView (ptendHdgFrame);
+
+        ptendAltitude = new EditText (wairToNow);
+        ptendAltitude.setInputType (InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        ptendAltitude.setEms (5);
+        wairToNow.SetTextSize (ptendAltitude);
+
+        lp5 = new LinearLayout (wairToNow);
+        lp5.setOrientation (LinearLayout.HORIZONTAL);
+        lp5.addView (TextString ("altitude "));
+        lp5.addView (ptendAltitude);
+        lp5.addView (TextString ("feet"));
+
+        ptendTurnRt = new EditText (wairToNow);
+        ptendTurnRt.setInputType (InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL | InputType.TYPE_NUMBER_FLAG_SIGNED);
+        ptendTurnRt.setEms (3);
+        wairToNow.SetTextSize (ptendTurnRt);
+
+        lp4 = new LinearLayout (wairToNow);
+        lp4.setOrientation (LinearLayout.HORIZONTAL);
+        lp4.addView (TextString ("turn rate "));
+        lp4.addView (ptendTurnRt);
+        lp4.addView (TextString ("deg per sec"));
+
+        ptendClimbRt = new EditText (wairToNow);
+        ptendClimbRt.setInputType (InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL | InputType.TYPE_NUMBER_FLAG_SIGNED);
+        ptendClimbRt.setEms (6);
+        wairToNow.SetTextSize (ptendClimbRt);
+
+        lp6 = new LinearLayout (wairToNow);
+        lp6.setOrientation (LinearLayout.HORIZONTAL);
+        lp6.addView (TextString ("climb rate "));
+        lp6.addView (ptendClimbRt);
+        lp6.addView (TextString ("ft per min"));
+
+        // Find ...
+
+        tv0 = TextString ("----------------------------");
+
+        Button findButton = new Button (wairToNow);
+        findButton.setText ("Find");
+        wairToNow.SetTextSize (findButton);
+        findButton.setOnClickListener (new OnClickListener () {
+            @Override
+            public void onClick (View view)
+            {
+                FindButtonClicked ();
+            }
+        });
+
+        lv0 = new LinearLayout (wairToNow);
+        lv0.setOrientation (LinearLayout.HORIZONTAL);
+        lv0.addView (findButton);
+        lv0.addView (TextString (" airports"));
+
+        fromDistEdit = new EditText (wairToNow);
+        fromDistEdit.setInputType (InputType.TYPE_CLASS_NUMBER);
+        fromDistEdit.setEms (5);
+        wairToNow.SetTextSize (fromDistEdit);
+
+        toDistEdit = new EditText (wairToNow);
+        toDistEdit.setInputType (InputType.TYPE_CLASS_NUMBER);
+        toDistEdit.setEms (5);
+        wairToNow.SetTextSize (toDistEdit);
+
+        lv1 = new LinearLayout (wairToNow);
+        lv1.setOrientation (LinearLayout.HORIZONTAL);
+        lv1.addView (TextString ("between distances "));
+        lv1.addView (fromDistEdit);
+        lv1.addView (TextString (" and "));
+        lv1.addView (toDistEdit);
+        lv1.addView (TextString ("nm"));
+
+        fromHdgEdit = new EditText (wairToNow);
+        fromHdgEdit.setInputType (InputType.TYPE_CLASS_NUMBER);
+        fromHdgEdit.setEms (3);
+        wairToNow.SetTextSize (fromHdgEdit);
+
+        toHdgEdit = new EditText (wairToNow);
+        toHdgEdit.setInputType (InputType.TYPE_CLASS_NUMBER);
+        toHdgEdit.setEms (3);
+        wairToNow.SetTextSize (toHdgEdit);
+
+        findTrueHdg = new TrueMag ();
+
+        lv2 = new LinearLayout (wairToNow);
+        lv2.setOrientation (LinearLayout.HORIZONTAL);
+        lv2.addView (TextString ("between headings "));
+        lv2.addView (fromHdgEdit);
+        lv2.addView (TextString (" and "));
+        lv2.addView (toHdgEdit);
+        lv2.addView (TextString ("deg "));
+        lv2.addView (findTrueHdg);
+
+        fromAirport = new EditText (wairToNow);
+        fromAirport.setEms (5);
+        fromAirport.setInputType (InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        fromAirport.setSingleLine ();
+        wairToNow.SetTextSize (fromAirport);
+
+        lv3 = new LinearLayout (wairToNow);
+        lv3.setOrientation (LinearLayout.HORIZONTAL);
+        lv3.addView (TextString ("from airport icao id "));
+        lv3.addView (fromAirport);
+
+        rwyMinLen = new EditText (wairToNow);
+        rwyMinLen.setEms (5);
+        rwyMinLen.setInputType (InputType.TYPE_CLASS_NUMBER);
+        rwyMinLen.setSingleLine ();
+        wairToNow.SetTextSize (rwyMinLen);
+
+        lv4 = new LinearLayout (wairToNow);
+        lv4.setOrientation (LinearLayout.HORIZONTAL);
+        lv4.addView (TextString ("runway minimum length "));
+        lv4.addView (rwyMinLen);
+        lv4.addView (TextString (" feet"));
+
+        locateListener = new OnClickListener () {
+            @Override
+            public void onClick (View view)
+            {
+                LocateListener (view);
+            }
+        };
+
+        /*
+         * Layout the screen and display it.
+         */
+        linearLayout = new LinearLayout (wairToNow);
+        linearLayout.setOrientation (VERTICAL);
+
+        Reset ();
+
+        addView (linearLayout);
+
+        /*// set up a course for debugging
+        ptendCheckbox.setChecked (true);
+        ptendAltitude.setText ("3000");
+        ptendHeading.setText ("212");
+        ptendSpeed.setText ("360");
+        ptendTurnRt.setText ("0");
+        lastPtendLat =  41.724;    //   38.8; // 42.5;
+        lastPtendLon = -71.428224; // -104.7; // -71.0;
+        ptendLat.setVal (lastPtendLat);
+        ptendLon.setVal (lastPtendLon);
+        SetPretendEnabled (true);
+        */
+    }
+
+    // thread that checks for internet connectivity
+    private enum InetState {
+        CHECKING,
+        CLOSED,
+        FAILED,
+        SUCCESS
+    }
+    private class InetThread extends Thread {
+        private InetState inetstate;
+
+        public InetThread ()
+        {
+            inetstate = InetState.CLOSED;
+        }
+
+        @Override
+        public void run () {
+            while (true) {
+
+                // run as long as display is open
+                synchronized (inetlock) {
+                    if (!displayOpen) {
+                        inetthread = null;
+                        inetstate = InetState.CLOSED;
+                        WairToNow.wtnHandler.runDelayed (0, updateInetStatus);
+                        break;
+                    }
+                }
+
+                try {
+
+                    // parse server url and look up ip addresses
+                    inetstate = InetState.CHECKING;
+                    WairToNow.wtnHandler.runDelayed (333, updateInetStatus);
+                    URL url = new URL (MaintView.dldir);
+                    String host = url.getHost ();
+                    InetAddress[] addrs = InetAddress.getAllByName (host);
+                    int port = url.getPort ();
+                    if (port < 0) port = url.getDefaultPort ();
+
+                    // try to connect to each ip address until one succeeds
+                    for (InetAddress addr : addrs) {
+                        try {
+                            Socket sock = new Socket (addr, port);
+                            sock.close ();
+                            inetstate = InetState.SUCCESS;
+                            break;
+                        } catch (IOException ioe) {
+                            Log.w (TAG, "error connecting to " + addr + ":" + port, ioe);
+                        }
+                    }
+
+                    // they all failed so assume no internet connectivity
+                    if (inetstate == InetState.CHECKING) inetstate = InetState.FAILED;
+                } catch (Exception e) {
+                    Log.e (TAG, "exception in InetThread", e);
+                    inetstate = InetState.FAILED;
+                }
+                WairToNow.wtnHandler.runDelayed (0, updateInetStatus);
+                try { Thread.sleep (inetcheckInterval); } catch (InterruptedException ie) {
+                    Lib.Ignored ();
+                }
+            }
+        }
+
+        // update on-screen status in GUI thread
+        private final Runnable updateInetStatus = new Runnable () {
+            @SuppressLint("SetTextI18n")
+            @Override
+            public void run () {
+                switch (inetstate) {
+                    case CHECKING: {
+                        inetStatusView.setTextColor (Color.CYAN);
+                        inetStatusView.setText ("checking");
+                        break;
+                    }
+                    case CLOSED: {
+                        inetStatusView.setText ("");
+                        break;
+                    }
+                    case FAILED: {
+                        inetStatusView.setTextColor (Color.RED);
+                        inetStatusView.setText ("offline");
+                        break;
+                    }
+                    case SUCCESS: {
+                        inetStatusView.setTextColor (Color.GREEN);
+                        inetStatusView.setText ("online");
+                        break;
+                    }
+                }
+            }
+        };
+    }
+
     private void Reset ()
     {
         LinearLayout.LayoutParams llpwc = new LinearLayout.LayoutParams (LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
@@ -344,15 +489,29 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
 
         // Links ...
 
+        ViewParent p = inetStatusView.getParent ();
+        if (p != null) ((LinearLayout) p).removeAllViews ();
+
+        LinearLayout statusLine = new LinearLayout (wairToNow);
+        statusLine.setOrientation (LinearLayout.HORIZONTAL);
+        statusLine.addView (TextString ("Internet access required ["), llpwc);
+        statusLine.addView (inetStatusView, llpwc);
+        statusLine.addView (TextString ("]."), llpwc);
+
         linearLayout.addView (TextString ("----------------------------"), llpwc);
         linearLayout.addView (TextString ("Opens page in web browser."), llpwc);
-        linearLayout.addView (TextString ("Internet access required."), llpwc);
+        linearLayout.addView (statusLine, llpwc);
         TreeMap<String,String> alllines = ReadWholeLinkFile ();
         for (String title : alllines.keySet ()) {
             linearLayout.addView (new OpenLinkButton (title, alllines.get (title)), llpwc);
         }
         linearLayout.addView (TextString ("Long-click above button to customize."), llpwc);
         linearLayout.addView (new AddLinkButton (), llpwc);
+
+        // Flight Plan Form
+
+        linearLayout.addView (TextString ("----------------------------"), llpwc);
+        linearLayout.addView (new OfflineFPFormButton (), llpwc);
 
         // Pretend ...
 
@@ -374,6 +533,7 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
         linearLayout.addView (lv1, llpwc);
         linearLayout.addView (lv2, llpwc);
         linearLayout.addView (lv3, llpwc);
+        linearLayout.addView (lv4, llpwc);
     }
 
     private TextView TextString (String str)
@@ -466,6 +626,24 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
             adb.show ();
 
             return true;
+        }
+    }
+
+    private class OfflineFPFormButton extends Button implements OnClickListener {
+        @SuppressLint("SetTextI18n")
+        public OfflineFPFormButton ()
+        {
+            super (wairToNow);
+
+            setOnClickListener (this);
+            setText ("Offline Flight Plan Form");
+            wairToNow.SetTextSize (this);
+        }
+        @Override
+        public void onClick (View v)
+        {
+            if (fpfv == null) fpfv = new OfflineFPFormView (wairToNow);
+            wairToNow.SetCurrentTab (fpfv);
         }
     }
 
@@ -597,10 +775,11 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
     private void FindButtonClicked ()
     {
         try {
-            int fromDist = Integer.parseInt (fromDistEdit.getText ().toString ());
-            int toDist   = Integer.parseInt (toDistEdit.getText ().toString ());
-            int fromHdg  = Integer.parseInt (fromHdgEdit.getText ().toString ());
-            int toHdg    = Integer.parseInt (toHdgEdit.getText ().toString ());
+            int fromDist  = Integer.parseInt (fromDistEdit.getText ().toString ());
+            int toDist    = Integer.parseInt (toDistEdit.getText ().toString ());
+            int fromHdg   = Integer.parseInt (fromHdgEdit.getText ().toString ());
+            int toHdg     = Integer.parseInt (toHdgEdit.getText ().toString ());
+            int rwyminlen = Integer.parseInt (rwyMinLen.getText ().toString ());
 
             if ((fromDist < 0) || (toDist < fromDist)) {
                 throw new Exception ("bad distance range");
@@ -627,9 +806,7 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
             /*
              * Open database.
              */
-            int waypointexpdate = MaintView.GetWaypointExpDate ();
-            String dbname = "waypoints_" + waypointexpdate + ".db";
-            SQLiteDBs sqldb = SQLiteDBs.create (dbname);
+            SQLiteDBs sqldb = Waypoint.openWayptDB ();
 
             /*
              * Find starting point airport's lat/lon.
@@ -639,13 +816,14 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
                     Waypoint.Airport.dbkeyid + "=?", new String[] { fromApt },
                     null, null, null, null);
             double fromLat, fromLon;
+            Waypoint.Airport fromAptWp;
             try {
                 if (!result1.moveToFirst ()) {
                     throw new Exception ("starting airport not defined");
                 }
-                Waypoint.Airport wp = new Waypoint.Airport (result1, wairToNow);
-                fromLat = wp.lat;
-                fromLon = wp.lon;
+                fromAptWp = new Waypoint.Airport (result1, wairToNow);
+                fromLat = fromAptWp.lat;
+                fromLon = fromAptWp.lon;
             } finally {
                 result1.close ();
             }
@@ -654,6 +832,8 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
              * Read list of airports into waypoint list that are within the given distance range
              * and that are within the given heading range.
              */
+            boolean magnetic = ! findTrueHdg.getVal ();
+            double magvar = magnetic ? Lib.MagVariation (fromLat, fromLon, fromAptWp.elev / Lib.FtPerM) : 0.0;
             TreeMap<String,Waypoint.Airport> waypoints = new TreeMap<> ();
             Cursor result2 = sqldb.query (
                     "airports", Waypoint.Airport.dbcols,
@@ -662,10 +842,15 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
                 if (result2.moveToFirst ()) do {
                     Waypoint.Airport wp = new Waypoint.Airport (result2, wairToNow);
                     double distNM  = Lib.LatLonDist (fromLat, fromLon, wp.lat, wp.lon);
-                    double trueDeg = Lib.LatLonTC (fromLat, fromLon, wp.lat, wp.lon);
-                    while (trueDeg < fromHdg) trueDeg += 360;
-                    if ((distNM >= fromDist) && (distNM <= toDist) && (trueDeg <= toHdg)) {
-                        waypoints.put (wp.ident, wp);
+                    double hdg = Lib.LatLonTC (fromLat, fromLon, wp.lat, wp.lon) + magvar;
+                    while (hdg < fromHdg) hdg += 360.0;
+                    if ((distNM >= fromDist) && (distNM <= toDist) && (hdg <= toHdg)) {
+                        for (Waypoint.Runway rwy : wp.GetRunways ().values ()) {
+                            if (rwy.getLengthFt () >= rwyminlen) {
+                                waypoints.put (wp.ident, wp);
+                                break;
+                            }
+                        }
                     }
                 } while (result2.moveToNext ());
             } finally {
@@ -676,9 +861,9 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
              * Add the airports to the display.
              */
             for (Waypoint.Airport wp : waypoints.values ()) {
-                int distNM  = (int) Lib.LatLonDist (fromLat, fromLon, wp.lat, wp.lon);
-                int trueDeg = (int) Lib.LatLonTC (fromLat, fromLon, wp.lat, wp.lon);
-                if (trueDeg <= 0) trueDeg += 360;
+                int distNM = (int) Math.round (Lib.LatLonDist (fromLat, fromLon, wp.lat, wp.lon));
+                int course = (int) Math.round (Lib.LatLonTC (fromLat, fromLon, wp.lat, wp.lon) + magvar);
+                if (course <= 0) course += 360;
 
                 String detail = wp.GetDetailText ();
                 int i = detail.indexOf ('\n');
@@ -687,7 +872,7 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
                 Button locateButton = new Button (wairToNow);
                 locateButton.setOnClickListener (locateListener);
                 locateButton.setTag (wp);
-                locateButton.setText (detail.subSequence (0, i) + " ("+ distNM + "nm " + trueDeg + (char)0xB0 + "true)");
+                locateButton.setText (detail.subSequence (0, i) + " ("+ distNM + "nm " + course + (char)0xB0 + (magnetic ? " mag)" : " true)"));
                 wairToNow.SetTextSize (locateButton);
                 linearLayout.addView (locateButton);
 
@@ -748,11 +933,12 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
             /*
              * Get updated lat/lon, heading and time.
              */
-            long  newnow = oldnow + pretendInterval;
+            long   newnow = oldnow + pretendInterval;
             double distnm = spdkts * (newnow - oldnow) / 1000.0 / 3600.0;
             double newhdg = hdgdeg + (newnow - oldnow) / 1000.0 * turnrt;
-            double newlat = Lib.LatHdgDist2Lat (oldlat, newhdg, distnm);
-            double newlon = Lib.LatLonHdgDist2Lon (oldlat, oldlon, newhdg, distnm);
+            double hdgtru = ptendHdgFrame.getVal () ? newhdg : newhdg - Lib.MagVariation (oldlat, oldlon, altft / Lib.FtPerM);
+            double newlat = Lib.LatHdgDist2Lat (oldlat, hdgtru, distnm);
+            double newlon = Lib.LatLonHdgDist2Lon (oldlat, oldlon, hdgtru, distnm);
             double newalt = altft + (newnow - oldnow) / 60000.0 * climrt;
 
             while (newhdg <=  0.0) newhdg += 360.0;
@@ -774,13 +960,39 @@ public class PlanView extends ScrollView implements WairToNow.CanBeMainView {
              */
             wairToNow.SetCurrentLocation (
                     spdkts / Lib.KtPerMPS, altft / Lib.FtPerM,
-                    newhdg, newlat, newlon, newnow);
+                    hdgtru, newlat, newlon, newnow);
 
             /*
              * Start the timer to do next interval.
              */
             ptendTimerPend = true;
             WairToNow.wtnHandler.runDelayed (pretendInterval, pretendStepper);
+        }
+    }
+
+    /**
+     * Box for editing true/magnetic indicator value
+     */
+    private class TrueMag extends TextArraySpinner {
+        public TrueMag ()
+        {
+            super (wairToNow);
+            wairToNow.SetTextSize (this);
+
+            String[] labels = new String[] { "True", "Mag" };
+            setLabels (labels, null, null, null);
+
+            setIndex (wairToNow.optionsView.magTrueOption.getAlt () ? 0 : 1);
+        }
+
+        /**
+         * Get currently selected value
+         * @return true: "True"
+         *        false: "Mag"
+         */
+        public boolean getVal ()
+        {
+            return getIndex () == 0;
         }
     }
 }

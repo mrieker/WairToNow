@@ -20,6 +20,8 @@
 
 package com.outerworldapps.wairtonow;
 
+import android.support.annotation.NonNull;
+
 public class Vector3 {
     public double x, y, z;
 
@@ -90,7 +92,7 @@ public class Vector3 {
     }
 
     @Override
-    public String toString ()
+    public @NonNull String toString ()
     {
         return x + "," + y + "," + z;
     }

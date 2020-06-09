@@ -434,9 +434,7 @@ public class WaypointView extends LinearLayout
         {
             double dista = Lib.LatLonDist (llat, llon, a.lat, a.lon);
             double distb = Lib.LatLonDist (llat, llon, b.lat, b.lon);
-            if (dista < distb) return -1;
-            if (dista > distb) return  1;
-            return 0;
+            return Double.compare (dista, distb);
         }
     }
 

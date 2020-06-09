@@ -46,6 +46,8 @@
 
             if (apt['towered'] != 'Y') apt['hourslocal'] = '(none)';
 
+            apt.trafpatline = (apt.trafpatagl == '') ? '' : ('<TR><TD VALIGN=TOP>Traffic pattern AGL:</TD><TD VALIGN=TOP>' + apt.trafpatagl + '</TD></TR>');
+
             subs (apt, '  \
                 <TITLE>$facilname</TITLE></HEAD>  \
                 <H2>$faaid ($icaoid) $facilname</H2>  \
@@ -61,7 +63,7 @@
                     <TR><TD VALIGN=TOP>From city:</TD><TD VALIGN=TOP>$nmfromcity nm $dirfromcity of $city, $state2let</TD></TR>  \
                     <TR><TD VALIGN=TOP>Sectional chart:</TD><TD VALIGN=TOP>$secchart</TD></TR>  \
                     <TR><TD VALIGN=TOP>Tower hours:</TD><TD VALIGN=TOP>$hourslocal</TD></TR>  \
-                    <TR><TD VALIGN=TOP>Traffic pattern AGL:</TD><TD VALIGN=TOP>$trafpatagl</TD></TR>  \
+                    $trafpatline  \
                 </TABLE>  \
                 <P></P>  \
                 <TABLE>  \
@@ -77,21 +79,51 @@
                     <TR><TD>Unicom:</TD><TD>$unicom</TD></TR>  \
                     <TR><TD>CTAF:</TD><TD>$ctaf</TD></TR>  \
             ');
-            for (name in apt) {
+
+            // get tower and approach/departure names (eg, BEVERLY, BOSTON)
+            var twrname = ('twrname' in apt) ? apt.twrname : '';
+            var appname = ('appname' in apt) ? apt.appname.replace (' ARTCC', ' CENTER') : '';
+            var depname = ('depname' in apt) ? apt.depname.replace (' ARTCC', ' CENTER') : '';
+            var twrused = false;
+            var appused = false;
+            var depused = false;
+
+            // list out the frequencies
+            // splice in tower, approach, departure names where applicable
+            for (var name in apt) {
                 if (name.substring (0, 5) == 'FREQ-') {
                     var type = name.substring (5);
-                    type = type.replace ('CD', 'ClncDel');
-                    type = type.replace ('LCL', 'Tower');
-                    document.write ('<TR><TD VALIGN=TOP>' + type + ':</TD><TD>' + apt[name] + '</TD></TR>');
+                    var freq = apt[name];
+                    if (type.includes ('TWR/')) {
+                        freq += ' ' + twrname;
+                        twrused = true;
+                    }
+                    if (type.includes ('APCH/')) {
+                        freq += ' ' + appname;
+                        appused = true;
+                    }
+                    if (type.includes ('DEP/')) {
+                        if (! type.includes ('APCH/') || (depname != appname)) {
+                            freq += ' ' + depname;
+                        }
+                        depused = true;
+                    }
+                    document.write ('<TR><TD VALIGN=TOP>' + type + ':</TD><TD>' + freq + '</TD></TR>');
                 }
             }
-            if (apt['twrname'] != '') document.write ('<TR><TD VALIGN=TOP>Tower:</TD><TD><I>'     + apt['twrname'] + '</I></TD></TR>');
-            if (apt['appname'] != '') document.write ('<TR><TD VALIGN=TOP>Approach:</TD><TD><I>'  + apt['appname'].replace (' ARTCC', ' CENTER') + '</I></TD></TR>');
-            if (apt['depname'] != '') document.write ('<TR><TD VALIGN=TOP>Departure:</TD><TD><I>' + apt['depname'].replace (' ARTCC', ' CENTER') + '</I></TD></TR>');
+
+            // awos frequency is listed separately where present
+            if (('awos' in apt) && (apt.awos != '')) document.write ('<TR><TD VALIGN=TOP>AWOS:</TD><TD>' + apt.awos + '</TD></TR>');
+
+            // list any as-of-yet unshown tower, approach, departure names
+            if (! twrused && (twrname != '')) document.write ('<TR><TD VALIGN=TOP>Tower:</TD><TD><I>'     + twrname + '</I></TD></TR>');
+            if (! appused && (appname != '')) document.write ('<TR><TD VALIGN=TOP>Approach:</TD><TD><I>'  + appname + '</I></TD></TR>');
+            if (! depused && (depname != '')) document.write ('<TR><TD VALIGN=TOP>Departure:</TD><TD><I>' + depname + '</I></TD></TR>');
+
             document.write ('</TABLE>');
 
             document.write ('<P></P><B>Remarks</B><TABLE>');
-            for (name in apt) {
+            for (var name in apt) {
                 if (name.substring (0, 4) == 'RMK-') {
                     document.write ('<TR><TD NOWRAP VALIGN=TOP>' + name.substring (4) + ':</TD><TD>' + apt[name] + '</TD></TR>');
                 }
@@ -101,7 +133,7 @@
             }
             document.write ('</TABLE>');
 
-            for (name in rwps) {
+            for (var name in rwps) {
                 var rwp = rwps[name];
                 rwp['base_trafpat']  = (rwp['base_ritraf']  == 'Y') ? 'Right' : 'Left';
                 rwp['recip_trafpat'] = (rwp['recip_ritraf'] == 'Y') ? 'Right' : 'Left';

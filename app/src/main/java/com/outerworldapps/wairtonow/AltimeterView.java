@@ -330,7 +330,7 @@ public class AltimeterView extends View implements WairToNow.CanBeMainView {
                 canvas.drawLine ((float) (angsin * 800), (float) (angcos * -800),
                         (float) (angsin * 1000), (float) (angcos * -1000), tickMarkPaint);
                 canvas.drawText (digits[ft/100], (float) (angsin * 675),
-                        (float) (angcos * -675) + digitheight / 2, tickMarkPaint);
+                        (float) (angcos * -675) + digitheight / 2.0F, tickMarkPaint);
             } else {
                 tickMarkPaint.setStrokeWidth (10);
                 canvas.drawLine ((float) (angsin * 850), (float) (angcos * -850),

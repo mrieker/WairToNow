@@ -35,7 +35,6 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 
 import java.text.DecimalFormat;
-import java.util.HashMap;
 import java.util.TreeMap;
 
 /**
@@ -55,7 +54,7 @@ public class SensorsView
     private LinearLayout mainLinearLayout;
     private DecimalFormat formatter = new DecimalFormat ("#.#");
     public  GpsStatusView gpsStatusView;
-    private HashMap<String,RingedButton> selectButtons = new HashMap<> ();
+    private NNHashMap<String,RingedButton> selectButtons = new NNHashMap<> ();
     private TextView gpsStatusText;
     private TreeMap<String,GpsAdsbReceiver> selectableGPSs = new TreeMap<> ();
     public  WairToNow wairToNow;
@@ -149,12 +148,12 @@ public class SensorsView
             {
                 for (GpsAdsbReceiver rcvr : selectableGPSs.values ()) {
                     rcvr.displayClosed ();
-                    selectButtons.get (rcvr.getPrefKey ()).setTextColor (Color.BLACK);
+                    selectButtons.nnget (rcvr.getPrefKey ()).setTextColor (Color.BLACK);
                 }
                 GpsAdsbReceiver receiver = (GpsAdsbReceiver) view.getTag ();
                 View receiverView = receiver.displayOpened ();
                 buildMainLayout (receiverView);
-                selectButtons.get (receiver.getPrefKey ()).setTextColor (Color.RED);
+                selectButtons.nnget (receiver.getPrefKey ()).setTextColor (Color.RED);
             }
         };
 
@@ -367,7 +366,7 @@ public class SensorsView
             double altitude = wairToNow.currentGPSAlt;
             double heading  = wairToNow.currentGPSHdg;
             double speed    = wairToNow.currentGPSSpd;
-            sb.append (Long.toString (Math.round (altitude * Lib.FtPerM)));
+            sb.append (Math.round (altitude * Lib.FtPerM));
             sb.append (" ft MSL    ");
             sb.append (wairToNow.optionsView.HdgString (heading, latitude, longitude, altitude));
             sb.append ("    ");

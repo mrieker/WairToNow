@@ -129,6 +129,7 @@ processdatums datums/iapgeorefs2_
 processdatums datums/intersections_  .csv
 processdatums datums/localizers_     .csv
 processdatums datums/navaids_        .csv
+processdatums datums/obstructions_   .db.gz
 processdatums datums/runways_        .csv
 processdatums datums/statezips_
 processdatums datums/waypoints_      .db.gz

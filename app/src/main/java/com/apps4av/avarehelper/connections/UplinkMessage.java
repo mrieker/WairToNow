@@ -22,7 +22,7 @@ public class UplinkMessage {
     /**
      * Parse incoming message
      */
-    public static void parse (byte msg[], int len, Reporter reporter)
+    public static void parse (byte[] msg, int len, Reporter reporter)
     {
         /*
          * First byte is GDL-90 message type UPLINK.

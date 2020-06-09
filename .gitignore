@@ -3,6 +3,7 @@
 *.exe
 *.exe.mdb
 *.htm
+*.iml
 *.jar
 *.log
 *.tif
@@ -18,8 +19,7 @@ decosects/datums
 decosects/ReadArptDgmPng_learnt.png
 .DS_Store
 .gradle
-.idea/workspace.xml
-.idea/libraries
+.idea
 local.properties
 machine_*.rej
 machine_*.csv

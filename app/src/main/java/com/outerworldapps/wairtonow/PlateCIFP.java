@@ -23,7 +23,6 @@ package com.outerworldapps.wairtonow;
 import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
-import android.database.Cursor;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.DashPathEffect;
@@ -82,7 +81,7 @@ public class PlateCIFP {
     private final static String CIFPSEG_RADAR = "(rv)";
 
     private final static char DIRTOARR = '\u2192';      // 'direct to' arrow
-    private final static HashMap<String,Character> circlingcodes = makeCirclingCodes ();
+    private final static NNHashMap<String,Character> circlingcodes = makeCirclingCodes ();
     private final static String turnleft  = "L\u21B6";  // left curly arrow
     private final static String turnright = "R\u21B7";  // right curly arrow
 
@@ -113,8 +112,7 @@ public class PlateCIFP {
     private double     vnGSFtPerNM;
     private double     vnRwyGSElev;
     private double[]   cifpDotBitmapXYs = new double[32];
-    private GetCIFPSegments getCIFPSegments;
-    private HashMap<String,SelectButton> selectButtons;
+    private IAPPlateImage plateImage;
     private int       cifpDotIndex;
     private int       currentStep;
     private int       mapIndex;     // index of first step of MAP in cifpSteps[]
@@ -125,12 +123,13 @@ public class PlateCIFP {
     private long      lastGPSUpdateTime;
     private long      selectedTime;
     private NextTurn  nextTurn = new NextTurn ();
+    private NNHashMap<String,SelectButton> selectButtons;
+    private NNTreeMap<String,CIFPApproach> cifpApproaches;
     private Paint     cifpBGPaint = new Paint ();
     private Paint     cifpTxPaint = new Paint ();
     private Paint     dotsPaint   = new Paint ();
     private Paint     selectButtonPaint = new Paint ();
     private Path      cifpButtonPath = new Path ();
-    private PlateView.IAPRealPlateImage plateView;
     private PointD    dsctidpp = new PointD ();
     private PointD    dsctidpm = new PointD ();
     private PointD    vnFafPoint = new PointD ();
@@ -141,18 +140,15 @@ public class PlateCIFP {
     private String    plateid;
     private String    turntoline;
     private String[]  cifpTextLines;
-    private TreeMap<String,CIFPApproach> cifpApproaches;
     private WairToNow wairToNow;
     private Waypoint.Airport airport;
-
-    private final static String[] columns_cp_misc = new String[] { "cp_appid", "cp_segid", "cp_legs" };
 
     // convert 3-letter circling approach type to 1-letter approach type
     // p149 5.10 approach route identifier
     // p150 Table 5-10 Circle-to-Land Procedures Identifier
-    private static HashMap<String,Character> makeCirclingCodes ()
+    private static NNHashMap<String,Character> makeCirclingCodes ()
     {
-        HashMap<String,Character> cc = new HashMap<> ();
+        NNHashMap<String,Character> cc = new NNHashMap<> ();
         cc.put ("LBC", 'B');  // localizer back-course
         cc.put ("VDM", 'D');  // vor with required dme
         cc.put ("GLS", 'J');  // gnss landing system
@@ -167,12 +163,12 @@ public class PlateCIFP {
         return cc;
     }
 
-    public PlateCIFP (WairToNow wtn, PlateView.IAPRealPlateImage pv, Waypoint.Airport apt, String pi)
+    public PlateCIFP (WairToNow wtn, IAPPlateImage pv, Waypoint.Airport apt, String pi)
     {
-        wairToNow = wtn;
-        plateView = pv;
-        airport   = apt;
-        plateid   = pi;
+        wairToNow  = wtn;
+        plateImage = pv;
+        airport    = apt;
+        plateid    = pi;
 
         float thick = wairToNow.thickLine;
         float thin  = wairToNow.thinLine;
@@ -202,7 +198,7 @@ public class PlateCIFP {
 
         aptmagvar = airport.GetMagVar (0.0);
 
-        getCIFPSegments = new GetCIFPSegments ();
+        prepCIFPSegments ();
     }
 
     /**
@@ -236,7 +232,7 @@ public class PlateCIFP {
                 for (String apptype : sb.appBounds.keySet ()) {
                     // see if that type was clicked
                     // if only one type for the button, the bounds is for the whole button
-                    RectF bounds = sb.appBounds.get (apptype);
+                    RectF bounds = sb.appBounds.nnget (apptype);
                     if (bounds.contains ((float) x, (float) y)) {
                         // remember a button was clicked
                         // and which approach type was clicked
@@ -255,7 +251,7 @@ public class PlateCIFP {
                 case 1: {
                     for (SelectButton sb : selectButtons.values ()) {
                         if (sb.clicked != null) {
-                            CIFPSegmentSelected (sb.segments.get (sb.clicked));
+                            CIFPSegmentSelected (sb.segments.nnget (sb.clicked));
                             break;
                         }
                     }
@@ -290,7 +286,7 @@ public class PlateCIFP {
         if (cifpSelected != null) return cifpSelected.approach.refnavwp;
 
         // otherwise, make sure we have CIFP database for this plate loaded
-        if (cifpApproaches == null) getCIFPSegments.load ();
+        if (cifpApproaches == null) loadCIFPSegments ();
         if (cifpApproaches.isEmpty ()) return null;
 
         // return navaid for the first approach type (they should all be the same anyway)
@@ -340,8 +336,8 @@ public class PlateCIFP {
 
             acraftalt = wairToNow.currentGPSAlt * Lib.FtPerM;
             acrafthdg = wairToNow.currentGPSHdg;
-            acraftbmx = plateView.LatLon2BitmapX (wairToNow.currentGPSLat, wairToNow.currentGPSLon);
-            acraftbmy = plateView.LatLon2BitmapY (wairToNow.currentGPSLat, wairToNow.currentGPSLon);
+            acraftbmx = plateImage.LatLon2BitmapX (wairToNow.currentGPSLat, wairToNow.currentGPSLon);
+            acraftbmy = plateImage.LatLon2BitmapY (wairToNow.currentGPSLat, wairToNow.currentGPSLon);
 
             double spd = wairToNow.currentGPSSpd;
 
@@ -578,7 +574,7 @@ public class PlateCIFP {
      */
     private void displaySelectionButtons ()
     {
-        selectButtons = new HashMap<> ();
+        selectButtons = new NNHashMap<> ();
 
         // go through all transition segments associated with this plate
         for (CIFPApproach app : cifpApproaches.values ()) {
@@ -590,7 +586,7 @@ public class PlateCIFP {
                 // see if we already have a select button for that transition waypoint name
                 SelectButton sb = selectButtons.get (seg.segid);
                 if (sb == null) {
-                    Waypoint waypt = null;
+                    Waypoint waypt;
                     if (seg.segid.equals (CIFPSEG_RADAR)) {
 
                         // for the (rv) segment, put button on the airport
@@ -598,17 +594,7 @@ public class PlateCIFP {
                     } else {
 
                         // named segment, look for waypoint to see where to put button
-                        LinkedList<Waypoint> waypts = Waypoint.GetWaypointsByIdent (seg.segid, wairToNow);
-                        double bestdist = 200.0;
-                        for (Waypoint wp : waypts) {
-                            double dist = Lib.LatLonDist (wp.lat, wp.lon, airport.lat, airport.lon);
-                            if (bestdist > dist) {
-                                bestdist = dist;
-                                waypt = wp;
-                            }
-                        }
-
-                        // skip the segment if no such waypoint
+                        waypt = plateImage.FindWaypoint (seg.segid);
                         if (waypt == null) continue;
                     }
 
@@ -616,8 +602,8 @@ public class PlateCIFP {
                     sb = new SelectButton ();
                     selectButtons.put (seg.segid, sb);
                     sb.segid = seg.segid;
-                    sb.bmpx  = plateView.LatLon2BitmapX (waypt.lat, waypt.lon);
-                    sb.bmpy  = plateView.LatLon2BitmapY (waypt.lat, waypt.lon);
+                    sb.bmpx  = plateImage.LatLon2BitmapX (waypt.lat, waypt.lon);
+                    sb.bmpy  = plateImage.LatLon2BitmapY (waypt.lat, waypt.lon);
 
                     selectButtonPaint.getTextBounds (seg.segid, 0, seg.segid.length (), textBounds);
                     selectButtonHeight = textBounds.height ();
@@ -630,7 +616,7 @@ public class PlateCIFP {
                 sb.appBounds.put (app.type, new RectF ());
             }
         }
-        plateView.invalidate ();
+        plateImage.invalidate ();
     }
 
     /**
@@ -640,11 +626,11 @@ public class PlateCIFP {
      */
     private class SelectButton {
         public double bmpx, bmpy;  // bitmap pixel where button goes (waypoint location)
-        public HashMap<String,RectF> appBounds = new HashMap<> ();  // indexed by app.type
         public int idwidth;       // width of segid string (canvas pixels)
+        public NNHashMap<String,RectF> appBounds = new NNHashMap<> ();  // indexed by app.type
+        public NNTreeMap<String,CIFPSegment> segments = new NNTreeMap<> ();  // indexed by app.type
         public String clicked;
         public String segid;      // "(rv)", "LADTI", etc
-        public TreeMap<String,CIFPSegment> segments = new TreeMap<> ();  // indexed by app.type
 
         /**
          * Draw text strings for the waypoint that act as buttons
@@ -659,8 +645,8 @@ public class PlateCIFP {
         public void drawButton (Canvas canvas)
         {
             // get canvas X,Y where the waypoint is located
-            double canx = plateView.BitmapX2CanvasX (bmpx);
-            double cany = plateView.BitmapY2CanvasY (bmpy);
+            double canx = plateImage.BitmapX2CanvasX (bmpx);
+            double cany = plateImage.BitmapY2CanvasY (bmpy);
 
             if (segments.size () == 1) {
                 String apptype = segments.keySet ().iterator ().next ();
@@ -675,14 +661,14 @@ public class PlateCIFP {
                 canvas.drawText (segid, (float) canx, (float) cany, selectButtonPaint);
 
                 // make the id string clickable
-                RectF bounds = appBounds.get (apptype);
+                RectF bounds = appBounds.nnget (apptype);
                 bounds.set ((float) canx, (float) (cany - selectButtonHeight), (float) (canx + idwidth), (float) cany);
             } else {
 
                 // draw black background rectangle to draw text on
                 int totw = idwidth + selectButtonHeight;
                 for (String apptype : segments.keySet ()) {
-                    CIFPSegment seg = segments.get (apptype);
+                    CIFPSegment seg = segments.nnget (apptype);
                     totw += seg.approach.typeWidth + selectButtonHeight;
                 }
                 canvas.drawRect ((float) canx, (float) (cany - selectButtonHeight), (float) (canx + totw), (float) cany, cifpBGPaint);
@@ -697,8 +683,8 @@ public class PlateCIFP {
                 // remember the boundary of the text strings so they can be clicked
                 selectButtonPaint.setColor (Color.GREEN);
                 for (String apptype : segments.keySet ()) {
-                    int w = segments.get (apptype).approach.typeWidth;
-                    RectF bounds = appBounds.get (apptype);
+                    int w = segments.nnget (apptype).approach.typeWidth;
+                    RectF bounds = appBounds.nnget (apptype);
                     bounds.set ((float) canx, (float) (cany - selectButtonHeight), (float) (canx + w), (float) cany);
                     canvas.drawText (apptype, (float) canx, (float) cany, selectButtonPaint);
                     canx += w + selectButtonHeight;
@@ -717,7 +703,7 @@ public class PlateCIFP {
         // maybe draw transition segment select buttons over corresponding fix
         if (selectButtons != null) {
             for (String segid : selectButtons.keySet ()) {
-                SelectButton sb = selectButtons.get (segid);
+                SelectButton sb = selectButtons.nnget (segid);
                 sb.drawButton (canvas);
             }
         }
@@ -737,10 +723,10 @@ public class PlateCIFP {
                     double y0 = cifpDotBitmapXYs[--i];
                     double x1 = cifpDotBitmapXYs[--i];
                     double y1 = cifpDotBitmapXYs[--i];
-                    x0 = plateView.BitmapX2CanvasX (x0);
-                    y0 = plateView.BitmapY2CanvasY (y0);
-                    x1 = plateView.BitmapX2CanvasX (x1);
-                    y1 = plateView.BitmapY2CanvasY (y1);
+                    x0 = plateImage.BitmapX2CanvasX (x0);
+                    y0 = plateImage.BitmapY2CanvasY (y0);
+                    x1 = plateImage.BitmapX2CanvasX (x1);
+                    y1 = plateImage.BitmapY2CanvasY (y1);
                     if (LINEPATHEFFECTWORKS) {
                         canvas.drawLine ((float) x0, (float) y0, (float) x1, (float) y1, dotsPaint);
                     } else {
@@ -767,10 +753,10 @@ public class PlateCIFP {
                     double start  = cifpDotBitmapXYs[--i];
                     double sweep  = cifpDotBitmapXYs[--i];
                     drawArcBox.set (
-                            (float) plateView.BitmapX2CanvasX (centx - radius),
-                            (float) plateView.BitmapY2CanvasY (centy - radius),
-                            (float) plateView.BitmapX2CanvasX (centx + radius),
-                            (float) plateView.BitmapY2CanvasY (centy + radius));
+                            (float) plateImage.BitmapX2CanvasX (centx - radius),
+                            (float) plateImage.BitmapY2CanvasY (centy - radius),
+                            (float) plateImage.BitmapX2CanvasX (centx + radius),
+                            (float) plateImage.BitmapY2CanvasY (centy + radius));
                     dotsPaint.setPathEffect (dotsEffect);
                     canvas.drawArc (drawArcBox, (float) start, (float) sweep, false, dotsPaint);
                 }
@@ -783,8 +769,8 @@ public class PlateCIFP {
             }
         }
 
-        int canvasHeight = plateView.getHeight ();
-        int canvasWidth  = plateView.getWidth ();
+        int canvasHeight = plateImage.getHeight ();
+        int canvasWidth  = plateImage.getWidth ();
 
         // see if user wants text drawn
         // also be sure text has been initialized by UpdateStep()
@@ -882,7 +868,7 @@ public class PlateCIFP {
 
                 // short click: toggle text display
                 drawTextEnable = !drawTextEnable;
-                plateView.invalidate ();
+                plateImage.invalidate ();
             } else {
 
                 // long click: prompt to clear approach selection
@@ -899,7 +885,7 @@ public class PlateCIFP {
                         cifpSteps      = null;
                         mapIndex       = Integer.MAX_VALUE;
                         currentStep    = -1;
-                        plateView.invalidate ();
+                        plateImage.invalidate ();
                     }
                 });
                 adb.setNeutralButton ("RESTART", new DialogInterface.OnClickListener () {
@@ -927,7 +913,7 @@ public class PlateCIFP {
 
             // always clear buttons
             selectButtons = null;
-            plateView.invalidate ();
+            plateImage.invalidate ();
 
             // if long click, display selection menu
             if (!mouseUp) displaySelectionMenu ();
@@ -936,15 +922,15 @@ public class PlateCIFP {
 
         // read approaches and segments from database
         if (bmpixpernm == 0.0) {
-            bmpixpernm = plateView.LatLon2BitmapY (airport.lat, airport.lon) -
-                    plateView.LatLon2BitmapY (airport.lat + 1.0 / Lib.NMPerDeg, airport.lon);
+            bmpixpernm = plateImage.LatLon2BitmapY (airport.lat, airport.lon) -
+                    plateImage.LatLon2BitmapY (airport.lat + 1.0 / Lib.NMPerDeg, airport.lon);
             if (bmpixpernm == 0.0) {
                 errorMessage ("", "IAP plate not geo-referenced");
                 return;
             }
             runtbmpix = bmpixpernm * RUNTNM;
         }
-        getCIFPSegments.load ();
+        loadCIFPSegments ();
         if (cifpApproaches.isEmpty ()) {
             errorMessage ("", "No CIFP information available");
             return;
@@ -1005,7 +991,7 @@ public class PlateCIFP {
             cifpSelected.approach.missedseg.getSteps (steps, prevleg);
 
             // make array from the list
-            cifpSteps = steps.toArray (new CIFPStep[steps.size()]);
+            cifpSteps = steps.toArray (nullarrayCIFPStep);
             for (int di = cifpSteps.length; -- di >= 0;) {
                 cifpSteps[di].drawIndex = di;
             }
@@ -1028,10 +1014,10 @@ public class PlateCIFP {
             if (rwyleg == null) throw new Exception ("RWY leg missing");
             Waypoint vnRwyWaypt = rwyleg.getRwyWaypt  ();
             if (vnRwyWaypt == null) throw new Exception ("MAP missing");
-            vnFafPoint.x = plateView.LatLon2BitmapX (vnFafWaypt.lat, vnFafWaypt.lon);
-            vnFafPoint.y = plateView.LatLon2BitmapY (vnFafWaypt.lat, vnFafWaypt.lon);
-            vnRwyPoint.x = plateView.LatLon2BitmapX (vnRwyWaypt.lat, vnRwyWaypt.lon);
-            vnRwyPoint.y = plateView.LatLon2BitmapY (vnRwyWaypt.lat, vnRwyWaypt.lon);
+            vnFafPoint.x = plateImage.LatLon2BitmapX (vnFafWaypt.lat, vnFafWaypt.lon);
+            vnFafPoint.y = plateImage.LatLon2BitmapY (vnFafWaypt.lat, vnFafWaypt.lon);
+            vnRwyPoint.x = plateImage.LatLon2BitmapX (vnRwyWaypt.lat, vnRwyWaypt.lon);
+            vnRwyPoint.y = plateImage.LatLon2BitmapY (vnRwyWaypt.lat, vnRwyWaypt.lon);
             vnRwyGSElev = rwyleg.getAltitude ();
             vnFinalDist = Lib.LatLonDist (vnFafWaypt.lat, vnFafWaypt.lon,
                     vnRwyWaypt.lat, vnRwyWaypt.lon);
@@ -1061,7 +1047,7 @@ public class PlateCIFP {
      * Output:
      *  cifpApproaches = filled in
      */
-    private class GetCIFPSegments {
+    //public class GetCIFPSegments {
 
         // results of parsing full approach name string
         // eg, "IAP-LWM VOR 23"
@@ -1083,11 +1069,10 @@ public class PlateCIFP {
         // results of parsing dmearcs.txt
         private HashMap<String,String> addedDMEArcs = new HashMap<> ();
 
-        @SuppressWarnings("ConstantConditions")
-        public GetCIFPSegments ()
+        private void prepCIFPSegments ()
         {
             // Parse full approach plate name
-            String fullname = plateid.replace ("IAP-", "").replace ("-", " -").replace ("DME", " DME");
+            String fullname = plateid.replace ("IAP-", "").replace ("/", " ").replace ("-", " -").replace ("DME", " DME");
             fullname = fullname.replace ("ILSLOC", "ILS LOC").replace ("VORTACAN", "VOR TACAN");
 
             String[] fullwords = fullname.split (" ");
@@ -1172,34 +1157,13 @@ public class PlateCIFP {
          * Load those records into cifpApproaches.
          * That gives us a list of transition segments for the plate.
          */
-        public void load ()
+        private void loadCIFPSegments ()
         {
-            cifpApproaches = new TreeMap<> ();
+            cifpApproaches = new NNTreeMap<> ();
 
             // scan the database for this airport and hopefully find airport's icaoid
             // then gather up all CIFP segments for things that seem to match plate name
-            int expdate28 = MaintView.GetPlatesExpDate (airport.state);
-            String dbname = "plates_" + expdate28 + ".db";
-            try {
-                SQLiteDBs sqldb = SQLiteDBs.open (dbname);
-                @SuppressWarnings("ConstantConditions")
-                Cursor result1 = sqldb.query (
-                        "iapcifps", columns_cp_misc,
-                        "cp_icaoid=?", new String[] { airport.ident },
-                        null, null, null, null);
-                try {
-                    if (result1.moveToFirst ()) do {
-                        String appid = result1.getString (0);
-                        String segid = result1.getString (1);
-                        String legs  = result1.getString (2);
-                        ParseCIFPSegment (appid, segid, legs);
-                    } while (result1.moveToNext ());
-                } finally {
-                    result1.close ();
-                }
-            } catch (Exception e) {
-                errorMessage ("error reading " + dbname, e);
-            }
+            plateImage.ReadCIFPs ();
 
             // maybe add some DME arcs to the diagramme
             // can also add other types of transition segments given in dmearcs.txt
@@ -1217,14 +1181,14 @@ public class PlateCIFP {
             //     the real transitions are upper case
             for (Iterator<String> it = cifpApproaches.keySet ().iterator (); it.hasNext ();) {
                 String appid = it.next ();
-                CIFPApproach approach = cifpApproaches.get (appid);
+                CIFPApproach approach = cifpApproaches.nnget (appid);
                 if ((approach.finalseg == null) || (approach.missedseg == null)) {
                     it.remove ();
                 } else {
 
                     // add intermediate fixes from transition segments
                     CIFPSegment[] realtranssegs = approach.transsegs.values ().toArray (
-                            new CIFPSegment[approach.transsegs.values().size()]);
+                            CIFPSegment.nullarray);
                     for (CIFPSegment transseg : realtranssegs) {
                         AddIntermediateSegments (transseg);
                     }
@@ -1235,7 +1199,7 @@ public class PlateCIFP {
                     AddIntermediateSegments (approach.finalseg);
 
                     // add radar vector segment
-                    CIFPSegment rvseg = new CIFPSegment ();
+                    CIFPSegment rvseg = new CIFPSegment (airport);
                     CIFPLeg_rv  rvleg = new CIFPLeg_rv  ();
 
                     rvseg.approach = approach;
@@ -1246,7 +1210,7 @@ public class PlateCIFP {
                     rvleg.legidx   = 0;
                     rvleg.legstr   = "";
                     rvleg.pathterm = "rv";
-                    rvleg.parms    = new HashMap<> ();
+                    rvleg.parms    = new NNHashMap<> ();
                     rvleg.init1 ();
 
                     approach.transsegs.put (CIFPSEG_RADAR, rvseg);
@@ -1278,7 +1242,7 @@ public class PlateCIFP {
                     // try to create a new transition segment starting at that fix
                     try {
                         ParseCIFPSegment (transseg.approach, interfixlc, transseg.semis,
-                                transseg.interfixes.get (interfixuc));
+                                transseg.interfixes.nnget (interfixuc));
                     } catch (Exception e) {
                         Log.w (TAG, "error parsing " + airport.ident + " " +
                                 transseg.approach.appid + " " + interfixlc, e);
@@ -1294,7 +1258,7 @@ public class PlateCIFP {
          * @param legs = legs, semi-colon separated,
          *      eg, "CF,wp=LWM[330@10,a=+2000,iaf;AF,nav=LWM,beg=3300,end=566,nm=100,a=+2000"
          */
-        private void ParseCIFPSegment (String appid, String segid, String legs)
+        public void ParseCIFPSegment (String appid, String segid, String legs)
         {
             try {
                 // if it looks like approach type, runway and variant match,
@@ -1331,7 +1295,7 @@ public class PlateCIFP {
 
                         // these aren't really segments, but is the navaid for the approach
                         // it tells us what localizer, ndb, vor etc the approach is based on
-                        cifpapp.refnavwp = plateView.FindWaypoint (legs);
+                        cifpapp.refnavwp = plateImage.FindWaypoint (legs);
                     } else {
 
                         // real segments, get array of leg strings
@@ -1368,11 +1332,11 @@ public class PlateCIFP {
         {
             // create segment object and associated leg objects
             int nlegs = semis.length - ileg;
-            CIFPSegment cifpseg = new CIFPSegment ();
+            CIFPSegment cifpseg = new CIFPSegment (airport);
             cifpseg.approach    = cifpapp;
             cifpseg.segid       = segid;
             cifpseg.legs        = new CIFPLeg[nlegs];
-            cifpseg.interfixes  = new HashMap<> ();
+            cifpseg.interfixes  = new NNHashMap<> ();
             cifpseg.semis       = semis;
             for (int i = 0; i < nlegs; i ++) {
                 String fixid = makeLeg (cifpseg, i, semis[i+ileg]);
@@ -1421,7 +1385,7 @@ public class PlateCIFP {
                 appcode = 0;
                 rwmatch = circlingcodes.containsKey (appid3);
                 if (rwmatch) {
-                    appcode = circlingcodes.get (appid3);
+                    appcode = circlingcodes.nnget (appid3);
                     rwmatch = appid.substring (3).equals (runway);
                 }
             } else {
@@ -1514,26 +1478,26 @@ public class PlateCIFP {
                     boolean faadrawn = false;
                     String[] parms = leg.split (",");
                     for (String parm : parms) {
-                        if (parm.startsWith ("nav=")) nav = plateView.FindWaypoint (parm.substring (4));
+                        if (parm.startsWith ("nav=")) nav = plateImage.FindWaypoint (parm.substring (4));
                         if (parm.startsWith ("beg=")) beg = Integer.parseInt (parm.substring (4)) / 10.0;
                         if (parm.startsWith ("end=")) end = Integer.parseInt (parm.substring (4)) / 10.0;
                         if (parm.startsWith ("nm="))  nm  = Integer.parseInt (parm.substring (3)) / 10.0;
                         if (parm.equals ("faadrawn")) faadrawn = true;
                     }
                     if ((nav != null) && !faadrawn) {
-                        plateView.DrawDMEArc (nav, beg, end, nm);
+                        plateImage.DrawDMEArc (nav, beg, end, nm);
                     }
                 }
             }
         }
-    }
+    //}
 
     /**
      * One per approach associated with this plate.
      * Usually there is just one of these, but there can be more as
      * in one for ILS and one for LOC for plates named 'ILS OR LOC ...'.
      */
-    public class CIFPApproach {
+    public static class CIFPApproach {
         public String appid;       // eg, 'I05Z', 'L16'
         public String name;        // eg, 'ILS Z RWY 05'
         public String type;        // eg, 'ILS', 'LOC' etc
@@ -1550,14 +1514,22 @@ public class PlateCIFP {
      * We also add a radar-vector transition segment.
      * They usually have several other transition segments (from the database) as well.
      */
-    public class CIFPSegment {
+    public static class CIFPSegment {
+        public final static CIFPSegment[] nullarray = new CIFPSegment[0];
+
+        public  boolean hitfaf;
         public  CIFPApproach approach;
         public  String segid;
         private String name;
         public  CIFPLeg[] legs;
-        public  HashMap<String,Integer> interfixes;
+        public  NNHashMap<String,Integer> interfixes;
         public  String[] semis;
-        public  boolean hitfaf;
+        private Waypoint.Airport airport;
+
+        public CIFPSegment (Waypoint.Airport airport)
+        {
+            this.airport = airport;
+        }
 
         // second-phase init
         public void init2 ()
@@ -1666,7 +1638,7 @@ public class PlateCIFP {
 
         leg.legstr = legstr;
         leg.pathterm = parmary[0];
-        leg.parms = new HashMap<> ();
+        leg.parms = new NNHashMap<> ();
         for (int i = 0; ++ i < nparms;) {
             String parm = parmary[i];
             int j = parm.indexOf ('=');
@@ -1688,6 +1660,7 @@ public class PlateCIFP {
      * A step is a single maneuver, eg, turn heading xxx or fly to xxxxx.
      * It can be described with one short line of text.
      */
+    private final static CIFPStep[] nullarrayCIFPStep = new CIFPStep[0];
     private abstract class CIFPStep {
         public char arcturndir;  // if step is an arc, arc turn direction ('L' or 'R'), else 0 for line
         public double arcctrbmx;  // if step is an arc, center of arc
@@ -1937,8 +1910,8 @@ public class PlateCIFP {
      */
     private abstract class CIFPLeg {
         public CIFPSegment segment;
-        public HashMap<String,String> parms;
         public int legidx;
+        public NNHashMap<String,String> parms;
         public String legstr;
         public String pathterm;
 
@@ -1968,7 +1941,7 @@ public class PlateCIFP {
          */
         protected double getTCDeg (String key, Waypoint navwp)
         {
-            double mc = Integer.parseInt (parms.get (key)) / 10.0;
+            double mc = Integer.parseInt (parms.nnget (key)) / 10.0;
             if (navwp == null) navwp = airport;
             return mc - navwp.GetMagVar (curposalt);
         }
@@ -1985,7 +1958,7 @@ public class PlateCIFP {
          */
         protected void appCourse (StringBuilder sb, String key)
         {
-            appCourse (sb, Integer.parseInt (parms.get (key)));
+            appCourse (sb, Integer.parseInt (parms.nnget (key)));
         }
         protected void appCourse (StringBuilder sb, int val)
         {
@@ -2104,12 +2077,10 @@ public class PlateCIFP {
             // first one says + and second one says J
             // with alt1 values equal, it's a match
             // this removes redundant ZELKA on BED ILS 11 starting at ZELKA hold
-            if ((thislet == '+') && (othrlet == 'J') && (thisval1 == othrval1)) {
-                return true;
-            }
+            return (thislet == '+') && (othrlet == 'J') && (thisval1 == othrval1);
 
             // we don't handle any other cases for now
-            return false;
+            //return false;
         }
 
         /**
@@ -2246,7 +2217,7 @@ public class PlateCIFP {
         @SuppressWarnings("SameParameterValue")
         protected void appTenth (StringBuilder sb, String key)
         {
-            appTenth (sb, Integer.parseInt (parms.get (key)));
+            appTenth (sb, Integer.parseInt (parms.nnget (key)));
         }
         protected void appTenth (StringBuilder sb, int val)
         {
@@ -2368,10 +2339,10 @@ public class PlateCIFP {
         public void draw (Canvas canvas, Paint paint)
         {
             drawArcBox.set (
-                    (float) plateView.BitmapX2CanvasX (x - stdturnradbmp),
-                    (float) plateView.BitmapY2CanvasY (y - stdturnradbmp),
-                    (float) plateView.BitmapX2CanvasX (x + stdturnradbmp),
-                    (float) plateView.BitmapY2CanvasY (y + stdturnradbmp));
+                    (float) plateImage.BitmapX2CanvasX (x - stdturnradbmp),
+                    (float) plateImage.BitmapY2CanvasY (y - stdturnradbmp),
+                    (float) plateImage.BitmapX2CanvasX (x + stdturnradbmp),
+                    (float) plateImage.BitmapY2CanvasY (y + stdturnradbmp));
             canvas.drawArc (drawArcBox, (float) start, (float) sweep, false, paint);
         }
 
@@ -2864,7 +2835,7 @@ public class PlateCIFP {
             afstep.arcctrbmy = navpt.y;
             afstep.arcbegrad = getTCDeg ("beg", navwp);
             afstep.arcendrad = getTCDeg ("end", navwp);
-            double rnm = Integer.parseInt (parms.get ("nm")) / 10.0;
+            double rnm = Integer.parseInt (parms.nnget ("nm")) / 10.0;
             afstep.arcradbmp = rnm * bmpixpernm;
 
             // adjust radials to be within 180.0 of each other
@@ -3048,7 +3019,7 @@ public class PlateCIFP {
 
         public String init1 () throws Exception
         {
-            dmenm  = Integer.parseInt (parms.get ("nm")) / 10.0;
+            dmenm  = Integer.parseInt (parms.nnget ("nm")) / 10.0;
             dmebmp = dmenm * bmpixpernm;
             navwp  = findWaypoint (parms.get ("nav"), navpt);
             ochdg  = getTCDeg ("mc", navwp);
@@ -3180,7 +3151,7 @@ public class PlateCIFP {
             if (prevleg instanceof CIFPLeg_RF) {
                 CIFPLeg_RF prevrf = (CIFPLeg_RF) prevleg;
                 double distpix = Math.hypot (prevrf.endpt.x - navpt.x, prevrf.endpt.y - navpt.y);
-                if (distpix < runtbmpix) return true;
+                return distpix < runtbmpix;
             }
 
             return false;
@@ -3374,10 +3345,10 @@ public class PlateCIFP {
             }
         };
 
-        public String init1 () throws Exception
+        public String init1 ()
         {
             ochdg   = getTCDeg ("mc", null);
-            distbmp = Integer.parseInt (parms.get ("nm")) / 10.0 * bmpixpernm;
+            distbmp = Integer.parseInt (parms.nnget ("nm")) / 10.0 * bmpixpernm;
             return null;
         }
 
@@ -3497,7 +3468,6 @@ public class PlateCIFP {
                                             //  -180..-70 : parallel entry
                                             //  -70..+110 : direct entry
                                             // +110..+180 : teardrop entry
-        private double holdleglen;
         private double farctrbmx;
         private double farctrbmy;
         private double nearctrbmx;
@@ -3523,8 +3493,6 @@ public class PlateCIFP {
 
         private double directctrbmx;         // for direct entry, center of displaced near-end turn
         private double directctrbmy;
-        private double directinboundintersectbmx;
-        private double directinboundintersectbmy;
         private double directoutboundintersectbmx;
         private double directoutboundintersectbmy;
         private double directstart;
@@ -4232,7 +4200,7 @@ public class PlateCIFP {
         {
             navwp   = findWaypoint (parms.get ("wp"), navpt);
             inbound = getTCDeg ("rad", navwp);
-            turndir = parms.get ("td").charAt (0);
+            turndir = parms.nnget ("td").charAt (0);
             if ((turndir != 'L') && (turndir != 'R')) throw new Exception ("bad turn dir " + turndir);
             if (turndir == 'L') {
                 parahdg = inbound + paralleldiag;
@@ -4258,7 +4226,7 @@ public class PlateCIFP {
         private void computeCommon ()
         {
             // length of normal inbound/outbound lines
-            holdleglen = HOLDLEGSEC * bmpixpersec;
+            double holdleglen = HOLDLEGSEC * bmpixpersec;
 
             // far end of inbound radial
             inboundfarbmx = navpt.x + Mathf.sindeg (inbound + 180.0) * holdleglen;
@@ -4360,8 +4328,8 @@ public class PlateCIFP {
             // if tc_acraft_to_navwp =   0, it would be right at navpt.
             // if tc_acraft_to_navwp =  90, it is one radius inward, shrinking the hold
             // if tc_acraft_to_navwp = -90, it is one radius outward, stretching the hold
-            directinboundintersectbmx = navpt.x + inboundsin * dist_to_push_out;
-            directinboundintersectbmy = navpt.y - inboundcos * dist_to_push_out;
+            double directinboundintersectbmx = navpt.x + inboundsin * dist_to_push_out;
+            double directinboundintersectbmy = navpt.y - inboundcos * dist_to_push_out;
 
             // compute number of degrees for arc
             // if tc_acraft_to_navwp =   0, ie, coming directly along inbound line, a 180 turn is required
@@ -4434,7 +4402,6 @@ public class PlateCIFP {
         private int a_dir;       // outbound from navaid (magnetic)
         private int b_dir;       // turned 45deg from outbound course
         private int c_dir;       // turned 180deg to inbound 45deg leg
-        private int d_dir;       // inboud course to navaid (after 45deg turn)
         private PointD extpt = new PointD ();
         private PointD navpt = new PointD ();
         private String turndir;  // 180deg and last 45deg turn direction
@@ -4637,8 +4604,8 @@ public class PlateCIFP {
         public String init1 () throws Exception
         {
             // get magnetic courses for the 4 parts
-            int toc = Integer.parseInt (parms.get ("toc"));
-            td = parms.get ("td").charAt (0);
+            int toc = Integer.parseInt (parms.nnget ("toc"));
+            td = parms.nnget ("td").charAt (0);
             b_dir = toc;  // after 45deg turn outbound
             switch (td) {
                 case 'L': {
@@ -4653,8 +4620,8 @@ public class PlateCIFP {
                 }
                 default: throw new IllegalArgumentException ("bad PI turn dir " + td);
             }
-            c_dir = (b_dir + 1800) % 3600;  // after 180deg turn
-            d_dir = (a_dir + 1800) % 3600;  // after 45deg turn inbound
+            c_dir     = (b_dir + 1800) % 3600;  // after 180deg turn
+            int d_dir = (a_dir + 1800) % 3600;  // after 45deg turn inbound
 
             // get beacon PT navigates by
             navwp = findWaypoint (parms.get ("wp"), navpt);
@@ -4685,8 +4652,8 @@ public class PlateCIFP {
                 extendnm = dist_faf_to_apt - dist_nav_to_apt;
                 if (extendnm > 0.0) {
                     extwp = fafwp;
-                    extpt.x = plateView.LatLon2BitmapX (fafwp.lat, fafwp.lon);
-                    extpt.y = plateView.LatLon2BitmapY (fafwp.lat, fafwp.lon);
+                    extpt.x = plateImage.LatLon2BitmapX (fafwp.lat, fafwp.lon);
+                    extpt.y = plateImage.LatLon2BitmapY (fafwp.lat, fafwp.lon);
                     return;
                 }
             }
@@ -4856,7 +4823,7 @@ public class PlateCIFP {
         {
             findWaypoint (parms.get ("cp"), ctrpt);
             endwp   = findWaypoint (parms.get ("ep"), endpt);
-            turndir = parms.get ("td").charAt (0);
+            turndir = parms.nnget ("td").charAt (0);
             if ((turndir != 'L') && (turndir != 'R')) {
                 throw new IllegalArgumentException ("bad turn direction " + turndir);
             }
@@ -5146,9 +5113,9 @@ public class PlateCIFP {
 
         public String init1 () throws Exception
         {
-            String wpid = parms.get ("wp");
+            String wpid = parms.nnget ("wp");
             navwp   = findWaypoint (wpid, navpt);
-            turnchr = parms.get ("td").charAt (0);
+            turnchr = parms.nnget ("td").charAt (0);
             switch (turnchr) {
                 case 'L': {
                     turnstr = turnleft;
@@ -5242,10 +5209,10 @@ public class PlateCIFP {
      */
     private Waypoint findWaypoint (String wayptid, PointD bmxy) throws Exception
     {
-        Waypoint waypt = plateView.FindWaypoint (wayptid);
+        Waypoint waypt = plateImage.FindWaypoint (wayptid);
         if (waypt == null) throw new Exception ("waypoint <" + wayptid + "> not found");
-        bmxy.x = plateView.LatLon2BitmapX (waypt.lat, waypt.lon);
-        bmxy.y = plateView.LatLon2BitmapY (waypt.lat, waypt.lon);
+        bmxy.x = plateImage.LatLon2BitmapX (waypt.lat, waypt.lon);
+        bmxy.y = plateImage.LatLon2BitmapY (waypt.lat, waypt.lon);
         return waypt;
     }
 
@@ -5505,7 +5472,7 @@ public class PlateCIFP {
      * Display error message dialog box.
      * Also log the error.
      */
-    private void errorMessage (String title, Exception e)
+    public void errorMessage (String title, Exception e)
     {
         Log.e (TAG, "CIFP error: " + title, e);
         String message = e.getMessage ();

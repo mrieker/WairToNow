@@ -50,7 +50,6 @@ public class StateView extends View {
 
     private static final int centerColor  = Color.BLUE;
     public  static final int courseColor  = Color.rgb (170, 0, 170);
-    private static final int undrawnColor = Color.MAGENTA;
 
     public  boolean showCenterInfo = true;
     public  boolean showCourseInfo = true;
@@ -78,7 +77,6 @@ public class StateView extends View {
     private Paint courseTxPaint     = new Paint ();
     private Paint trafficBGPaint    = new Paint ();
     private Paint trafficTxPaint    = new Paint ();
-    private Paint undrawnTxPaint    = new Paint ();
     private Path centerInfoPath     = new Path ();
     private Path courseInfoPath     = new Path ();
     private Rect centerInfoBounds   = new Rect ();
@@ -128,18 +126,13 @@ public class StateView extends View {
         trafficTxPaint.setStyle (Paint.Style.FILL);
         trafficTxPaint.setStrokeWidth (2);
         trafficTxPaint.setTextSize (ts * 0.75F);
-
-        undrawnTxPaint.setColor (undrawnColor);
-        undrawnTxPaint.setStyle (Paint.Style.FILL);
-        undrawnTxPaint.setStrokeWidth (9);
-        undrawnTxPaint.setTextSize (ts * 1.5F);
-        undrawnTxPaint.setTextAlign (Paint.Align.RIGHT);
     }
 
     /**
      * Callback for mouse events on the image.
      * We use this to detect button clicks.
      */
+    @SuppressLint("ClickableViewAccessibility")
     @Override
     public boolean onTouchEvent (@NonNull MotionEvent event)
     {
@@ -275,14 +268,9 @@ public class StateView extends View {
         }
 
         /*
-         * Number of undrawn 3D tiles in lower-right corner.
+         * Chart{2D,3D}-specific info.
          */
-        if (chartView.undrawn != 0) {
-            double x = chartView.pmap.canvasWidth  - 20;
-            double y = chartView.pmap.canvasHeight - 20;
-            canvas.drawText (Integer.toString (chartView.undrawn),
-                    (float) x, (float) y, undrawnTxPaint);
-        }
+        chartView.backing.drawOverlay (canvas);
 
         /*
          * Draw box around perimeter warning that GPS is not available.
@@ -437,7 +425,7 @@ public class StateView extends View {
                     int etehrs = etemin / 60;
                     etesec %= 60;
                     etemin %= 60;
-                    courseInfoEteStr = Integer.toString (etehrs) + ":" + Integer.toString (etemin + 100).substring (1)
+                    courseInfoEteStr = etehrs + ":" + Integer.toString (etemin + 100).substring (1)
                             + ":" + Integer.toString (etesec + 100).substring (1);
                 }
             }
@@ -557,9 +545,7 @@ public class StateView extends View {
         @Override
         public int compare (Traffic a, Traffic b)
         {
-            if (a.distaway < b.distaway) return -1;
-            if (a.distaway > b.distaway) return  1;
-            return 0;
+            return Double.compare (a.distaway, b.distaway);
         }
     };
 }

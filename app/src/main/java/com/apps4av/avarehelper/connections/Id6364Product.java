@@ -58,7 +58,6 @@ public class Id6364Product {
                     pixels[j++] = intensity;
                 } while (-- repeats_1 >= 0);
             }
-            //noinspection ConstantConditions
             if (Nexrad.INTENSITY_0 != 0) {
                 while (j < WIDTH * HEIGHT) {
                     pixels[j++] = Nexrad.INTENSITY_0;

@@ -53,18 +53,47 @@ public class GetAirportIDs {
         public string info;     // goes on FAAWP page
         public string state;
         public string variatn;
+        public string awos;
+        public string ctrfreq;
+        public string ctrname;
 
         // shown when Info button clicked
         public Dictionary<String,String>  nvp  = new Dictionary<String,String>  ();
         public Dictionary<String,RwyPair> rwps = new Dictionary<String,RwyPair> ();
+
+        // add a frequency to the airport
+        //  input:
+        //   purp = purpose, eg, "LCL/P"
+        //   freq = frequency
+        public void AddFreq (string purp, string freq)
+        {
+            if ((freq != "") && (purp != "") && ! purp.EndsWith (" STAR")) {
+                if (purp.StartsWith ("LCL")) purp = "TWR" + purp.Substring (3);
+                int j = info.IndexOf ("\n" + purp + ": ");
+                if (j < 0) {
+                    info += "\n" + purp + ": " + freq;
+                } else {
+                    j = info.IndexOf ("\n", j + 2);
+                    if (j < 0) j = info.Length;
+                    info = info.Substring (0, j) + " / " + freq + info.Substring (j);
+                }
+                string key = "FREQ-" + purp;
+                if (nvp.ContainsKey (key)) {
+                    nvp[key] += " / " + freq;
+                } else {
+                    nvp[key]  = freq;
+                }
+            }
+        }
     }
 
     public class RwyPair {
         public Dictionary<String,String> nvp = new Dictionary<String,String> ();
     }
 
-    public static Dictionary<String,Airport> aptsbykeyid = new Dictionary<String,Airport> ();
     public static Dictionary<String,Airport> aptsbyfaaid = new Dictionary<String,Airport> ();
+    public static Dictionary<String,Airport> aptsbykeyid = new Dictionary<String,Airport> ();
+    public static Dictionary<String,String>  centers     = new Dictionary<String,String>  ();
 
     public static void Main (string[] args)
     {
@@ -152,6 +181,40 @@ public class GetAirportIDs {
                 apt.nvp["icaoid"]        = line.Substring (1210,  7).Trim ();
             }
 
+            // center names
+            if (line.StartsWith ("AFF1")) {
+                String ident = line.Substring (4,  4).Trim ();
+                String name  = line.Substring (8, 40).Trim ();
+                centers[ident] = name;
+            }
+
+            // center frequency for some airports
+            if (line.StartsWith ("AFF3")) {
+                String faaid = line.Substring (78, 4).Trim ();
+                Airport apt;
+                if (aptsbyfaaid.TryGetValue (faaid, out apt)) {
+                    String ctrid   = line.Substring ( 4, 4).Trim ();
+                    String ctrname;
+                    if (centers.TryGetValue (ctrid, out ctrname)) {
+                        apt.ctrname = ctrname;
+                    }
+                    String ctrfreq = line.Substring (43, 8).Trim ();
+                    if (apt.ctrfreq == null) apt.ctrfreq = ctrfreq;
+                    else apt.ctrfreq += " " + ctrfreq;
+                }
+            }
+
+            // write airport record
+            if (line.StartsWith ("AWOS1") && (line[19] == 'Y')) {
+                String keyid = line.Substring (110, 11).Trim ();
+                Airport apt;
+                if (aptsbykeyid.TryGetValue (keyid, out apt)) {
+                    apt.nvp["awos"] = line.Substring (68,  7).Trim () + ' ' +   // frequency
+                                      line.Substring (82, 14).Trim ();          // telephone
+                    apt.info += "\nAWOS: " + line.Substring (68,  7).Trim () + ' ' + line.Substring (82, 14).Trim ();
+                }
+            }
+
             // write runway records
             if (line.StartsWith ("RWY")) {
                 string keyid = line.Substring (3, 11).Trim ();      // key id
@@ -162,16 +225,18 @@ public class GetAirportIDs {
                 string lata = ParseLat (line.Substring (103, 12));
                 string lona = ParseLon (line.Substring (130, 12));
                 string elva = TrimTZ (line.Substring (142, 7));     // elevation (feet)
+                string rtra = line.Substring (81, 1).Trim ();       // right traffic (Y=right; N=left)
 
                 string numb = line.Substring (287, 3).Trim ();      // runway number
                 string alnb = TrimLZ (line.Substring (290, 3));     // true alignment (degrees)
                 string latb = ParseLat (line.Substring (325, 12));
                 string lonb = ParseLon (line.Substring (352, 12));
                 string elvb = TrimTZ (line.Substring (364, 7));     // elevation (feet)
+                string rtrb = line.Substring (303, 1).Trim ();
 
                 if ((lata != "") && (lona != "") && (latb != "") && (lonb != "")) {
-                    runways.WriteLine (apt.faaid + "," + numa + "," + alna + "," + elva + "," + lata + "," + lona + "," + latb + "," + lonb);
-                    runways.WriteLine (apt.faaid + "," + numb + "," + alnb + "," + elvb + "," + latb + "," + lonb + "," + lata + "," + lona);
+                    runways.WriteLine (apt.faaid + "," + numa + "," + alna + "," + elva + "," + lata + "," + lona + "," + latb + "," + lonb + "," + rtra);
+                    runways.WriteLine (apt.faaid + "," + numb + "," + alnb + "," + elvb + "," + latb + "," + lonb + "," + lata + "," + lona + "," + rtrb);
                 }
 
                 string surface = line.Substring (32, 12).Trim ();
@@ -261,15 +326,7 @@ public class GetAirportIDs {
                     for (int i = 0; i < 9; i ++) {
                         string freq = line.Substring (i * 94 +  8, 44).Trim ();
                         string purp = line.Substring (i * 94 + 52, 50).Trim ();
-                        if ((freq != "") && (purp != "")) {
-                            apt.info += "\n" + purp + ": " + freq;
-                            string key = "FREQ-" + purp;
-                            if (apt.nvp.ContainsKey (key)) {
-                                apt.nvp[key] += "; " + freq;
-                            } else {
-                                apt.nvp[key]  = freq;
-                            }
-                        }
+                        apt.AddFreq (purp, freq);
                     }
                 }
             }
@@ -289,15 +346,7 @@ public class GetAirportIDs {
                 if (aptsbyfaaid.TryGetValue (faaid, out apt)) {
                     string freq = line.Substring (8, 44).Trim ();
                     string purp = line.Substring (52, 50).Trim ();
-                    if ((freq != "") && (purp != "")) {
-                        apt.info += "\n" + purp + ": " + freq;
-                        string key = "FREQ-" + purp;
-                        if (apt.nvp.ContainsKey (key)) {
-                            apt.nvp[key] += "; " + freq;
-                        } else {
-                            apt.nvp[key]  = freq;
-                        }
-                    }
+                    apt.AddFreq (purp, freq);
                 }
             }
 
@@ -317,6 +366,14 @@ public class GetAirportIDs {
         string htmlend  = htmlfile.Substring (htmlfile.IndexOf ("%%%%") + 4);
 
         foreach (Airport apt in aptsbyfaaid.Values) {
+
+            // radar services for such as KORE
+            if (apt.ctrfreq != null) {
+                string ctrinfo = apt.ctrfreq;
+                if (apt.ctrname != null) ctrinfo += " " + apt.ctrname;
+                apt.info += "\nCENTER: " + ctrinfo;
+                apt.nvp["FREQ-Center"] = ctrinfo;
+            }
 
             // this goes into the airports_<expdate>.csv file
             // the info string is displayed on the FAAWP page itself

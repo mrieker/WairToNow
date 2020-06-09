@@ -62,16 +62,16 @@ public abstract class AirChart implements DisplayableChart {
     private final static Object airTileLoaderLock = new Object ();
     private static AirTileLoader airTileLoaderThread;
 
-    private static ThreadLocal<float[]> flt4PerThread = new ThreadLocal<float[]> () {
+    private static NNThreadLocal<float[]> flt4PerThread = new NNThreadLocal<float[]> () {
         @Override protected float[] initialValue () { return new float[4]; }
     };
-    private static ThreadLocal<LatLon> llPerThread = new ThreadLocal<LatLon> () {
+    private static NNThreadLocal<LatLon> llPerThread = new NNThreadLocal<LatLon> () {
         @Override protected LatLon initialValue ()
         {
             return new LatLon ();
         }
     };
-    private static ThreadLocal<PointD> ptPerThread = new ThreadLocal<PointD> () {
+    private static NNThreadLocal<PointD> ptPerThread = new NNThreadLocal<PointD> () {
         @Override protected PointD initialValue ()
         {
             return new PointD ();
@@ -431,7 +431,7 @@ public abstract class AirChart implements DisplayableChart {
     {
         LatLon2ChartPixelExact (lat, lon, canpix);
 
-        float[] flt = flt4PerThread.get ();
+        float[] flt = flt4PerThread.nnget ();
         flt[0] = (float) canpix.x;
         flt[1] = (float) canpix.y;
         drawOnCanvasChartMat.mapPoints (flt, 2, flt, 0, 1);
@@ -446,7 +446,7 @@ public abstract class AirChart implements DisplayableChart {
     @Override  // DisplayableChart
     public boolean CanPix2LatLonExact (double canpixx, double canpixy, @NonNull LatLon ll)
     {
-        float[] flt = flt4PerThread.get ();
+        float[] flt = flt4PerThread.nnget ();
         flt[0] = (float) canpixx;
         flt[1] = (float) canpixy;
         undrawOnCanvasChartMat.mapPoints (flt, 2, flt, 0, 1);
@@ -982,7 +982,7 @@ public abstract class AirChart implements DisplayableChart {
             }
 
             // draw hash if expired
-            if (enddate < MaintView.deaddate) {
+            if ((bm != null) && (enddate < MaintView.deaddate)) {
                 int bmw = bm.getWidth ();
                 int bmh = bm.getHeight ();
                 if (!bm.isMutable ()) {
@@ -1492,7 +1492,7 @@ public abstract class AirChart implements DisplayableChart {
         /*
          * It is within lat/lon limits, check pixel limits too.
          */
-        PointD pt = ptPerThread.get ();
+        PointD pt = ptPerThread.nnget ();
         return LatLon2ChartPixelExact (lat, lon, pt) &&
                 TestPixelIsCharted (pt.x, pt.y);
     }
@@ -1510,7 +1510,7 @@ public abstract class AirChart implements DisplayableChart {
         /*
          * It is within pixel limits, check lat/lon limits too.
          */
-        LatLon ll = llPerThread.get ();
+        LatLon ll = llPerThread.nnget ();
         ChartPixel2LatLonExact (pixx, pixy, ll);
         return TestLatLonIsCharted (ll.lat, ll.lon);
     }
@@ -1558,7 +1558,7 @@ public abstract class AirChart implements DisplayableChart {
             double stanPar2  = Double.parseDouble (values[3]);
             double rada      = Double.parseDouble (values[6]);
             double radb      = Double.parseDouble (values[7]);
-            double tfws[] = new double[] {
+            double[] tfws = new double[] {
                 Double.parseDouble (values[ 8]),
                 Double.parseDouble (values[ 9]),
                 Double.parseDouble (values[10]),

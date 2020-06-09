@@ -94,7 +94,6 @@ public class MakeWaypoints {
                 InsertMultipleKeys (dbcon, "aptkeys", cols[0] + " " + cols[1] + " " + cols[3] + " " + cols[7], rowid);
 
                 if (++ i == 256) {
-                    Console.WriteLine (csv);
                     DoCommand (dbcon, "COMMIT; BEGIN;");
                     i = 0;
                 }
@@ -142,7 +141,6 @@ public class MakeWaypoints {
                 }
 
                 if (++ i == 1024) {
-                    Console.WriteLine (csv);
                     DoCommand (dbcon, "COMMIT; BEGIN;");
                     i = 0;
                 }
@@ -174,7 +172,6 @@ public class MakeWaypoints {
                 DefineWaypoint (cols[0], double.Parse (cols[2]), double.Parse (cols[3]));
 
                 if (++ i == 1024) {
-                    Console.WriteLine (csv);
                     DoCommand (dbcon, "COMMIT; BEGIN;");
                     i = 0;
                 }
@@ -223,7 +220,7 @@ public class MakeWaypoints {
                     dbcmd1.Parameters.Add (new SqliteParameter ("@loc_freq",   int.Parse (cols[16])));
                     rowid = (long) dbcmd1.ExecuteScalar ();
                 } catch (Exception) {
-                    Console.WriteLine (csv);
+                    Console.Error.WriteLine (csv);
                     throw;
                 } finally {
                     dbcmd1.Dispose ();
@@ -252,7 +249,6 @@ public class MakeWaypoints {
                 }
 
                 if (++ i == 1024) {
-                    Console.WriteLine (csv);
                     DoCommand (dbcon, "COMMIT; BEGIN;");
                     i = 0;
                 }
@@ -292,7 +288,7 @@ public class MakeWaypoints {
                     dbcmd1.Parameters.Add (new SqliteParameter ("@nav_power" , cols[8]));
                     rowid = (long) dbcmd1.ExecuteScalar ();
                 } catch (Exception) {
-                    Console.WriteLine (csv);
+                    Console.Error.WriteLine (csv);
                     throw;
                 } finally {
                     dbcmd1.Dispose ();
@@ -303,7 +299,6 @@ public class MakeWaypoints {
                 InsertMultipleKeys (dbcon, "navkeys", cols[0] + " " + cols[1] + " " + cols[3], rowid);
 
                 if (++ i == 1024) {
-                    Console.WriteLine (csv);
                     DoCommand (dbcon, "COMMIT; BEGIN;");
                     i = 0;
                 }
@@ -314,8 +309,10 @@ public class MakeWaypoints {
              * Load runway info into database.
              */
             DoCommand (dbcon, "CREATE TABLE runways (rwy_faaid TEXT NOT NULL, rwy_number TEXT NOT NULL, rwy_truehdg INTEGER, rwy_tdze REAL, " +
-                    "rwy_beglat REAL NOT NULL, rwy_beglon REAL NOT NULL, rwy_endlat REAL NOT NULL, rwy_endlon REAL NOT NULL);");
-            DoCommand (dbcon, "CREATE INDEX runways_faaids ON runways (rwy_faaid);");
+                    "rwy_beglat REAL NOT NULL, rwy_beglon REAL NOT NULL, rwy_endlat REAL NOT NULL, rwy_endlon REAL NOT NULL, rwy_ritraf TEXT NOT NULL);");
+            DoCommand (dbcon, "CREATE INDEX runways_faaids  ON runways (rwy_faaid);");
+            DoCommand (dbcon, "CREATE INDEX runways_beglats ON runways (rwy_beglat);");
+            DoCommand (dbcon, "CREATE INDEX runways_beglons ON runways (rwy_beglon);");
 
             csvrdr = new StreamReader ("datums/runways_" + expdate + ".csv");
             while ((csv = csvrdr.ReadLine ()) != null) {
@@ -323,8 +320,8 @@ public class MakeWaypoints {
 
                 IDbCommand dbcmd1 = dbcon.CreateCommand ();
                 try {
-                    dbcmd1.CommandText = "INSERT INTO runways (rwy_faaid,rwy_number,rwy_truehdg,rwy_tdze,rwy_beglat,rwy_beglon,rwy_endlat,rwy_endlon) " +
-                            "VALUES (@rwy_faaid,@rwy_number,@rwy_truehdg,@rwy_tdze,@rwy_beglat,@rwy_beglon,@rwy_endlat,@rwy_endlon);";
+                    dbcmd1.CommandText = "INSERT INTO runways (rwy_faaid,rwy_number,rwy_truehdg,rwy_tdze,rwy_beglat,rwy_beglon,rwy_endlat,rwy_endlon,rwy_ritraf) " +
+                            "VALUES (@rwy_faaid,@rwy_number,@rwy_truehdg,@rwy_tdze,@rwy_beglat,@rwy_beglon,@rwy_endlat,@rwy_endlon,@rwy_ritraf);";
                     dbcmd1.Parameters.Add (new SqliteParameter ("@rwy_faaid",   cols[0]));  // eg, "BOS"
                     dbcmd1.Parameters.Add (new SqliteParameter ("@rwy_number",  cols[1]));  // eg, "04L"
                     dbcmd1.Parameters.Add (new SqliteParameter ("@rwy_truehdg", (cols[2] == "") ? null : (object) int.Parse (cols[2])));
@@ -333,13 +330,13 @@ public class MakeWaypoints {
                     dbcmd1.Parameters.Add (new SqliteParameter ("@rwy_beglon", double.Parse (cols[5])));
                     dbcmd1.Parameters.Add (new SqliteParameter ("@rwy_endlat", double.Parse (cols[6])));
                     dbcmd1.Parameters.Add (new SqliteParameter ("@rwy_endlon", double.Parse (cols[7])));
+                    dbcmd1.Parameters.Add (new SqliteParameter ("@rwy_ritraf", cols[8]));
                     dbcmd1.ExecuteScalar ();
                 } finally {
                     dbcmd1.Dispose ();
                 }
 
                 if (++ i == 1024) {
-                    Console.WriteLine (csv);
                     DoCommand (dbcon, "COMMIT; BEGIN;");
                     i = 0;
                 }

@@ -44,7 +44,6 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 
 import java.util.Locale;
-import java.util.TreeMap;
 
 /**
  * Manage DME display on the IAP plates.
@@ -57,21 +56,21 @@ public class PlateDME {
     private final static int DMECB_RADL = 4;
 
     private boolean   dmeShowing;
-    private double     dmeCharWidth, dmeTextAscent, dmeTextHeight;
+    private double    dmeCharWidth, dmeTextAscent, dmeTextHeight;
     private long      dmeButtonDownAt = Long.MAX_VALUE;
+    private NNTreeMap<String,DMECheckboxes> dmeCheckboxeses = new NNTreeMap<> ();
     private Paint     dmeBGPaint      = new Paint ();
     private Paint     dmeTxPaint      = new Paint ();
     private Path      dmeButtonPath   = new Path  ();
-    private PlateView.IAPPlateImage plateView;
+    private IAPPlateImage plateView;
     private RectF     dmeButtonBounds = new RectF ();  // where DME dialog display button is on canvas
     private String    icaoid;
     private String    plateid;
-    private TreeMap<String,DMECheckboxes> dmeCheckboxeses = new TreeMap<> ();
     private WairToNow wairToNow;
 
     private final static String[] columns_dc_dmeid_dc_checked = new String[] { "dc_dmeid", "dc_checked" };
 
-    public PlateDME (WairToNow wtn, PlateView.IAPPlateImage pv, String ii, String pi)
+    public PlateDME (WairToNow wtn, IAPPlateImage pv, String ii, String pi)
     {
         wairToNow = wtn;
         plateView = pv;
@@ -98,6 +97,20 @@ public class PlateDME {
         dmeTextHeight = dmeTxPaint.getTextSize ();
 
         FillDMECheckboxes ();
+    }
+
+    /**
+     * Add the given waypoint as having DME enabled on the display.
+     */
+    public void showDMEBox (Waypoint dmewp)
+    {
+        if (! dmeCheckboxeses.containsKey (dmewp.ident)) {
+            DMECheckboxes dmecb = new DMECheckboxes (dmewp);
+            dmecb.setChecked (DMECB_DIST);
+            dmeCheckboxeses.put (dmewp.ident, dmecb);
+            dmeShowing = true;
+            plateView.invalidate ();
+        }
     }
 
     /**
@@ -223,7 +236,7 @@ public class PlateDME {
 
             // draw DME strings
             for (String dmeIdent : dmeCheckboxeses.keySet ()) {
-                DMECheckboxes dmecb = dmeCheckboxeses.get (dmeIdent);
+                DMECheckboxes dmecb = dmeCheckboxeses.nnget (dmeIdent);
                 int checked = dmecb.getChecked ();
                 if (checked != 0) {
                     Waypoint wp = dmecb.waypoint;
@@ -250,9 +263,9 @@ public class PlateDME {
                         if (dist10Bin > 9999) {
                             sb.append ("--.-");
                         } else {
-                            sb.append (Integer.toString (dist10Bin / 10));
+                            sb.append (dist10Bin / 10);
                             sb.append ('.');
-                            sb.append (Integer.toString (dist10Bin % 10));
+                            sb.append (dist10Bin % 10);
                         }
                         while (sb.length () - len < 5) sb.insert (len, ' ');
                         slantRangeEnd = sb.length ();
@@ -287,10 +300,10 @@ public class PlateDME {
                                     sb.append ('-');
                                     seconds = - seconds;
                                 }
-                                sb.append (Integer.toString (seconds / 60));
+                                sb.append (seconds / 60);
                                 sb.append (':');
                                 int len2 = sb.length ();
-                                sb.append (Integer.toString (seconds % 60));
+                                sb.append (seconds % 60);
                                 while (sb.length () - len2 < 2) sb.insert (len2, '0');
                             }
                         }
@@ -465,10 +478,10 @@ public class PlateDME {
         public TextView identtv;    // waypoint ident
         public Waypoint waypoint;   // corresponding waypoint or null for input box
 
-        public int   dmeWasChecked;
         public double dmeLastDist;
         public double dmeLastSpeed;
-        public long  dmeLastTime;
+        public int    dmeWasChecked;
+        public long   dmeLastTime;
 
         public DMECheckboxes (Waypoint wp)
         {

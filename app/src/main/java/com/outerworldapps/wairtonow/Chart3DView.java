@@ -21,7 +21,10 @@
 package com.outerworldapps.wairtonow;
 
 import android.annotation.SuppressLint;
+import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.Path;
 import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
 import android.util.Log;
@@ -49,14 +52,18 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
     public final static double MAXTILTDN = 60.0;              // degrees
     public final static double MINSECONDS = 0.5;              // accept points at least 1/2sec apart
 
+    private static final int undrawnColor = Color.MAGENTA;
+
     private ChartView chartView;
     private double mouseDispS;  // < 1: zoomed in; > 1: zoomed out
     private double mouseDispX;
     private double mouseDispY;
     private double mouseDownX;
     private double mouseDownY;
+    private int undrawn;
     private MyPanAndZoom myPanAndZoom;
     private MyRenderer myRenderer;
+    private Paint undrawnTxPaint = new Paint ();
     private Vector3 canpixxyz = new Vector3 ();
     private WairToNow wairToNow;
 
@@ -70,6 +77,10 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
 
         myPanAndZoom = new MyPanAndZoom ();
         myRenderer = new MyRenderer ();
+
+        undrawnTxPaint.setColor (undrawnColor);
+        undrawnTxPaint.setStyle (Paint.Style.FILL_AND_STROKE);
+        undrawnTxPaint.setTextSize (wairToNow.textSize * 1.5F);
 
         // request an OpenGL ES 2.0 compatible context
         setEGLContextClientVersion (2);
@@ -194,6 +205,84 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
     }
 
     /**
+     * Draw any overlay info (not scaled, panned, rotated).
+     * Triggered by chartView.stateView.postInvalidate().
+     */
+    @Override  // Backing
+    public void drawOverlay (Canvas canvas)
+    {
+        float x, y;
+
+        /*
+         * Draw a scale at the top showing what heading we are looking
+         * and what course line we are flying.
+         */
+        // - get current airplane ground track
+        double currhdgdegs = wairToNow.currentGPSHdg;
+        if (! wairToNow.optionsView.magTrueOption.getAlt ()) {
+            currhdgdegs += Lib.MagVariation (wairToNow.currentGPSLat, wairToNow.currentGPSLon, wairToNow.currentGPSAlt);
+        }
+        // - get number of degrees displaced left/right by dragging finger
+        //   negative means looking right of forward
+        int xdispdegs = (int) Math.round (mouseDispX * mouseDispS * 18.0 / myRenderer.mWidth) * 5;
+        while (xdispdegs < -180) xdispdegs += 360;
+        while (xdispdegs >= 180) xdispdegs -= 360;
+        // - draw a scale +-45 deg from looking straight ahead
+        float textsize = wairToNow.textSize;
+        float canvaswidth = chartView.pmap.canvasWidth;
+        float centerx = canvaswidth / 2.0F;
+        float scalewidth = canvaswidth / 2.0F;
+        y = textsize;
+        undrawnTxPaint.setStrokeWidth (2.0F);
+        undrawnTxPaint.setTextAlign (Paint.Align.CENTER);
+        undrawnTxPaint.setTextSize (textsize);
+        canvas.drawLine (centerx - scalewidth / 2.0F, y, centerx + scalewidth / 2.0F, y, undrawnTxPaint);
+        for (int xdispscaledegs = -45; xdispscaledegs <= 45; xdispscaledegs ++) {
+            int xscaledegs = ((int) Math.round (currhdgdegs) + xdispscaledegs - xdispdegs + 719) % 360 + 1;
+            x = centerx + xdispscaledegs * scalewidth / 90.0F;
+            float yy = y + textsize / 2.0F;
+            if (xscaledegs %  5 == 0) yy += textsize / 2.0F;
+            if (xscaledegs % 15 == 0) yy += textsize / 2.0F;
+            canvas.drawLine (x, y, x, yy, undrawnTxPaint);
+            if (xscaledegs % 15 == 0) {
+                canvas.drawText (Integer.toString (xscaledegs), x, textsize * 3.0F, undrawnTxPaint);
+            }
+        }
+        // - draw a triangle showing what direction we are looking at
+        Path tripath = new Path ();
+        tripath.moveTo (centerx, y);
+        tripath.lineTo (centerx - (float) Math.sin (Math.PI / 6.0) * y, 0.0F);
+        tripath.lineTo (centerx + (float) Math.sin (Math.PI / 6.0) * y, 0.0F);
+        canvas.drawPath (tripath, undrawnTxPaint);
+        // - draw airplane showing what direction we are flying to
+        canvas.save ();
+        canvas.translate (centerx + xdispdegs * scalewidth / 90.0F, y + textsize / 2.0F);
+        wairToNow.DrawAirplaneSymbol (canvas, textsize * 1.5F);
+        canvas.restore ();
+
+        /*
+         * Draw a number on right edge showing how much panned up or down.
+         */
+        // rotated up/down by dragging mouse Y axis
+        // negative means looking down from level
+        long ydegs = Math.round (mouseDispY * mouseDispS * 18.0 / myRenderer.mWidth) * 5;
+        String ydegstr = (ydegs < 0) ? ("dn " + (- ydegs)) : (ydegs > 0) ? ("up " + ydegs) : "--";
+        x = chartView.pmap.canvasWidth  - 20;
+        y = chartView.pmap.canvasHeight / 2.0F;
+        undrawnTxPaint.setTextAlign (Paint.Align.RIGHT);
+        canvas.drawText (ydegstr, x, y, undrawnTxPaint);
+
+        /*
+         * Number of undrawn 3D tiles in lower-right corner.
+         */
+        if (undrawn != 0) {
+            x = chartView.pmap.canvasWidth  - 20;
+            y = chartView.pmap.canvasHeight - 20;
+            canvas.drawText (Integer.toString (undrawn), x, y, undrawnTxPaint);
+        }
+    }
+
+    /**
      * Handle mouse touches for panning and zooming.
      */
     @SuppressLint("ClickableViewAccessibility")
@@ -241,6 +330,7 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
     /**
      * Download rendering program to GPU chip.
      */
+    @SuppressWarnings("SameParameterValue")
     private static int createProgram (String vertexSource, String fragmentSource)
     {
         int vertexShader = loadShader (GLES20.GL_VERTEX_SHADER, vertexSource);
@@ -312,29 +402,31 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
          */
         private final double mevsightang = Math.acos (EarthSector.EARTHRADIUS / (MTEVEREST + EarthSector.EARTHRADIUS));
 
+        // computes coordinate using camera position
         private final static String mVertexShader =
                 "uniform mat4 uMVPMatrix;\n" +
-                        "attribute vec4 aPosition;\n" +
-                        "attribute vec2 aTextureCoord;\n" +
-                        "varying vec2 vTextureCoord;\n" +
-                        "void main() {\n" +
-                        "  gl_Position = uMVPMatrix * aPosition;\n" +
-                        "  vTextureCoord = aTextureCoord;\n" +
-                        "}\n";
+                "attribute vec4 aPosition;\n" +
+                "attribute vec2 aTextureCoord;\n" +
+                "varying vec2 vTextureCoord;\n" +
+                "void main() {\n" +
+                "  gl_Position = uMVPMatrix * aPosition;\n" +
+                "  vTextureCoord = aTextureCoord;\n" +
+                "}\n";
 
+        // extracts pixel color from image
+        // but use solid red if texture coord is -999,-999 (for obstructions)
+        // see EarthSector.copySurfToTriangles() vs copyObstToTriangles()
         private final static String mFragmentShader =
                 "precision mediump float;\n" +
-                        "varying vec2 vTextureCoord;\n" +
-                        "uniform sampler2D sTexture;\n" +
-                        "void main() {\n" +
-                        "  gl_FragColor = texture2D(sTexture, vTextureCoord);\n" +
-                        "}\n";
-
-        /*private final static String mFragmentShaderRed =
-                "precision mediump float;\n" +
-                        "void main() {\n" +
-                        "  gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);\n" +
-                        "}\n";*/
+                "varying vec2 vTextureCoord;\n" +
+                "uniform sampler2D sTexture;\n" +
+                "void main() {\n" +
+                "  if (vTextureCoord.x < -900.0) {\n" +
+                "    gl_FragColor = vec4(1.0,0.0,0.0,1.0);\n" +
+                "  } else {\n" +
+                "    gl_FragColor = texture2D(sTexture, vTextureCoord);\n" +
+                "  }\n" +
+                "}\n";
 
         private int mProgramHandle;
         private int muMVPMatrixHandle;
@@ -350,8 +442,6 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
         private double cameraLookLat, cameraLookLon, cameraLookAlt;
         public  double cameraHdg;
         private double lastGPSHdg;
-        private double sightnm;
-        private double[] mIdnMatrix = new double[16];
         private double[] mMVPMatrix = new double[16];
         private double[] projMatrix = new double[16];
         private double[] viewMatrix = new double[16];
@@ -376,7 +466,6 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
 
         public MyRenderer ()
         {
-            MatrixD.setIdentityM (mIdnMatrix, 0);
             cameraLookMouse = cameraLook;
         }
 
@@ -649,12 +738,12 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
              * count.
              */
             int nsectors = 0;
-            chartView.undrawn = 0;
+            undrawn = 0;
             for (EarthSector es = closeSectors; es != null; es = es.nextDist) {
                 if (es.setup (reRender)) {
                     drawAnObject (es.getTextureID (), es.getTriangles ());
                 } else {
-                    chartView.undrawn ++;
+                    undrawn ++;
                 }
                 if (++ nsectors >= MAXSECTORS) break;
             }
@@ -688,11 +777,11 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
                     TRIANGLES_DATA_STRIDE_BYTES, triangles);
             checkGlError ("glVertexAttribPointer maPosition");
 
-            // tell program where to get image u,v's from (aPosition)
-            triangles.position (TRIANGLES_DATA_UV_OFFSET);
             GLES20.glEnableVertexAttribArray (maPositionHandle);
             checkGlError ("glEnableVertexAttribArray maPositionHandle");
 
+            // tell program where to get image u,v's from (aPosition)
+            triangles.position (TRIANGLES_DATA_UV_OFFSET);
             GLES20.glVertexAttribPointer (maTextureHandle, 2, GLES20.GL_FLOAT, false,
                     TRIANGLES_DATA_STRIDE_BYTES, triangles);
             checkGlError ("glVertexAttribPointer maTextureHandle");
@@ -700,6 +789,7 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
             GLES20.glEnableVertexAttribArray (maTextureHandle);
             checkGlError ("glEnableVertexAttribArray maTextureHandle");
 
+            // draw the triangles
             GLES20.glDrawArrays (GLES20.GL_TRIANGLES, 0,
                     triangles.capacity () / TRIANGLES_DATA_STRIDE);
             checkGlError ("glDrawArrays");
@@ -721,7 +811,7 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
              * See how far away from the camera Mt. Everest could possibly be to see the peak
              * that is not obscured by a sea-level surface between camera and peak.
              */
-            sightnm = Math.toDegrees (camsightang + mevsightang) * Lib.NMPerDeg;
+            double sightnm = Math.toDegrees (camsightang + mevsightang) * Lib.NMPerDeg;
 
             /*
              * Set up camera frustum far plane so that the camera can see that far away.
@@ -754,15 +844,17 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
             double dispY = mouseDispY;
             if ((dispX != 0) || (dispY != 0)) {
                 Vector3 diff = cameraLook.minus (cameraPos);
-                Vector3 rotated = diff.rotate (cameraUp, dispX * mouseDispS * Math.PI / 2.0 / mWidth);
+                double dispX5degs = Math.round (dispX * mouseDispS * 18.0 / mWidth);
+                Vector3 rotated = diff.rotate (cameraUp, Math.toRadians (dispX5degs * 5.0));
                 cameraLookMouse = cameraPos.plus (rotated);
 
                 Vector3 normal = cameraPos.cross (cameraLookMouse);
-                double anglY = dispY / -2.0 / mWidth;
-                if (anglY < -MAXTILTUP / 180.0) anglY = -MAXTILTUP / 180.0;
-                if (anglY >  MAXTILTDN / 180.0) anglY =  MAXTILTDN / 180.0;
-                mouseDispY = Math.round (anglY * mWidth * -2.0);
-                rotated = rotated.rotate (normal, anglY * mouseDispS * Math.PI);
+                double anglYdegs = dispY * mouseDispS * -90.0 / mWidth;
+                if (anglYdegs < -MAXTILTUP) anglYdegs = -MAXTILTUP;
+                if (anglYdegs >  MAXTILTDN) anglYdegs =  MAXTILTDN;
+                mouseDispY = Math.round (anglYdegs * mWidth / -90.0);
+                double anglY5degs = Math.round (anglYdegs / 5.0);
+                rotated = rotated.rotate (normal, Math.toRadians (anglY5degs * 5.0));
                 cameraLookMouse = cameraPos.plus (rotated);
             }
 
@@ -849,7 +941,7 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
         private void updateObjectsWork ()
         {
             /*
-             * Mark any loaded sectors as unreferenced cuz we will mark them if still needed.
+             * Mark any loaded sectors as unreferenced cuz we will mark them referenced if still needed.
              */
             for (EarthSector es = closeSectors; es != null; es = es.nextDist) {
                 es.refd = false;

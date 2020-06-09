@@ -27,6 +27,9 @@ fi
 
 if [ ! -f datums/topo/0.zip.save ]
 then
+    # use grid-registered, ie, centered on the lat,lon minute point
+    # ...so it covers the area when rounding a lat,lon to nearest minute
+    # see Topography.java getElevMetres() description
     rm -f ETOPO1_Ice_g_int.xyz.gz*
     wget -nv http://www.ngdc.noaa.gov/mgg/global/relief/ETOPO1/data/ice_surface/grid_registered/xyz/ETOPO1_Ice_g_int.xyz.gz
 
