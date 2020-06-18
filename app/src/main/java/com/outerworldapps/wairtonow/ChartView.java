@@ -54,6 +54,7 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
         void drawOverlay (Canvas canvas);
     }
 
+    private boolean forceRecen;
     private boolean reselectLastChart = true;
     private boolean use3DChart;
     public  AutoAirChart autoAirChartSEC;
@@ -298,6 +299,7 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
         {
             reselectLastChart = false;
             waitingForChartDownload = null;
+            forceRecen = false;
 
             /*
              * Find charts that cover each of the corners and edges.
@@ -328,25 +330,25 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
              * List them in alphabetical order.
              */
             int ncharts = displayableCharts.size ();
-            int nviews = (ncharts < 2) ? (ncharts + 1) : ncharts;
+            int nviews = ncharts;
             TextView awaitgps = null;
-            chartViews = new View[nviews];
-            int i = 0;
-            if (ncharts < 2) {
+            if ((ncharts < 2) && ! wairToNow.gpsAvailable) {
+                nviews ++;
                 awaitgps = new TextView (wairToNow);
                 wairToNow.SetTextSize (awaitgps);
                 awaitgps.setBackgroundColor (Color.BLACK);
                 awaitgps.setTextColor (Color.WHITE);
                 awaitgps.setText ("You may need to wait for GPS positioning to " +
                         "get a list of available charts for this area.\n\n" +
-                        "Click this text to go to Sensors page to see GPS status, " +
-                        "then double-click Chart button to select chart menu.\n\n" +
                         "You can always select Street, however it may just show blue " +
                         "ocean until a proper GPS position is received.  Then when it " +
                         "receives GPS position, and shows your local area with Street " +
-                        "map, click Chart to select and download an aviation chart.");
-                chartViews[i++] = awaitgps;
+                        "map, click Chart again to select an aviation chart.");
+                forceRecen = true;
             }
+            chartViews = new View[nviews];
+            int i = 0;
+            if (awaitgps != null) chartViews[i++] = awaitgps;
             for (String spacename : displayableCharts.keySet ()) {
                 DisplayableChart dc = displayableCharts.nnget (spacename);
 
@@ -394,19 +396,7 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
                 }
             });
             adb.setNegativeButton ("Cancel", null);
-            final AlertDialog ad = adb.show ();
-
-            if (awaitgps != null) {
-                awaitgps.setOnClickListener (new OnClickListener ()
-                {
-                    @Override
-                    public void onClick (View view)
-                    {
-                        ad.dismiss ();
-                        wairToNow.sensorsButton.DisplayNewTab ();
-                    }
-                });
-            }
+            adb.show ();
         }
 
         /********************************\
@@ -491,6 +481,8 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
             View tv = chartViews[which];
             String spacename = (String) tv.getTag ();
             if (spacename != null) {
+                if (forceRecen) ReCenter ();
+                waitingForChartDownload = null;
                 final DisplayableChart dc = displayableCharts.nnget (spacename);
                 if (dc.IsDownloaded ()) {
                     SelectChart (dc);
@@ -518,10 +510,8 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
      */
     public void DownloadComplete ()
     {
-        if (waitingForChartDownload != null) {
-            if (waitingForChartDownload.IsDownloaded ()) {
-                SelectChart (waitingForChartDownload);
-            }
+        if ((waitingForChartDownload != null) && waitingForChartDownload.IsDownloaded ()) {
+            SelectChart (waitingForChartDownload);
             waitingForChartDownload = null;
         }
     }

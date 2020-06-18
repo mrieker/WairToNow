@@ -1,0 +1,279 @@
+<HTML>
+    <HEAD>
+        <SCRIPT LANGUAGE=JAVASCRIPT>
+            var inetstatus = '';
+            var linkbuttons = [];
+
+            // page just loaded
+            // - start polling whether or not connected to internet
+            // - read link button list from database and display table
+            function pageLoaded ()
+            {
+                pollInetStatus ();
+                fillLinkButTable ();
+
+                var fuelurl = pvjso.getPref ('planview.fuelurl', 'https://www.airnav.com/airport/%%%%');
+                document.forms.searchapts.fuelurl.value = fuelurl;
+            }
+
+            /******************\
+             *  Link Buttons  *
+            \******************/
+
+            // called every 7 seconds to see if internet is accessible
+            // updates on-screen 'inetstatus' box
+            function pollInetStatus ()
+            {
+                var instbox = document.getElementById ('inetstatus');
+
+                // set status string to 'polling' if it takes more than 333ms to poll
+                inetstatus = '<FONT COLOR=#FFFF00>polling</FONT>';
+                setTimeout (function () { instbox.innerHTML = inetstatus; }, 333);
+
+                // poll webserver to see if we can access it
+                doAjaxGet ('inetstatus.txt', function (rep)
+                {
+                    // update status line global variable
+                    // if 333ms timer has yet to fire, it will just re-display this value
+                    if (rep.status != 200) {
+                        inetstatus = 'reply status ' + rep.status;
+                    } else if (rep.responseText.trim () == 'true') {
+                        inetstatus = '<FONT COLOR=#00FF00>online</FONT>';
+                    } else if (rep.responseText.trim () == 'false') {
+                        inetstatus = '<FONT COLOR=#FF0000>offline</FONT>';
+                    } else {
+                        inetstatus = 'reply text ' + rep.responseText;
+                    }
+
+                    // update on-screen status
+                    instbox.innerHTML = inetstatus;
+
+                    // re-check in a few seconds
+                    setTimeout (pollInetStatus, 7000);
+                });
+            }
+
+            // clicked on Edit button to edit a link button
+            // opens a little form for changing link button
+            function editLinkBut (i)
+            {
+                var tr = document.getElementById ('linkbut_' + i);
+                tr.innerHTML =
+                    '<TD COLSPAN=3>' +
+                        '<FORM NAME=linkbut_' + i + '><UL>' +
+                            '<LI><INPUT SIZE=60 NAME=label VALUE="' + linkbuttons[i].label + '">' +
+                            '<LI><INPUT SIZE=60 NAME=link VALUE="' + linkbuttons[i].link + '">' +
+                            '<LI><INPUT TYPE=BUTTON VALUE="Save" ONCLICK="saveLinkButEdit(' + i + ')"> ' +
+                                '<INPUT TYPE=BUTTON VALUE="Cancel" ONCLICK="fillLinkButTable()"> ' +
+                                '<INPUT TYPE=BUTTON VALUE="Delete" ONCLICK="delLinkBut(' + i + ')">' +
+                        '</FORM>' +
+                    '</TD>';
+            }
+
+            // save changes make to a link button to database then re-display table
+            function saveLinkButEdit (i)
+            {
+                var form = document.forms['linkbut_'+i];
+                var oldlabel = linkbuttons[i].label;
+                var newlabel = form.label.value.trim ();
+                var newlink  = form.link.value.trim ();
+                pvjso.writeLinkButton (oldlabel, newlabel, newlink);
+                fillLinkButTable ();
+            }
+
+            // the 'new' link button was clicked
+            // open a little form to enter new link button contents
+            function addLinkBut ()
+            {
+                var tr = document.getElementById ('linkbut_add');
+                tr.innerHTML =
+                    '<TD COLSPAN=3>' +
+                        '<FORM NAME=linkbut_add><UL>' +
+                            '<LI><INPUT SIZE=60 NAME=label PLACEHOLDER="Button Name">' +
+                            '<LI><INPUT SIZE=60 NAME=link PLACEHOLDER="http://... or https://...">' +
+                            '<LI><INPUT TYPE=BUTTON VALUE="Save" ONCLICK="saveLinkButAdd()"> ' +
+                                '<INPUT TYPE=BUTTON VALUE="Cancel" ONCLICK="fillLinkButTable()">' +
+                        '</FORM>' +
+                    '</TD>';
+            }
+
+            // save new link button contents to database then re-display button list
+            function saveLinkButAdd ()
+            {
+                var form = document.forms.linkbut_add;
+                var newlabel = form.label.value.trim ();
+                var newlink  = form.link.value.trim ();
+                pvjso.writeLinkButton ('', newlabel, newlink);
+                fillLinkButTable ();
+            }
+
+            // delete link button from database then re-display button list
+            function delLinkBut (i)
+            {
+                var label = linkbuttons[i].label;
+                doAjaxGet ('alert.txt?title=Confirm+delete&msg=' +
+                        encodeURIComponent (label) +
+                        '&pos=DELETE+IT&neg=KEEP+IT', function (rep)
+                {
+                    if ((rep.status == 200) && (rep.responseText.trim () == 'DELETE IT')) {
+                        pvjso.writeLinkButton (label, '', '');
+                        fillLinkButTable ();
+                    }
+                });
+            }
+
+            // read list of buttons from database
+            // then build table to display the buttons
+            function fillLinkButTable ()
+            {
+                linkbuttons = [];
+                var n = pvjso.getNumLinkButtons ();
+                var html = '';
+                for (var i = 0; i < n; i ++) {
+                    var label = pvjso.getLinkButtonsLabel (i);
+                    var link  = pvjso.getLinkButtonsLink  (i);
+                    linkbuttons[i] = { label: label, link: link };
+                    html += '<TR ID=linkbut_' + i + '><TD><INPUT TYPE=BUTTON VALUE="' + label + '" ONCLICK="pvjso.openExternalLink(\'' + link + '\')"></TD>';
+                    html += '<TD><INPUT TYPE=BUTTON VALUE="Edit" ONCLICK="editLinkBut(' + i + ')"></TD>';
+                    html += '<TD><INPUT TYPE=BUTTON VALUE="Del" ONCLICK="delLinkBut(' + i + ')"></TD></TR>';
+                }
+                html += '<TR ID=linkbut_add><TD COLSPAN=3 ALIGN=RIGHT><INPUT TYPE=BUTTON VALUE="New" ONCLICK="addLinkBut()"></TD></TR>';
+                var tbl = document.getElementById ('linkbutable');
+                tbl.innerHTML = html;
+            }
+
+            /********************\
+             *  Airport Search  *
+            \********************/
+
+            // value in fuelurl box changed
+            // write to preferences
+            function fuelurlChanged ()
+            {
+                var form = document.forms.searchapts;
+                var url  = form.fuelurl.value.trim ();
+                pvjso.setPref ('planview.fuelurl', url);
+            }
+
+            // search for airports meeting the given criteria
+            function searchAirports ()
+            {
+                var form = document.forms.searchapts;
+                var mindist   = parseInt (form.mindist.value, 10);
+                var maxdist   = parseInt (form.maxdist.value, 10);
+                var minhdg    = parseInt (form.minhdg.value, 10);
+                var maxhdg    = parseInt (form.maxhdg.value, 10);
+                var hdgtype   = form.hdgtype.value;
+                var apticao   = form.apticao.value.trim ().toUpperCase ();
+                var minrwylen = parseInt (form.minrwylen.value, 10);
+                form.mindist.value = mindist;
+                form.maxdist.value = maxdist;
+                form.minhdg.value  = minhdg;
+                form.maxhdg.value  = maxhdg;
+                form.apticao.value = apticao;
+                form.minrwylen.value = minrwylen;
+                var airports  = pvjso.searchAirports (mindist, maxdist, minhdg, maxhdg, hdgtype, apticao, minrwylen);
+                var aptable   = document.getElementById ('aptable');
+                aptable.innerHTML = airports;
+            }
+
+            // clear list of found airports
+            function clearAirports ()
+            {
+                var aptable = document.getElementById ('aptable');
+                aptable.innerHTML = '';
+            }
+
+            // info button for airport clicked
+            // open in FAAWP2 window
+            function infoClicked (icaoid)
+            {
+                pvjso.openFAAWP (icaoid);
+            }
+
+            // fuel button for airport clicked
+            // open external fuel price page
+            function fuelClicked (icaoid)
+            {
+                var form = document.forms.searchapts;
+                var url  = form.fuelurl.value.trim ().replace ('%%%%', icaoid);
+                pvjso.openExternalLink (url);
+            }
+
+            /**********\
+             *  Misc  *
+            \**********/
+
+            function alertonly (msg)
+            {
+                doAjaxGet ('alert.txt?title=alertonly&msg=' + encodeURIComponent (msg) + '&pos=OK',
+                        function (rep) { });
+            }
+
+            // do an asynchronous ajax get request to PlanView.ConnectThread server
+            //  input:
+            //   url = url to call to get data
+            //   done = function called when response received
+            //  callback:
+            //   done (req) : req.status = http status (200: OK)
+            //          req.responseText = response text
+            function doAjaxGet (url, done)
+            {
+                var httprequest = new XMLHttpRequest ();
+                httprequest.onreadystatechange = function () {
+                    if (this.readyState == 4) {
+                        done (this);
+                    }
+                };
+                httprequest.open ('GET', pvjso.getAjaxUrl () + '/' + url, true);
+                httprequest.send ();
+            }
+        </SCRIPT>
+        <STYLE>
+            body {
+                background-color: black;
+                color: white;
+            }
+            a {
+                color: white;
+            }
+            .outlinebox {
+                border: 1px solid white;
+                border-radius: 8px;
+                margin: auto;
+                padding: 10px 10px 10px 10px;
+            }
+        </STYLE>
+    </HEAD>
+    <BODY ONLOAD="pageLoaded()">
+        <DIV CLASS="outlinebox">
+            Opens page in web browser<BR>
+            Internet access required [<SPAN ID=inetstatus></SPAN>]
+            <TABLE ID=linkbutable></TABLE>
+        </DIV>
+        <DIV CLASS="outlinebox">
+            <INPUT TYPE=BUTTON VALUE="Offline Flight Plan Form" ONCLICK="pvjso.openOfflineFPForm()">
+        </DIV>
+        <DIV CLASS="outlinebox">
+            Find airports at a distance and radial from another airport<BR>
+            Useful for finding fuel-stop airport
+            <FORM NAME="searchapts">
+                <TABLE>
+                    <TR><TH ALIGN=RIGHT>between distances</TH><TD><INPUT NAME=mindist TYPE=NUMBER STYLE="width:4em">&nbsp;and
+                        <INPUT NAME=maxdist TYPE=NUMBER STYLE="width:4em">&nbsp;nm
+                    </TD></TR>
+                    <TR><TH ALIGN=RIGHT>between headings</TH><TD><INPUT NAME=minhdg TYPE=NUMBER STYLE="width:4em">&nbsp;and
+                        <INPUT NAME=maxhdg TYPE=NUMBER STYLE="width:4em">&nbsp;<SELECT NAME=hdgtype><OPTION VALUE=M>Mag</OPTION><OPTION VALUE=T>True</OPTION></SELECT>
+                    </TD></TR>
+                    <TR><TH ALIGN=RIGHT>from airport ICAO</TH><TD><INPUT NAME=apticao STYLE="width:4em"></TD></TR>
+                    <TR><TH ALIGN=RIGHT>runway minimum length</TH><TD><INPUT NAME=minrwylen TYPE=NUMBER STYLE="width:4em"> feet</TD></TR>
+                    <TR><TH ALIGN=RIGHT>fuel lookup URL</TH><TD><INPUT NAME=fuelurl SIZE=40 ONCHANGE="fuelurlChanged()">
+                        <TT>%%%%</TT>&nbsp;for&nbsp;ICAO&nbsp;ID</TD></TR>
+                    <TR><TH></TH><TD><INPUT TYPE=BUTTON VALUE="Search" ONCLICK="searchAirports()">
+                        <INPUT TYPE=BUTTON VALUE="Clear" ONCLICK="clearAirports()"></TD></TR>
+                </TABLE>
+                <TABLE ID=aptable></TABLE>
+            </FORM>
+        </DIV>
+    </BODY>
+</HTML>

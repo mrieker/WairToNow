@@ -81,7 +81,7 @@ public class WairToNow extends Activity {
     ////private AltimeterView altimeterView;
     public  volatile boolean downloadCancelled;
     private boolean atAMinimumShown;
-    private boolean gpsAvailable;
+    public  boolean gpsAvailable;
     private boolean hasAgreed;
     private boolean lastLocQueued;
     private boolean tabsVisible;

@@ -74,6 +74,10 @@ public class SensorsView
         internalGPS = new InternalGps (wairToNow);
         selectableGPSs.put (internalGPS.getPrefKey (), internalGPS);
 
+        // simulator
+        SimulateGpsAdsb sim = new SimulateGpsAdsb (wairToNow);
+        selectableGPSs.put (sim.getPrefKey (), sim);
+
         // bluetooth GPS/ADS-B receiver #1
         BluetoothGpsAdsb bluetoothGpsAdsb1 = new BluetoothGpsAdsb (this, 1);
         selectableGPSs.put (bluetoothGpsAdsb1.getPrefKey (), bluetoothGpsAdsb1);
@@ -188,7 +192,7 @@ public class SensorsView
     @Override  // CanBeMainView
     public int GetOrientation ()
     {
-        return ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
+        return ActivityInfo.SCREEN_ORIENTATION_USER;
     }
 
     @Override  // CanBeMainView

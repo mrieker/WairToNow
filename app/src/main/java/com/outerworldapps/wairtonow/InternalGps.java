@@ -34,6 +34,9 @@ import android.location.LocationManager;
 import android.os.Bundle;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
+import android.text.SpannableStringBuilder;
+import android.text.Spanned;
+import android.text.style.ForegroundColorSpan;
 import android.util.Log;
 import android.view.View;
 import android.widget.CheckBox;
@@ -47,6 +50,10 @@ import java.util.LinkedList;
  */
 public class InternalGps extends GpsAdsbReceiver implements GpsStatus.Listener, LocationListener {
     public final static String TAG = "WairToNow";
+
+    private final static int gpsTimeout = 3000;
+
+    private boolean lastReceivedQueued;
     private boolean selected;
     private boolean displayOpen;
     private CheckBox intGPSEnable;
@@ -55,6 +62,7 @@ public class InternalGps extends GpsAdsbReceiver implements GpsStatus.Listener, 
     private int numStatuses;
     private LinearLayout linearLayout;
     private LinkedList<MyGpsSatellite> satellites;
+    private long lastReceivedTime;
     private TextView intGPSStatus;
 
     public InternalGps (WairToNow wtn)
@@ -70,7 +78,8 @@ public class InternalGps extends GpsAdsbReceiver implements GpsStatus.Listener, 
 
         intGPSEnable.setOnClickListener (new View.OnClickListener () {
             @Override
-            public void onClick (View view) {
+            public void onClick (View view)
+            {
                 intGPSEnabClicked ();
             }
         });
@@ -80,6 +89,8 @@ public class InternalGps extends GpsAdsbReceiver implements GpsStatus.Listener, 
         linearLayout.setOrientation (LinearLayout.VERTICAL);
         linearLayout.addView (intGPSEnable);
         linearLayout.addView (intGPSStatus);
+
+        updateLastReceived ();
     }
 
     /*****************************************************************\
@@ -262,16 +273,6 @@ public class InternalGps extends GpsAdsbReceiver implements GpsStatus.Listener, 
         }
     }
 
-    private void updateStats ()
-    {
-        StringBuilder sb = new StringBuilder ();
-        sb.append ("Locations: ");
-        sb.append (numLocations);
-        sb.append ("\nStatuses: ");
-        sb.append (numStatuses);
-        intGPSStatus.setText (sb);
-    }
-
     /**********************************************\
      *  LocationListener implementation           *
      *  Receives incoming GPS location readings.  *
@@ -280,6 +281,7 @@ public class InternalGps extends GpsAdsbReceiver implements GpsStatus.Listener, 
     @Override  // LocationListener
     public void onLocationChanged (Location loc)
     {
+        updateLastReceived ();
         if (selected) {
             wairToNow.LocationReceived (
                     loc.getSpeed (), loc.getAltitude (), loc.getBearing (),
@@ -312,6 +314,7 @@ public class InternalGps extends GpsAdsbReceiver implements GpsStatus.Listener, 
     {
         switch (event) {
             case GpsStatus.GPS_EVENT_SATELLITE_STATUS: {
+                updateLastReceived ();
                 if (selected) {
                     LocationManager locationManager = getLocationManager ();
                     if (locationManager != null) {
@@ -329,5 +332,59 @@ public class InternalGps extends GpsAdsbReceiver implements GpsStatus.Listener, 
                 }
             }
         }
+    }
+
+    /**
+     * Update time something (location or status) from GPS was received.
+     * If nothing in last 3 seconds, warn than GPS might be turned off.
+     */
+    private void updateLastReceived ()
+    {
+        lastReceivedTime = System.currentTimeMillis ();
+        if (! lastReceivedQueued) {
+            lastReceivedQueued = true;
+            WairToNow.wtnHandler.runDelayed (gpsTimeout, gpsTimedOut);
+        }
+    }
+
+    /**
+     * Called 3 seconds after latest call to updateLastReceived().
+     */
+    private final Runnable gpsTimedOut = new Runnable () {
+        @Override
+        public void run ()
+        {
+            long now = System.currentTimeMillis ();
+            long togo = lastReceivedTime + gpsTimeout - now;
+            if (togo > 0) {
+                WairToNow.wtnHandler.runDelayed (togo, gpsTimedOut);
+            } else {
+                lastReceivedQueued = false;
+                updateStats ();
+            }
+        }
+    };
+
+    /**
+     * Update the internal gps status string on the Sensors screen.
+     */
+    private void updateStats ()
+    {
+        SpannableStringBuilder sb = new SpannableStringBuilder ();
+
+        // if selected and haven't heard from GPS in a while, alert user that it might be disabled
+        if (selected && (System.currentTimeMillis () - lastReceivedTime >= gpsTimeout)) {
+            sb.append ("  GPS may not be present or enabled\n" +
+                    "  Check Android Settings \u2192\n        Location \u2192 On\n");
+            sb.setSpan (new ForegroundColorSpan (Color.RED),
+                    0, sb.length (), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+
+        // update status string on Sensors page
+        sb.append ("Locations: ");
+        sb.append (Integer.toString (numLocations));
+        sb.append ("\nStatuses: ");
+        sb.append (Integer.toString (numStatuses));
+        intGPSStatus.setText (sb);
     }
 }

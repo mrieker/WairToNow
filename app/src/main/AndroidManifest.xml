@@ -3,8 +3,8 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     package="com.outerworldapps.wairtonow"
-    android:versionCode="40000"
-    android:versionName="4.0">
+    android:versionCode="40100"
+    android:versionName="4.1">
 
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.BLUETOOTH"/>
@@ -17,8 +17,10 @@
         android:icon="@drawable/icon"
         android:label="@string/app_name"
         android:name="AcraApplication"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:theme="@style/MyTheme"
-        tools:ignore="GoogleAppIndexingWarning">
+        tools:ignore="GoogleAppIndexingWarning"
+        tools:targetApi="n">
         <activity
             android:name=".WairToNow"
             android:label="@string/app_name"

@@ -612,9 +612,7 @@ public class MaintView
     @Override  // CanBeMainView
     public int GetOrientation ()
     {
-        // force portrait, ie, disallow automatic flipping so it won't restart the app
-        // in the middle of downloading some chart just because the screen got tilted.
-        return ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
+        return ActivityInfo.SCREEN_ORIENTATION_USER;
     }
 
     @Override  // CanBeMainView

@@ -14,6 +14,20 @@
             .cbtable {
                 white-space: nowrap;
             }
+
+            body {
+                background-color: black;
+                color: white;
+            }
+            a {
+                color: white;
+            }
+            .outlinebox {
+                border: 1px solid white;
+                border-radius: 8px;
+                margin: auto;
+                padding: 10px 10px 10px 10px;
+            }
         </STYLE>
         <SCRIPT LANGUAGE=JAVASCRIPT>
             var alt1wp = null;
@@ -711,213 +725,217 @@
         <P>For use when filing via telephone or radio.</P>
         <PRE ID=zzzz></PRE>
         <FORM NAME=fpform>
-            <TABLE>
-                <TR>
-                    <TD ALIGN=RIGHT>7</TD>
-                    <TH ALIGN=RIGHT>Aircraft ID:</TH>
-                    <TD><INPUT SIZE=8 NAME=acid VALUE="N" ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="acidChanged()"></TD>
-                </TR>
-                <TR>
-                    <TD ALIGN=RIGHT>8</TD>
-                    <TH ALIGN=RIGHT>Flight Rules:</TH>
-                    <TD>
-                        <LABEL><INPUT TYPE=RADIO NAME=rules VALUE=VFR ONFOCUS="equipBlurred();surveqBlurred()">VFR</LABEL> &nbsp;
-                        <LABEL><INPUT TYPE=RADIO NAME=rules VALUE=IFR ONFOCUS="equipBlurred();surveqBlurred()">IFR</LABEL> &nbsp;
-                        <LABEL><INPUT TYPE=RADIO NAME=rules VALUE=YFR ONFOCUS="equipBlurred();surveqBlurred()">YFR</LABEL> &nbsp;
-                        <LABEL><INPUT TYPE=RADIO NAME=rules VALUE=ZFR ONFOCUS="equipBlurred();surveqBlurred()">ZFR</LABEL>
-                    </TD>
-                </TR>
-                <TR>
-                    <TD ALIGN=RIGHT></TD>
-                    <TH ALIGN=RIGHT>Flight Type:</TH>
-                    <TD>
-                        <SELECT NAME=ftype ONFOCUS="equipBlurred();surveqBlurred()">
-                            <OPTION></OPTION>
-                            <OPTION VALUE="S">S cheduled</OPTION>
-                            <OPTION VALUE="N">N on-scheduled</OPTION>
-                            <OPTION VALUE="G">G eneral aviation</OPTION>
-                            <OPTION VALUE="M">M ilitary</OPTION>
-                            <OPTION VALUE="X">X other</OPTION>
-                        </SELECT>
-                    </TD>
-                </TR>
-                <TR>
-                    <TD ALIGN=RIGHT>9</TD>
-                    <TH ALIGN=RIGHT>No. of Aircraft:</TH>
-                    <TD><INPUT SIZE=2 NAME=numacft VALUE="1" ONFOCUS="equipBlurred();surveqBlurred()"></TD>
-                </TR>
-                <TR>
-                    <TD ALIGN=RIGHT></TD>
-                    <TH ALIGN=RIGHT>Aircraft Type:</TH>
-                    <TD><INPUT NAME=actype SIZE=6 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="actypeChanged()"></TD>
-                </TR>
-                <TR>
-                    <TD ALIGN=RIGHT></TD>
-                    <TH ALIGN=RIGHT>Wake Turbulence:</TH>
-                    <TD>
-                        <SELECT NAME=waketurb ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="waketurbChanged()">
-                            <OPTION></OPTION>
-                            <OPTION VALUE="L">L ight</OPTION>
-                            <OPTION VALUE="M">M edium</OPTION>
-                            <OPTION VALUE="H">H eavy</OPTION>
-                        </SELECT>
-                    </TD>
-                </TR>
-                <TR>
-                    <TD ALIGN=RIGHT>10</TD>
-                    <TH ALIGN=RIGHT>Equipment:</TH>
-                    <TD>
-                        <INPUT NAME=equip SIZE=10 VALUE="S" ONFOCUS="surveqBlurred();equipFocused()" ONCHANGE="equipChanged()"> /
-                        <INPUT NAME=surveq SIZE=10 VALUE="CB1" ONFOCUS="equipBlurred();surveqFocused()" ONCHANGE="surveqChanged()">
-                    </TD>
-                </TR>
-                <TR>
-                    <TD ALIGN=RIGHT></TD>
-                    <TH ALIGN=RIGHT></TH>
-                    <TD ID=equipcbs></TD>
-                </TR>
-                <TR>
-                    <TD ALIGN=RIGHT></TD>
-                    <TH ALIGN=RIGHT></TH>
-                    <TD ID=survcbs></TD>
-                </TR>
-                <TR>
-                    <TD ALIGN=RIGHT>13</TD>
-                    <TH ALIGN=RIGHT>Departure:</TH>
-                    <TD><INPUT NAME=depicaoid SIZE=8 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="depChanged()"><SPAN ID=depstatus></SPAN></TD>
-                </TR>
-                <TR>
-                    <TD ALIGN=RIGHT></TD>
-                    <TH ALIGN=RIGHT>Time:</TH>
-                    <TD><INPUT NAME=deptime SIZE=5 ONFOCUS="equipBlurred();surveqBlurred()"> UTC</TD>
-                </TR>
-                <TR>
-                    <TD ALIGN=RIGHT>15</TD>
-                    <TH ALIGN=RIGHT>Cruise Speed:</TH>
-                    <TD><TT>N</TT><INPUT NAME=cruspd SIZE=4 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="speedChanged()">knots</TD>
-                </TR>
-                <TR>
-                    <TD ALIGN=RIGHT></TD>
-                    <TH ALIGN=RIGHT>Flight Level:</TH>
-                    <TD><TT>A</TT><INPUT NAME=fltlev SIZE=4 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="fltlevChanged()"><TT>00</TT> ft</TD>
-                </TR>
-                <TR>
-                    <TD ALIGN=RIGHT></TD>
-                    <TH ALIGN=RIGHT>Route:</TH>
-                    <TD><INPUT NAME=route SIZE=40 VALUE="DCT" ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="routeChanged()"></TD>
-                </TR>
-                <TR>
-                    <TD ALIGN=RIGHT></TD>
-                    <TH ALIGN=RIGHT></TH>
-                    <TD><SPAN ID=routests></SPAN></TD>
-                </TR>
-                <TR>
-                    <TD ALIGN=RIGHT>16</TD>
-                    <TH ALIGN=RIGHT>Destination:</TH>
-                    <TD><INPUT NAME=desticaoid SIZE=8 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="destChanged()"><SPAN ID=deststatus></SPAN></TD>
-                </TR>
-                <TR>
-                    <TD ALIGN=RIGHT></TD>
-                    <TH ALIGN=RIGHT>Est Elapsed Time:</TH>
-                    <TD><INPUT NAME=elapsed SIZE=5 ONFOCUS="equipBlurred();surveqBlurred()"><SPAN ID=etestatus></SPAN></TD>
-                </TR>
-                <TR>
-                    <TD ALIGN=RIGHT></TD>
-                    <TH ALIGN=RIGHT>Alternate 1:</TH>
-                    <TD><INPUT NAME=alt1icaoid SIZE=8 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="alt1Changed()"><SPAN ID=alt1status></SPAN></TD>
-                </TR>
-                <TR>
-                    <TD ALIGN=RIGHT></TD>
-                    <TH ALIGN=RIGHT>Alternate 2:</TH>
-                    <TD><INPUT NAME=alt2icaoid SIZE=8 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="alt2Changed()"><SPAN ID=alt2status></SPAN></TD>
-                </TR>
-                <TR>
-                    <TD ALIGN=RIGHT>18</TD>
-                    <TH ALIGN=RIGHT>Other Info:</TH>
-                    <TD><INPUT NAME=othinf SIZE=40 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="othinfChanged()"></TD>
-                </TR>
-                <TR>
-                    <TD ALIGN=RIGHT>19</TD>
-                    <TH ALIGN=RIGHT>Fuel Endurance:</TH>
-                    <TD><INPUT NAME=fuelend SIZE=4 ONFOCUS="equipBlurred();surveqBlurred()"><SPAN ID=fendstatus></SPAN></TD>
-                </TR>
-                <TR>
-                    <TD ALIGN=RIGHT></TD>
-                    <TH ALIGN=RIGHT>Persons on Board:</TH>
-                    <TD><INPUT NAME=persons SIZE=3 ONFOCUS="equipBlurred();surveqBlurred()"></TD>
-                </TR>
-                <TR>
-                    <TD ALIGN=RIGHT></TD>
-                    <TH ALIGN=RIGHT>Emergency Radios:</TH>
-                    <TD>
-                        <LABEL><INPUT TYPE=CHECKBOX NAME=emrad_UHF  ONFOCUS="equipBlurred();surveqBlurred()" ONCLICK="emradClicked()">UHF</LABEL> &nbsp;
-                        <LABEL><INPUT TYPE=CHECKBOX NAME=emrad_VHF  ONFOCUS="equipBlurred();surveqBlurred()" ONCLICK="emradClicked()">VHF</LABEL> &nbsp;
-                        <LABEL><INPUT TYPE=CHECKBOX NAME=emrad_ELBA ONFOCUS="equipBlurred();surveqBlurred()" ONCLICK="emradClicked()">ELBA</LABEL>
-                    </TD>
-                </TR>
-                <TR>
-                    <TD ALIGN=RIGHT></TD>
-                    <TH ALIGN=RIGHT>Survival Equipment:</TH>
-                    <TD>
-                        <LABEL><INPUT TYPE=CHECKBOX NAME=surviv_Pol ONFOCUS="equipBlurred();surveqBlurred()" ONCLICK="survivClicked()">Polar</LABEL> &nbsp;
-                        <LABEL><INPUT TYPE=CHECKBOX NAME=surviv_Des ONFOCUS="equipBlurred();surveqBlurred()" ONCLICK="survivClicked()">Desert</LABEL> &nbsp;
-                        <LABEL><INPUT TYPE=CHECKBOX NAME=surviv_Mar ONFOCUS="equipBlurred();surveqBlurred()" ONCLICK="survivClicked()">Maritime</LABEL> &nbsp;
-                        <LABEL><INPUT TYPE=CHECKBOX NAME=surviv_Jun ONFOCUS="equipBlurred();surveqBlurred()" ONCLICK="survivClicked()">Jungle</LABEL>
-                    </TD>
-                </TR>
-                <TR>
-                    <TD ALIGN=RIGHT></TD>
-                    <TH ALIGN=RIGHT>Dinghies:</TH>
-                    <TD><INPUT NAME=dingnum SIZE=2 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="dingChanged()"> number</TD>
-                </TR>
-                <TR>
-                    <TD ALIGN=RIGHT></TD>
-                    <TH ALIGN=RIGHT></TH>
-                    <TD><INPUT NAME=dingcap SIZE=2 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="dingChanged()"> capacity</TD>
-                </TR>
-                <TR>
-                    <TD ALIGN=RIGHT></TD>
-                    <TH ALIGN=RIGHT></TH>
-                    <TD><INPUT NAME=dingcol SIZE=20 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="dingChanged()"> color</TD>
-                </TR>
-                <TR>
-                    <TD ALIGN=RIGHT></TD>
-                    <TH ALIGN=RIGHT></TH>
-                    <TD><LABEL><INPUT TYPE=CHECKBOX NAME=dingcov ONFOCUS="equipBlurred();surveqBlurred()" ONCLICK="dingChanged()"> covered</LABEL></TD>
-                </TR>
-                <TR>
-                    <TD ALIGN=RIGHT></TD>
-                    <TH ALIGN=RIGHT>Aircraft Color:</TH>
-                    <TD><INPUT NAME=acolor SIZE=20 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="acolorChanged()"></TD>
-                </TR>
-                <TR>
-                    <TD ALIGN=RIGHT></TD>
-                    <TH ALIGN=RIGHT>Remarks:</TH>
-                    <TD><INPUT NAME=remarks SIZE=40 ONFOCUS="equipBlurred();surveqBlurred()"></TD>
-                </TR>
-                <TR>
-                    <TD ALIGN=RIGHT></TD>
-                    <TH ALIGN=RIGHT>Pilot In Command:</TH>
-                    <TD><INPUT NAME=pilincmd SIZE=40 ONFOCUS="equipBlurred();surveqBlurred()"></TD>
-                </TR>
-                <TR>
-                    <TD ALIGN=RIGHT></TD>
-                    <TH ALIGN=RIGHT>Pilot Contact Info:</TH>
-                    <TD><INPUT NAME=pcinfo SIZE=40 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="pcinfoChanged()"></TD>
-                </TR>
-            </TABLE>
-            <P>Supplemental Info</P>
-            <TABLE>
-                <TR><TH ALIGN=RIGHT>Avg Winds Aloft:</TH><TD>
-                    <INPUT NAME=wnddir SIZE=3 VALUE=0 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="windChanged()">&#176;T @
-                    <INPUT NAME=wndspd SIZE=3 VALUE=0 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="windChanged()"> kts
-                </TD></TR>
-                <TR><TH ALIGN=RIGHT>Reserve Fuel:</TH><TD>
-                    <NOBR><LABEL><INPUT TYPE=RADIO NAME=resfuel VALUE=30 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="resfuelChanged()">30 mins</LABEL></NOBR> &nbsp;
-                    <NOBR><LABEL><INPUT TYPE=RADIO NAME=resfuel VALUE=45 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="resfuelChanged()">45 mins</LABEL></NOBR> &nbsp;
-                    <NOBR><LABEL><INPUT TYPE=RADIO NAME=resfuel VALUE=60 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="resfuelChanged()">60 mins</LABEL></NOBR>
-                </TD></TR>
-            </TABLE>
+            <DIV CLASS="outlinebox">
+                <TABLE>
+                    <TR>
+                        <TD ALIGN=RIGHT>7</TD>
+                        <TH ALIGN=RIGHT>Aircraft ID:</TH>
+                        <TD><INPUT SIZE=8 NAME=acid VALUE="N" ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="acidChanged()"></TD>
+                    </TR>
+                    <TR>
+                        <TD ALIGN=RIGHT>8</TD>
+                        <TH ALIGN=RIGHT>Flight Rules:</TH>
+                        <TD>
+                            <LABEL><INPUT TYPE=RADIO NAME=rules VALUE=VFR ONFOCUS="equipBlurred();surveqBlurred()">VFR</LABEL> &nbsp;
+                            <LABEL><INPUT TYPE=RADIO NAME=rules VALUE=IFR ONFOCUS="equipBlurred();surveqBlurred()">IFR</LABEL> &nbsp;
+                            <LABEL><INPUT TYPE=RADIO NAME=rules VALUE=YFR ONFOCUS="equipBlurred();surveqBlurred()">YFR</LABEL> &nbsp;
+                            <LABEL><INPUT TYPE=RADIO NAME=rules VALUE=ZFR ONFOCUS="equipBlurred();surveqBlurred()">ZFR</LABEL>
+                        </TD>
+                    </TR>
+                    <TR>
+                        <TD ALIGN=RIGHT></TD>
+                        <TH ALIGN=RIGHT>Flight Type:</TH>
+                        <TD>
+                            <SELECT NAME=ftype ONFOCUS="equipBlurred();surveqBlurred()">
+                                <OPTION></OPTION>
+                                <OPTION VALUE="S">S cheduled</OPTION>
+                                <OPTION VALUE="N">N on-scheduled</OPTION>
+                                <OPTION VALUE="G">G eneral aviation</OPTION>
+                                <OPTION VALUE="M">M ilitary</OPTION>
+                                <OPTION VALUE="X">X other</OPTION>
+                            </SELECT>
+                        </TD>
+                    </TR>
+                    <TR>
+                        <TD ALIGN=RIGHT>9</TD>
+                        <TH ALIGN=RIGHT>No. of Aircraft:</TH>
+                        <TD><INPUT SIZE=2 NAME=numacft VALUE="1" ONFOCUS="equipBlurred();surveqBlurred()"></TD>
+                    </TR>
+                    <TR>
+                        <TD ALIGN=RIGHT></TD>
+                        <TH ALIGN=RIGHT>Aircraft Type:</TH>
+                        <TD><INPUT NAME=actype SIZE=6 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="actypeChanged()"></TD>
+                    </TR>
+                    <TR>
+                        <TD ALIGN=RIGHT></TD>
+                        <TH ALIGN=RIGHT>Wake Turbulence:</TH>
+                        <TD>
+                            <SELECT NAME=waketurb ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="waketurbChanged()">
+                                <OPTION></OPTION>
+                                <OPTION VALUE="L">L ight</OPTION>
+                                <OPTION VALUE="M">M edium</OPTION>
+                                <OPTION VALUE="H">H eavy</OPTION>
+                            </SELECT>
+                        </TD>
+                    </TR>
+                    <TR>
+                        <TD ALIGN=RIGHT>10</TD>
+                        <TH ALIGN=RIGHT>Equipment:</TH>
+                        <TD>
+                            <INPUT NAME=equip SIZE=10 VALUE="S" ONFOCUS="surveqBlurred();equipFocused()" ONCHANGE="equipChanged()"> /
+                            <INPUT NAME=surveq SIZE=10 VALUE="CB1" ONFOCUS="equipBlurred();surveqFocused()" ONCHANGE="surveqChanged()">
+                        </TD>
+                    </TR>
+                    <TR>
+                        <TD ALIGN=RIGHT></TD>
+                        <TH ALIGN=RIGHT></TH>
+                        <TD ID=equipcbs></TD>
+                    </TR>
+                    <TR>
+                        <TD ALIGN=RIGHT></TD>
+                        <TH ALIGN=RIGHT></TH>
+                        <TD ID=survcbs></TD>
+                    </TR>
+                    <TR>
+                        <TD ALIGN=RIGHT>13</TD>
+                        <TH ALIGN=RIGHT>Departure:</TH>
+                        <TD><INPUT NAME=depicaoid SIZE=8 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="depChanged()"><SPAN ID=depstatus></SPAN></TD>
+                    </TR>
+                    <TR>
+                        <TD ALIGN=RIGHT></TD>
+                        <TH ALIGN=RIGHT>Time:</TH>
+                        <TD><INPUT NAME=deptime SIZE=5 ONFOCUS="equipBlurred();surveqBlurred()"> UTC</TD>
+                    </TR>
+                    <TR>
+                        <TD ALIGN=RIGHT>15</TD>
+                        <TH ALIGN=RIGHT>Cruise Speed:</TH>
+                        <TD><TT>N</TT><INPUT NAME=cruspd SIZE=4 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="speedChanged()">knots</TD>
+                    </TR>
+                    <TR>
+                        <TD ALIGN=RIGHT></TD>
+                        <TH ALIGN=RIGHT>Flight Level:</TH>
+                        <TD><TT>A</TT><INPUT NAME=fltlev SIZE=4 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="fltlevChanged()"><TT>00</TT> ft</TD>
+                    </TR>
+                    <TR>
+                        <TD ALIGN=RIGHT></TD>
+                        <TH ALIGN=RIGHT>Route:</TH>
+                        <TD><INPUT NAME=route SIZE=40 VALUE="DCT" ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="routeChanged()"></TD>
+                    </TR>
+                    <TR>
+                        <TD ALIGN=RIGHT></TD>
+                        <TH ALIGN=RIGHT></TH>
+                        <TD><SPAN ID=routests></SPAN></TD>
+                    </TR>
+                    <TR>
+                        <TD ALIGN=RIGHT>16</TD>
+                        <TH ALIGN=RIGHT>Destination:</TH>
+                        <TD><INPUT NAME=desticaoid SIZE=8 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="destChanged()"><SPAN ID=deststatus></SPAN></TD>
+                    </TR>
+                    <TR>
+                        <TD ALIGN=RIGHT></TD>
+                        <TH ALIGN=RIGHT>Est Elapsed Time:</TH>
+                        <TD><INPUT NAME=elapsed SIZE=5 ONFOCUS="equipBlurred();surveqBlurred()"><SPAN ID=etestatus></SPAN></TD>
+                    </TR>
+                    <TR>
+                        <TD ALIGN=RIGHT></TD>
+                        <TH ALIGN=RIGHT>Alternate 1:</TH>
+                        <TD><INPUT NAME=alt1icaoid SIZE=8 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="alt1Changed()"><SPAN ID=alt1status></SPAN></TD>
+                    </TR>
+                    <TR>
+                        <TD ALIGN=RIGHT></TD>
+                        <TH ALIGN=RIGHT>Alternate 2:</TH>
+                        <TD><INPUT NAME=alt2icaoid SIZE=8 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="alt2Changed()"><SPAN ID=alt2status></SPAN></TD>
+                    </TR>
+                    <TR>
+                        <TD ALIGN=RIGHT>18</TD>
+                        <TH ALIGN=RIGHT>Other Info:</TH>
+                        <TD><INPUT NAME=othinf SIZE=40 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="othinfChanged()"></TD>
+                    </TR>
+                    <TR>
+                        <TD ALIGN=RIGHT>19</TD>
+                        <TH ALIGN=RIGHT>Fuel Endurance:</TH>
+                        <TD><INPUT NAME=fuelend SIZE=4 ONFOCUS="equipBlurred();surveqBlurred()"><SPAN ID=fendstatus></SPAN></TD>
+                    </TR>
+                    <TR>
+                        <TD ALIGN=RIGHT></TD>
+                        <TH ALIGN=RIGHT>Persons on Board:</TH>
+                        <TD><INPUT NAME=persons SIZE=3 ONFOCUS="equipBlurred();surveqBlurred()"></TD>
+                    </TR>
+                    <TR>
+                        <TD ALIGN=RIGHT></TD>
+                        <TH ALIGN=RIGHT>Emergency Radios:</TH>
+                        <TD>
+                            <LABEL><INPUT TYPE=CHECKBOX NAME=emrad_UHF  ONFOCUS="equipBlurred();surveqBlurred()" ONCLICK="emradClicked()">UHF</LABEL> &nbsp;
+                            <LABEL><INPUT TYPE=CHECKBOX NAME=emrad_VHF  ONFOCUS="equipBlurred();surveqBlurred()" ONCLICK="emradClicked()">VHF</LABEL> &nbsp;
+                            <LABEL><INPUT TYPE=CHECKBOX NAME=emrad_ELBA ONFOCUS="equipBlurred();surveqBlurred()" ONCLICK="emradClicked()">ELBA</LABEL>
+                        </TD>
+                    </TR>
+                    <TR>
+                        <TD ALIGN=RIGHT></TD>
+                        <TH ALIGN=RIGHT>Survival Equipment:</TH>
+                        <TD>
+                            <LABEL><INPUT TYPE=CHECKBOX NAME=surviv_Pol ONFOCUS="equipBlurred();surveqBlurred()" ONCLICK="survivClicked()">Polar</LABEL> &nbsp;
+                            <LABEL><INPUT TYPE=CHECKBOX NAME=surviv_Des ONFOCUS="equipBlurred();surveqBlurred()" ONCLICK="survivClicked()">Desert</LABEL> &nbsp;
+                            <LABEL><INPUT TYPE=CHECKBOX NAME=surviv_Mar ONFOCUS="equipBlurred();surveqBlurred()" ONCLICK="survivClicked()">Maritime</LABEL> &nbsp;
+                            <LABEL><INPUT TYPE=CHECKBOX NAME=surviv_Jun ONFOCUS="equipBlurred();surveqBlurred()" ONCLICK="survivClicked()">Jungle</LABEL>
+                        </TD>
+                    </TR>
+                    <TR>
+                        <TD ALIGN=RIGHT></TD>
+                        <TH ALIGN=RIGHT>Dinghies:</TH>
+                        <TD><INPUT NAME=dingnum SIZE=2 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="dingChanged()"> number</TD>
+                    </TR>
+                    <TR>
+                        <TD ALIGN=RIGHT></TD>
+                        <TH ALIGN=RIGHT></TH>
+                        <TD><INPUT NAME=dingcap SIZE=2 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="dingChanged()"> capacity</TD>
+                    </TR>
+                    <TR>
+                        <TD ALIGN=RIGHT></TD>
+                        <TH ALIGN=RIGHT></TH>
+                        <TD><INPUT NAME=dingcol SIZE=20 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="dingChanged()"> color</TD>
+                    </TR>
+                    <TR>
+                        <TD ALIGN=RIGHT></TD>
+                        <TH ALIGN=RIGHT></TH>
+                        <TD><LABEL><INPUT TYPE=CHECKBOX NAME=dingcov ONFOCUS="equipBlurred();surveqBlurred()" ONCLICK="dingChanged()"> covered</LABEL></TD>
+                    </TR>
+                    <TR>
+                        <TD ALIGN=RIGHT></TD>
+                        <TH ALIGN=RIGHT>Aircraft Color:</TH>
+                        <TD><INPUT NAME=acolor SIZE=20 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="acolorChanged()"></TD>
+                    </TR>
+                    <TR>
+                        <TD ALIGN=RIGHT></TD>
+                        <TH ALIGN=RIGHT>Remarks:</TH>
+                        <TD><INPUT NAME=remarks SIZE=40 ONFOCUS="equipBlurred();surveqBlurred()"></TD>
+                    </TR>
+                    <TR>
+                        <TD ALIGN=RIGHT></TD>
+                        <TH ALIGN=RIGHT>Pilot In Command:</TH>
+                        <TD><INPUT NAME=pilincmd SIZE=40 ONFOCUS="equipBlurred();surveqBlurred()"></TD>
+                    </TR>
+                    <TR>
+                        <TD ALIGN=RIGHT></TD>
+                        <TH ALIGN=RIGHT>Pilot Contact Info:</TH>
+                        <TD><INPUT NAME=pcinfo SIZE=40 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="pcinfoChanged()"></TD>
+                    </TR>
+                </TABLE>
+            </DIV>
+            <DIV CLASS="outlinebox">
+                Supplemental Info
+                <TABLE>
+                    <TR><TH ALIGN=RIGHT>Avg Winds Aloft:</TH><TD>
+                        <INPUT NAME=wnddir SIZE=3 VALUE=0 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="windChanged()">&#176;T @
+                        <INPUT NAME=wndspd SIZE=3 VALUE=0 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="windChanged()"> kts
+                    </TD></TR>
+                    <TR><TH ALIGN=RIGHT>Reserve Fuel:</TH><TD>
+                        <NOBR><LABEL><INPUT TYPE=RADIO NAME=resfuel VALUE=30 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="resfuelChanged()">30 mins</LABEL></NOBR> &nbsp;
+                        <NOBR><LABEL><INPUT TYPE=RADIO NAME=resfuel VALUE=45 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="resfuelChanged()">45 mins</LABEL></NOBR> &nbsp;
+                        <NOBR><LABEL><INPUT TYPE=RADIO NAME=resfuel VALUE=60 ONFOCUS="equipBlurred();surveqBlurred()" ONCHANGE="resfuelChanged()">60 mins</LABEL></NOBR>
+                    </TD></TR>
+                </TABLE>
+            </DIV>
             <P>&nbsp;</P>
         </FORM>
     </BODY>

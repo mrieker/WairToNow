@@ -80,7 +80,7 @@ public class CollDetThread extends Thread {
 
             //noinspection InfiniteLoopStatement
             while (true) {
-                Thread.sleep (10000);
+                Thread.sleep (4096 - System.currentTimeMillis () % 4096);
 
                 // build new hash set
                 newbadlls.clear ();

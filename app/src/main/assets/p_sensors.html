@@ -2,7 +2,7 @@
     <BODY>
         <H2>Sensors Page</H2>
         <P>This page is used to select which sensors the app uses to tell what is happening in the
-            area.  There are four main sources to select from:</P>
+            area.  There are five main sources to select from:</P>
         <UL>
             <LI><B>Internal GPS</B> - enables using the Android device's internal GPS receiver to
                 determine position information.<BR>
@@ -65,6 +65,11 @@
                         connections have been established, so you can see if your device has
                         connected or not.</LI>
                 </UL>
+            </LI>
+            <LI><B>Simulator</B> - generates GPS positions from a given starting point, speed,
+                heading, altitude, turn rate and climb rate.  Overrides all other GPS sources
+                when enabled, and flashes the border in yellow.  Updates only when page other
+                than Sensors is open.
             </LI>
         </UL>
         <P>NOTE:  You should only have just one source of GPS information enabled at a time so
