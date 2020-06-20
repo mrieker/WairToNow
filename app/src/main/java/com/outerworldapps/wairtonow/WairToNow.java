@@ -206,7 +206,7 @@ public class WairToNow extends Activity {
         /*
          * Get text size to use throughout.
          */
-        textSize = dotsPerInch / 7;
+        textSize = dotsPerInch / OptionsView.getFontSize ();
 
         /*
          * Also get screen size in pixels.

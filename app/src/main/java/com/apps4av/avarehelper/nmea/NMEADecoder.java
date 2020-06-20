@@ -163,6 +163,10 @@ public class NMEADecoder extends MidDecoder {
                 GGAMessage.parse (tokens, this);
                 break;
             }
+            case "GSA": {
+                gsvMessage.parsegsa (tokens);
+                break;
+            }
             case "GSV": {
                 gsvMessage.parse (tokens);
                 break;

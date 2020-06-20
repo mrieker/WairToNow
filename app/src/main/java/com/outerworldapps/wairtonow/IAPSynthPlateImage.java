@@ -74,7 +74,7 @@ public class IAPSynthPlateImage extends IAPPlateImage implements DisplayableChar
     private boolean  firstDraw = true;
     private double   centerlat;     // lat,lon at center of needle
     private double   centerlon;     // = initially at center of canvas
-    private double   gsintdmenm;    // glideslope distance from runway numbers
+    private double   gsintdmenm;    // glideslope distance from synth loc/dme antenna
     private double   rwymcbin;      // runway magnetic course
     private int      gsaltbin;      // glideslope intercept altitude feet MSL
     private int      wptexpdate;
@@ -681,7 +681,7 @@ public class IAPSynthPlateImage extends IAPPlateImage implements DisplayableChar
         /*
          * Show DME in lower left corner.
          */
-        plateDME.showDMEBox (runway);
+        plateDME.showDMEBox (synthloc);
 
         /*
          * Init CIFP class.
@@ -735,10 +735,11 @@ public class IAPSynthPlateImage extends IAPPlateImage implements DisplayableChar
         String appid = "I" + runway.number;
 
         // make a waypoint for the FAF at the glideslope intercept point
+        Waypoint.Localizer synthloc = runway.GetSynthLoc ();
         double rwymcbinbc = rwymcbin + 180.0;
         while (rwymcbinbc <=  0.0) rwymcbinbc += 360.0;
         while (rwymcbinbc > 360.0) rwymcbinbc -= 360.0;
-        String faf = "RW" + runway.number + "[" + Lib.DoubleNTZ (rwymcbinbc) + "@" + Lib.DoubleNTZ (gsintdmenm);
+        String faf = synthloc.ident + "[" + Lib.DoubleNTZ (rwymcbinbc) + "@" + Lib.DoubleNTZ (gsintdmenm);
         fafwaypt = FindWaypoint (faf);
 
         // make segment for left-turn PT
@@ -752,14 +753,13 @@ public class IAPSynthPlateImage extends IAPPlateImage implements DisplayableChar
                 "PI,wp=" + faf + ",toc=" + Math.round (rwymcbin * 10.0 + 1350.0) + ",td=R,a=+" + gsaltbin);
 
         // make segment for direct in from elbow of two PTs
-        String dir = "RW" + runway.number + "[" + Lib.DoubleNTZ (rwymcbinbc) + "@" + Lib.DoubleNTZ (gsintdmenm * 2.0);
+        String dir = synthloc.ident + "[" + Lib.DoubleNTZ (rwymcbinbc) + "@" + Lib.DoubleNTZ (gsintdmenm * 2.0);
         dirwaypt = FindWaypoint (dir);
         plateCIFP.ParseCIFPSegment (appid, "-DIR-",
                 "CF,wp=" + dir + ",iaf;" +
                 "CF,wp=" + faf + ",a=+" + gsaltbin);
 
         // make final approach segment
-        Waypoint.Localizer synthloc = runway.GetSynthLoc ();
         double nmfromnumberstogsant = Lib.LatLonDist (runway.lat, runway.lon, synthloc.gs_lat, synthloc.gs_lon);
         double gsfeetabovenumbers = nmfromnumberstogsant * Lib.FtPerNM * Math.tan (Math.toRadians (synthloc.gs_tilt));
         plateCIFP.ParseCIFPSegment (appid, "~f~",
@@ -768,17 +768,15 @@ public class IAPSynthPlateImage extends IAPPlateImage implements DisplayableChar
                         ",a=@" + Math.round (runway.elev + gsfeetabovenumbers));
 
         // make missed approach segment
-        // hold over far end runway numbers
-        Waypoint.Runway opprwy = runway.GetOpposite ();
-        if (opprwy == null) opprwy = runway;
+        // hold over localizer antenna
         char trafdir = runway.ritraf ? 'R' : 'L';
         plateCIFP.ParseCIFPSegment (appid, "~m~",
-                "CF,wp=RW" + opprwy.number + ",a=+" + gsaltbin + ";" +
-                "HM,wp=RW" + opprwy.number + ",rad=" + Math.round (rwymcbin * 10.0) +
+                "CF,wp=" + synthloc.ident + ",a=+" + gsaltbin + ";" +
+                "HM,wp=" + synthloc.ident + ",rad=" + Math.round (rwymcbin * 10.0) +
                         ",td=" + trafdir + ",a=+" + gsaltbin);
 
-        // give navaid name
-        plateCIFP.ParseCIFPSegment (appid, "~r~", "I-" + airport.faaident + "." + runway.number);
+        // give navaid name used for the approach
+        plateCIFP.ParseCIFPSegment (appid, "~r~", synthloc.ident);
     }
 
     // used by PlateCIFP,PlateDME

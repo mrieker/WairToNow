@@ -189,28 +189,30 @@ public class PlateDME {
 
         // see if any checkboxes checked (or maybe whole thing is disabled with little triangle button)
         int allChecked = 0;
-        int numchars = 0;
+        int numidchars = 5;
+        int numnumchrs = 0;
         int dmex = (int) Math.ceil (dmeTextHeight / 2);
         int dmey = canvasHeight - dmex;
         if (dmeShowing) {
             dmeButtonBounds.bottom = dmey;
-            for (DMECheckboxes dmecb : dmeCheckboxeses.values ()) {
+            for (String dmeIdent : dmeCheckboxeses.keySet ()) {
+                DMECheckboxes dmecb = dmeCheckboxeses.nnget (dmeIdent);
                 int checked = dmecb.getChecked ();
-                int nchars = 5;
                 if (checked != 0) {
+                    int nchars = dmeIdent.length ();
+                    if (numidchars < nchars) numidchars = nchars;
+                    nchars  = 0;
                     nchars += ((checked / DMECB_DIST) & 1) * 5;
                     nchars += ((checked / DMECB_TIME) & 1) * 6;
                     nchars += ((checked / DMECB_RADL) & 1) * 5;
+                    if (numnumchrs < nchars) numnumchrs = nchars;
                     allChecked |= checked;
                     dmeButtonBounds.top = (float) (dmey - dmeTextAscent);
                     dmey -= Math.ceil (dmeTextHeight);
                 }
-                if (numchars < nchars) {
-                    numchars = nchars;
-                }
             }
             dmeButtonBounds.left  = dmex;
-            dmeButtonBounds.right = dmex + (int) Math.ceil (dmeCharWidth * numchars);
+            dmeButtonBounds.right = dmex + (int) Math.ceil (dmeCharWidth * (numidchars + numnumchrs));
         }
 
         if (allChecked == 0) {
@@ -240,9 +242,9 @@ public class PlateDME {
                 int checked = dmecb.getChecked ();
                 if (checked != 0) {
                     Waypoint wp = dmecb.waypoint;
-                    StringBuilder sb = new StringBuilder (numchars);
+                    StringBuilder sb = new StringBuilder (numidchars + numnumchrs);
                     sb.append (dmeIdent);
-                    while (sb.length () < 5) sb.append (' ');
+                    while (sb.length () < numidchars) sb.append (' ');
 
                     // distance (in nautical miles) to DME station
                     double dmeelev = wp.GetDMEElev ();

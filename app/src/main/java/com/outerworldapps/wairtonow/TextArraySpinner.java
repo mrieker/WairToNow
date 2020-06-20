@@ -183,6 +183,8 @@ public class TextArraySpinner extends Button implements View.OnClickListener {
             radiogroup.addView (radiobutton);
         }
 
+        adjustRadioGroup (radiogroup);
+
         // throw up an alert dialog with the radio buttons
         AlertDialog.Builder adb = new AlertDialog.Builder (ctx);
         if (title != null) adb.setTitle (title);
@@ -210,6 +212,8 @@ public class TextArraySpinner extends Button implements View.OnClickListener {
         // display the dialog
         dialog = adb.show ();
     }
+
+    public void adjustRadioGroup (RadioGroup radiogroup) { }
 
     // one of the normal selection buttons was clicked
     private void selected (int i)

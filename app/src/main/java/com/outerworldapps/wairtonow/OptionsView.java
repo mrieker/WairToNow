@@ -21,8 +21,13 @@
 package com.outerworldapps.wairtonow;
 
 import android.annotation.SuppressLint;
+import android.app.AlarmManager;
+import android.app.PendingIntent;
+import android.content.Context;
+import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.util.Log;
+import android.util.TypedValue;
 import android.view.View;
 import android.widget.CheckBox;
 import android.widget.CompoundButton;
@@ -49,6 +54,9 @@ public class OptionsView
         implements WairToNow.CanBeMainView {
     public final static String TAG = "WairToNow";
 
+    private final static String fontSizeDefault = "Medium";
+    private final static NNLinkedHashMap<String,Integer> fontSizeMap = getFontSizeMap ();
+
     public  CheckOption  capGridOption;
     public  CheckOption  collDetOption;
     public  CheckOption  faaWPOption;
@@ -63,6 +71,7 @@ public class OptionsView
     public  CheckOption  typeBOption;
     public  DefAltOption ktsMphOption;
     public  DefAltOption magTrueOption;
+    public  FontOption   fontSizeOption;
     public  IntOption    chartTrackOption;
     public  IntOption    chartOrientOption;
     public  IntOption    gpsUpdateOption;
@@ -78,6 +87,39 @@ public class OptionsView
     public final static int CTO_NORTHUP  = 1;
     public final static int CTO_TRACKUP  = 2;
     public final static int CTO_FINGEROT = 3;
+
+    private static NNLinkedHashMap<String,Integer> getFontSizeMap ()
+    {
+        NNLinkedHashMap<String,Integer> fsm = new NNLinkedHashMap<> ();
+        fsm.put ("Tiny",  12);
+        fsm.put ("Small",  9);
+        fsm.put ("Medium", 7);
+        fsm.put ("Large",  5);
+        fsm.put ("Huge",   4);
+        return fsm;
+    }
+
+    // called very early
+    public static int getFontSize ()
+    {
+        try {
+            BufferedReader csvreader = new BufferedReader (new FileReader (WairToNow.dbdir + "/options.csv"), 1024);
+            try {
+                String csvline;
+                while ((csvline = csvreader.readLine ()) != null) {
+                    int i = csvline.indexOf (',');
+                    String name = csvline.substring (0, i);
+                    String valu = csvline.substring (++ i);
+                    if (name.equals ("fontSize")) return fontSizeMap.nnget (valu);
+                }
+            } finally {
+                csvreader.close ();
+            }
+        } catch (IOException ioe) {
+            Log.i (TAG, "no options file yet");
+        }
+        return fontSizeMap.nnget (fontSizeDefault);
+    }
 
     @SuppressLint("SetTextI18n")
     public OptionsView (WairToNow ctx)
@@ -105,6 +147,8 @@ public class OptionsView
         showWxSumDot      = new CheckOption  ("Show Wx Summary Dots",        false);
         magTrueOption     = new DefAltOption ("Magnetic", "True");
         ktsMphOption      = new DefAltOption ("Kts", "MPH");
+
+        fontSizeOption    = new FontOption ();
 
         latLonOption      = new IntOption ("LatLon Format",
             new String[] {
@@ -159,6 +203,7 @@ public class OptionsView
         LinearLayout ll1 = new LinearLayout (ctx);
         ll1.setOrientation (LinearLayout.VERTICAL);
 
+        ll1.addView (fontSizeOption);
         ll1.addView (capGridOption);
         ll1.addView (collDetOption);
         ll1.addView (faaWPOption);
@@ -321,6 +366,7 @@ public class OptionsView
                     if (name.equals ("ktsMphAlt"))    ktsMphOption.setAltNoWrite          (valu.equals (boolTrue));
                     if (name.equals ("gpsUpdate"))    gpsUpdateOption.setKeyNoWrite       (valu);
                     if (name.equals ("circCat"))      circCatOption.setKeyNoWrite         (valu);
+                    if (name.equals ("fontSize"))     fontSizeOption.setKeyNoWrite        (valu);
                 }
             } finally {
                 csvreader.close ();
@@ -346,6 +392,7 @@ public class OptionsView
             ktsMphOption.setAltNoWrite          (false);
             gpsUpdateOption.setKeyNoWrite       (gpsUpdateOption.keys[0]);
             circCatOption.setKeyNoWrite         (circCatOption.keys[0]);
+            fontSizeOption.setKeyNoWrite        (fontSizeDefault);
         } catch (Exception e) {
             Log.w (TAG, "error reading options.csv", e);
         }
@@ -379,6 +426,7 @@ public class OptionsView
                 csvwriter.write ("ktsMphAlt,"    + ktsMphOption.getAlt ()                  + "\n");
                 csvwriter.write ("gpsUpdate,"    + gpsUpdateOption.getKey ()               + "\n");
                 csvwriter.write ("circCat,"      + circCatOption.getKey ()                 + "\n");
+                csvwriter.write ("fontSize,"     + fontSizeOption.getKey ()                + "\n");
             } finally {
                 csvwriter.close ();
             }
@@ -540,6 +588,74 @@ public class OptionsView
     }
 
     /**
+     * Present a spinner selection of font sizes.
+     */
+    public class FontOption extends IntOption {
+        private String oldvalue;
+
+        public FontOption ()
+        {
+            super ("Font Size (restarts app)",
+                    getFontSizeKeys (),
+                    getFontSizeInts ());
+            setKeyNoWrite (fontSizeDefault);
+        }
+
+        @Override  // IntOption
+        public boolean onItemSelected (View view, int index)
+        {
+            super.onItemSelected (view, index);
+
+            // if changed, restart the app
+            if (! getKey ().equals (oldvalue)) {
+                // https://stackoverflow.com/questions/6609414/how-do-i-programmatically-restart-an-android-app
+                Intent startActivity = new Intent (wairToNow, wairToNow.getClass ());
+                int pendingIntentId = 123456;
+                PendingIntent pendingIntent = PendingIntent.getActivity (wairToNow, pendingIntentId, startActivity, PendingIntent.FLAG_CANCEL_CURRENT);
+                AlarmManager mgr = (AlarmManager) wairToNow.getSystemService (Context.ALARM_SERVICE);
+                mgr.set (AlarmManager.RTC, System.currentTimeMillis () + 333, pendingIntent);
+                System.exit (0);
+            }
+            return true;
+        }
+
+        // set strings in selection box to the size that font would be set to
+        // eg, 'Tiny' is displayed in tiny font, 'Huge' is displayed in huge font
+        // also save the current selection as oldvalue
+        @Override  // TextArraySpinner
+        public void adjustRadioGroup (RadioGroup radiogroup)
+        {
+            oldvalue = null;
+            for (int i = radiogroup.getChildCount (); -- i >= 0;) {
+                View child = radiogroup.getChildAt (i);
+                if (child instanceof RadioButton) {
+                    RadioButton rb = (RadioButton) child;
+                    String text = rb.getText ().toString ();
+                    Integer size = fontSizeMap.get (text);
+                    if (size != null) {
+                        rb.setTextSize (TypedValue.COMPLEX_UNIT_PX, wairToNow.dotsPerInch / size);
+                        if (rb.isChecked ()) oldvalue = text;
+                    }
+                }
+            }
+        }
+    }
+
+    private static String[] getFontSizeKeys ()
+    {
+        return fontSizeMap.keySet ().toArray (new String[0]);
+    }
+
+    private static int[] getFontSizeInts ()
+    {
+        String[] fontSizeNames = getFontSizeKeys ();
+        int[] fontSizeIntegers = new int[fontSizeNames.length];
+        int i = 0;
+        for (String fontSizeName : fontSizeNames) fontSizeIntegers[i++] = fontSizeMap.nnget (fontSizeName);
+        return fontSizeIntegers;
+    }
+
+    /**
      * Present a spinner selection of several integer values.
      */
     public class IntOption extends TextArraySpinner implements TextArraySpinner.OnItemSelectedListener {
@@ -553,6 +669,8 @@ public class OptionsView
             super (wairToNow);
             keys = kkeys;
             vals = vvals;
+
+            wairToNow.SetTextSize (this);
 
             super.setLabels (keys, null, null, null);
             super.setOnItemSelectedListener (this);

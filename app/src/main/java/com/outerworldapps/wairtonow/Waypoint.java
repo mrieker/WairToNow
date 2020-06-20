@@ -1668,16 +1668,16 @@ public abstract class Waypoint {
             this.ident    = "I-" + rwy.airport.faaident + "." + rwy.number;  // eg, I-BVY.09
             this.elev     = rwy.elev;
             this.descr    = "Synth ILS/DME for " + rwy.ident + " of " + rwy.airport.name;
-            this.lat      = rwy.endLat;     // located at far end of runway
-            this.lon      = rwy.endLon;
+            this.lat      = Lib.LatHdgDist2Lat (rwy.endLat, rwy.trueHdg, gsdist / Lib.FtPerNM);
+            this.lon      = Lib.LatLonHdgDist2Lon (rwy.endLat, rwy.endLon, rwy.trueHdg, gsdist / Lib.FtPerNM);
             this.thdg     = rwy.trueHdg;    // computed
             this.gs_elev  = rwy.elev;
             this.gs_tilt  = gstilt;
             this.gs_lat   = Lib.LatHdgDist2Lat (rwy.lat, rwy.trueHdg, gsdist / Lib.FtPerNM);
             this.gs_lon   = Lib.LatLonHdgDist2Lon (rwy.lat, rwy.lon, rwy.trueHdg, gsdist / Lib.FtPerNM);
             this.dme_elev = rwy.elev;       // dme at localizer (far end of runway)
-            this.dme_lat  = rwy.endLat;
-            this.dme_lon  = rwy.endLon;
+            this.dme_lat  = this.lat;
+            this.dme_lon  = this.lon;
             this.airport  = rwy.airport;
         }
 
