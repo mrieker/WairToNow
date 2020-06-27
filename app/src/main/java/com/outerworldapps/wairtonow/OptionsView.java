@@ -25,7 +25,6 @@ import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
-import android.content.pm.ActivityInfo;
 import android.util.Log;
 import android.util.TypedValue;
 import android.view.View;
@@ -73,7 +72,6 @@ public class OptionsView
     public  DefAltOption magTrueOption;
     public  FontOption   fontSizeOption;
     public  IntOption    chartTrackOption;
-    public  IntOption    chartOrientOption;
     public  IntOption    gpsUpdateOption;
     public  IntOption    latLonOption;
     public  IntOption    circCatOption;
@@ -157,16 +155,6 @@ public class OptionsView
                 "ddd.dddddd" + (char)0xB0 },
             new int[] { LLO_DDMMSS, LLO_DDMMMM, LLO_DDDDDD });
 
-        chartOrientOption = new IntOption ("Chart Screen Lock",
-            new String[] {
-                "Chart orientation Unlocked",
-                "Chart locked in Portrait",
-                "Chart locked in Landscape" },
-            new int[] {
-                ActivityInfo.SCREEN_ORIENTATION_USER,
-                ActivityInfo.SCREEN_ORIENTATION_PORTRAIT,
-                ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE });
-
         chartTrackOption = new IntOption ("Chart Up",
             new String[] {
                 "Course Up",
@@ -216,7 +204,6 @@ public class OptionsView
         ll1.addView (showWxSumDot);
         ll1.addView (powerLockOption);
         ll1.addView (gpsCompassOption);
-        ll1.addView (chartOrientOption);
         ll1.addView (chartTrackOption);
         ll1.addView (magTrueOption);
         ll1.addView (latLonOption);
@@ -234,16 +221,14 @@ public class OptionsView
     /**
      * Format a heading into a string according to user-selected options.
      * @param hdg = true heading (degrees)
-     * @param lat = latitude (degrees) where the heading is wanted
-     * @param lon = longitude (degrees) where the heading is wanted
-     * @param alt = altitude (metres MSL) where the heading is wanted
+     * @param magvar = magnetic variation (degrees; mag = true + magvar)
      * @return string of heading
      */
-    public String HdgString (double hdg, double lat, double lon, double alt)
+    public String HdgString (double hdg, double magvar)
     {
         String suffix = (char)0xB0 + " True";
         if (!magTrueOption.getAlt ()) {
-            hdg += Lib.MagVariation (lat, lon, alt);
+            hdg += magvar;
             suffix = (char)0xB0 + " Mag";
         }
         int ihdg = (int)(hdg + 1439.5) % 360 + 1;
@@ -359,7 +344,6 @@ public class OptionsView
                     if (name.equals ("showNexrad"))   showNexrad.setCheckedNoWrite        (valu.equals (boolTrue));
                     if (name.equals ("showTraffic"))  showTraffic.setCheckedNoWrite       (valu.equals (boolTrue));
                     if (name.equals ("showWxSumDot")) showWxSumDot.setCheckedNoWrite      (valu.equals (boolTrue));
-                    if (name.equals ("chartOrient"))  chartOrientOption.setKeyNoWrite     (valu);
                     if (name.equals ("chartTrack"))   chartTrackOption.setKeyNoWrite      (valu);
                     if (name.equals ("magtrueAlt"))   magTrueOption.setAltNoWrite         (valu.equals (boolTrue));
                     if (name.equals ("latlonAlt"))    latLonOption.setKeyNoWrite          (valu);
@@ -385,7 +369,6 @@ public class OptionsView
             showNexrad.setCheckedNoWrite        (true);
             showTraffic.setCheckedNoWrite       (true);
             showWxSumDot.setCheckedNoWrite      (true);
-            chartOrientOption.setKeyNoWrite     (chartOrientOption.keys[0]);  // unlocked
             chartTrackOption.setKeyNoWrite      (chartTrackOption.keys[2]);   // north up
             magTrueOption.setAltNoWrite         (false);
             latLonOption.setKeyNoWrite          (latLonOption.keys[0]);
@@ -419,7 +402,6 @@ public class OptionsView
                 csvwriter.write ("showNexrad,"   + showNexrad.checkBox.isChecked ()        + "\n");
                 csvwriter.write ("showTraffic,"  + showTraffic.checkBox.isChecked ()       + "\n");
                 csvwriter.write ("showWxSumDot," + showWxSumDot.checkBox.isChecked ()      + "\n");
-                csvwriter.write ("chartOrient,"  + chartOrientOption.getKey ()             + "\n");
                 csvwriter.write ("chartTrack,"   + chartTrackOption.getKey ()              + "\n");
                 csvwriter.write ("magtrueAlt,"   + magTrueOption.getAlt ()                 + "\n");
                 csvwriter.write ("latlonAlt,"    + latLonOption.getKey ()                  + "\n");
@@ -439,12 +421,6 @@ public class OptionsView
     public String GetTabName ()
     {
         return "Options";
-    }
-
-    @Override  // CanBeMainView
-    public int GetOrientation ()
-    {
-        return ActivityInfo.SCREEN_ORIENTATION_USER;
     }
 
     @Override  // CanBeMainView

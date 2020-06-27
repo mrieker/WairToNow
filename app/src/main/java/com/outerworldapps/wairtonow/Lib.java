@@ -686,7 +686,11 @@ public class Lib {
      */
     public static double MagVariation (double lat, double lon, double alt)
     {
-        GeomagneticField gmf = new GeomagneticField ((float) lat, (float) lon, (float) alt, System.currentTimeMillis());
+        return MagVariation (lat, lon, alt, System.currentTimeMillis ());
+    }
+    public static double MagVariation (double lat, double lon, double alt, long time)
+    {
+        GeomagneticField gmf = new GeomagneticField ((float) lat, (float) lon, (float) alt, time);
         return - gmf.getDeclination();
     }
 
@@ -1235,11 +1239,36 @@ public class Lib {
     /**
      * Double to string, strip trailing ".0" if any
      */
-    public static String DoubleNTZ (double f)
+    public static String DoubleNTZ (double floatval)
     {
-        String s = String.format (Locale.US, "%.1f", f);
-        if (s.endsWith (".0")) s = s.substring (0, s.length () - 2);
-        return s;
+        return DoubleNTZ (floatval, 1);
+    }
+    public static String DoubleNTZ (double floatval, int decimals)
+    {
+        if (Double.isNaN (floatval)) return "NaN";
+        double absvalue = Math.abs (floatval);
+        if (absvalue >= 1.0E20) return Double.toString (floatval);
+        int shiftedleft = 0;
+        while (-- decimals >= 0) {
+            double g = absvalue * 10.0;
+            if (g >= 1.0E20) break;
+            absvalue = g;
+            shiftedleft ++;
+        }
+        long longval = Math.round (absvalue);
+        while ((shiftedleft > 0) && (longval % 10 == 0)) {
+            longval /= 10;
+            -- shiftedleft;
+        }
+        char[] str = new char[24];
+        int i = str.length;
+        do {
+            str[--i] = (char) (longval % 10 + '0');
+            longval /= 10;
+            if (-- shiftedleft == 0) str[--i] = '.';
+        } while ((longval > 0) || (shiftedleft >= 0));
+        if (floatval < 0) str[--i] = '-';
+        return new String (str, i, str.length - i);
     }
 
     /**

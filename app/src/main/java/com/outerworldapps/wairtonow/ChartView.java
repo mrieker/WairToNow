@@ -69,8 +69,8 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
     public  WairToNow wairToNow;
 
     public boolean holdPosition;          // gps updates centering screen are blocked (eg, when screen has been panned)
-    public double centerLat, centerLon;    // lat/lon at center+displaceX,Y of canvas
-    public double orgLat, orgLon;          // course origination lat/lon
+    public double centerLat, centerLon;   // lat/lon at center+displaceX,Y of canvas
+    public double orgLat, orgLon;         // course origination lat/lon
     public double scaling = 1.0;          // < 1 : zoomed out; > 1 : zoomed in
     public Waypoint clDest = null;        // course line destination waypoint
 
@@ -244,12 +244,6 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
         if (backing != null) {
             backing.ChartSelected ();
         }
-    }
-
-    @Override  // CanBeMainView
-    public int GetOrientation ()
-    {
-        return wairToNow.optionsView.chartOrientOption.getVal ();
     }
 
     @Override  // CanBeMainView

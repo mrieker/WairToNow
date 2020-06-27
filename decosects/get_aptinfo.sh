@@ -73,12 +73,12 @@ fi
 
 if [ WriteLocalizersCsv.exe -ot WriteLocalizersCsv.cs ]
 then
-    mcs -debug -out:WriteLocalizersCsv.exe WriteLocalizersCsv.cs
+    mcs -debug -out:WriteLocalizersCsv.exe WriteLocalizersCsv.cs Topography.cs
 fi
 
 if [ WriteNavaidsCsv.exe -ot WriteNavaidsCsv.cs ]
 then
-    mcs -debug -out:WriteNavaidsCsv.exe WriteNavaidsCsv.cs
+    mcs -debug -out:WriteNavaidsCsv.exe WriteNavaidsCsv.cs Topography.cs
 fi
 
 if [ MakeWaypoints.exe -ot MakeWaypoints.cs ]

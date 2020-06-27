@@ -220,7 +220,7 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
         // - get current airplane ground track
         double currhdgdegs = wairToNow.currentGPSHdg;
         if (! wairToNow.optionsView.magTrueOption.getAlt ()) {
-            currhdgdegs += Lib.MagVariation (wairToNow.currentGPSLat, wairToNow.currentGPSLon, wairToNow.currentGPSAlt);
+            currhdgdegs += wairToNow.currentMagVar;
         }
         // - get number of degrees displaced left/right by dragging finger
         //   negative means looking right of forward

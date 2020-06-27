@@ -57,7 +57,8 @@ public abstract class IAPPlateImage extends GRPlateImage {
         if (!wairToNow.optionsView.typeBOption.checkBox.isChecked ()) {
             if (plateCIFP != null) plateCIFP.DrawCIFP (canvas);
             plateDME.DrawDMEs (canvas, wairToNow.currentGPSLat, wairToNow.currentGPSLon,
-                    wairToNow.currentGPSAlt, wairToNow.currentGPSTime);
+                    wairToNow.currentGPSAlt, wairToNow.currentGPSTime,
+                    wairToNow.currentMagVar);
         }
         plateTimer.DrawTimer (canvas);
 

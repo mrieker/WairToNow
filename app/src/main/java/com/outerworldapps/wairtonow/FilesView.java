@@ -86,12 +86,6 @@ public class FilesView
     }
 
     @Override  // CanBeMainView
-    public int GetOrientation ()
-    {
-        return ActivityInfo.SCREEN_ORIENTATION_USER;
-    }
-
-    @Override  // CanBeMainView
     public boolean IsPowerLocked ()
     {
         return false;

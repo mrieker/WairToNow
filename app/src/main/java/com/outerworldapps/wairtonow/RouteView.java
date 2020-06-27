@@ -24,7 +24,6 @@ import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
-import android.content.pm.ActivityInfo;
 import android.graphics.Color;
 import android.text.Editable;
 import android.text.Spannable;
@@ -854,12 +853,6 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
     }
 
     @Override  // CanBeMainView
-    public int GetOrientation ()
-    {
-        return ActivityInfo.SCREEN_ORIENTATION_USER;
-    }
-
-    @Override  // CanBeMainView
     public boolean IsPowerLocked ()
     {
         return false;
@@ -1366,7 +1359,6 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
          * Display all points ahead of us and the heading and distance between them.
          * Also display ETA in Zulu for position reporting purposes.
          */
-        double lastGPSAlt = wairToNow.currentGPSAlt;
         double lastGPSpeed = wairToNow.currentGPSSpd;
         double lastlat = wairToNow.currentGPSLat;
         double lastlon = wairToNow.currentGPSLon;
@@ -1378,7 +1370,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
             double tc = Lib.LatLonTC (lastlat, lastlon, wp.lat, wp.lon);
             double nm = Lib.LatLonDist (lastlat, lastlon, wp.lat, wp.lon);
             totnm += nm;
-            String hdgstr  = wairToNow.optionsView.HdgString (tc, lastlat, lastlon, lastGPSAlt);
+            String hdgstr = wairToNow.optionsView.HdgString (tc, wairToNow.currentMagVar);
             sb.append (hdgstr.replace (" ", "").replace ("Mag", "M").replace ("True", "T"));
             sb.append (' ');
             sb.append (Lib.DistString (nm, mphOption).replace (" ", ""));

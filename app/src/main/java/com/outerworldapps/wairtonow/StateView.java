@@ -321,7 +321,6 @@ public class StateView extends View {
             if (holdPosition) {
 
                 // display heading/distance from airplane to center iff airplane not centered on screen
-                double altitude  = wairToNow.currentGPSAlt;
                 double latitude  = wairToNow.currentGPSLat;
                 double longitude = wairToNow.currentGPSLon;
                 if ((centerInfoArrowLat != latitude) ||
@@ -333,7 +332,8 @@ public class StateView extends View {
                     double distFromGPS = Lib.LatLonDist (latitude, longitude, centerLat, centerLon);
                     double tcorFromGPS = Lib.LatLonTC (latitude, longitude, centerLat, centerLon);
                     centerInfoDistStr = Lib.DistString (distFromGPS, mphOption);
-                    centerInfoMCToStr = wairToNow.optionsView.HdgString (tcorFromGPS, latitude, longitude, altitude);
+                    centerInfoMCToStr = wairToNow.optionsView.HdgString (tcorFromGPS,
+                            wairToNow.currentMagVar);
                 }
                 Lib.DrawBoundedString (canvas, centerInfoBounds, paint, cx, by - dy * 6, centerInfoDistStr);
                 Lib.DrawBoundedString (canvas, centerInfoBounds, paint, cx, by - dy * 5, centerInfoMCToStr);
@@ -360,7 +360,8 @@ public class StateView extends View {
                 centerInfoCanvasHdgRads = chr;
                 centerInfoAltitude      = altitude;
                 centerInfoScaStr = "x " + scalingFormat.format (scaling);
-                centerInfoRotStr = wairToNow.optionsView.HdgString (Math.toDegrees (chr), centerLat, centerLon, altitude);
+                centerInfoRotStr = wairToNow.optionsView.HdgString (Math.toDegrees (chr),
+                        wairToNow.currentMagVar);
             }
             Lib.DrawBoundedString (canvas, centerInfoBounds, paint, cx, by - dy * 2, centerInfoScaStr);
             Lib.DrawBoundedString (canvas, centerInfoBounds, paint, cx, by - dy, centerInfoRotStr);
@@ -393,7 +394,6 @@ public class StateView extends View {
         Waypoint clDest = chartView.clDest;
 
         if (showCourseInfo) {
-            double altitude  = wairToNow.currentGPSAlt;
             double latitude  = wairToNow.currentGPSLat;
             double longitude = wairToNow.currentGPSLon;
             double speed     = wairToNow.currentGPSSpd;
@@ -416,7 +416,7 @@ public class StateView extends View {
                 courseInfoDistStr = Lib.DistString (dist, mphOpt);
 
                 double tcto = Lib.LatLonTC (latitude, longitude, courseInfoDstLat, courseInfoDstLon);
-                courseInfoMCToStr = wairToNow.optionsView.HdgString (tcto, latitude, longitude, altitude);
+                courseInfoMCToStr = wairToNow.optionsView.HdgString (tcto, wairToNow.currentMagVar);
 
                 courseInfoEteStr = "";
                 if (speed >= WairToNow.gpsMinSpeedMPS) {

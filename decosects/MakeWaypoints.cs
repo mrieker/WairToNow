@@ -52,7 +52,7 @@ public class MakeWaypoints {
             /*
              * Load airport info into database.
              */
-            DoCommand (dbcon, "CREATE TABLE airports (apt_icaoid TEXT PRIMARY KEY, apt_faaid TEXT NOT NULL, apt_elev INTEGER, apt_name TEXT NOT NULL, " +
+            DoCommand (dbcon, "CREATE TABLE airports (apt_icaoid TEXT PRIMARY KEY, apt_faaid TEXT NOT NULL, apt_elev REAL NOT NULL, apt_name TEXT NOT NULL, " +
                     "apt_lat REAL NOT NULL, apt_lon REAL NOT NULL, apt_desc TEXT NOT NULL, apt_state TEXT NOT NULL, apt_faciluse TEXT NOT NULL);");
             DoCommand (dbcon, "CREATE TABLE aptkeys  (kw_key TEXT NOT NULL, kw_rowid INTEGER NOT NULL);");
             DoCommand (dbcon, "CREATE INDEX airports_faaid ON airports (apt_faaid);");
@@ -77,7 +77,7 @@ public class MakeWaypoints {
                             "SELECT last_insert_rowid ()";
                     dbcmd1.Parameters.Add (new SqliteParameter ("@apt_icaoid"  , cols[0]));
                     dbcmd1.Parameters.Add (new SqliteParameter ("@apt_faaid"   , cols[1]));
-                    dbcmd1.Parameters.Add (new SqliteParameter ("@apt_elev"    , ParseElev (cols[2])));
+                    dbcmd1.Parameters.Add (new SqliteParameter ("@apt_elev"    , double.Parse (cols[2])));
                     dbcmd1.Parameters.Add (new SqliteParameter ("@apt_name"    , cols[3]));
                     dbcmd1.Parameters.Add (new SqliteParameter ("@apt_lat"     , double.Parse (cols[4])));
                     dbcmd1.Parameters.Add (new SqliteParameter ("@apt_lon"     , double.Parse (cols[5])));
@@ -181,7 +181,7 @@ public class MakeWaypoints {
             /*
              * Load localizer info into database.
              */
-            DoCommand (dbcon, "CREATE TABLE localizers (loc_type TEXT, loc_faaid TEXT, loc_elev REAL, loc_name TEXT NOT NULL, " +
+            DoCommand (dbcon, "CREATE TABLE localizers (loc_type TEXT, loc_faaid TEXT, loc_elev REAL NOT NULL, loc_name TEXT NOT NULL, " +
                     "loc_aptfid TEXT NOT NULL, loc_rwyid TEXT NOT NULL, loc_freq INTEGER NOT NULL, " +
                     "loc_lat REAL NOT NULL, loc_lon REAL NOT NULL, loc_thdg REAL NOT NULL, gs_elev REAL, gs_tilt REAL, gs_lat REAL, gs_lon REAL, " +
                     "dme_elev REAL, dme_lat REAL, dme_lon REAL);");
@@ -203,7 +203,7 @@ public class MakeWaypoints {
                             "VALUES (@loc_type,@loc_faaid,@loc_elev,@loc_name,@loc_lat,@loc_lon,@loc_thdg,@gs_elev,@gs_tilt,@gs_lat,@gs_lon,@dme_elev,@dme_lat,@dme_lon,@loc_aptfid,@loc_rwyid,@loc_freq); SELECT last_insert_rowid ()";
                     dbcmd1.Parameters.Add (new SqliteParameter ("@loc_type",   cols[0]));
                     dbcmd1.Parameters.Add (new SqliteParameter ("@loc_faaid",  cols[1]));
-                    dbcmd1.Parameters.Add (new SqliteParameter ("@loc_elev",   ParseElev (cols[2])));
+                    dbcmd1.Parameters.Add (new SqliteParameter ("@loc_elev",   double.Parse (cols[2])));
                     dbcmd1.Parameters.Add (new SqliteParameter ("@loc_name",   cols[3]));
                     dbcmd1.Parameters.Add (new SqliteParameter ("@loc_lat",    double.Parse (cols[4])));
                     dbcmd1.Parameters.Add (new SqliteParameter ("@loc_lon",    double.Parse (cols[5])));
@@ -258,8 +258,8 @@ public class MakeWaypoints {
             /*
              * Load navaid info into database.
              */
-            DoCommand (dbcon, "CREATE TABLE navaids (nav_type TEXT NOT NULL, nav_faaid TEXT NOT NULL, nav_elev INTEGER, nav_name TEXT NOT NULL, " +
-                    "nav_lat REAL NOT NULL, nav_lon REAL NOT NULL, nav_magvar INTEGER, nav_freq INTEGER, nav_power TEXT NOT NULL);");
+            DoCommand (dbcon, "CREATE TABLE navaids (nav_type TEXT NOT NULL, nav_faaid TEXT NOT NULL, nav_elev REAL NOT NULL, nav_name TEXT NOT NULL, " +
+                    "nav_lat REAL NOT NULL, nav_lon REAL NOT NULL, nav_magvar INTEGER NOT NULL, nav_freq INTEGER, nav_power TEXT NOT NULL);");
             DoCommand (dbcon, "CREATE TABLE navkeys (kw_key TEXT NOT NULL, kw_rowid INTEGER NOT NULL);");
             DoCommand (dbcon, "CREATE INDEX navaids_faaid ON navaids (nav_faaid);");
             DoCommand (dbcon, "CREATE INDEX navaids_lats  ON navaids (nav_lat);");
@@ -279,11 +279,11 @@ public class MakeWaypoints {
                             "SELECT last_insert_rowid ()";
                     dbcmd1.Parameters.Add (new SqliteParameter ("@nav_type"  , cols[0]));
                     dbcmd1.Parameters.Add (new SqliteParameter ("@nav_faaid" , cols[1]));
-                    dbcmd1.Parameters.Add (new SqliteParameter ("@nav_elev"  , ParseElev (cols[2])));
+                    dbcmd1.Parameters.Add (new SqliteParameter ("@nav_elev"  , double.Parse (cols[2])));
                     dbcmd1.Parameters.Add (new SqliteParameter ("@nav_name"  , cols[3]));
                     dbcmd1.Parameters.Add (new SqliteParameter ("@nav_lat"   , double.Parse (cols[4])));
                     dbcmd1.Parameters.Add (new SqliteParameter ("@nav_lon"   , double.Parse (cols[5])));
-                    dbcmd1.Parameters.Add (new SqliteParameter ("@nav_magvar", (cols[6] == "") ? null : (object) int.Parse (cols[6])));
+                    dbcmd1.Parameters.Add (new SqliteParameter ("@nav_magvar", int.Parse (cols[6])));
                     dbcmd1.Parameters.Add (new SqliteParameter ("@nav_freq"  , (cols[7] == "") ? null : (object) int.Parse (cols[7])));
                     dbcmd1.Parameters.Add (new SqliteParameter ("@nav_power" , cols[8]));
                     rowid = (long) dbcmd1.ExecuteScalar ();

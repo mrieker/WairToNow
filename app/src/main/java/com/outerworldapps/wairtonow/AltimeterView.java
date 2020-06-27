@@ -197,7 +197,6 @@ public class AltimeterView extends View implements WairToNow.CanBeMainView {
     // BEGIN CanBeMainView //
 
     public String GetTabName () { return "Altim"; }
-    public int GetOrientation () { return ActivityInfo.SCREEN_ORIENTATION_USER; }
     public boolean IsPowerLocked () { return true; }
     public void OpenDisplay ()
     {

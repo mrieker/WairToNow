@@ -55,13 +55,19 @@ public class WriteNavaidsCsv {
         double dmelon = 0.0;
         string aptid  = "";      // faaid eg "BVY"
         string rwyid  = "";      // eg "04R"
+        int    magvar = 0;       // mhdg = thdg + magvar
 
         string line;
         while ((line = Console.ReadLine ()) != null) {
             if (line.StartsWith ("ILS1")) {
                 if (type != "") {
-                    // name string format relied on by Waypoint.java Localizer class constructor
-                    Console.WriteLine (type + "," + ident + "," + elev + ",\"" + name + " - " + freq + " - " + city + "\"," + lat + "," + lon + "," + thdg + "," + gsalt + "," + gsang + "," + gslat + "," + gslon + "," + dmealt + "," + dmelat + "," + dmelon + "," + aptid + "," + rwyid + "," + Math.Round (double.Parse (freq) * 1000.0));
+                    // elev gets filled in with airport elev by MakeWaypoints.cs
+                    Console.WriteLine (type + "," + ident + "," + elev + ",\"" + name +
+                            " - " + freq + " - " + city + "\"," + lat + "," + lon + "," +
+                            thdg + "," + gsalt + "," + gsang + "," + gslat + "," +
+                            gslon + "," + dmealt + "," + dmelat + "," + dmelon + "," +
+                            aptid + "," + rwyid + "," +
+                            Math.Round (double.Parse (freq) * 1000.0) + "," + magvar);
                     type   = "";
                     ident  = "";
                     name   = "";
@@ -80,6 +86,7 @@ public class WriteNavaidsCsv {
                     dmelon = 0.0;
                     aptid  = "";
                     rwyid  = "";
+                    magvar = 0;
                 }
                 type   = line.Substring (18, 10).Trim ();
                 ident  = line.Substring (28,  6).Trim ();
@@ -119,12 +126,18 @@ public class WriteNavaidsCsv {
                 if (markerfreq == "75") markerfreq = "75000";
 
                 if ((markeridnt != "") && (markerfreq != "")) {
-                    Console.WriteLine (markertype + "," + markeridnt + "," + markerelev + ",\"" + markername + " - " + markerfreq + " - " + city + "\"," + markerlat + "," + markerlon + ",,,,,,,,,,," + markerfreq);
+                    if (markerelev == "") markerelev = Topography.GetElevFt (markerlat, markerlon).ToString ("F1");
+                    Console.WriteLine (markertype + "," + markeridnt + "," + markerelev + ",\"" + markername + " - " + markerfreq + " - " + city + "\"," + markerlat + "," + markerlon + ",,,,,,,,,,," + markerfreq + ",");
                 }
             }
         }
         if (type != "") {
-            Console.WriteLine (type + "," + ident + "," + elev + ",\"" + name + " - " + freq + " - " + city + "\"," + lat + "," + lon + "," + thdg + "," + gsalt + "," + gsang + "," + gslat + "," + gslon + "," + dmealt + "," + dmelat + "," + dmelon + "," + aptid + "," + rwyid + "," + Math.Round (double.Parse (freq) * 1000.0));
+            Console.WriteLine (type + "," + ident + "," + elev + ",\"" + name +
+                    " - " + freq + " - " + city + "\"," + lat + "," + lon + "," +
+                    thdg + "," + gsalt + "," + gsang + "," + gslat + "," +
+                    gslon + "," + dmealt + "," + dmelat + "," + dmelon + "," +
+                    aptid + "," + rwyid + "," +
+                    Math.Round (double.Parse (freq) * 1000.0) + "," + magvar);
         }
     }
 

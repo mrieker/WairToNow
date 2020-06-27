@@ -50,7 +50,8 @@ public class WriteNavaidsCsv {
             string cntry  = line.Substring (147, 30).Trim ();
             double lat    = DecodeLatLon (line.Substring (385, 11), 'N', 'S');
             double lon    = DecodeLatLon (line.Substring (410, 11), 'E', 'W');
-            string elev   = line.Substring (472, 7).Trim ();
+            string elev   = line.Substring (472, 7).Trim ();    // feet with decimal point
+            if (elev == "") elev = Topography.GetElevFt (lat, lon).ToString ("F1");
             string magvar = line.Substring (479, 5).Trim ();
             if (magvar != "") {
                 int magbin = int.Parse (magvar.Substring (0, magvar.Length - 1));

@@ -291,7 +291,7 @@ public class SimulateGpsAdsb extends GpsAdsbReceiver implements Runnable {
             long   dtms   = newnow - ptendTime;
             double distnm = spdkts * dtms / 3600000.0;
             double newhdg = hdgdeg + dtms / 1000.0 * turnrt;
-            double hdgtru = ptendHdgFrame.getVal () ? newhdg : newhdg - Lib.MagVariation (oldlat, oldlon, altft / Lib.FtPerM);
+            double hdgtru = ptendHdgFrame.getVal () ? newhdg : newhdg - Lib.MagVariation (oldlat, oldlon, altft / Lib.FtPerM, ptendTime);
             double newlat = Lib.LatHdgDist2Lat (oldlat, hdgtru, distnm);
             double newlon = Lib.LatLonHdgDist2Lon (oldlat, oldlon, hdgtru, distnm);
             double newalt = altft + dtms / 60000.0 * climrt;
@@ -305,8 +305,8 @@ public class SimulateGpsAdsb extends GpsAdsbReceiver implements Runnable {
             ptendTime = newnow;
             ptendLat.setVal (newlat);
             ptendLon.setVal (newlon);
-            ptendHeading.setText (Double.toString (newhdg));
-            ptendAltitude.setText (Double.toString (newalt));
+            ptendHeading.setText (Lib.DoubleNTZ (newhdg, 2));
+            ptendAltitude.setText (Lib.DoubleNTZ (newalt, 2));
 
             /*
              * Send the values in the form of a GPS reading to the active screen.

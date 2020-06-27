@@ -56,16 +56,6 @@
                 android:text="UserWP"
                 android:id="@+id/use_userwpland"/>
 
-            <com.outerworldapps.wairtonow.SpacerView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"/>
-
-            <Button
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Unlkd"
-                android:id="@+id/orientland"/>
-
         </LinearLayout>
 
     </ScrollView>

@@ -25,7 +25,6 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.SharedPreferences;
-import android.content.pm.ActivityInfo;
 import android.graphics.Color;
 import android.os.SystemClock;
 import android.text.InputType;
@@ -97,12 +96,6 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
     public String GetTabName ()
     {
         return "Crumbs";
-    }
-
-    @Override  // CanBeMainView
-    public int GetOrientation ()
-    {
-        return ActivityInfo.SCREEN_ORIENTATION_USER;
     }
 
     @Override  // CanBeMainView
@@ -758,6 +751,7 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
             pos.latitude  = wairToNow.currentGPSLat;
             pos.longitude = wairToNow.currentGPSLon;
             pos.altitude  = wairToNow.currentGPSAlt;
+            pos.magvar    = wairToNow.currentMagVar;
             pos.heading   = wairToNow.currentGPSHdg;
             pos.speed     = wairToNow.currentGPSSpd;
             pos.time      = wairToNow.currentGPSTime;
@@ -832,6 +826,7 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
                             pos.heading   = Double.parseDouble (cols[1]);
                             pos.latitude  = Double.parseDouble (cols[2]);
                             pos.longitude = Double.parseDouble (cols[3]);
+                            pos.magvar    = Double.NaN;
                             pos.speed     = Double.parseDouble (cols[4]);
                             pos.time      = Long.parseLong   (cols[5]);
                             if (addPointToTrail (displaytrail, pos, INTERVALMS) |
@@ -854,7 +849,10 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
                                     text = null;
                                     switch (xpp.getName ()) {
                                         case "trkpt": {
-                                            if (pos == null) pos = new Position ();
+                                            if (pos == null) {
+                                                pos = new Position ();
+                                                pos.magvar = Double.NaN;
+                                            }
                                             pos.latitude  = Double.parseDouble (xpp.getAttributeValue (null, "lat"));
                                             pos.longitude = Double.parseDouble (xpp.getAttributeValue (null, "lon"));
                                             break;
@@ -942,6 +940,9 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
         if (trail == null) return false;
 
         if (trail.isEmpty ()) {
+            if (Double.isNaN (pos.magvar)) {
+                pos.magvar = Lib.MagVariation (pos.latitude, pos.longitude, pos.altitude, pos.time);
+            }
             trail.addLast (pos);
             return true;
         }
@@ -951,6 +952,9 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
         long lastinterval = (lastpos.time - firstpos.time) / intrvlms;
         long thisinterval = (pos.time - firstpos.time) / intrvlms;
         if (thisinterval > lastinterval) {
+            if (Double.isNaN (pos.magvar)) {
+                pos.magvar = Lib.MagVariation (pos.latitude, pos.longitude, pos.altitude, pos.time);
+            }
             trail.addLast (pos);
             return true;
         }

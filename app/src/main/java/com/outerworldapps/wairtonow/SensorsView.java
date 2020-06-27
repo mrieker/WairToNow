@@ -23,7 +23,6 @@ package com.outerworldapps.wairtonow;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.content.pm.ActivityInfo;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.os.SystemClock;
@@ -187,12 +186,6 @@ public class SensorsView
     public String GetTabName ()
     {
         return "Sensors";
-    }
-
-    @Override  // CanBeMainView
-    public int GetOrientation ()
-    {
-        return ActivityInfo.SCREEN_ORIENTATION_USER;
     }
 
     @Override  // CanBeMainView
@@ -372,7 +365,7 @@ public class SensorsView
             double speed    = wairToNow.currentGPSSpd;
             sb.append (Math.round (altitude * Lib.FtPerM));
             sb.append (" ft MSL    ");
-            sb.append (wairToNow.optionsView.HdgString (heading, latitude, longitude, altitude));
+            sb.append (wairToNow.optionsView.HdgString (heading, wairToNow.currentMagVar));
             sb.append ("    ");
             if (wairToNow.optionsView.ktsMphOption.getAlt ()) {
                 sb.append (formatter.format (speed * 3600 / Lib.MPerNM * Lib.SMPerNM));

@@ -26,7 +26,6 @@ import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.content.pm.ActivityInfo;
 import android.database.Cursor;
 import android.net.Uri;
 import android.util.Log;
@@ -114,12 +113,6 @@ public class PlanView extends WebView
     {
         goBack ();
         return this;
-    }
-
-    @Override  // CanBeMainView
-    public int GetOrientation ()
-    {
-        return ActivityInfo.SCREEN_ORIENTATION_USER;
     }
 
     @Override  // CanBeMainView

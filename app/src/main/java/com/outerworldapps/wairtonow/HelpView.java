@@ -21,7 +21,6 @@
 package com.outerworldapps.wairtonow;
 
 import android.annotation.SuppressLint;
-import android.content.pm.ActivityInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.view.View;
@@ -68,12 +67,6 @@ public class HelpView extends WebView
     {
         goBack ();
         return this;
-    }
-
-    @Override  // CanBeMainView
-    public int GetOrientation ()
-    {
-        return ActivityInfo.SCREEN_ORIENTATION_USER;
     }
 
     @Override  // CanBeMainView
@@ -128,8 +121,8 @@ public class HelpView extends WebView
             String[] lines = status.split ("\n");
             for (String line : lines) {
                 line = line.trim ();
-                if (line.startsWith ("On branch ")) {
-                    if (line.equals ("On branch github")) {
+                if (line.startsWith ("# On branch ")) {
+                    if (line.equals ("# On branch github")) {
                         String link = "https://github.com/mrieker/WairToNow/commit/" + fullhash;
                         return "<A HREF=\"" + link + "\">" + abbrhash + "</A>";
                     }

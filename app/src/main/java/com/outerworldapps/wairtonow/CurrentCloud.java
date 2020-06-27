@@ -105,12 +105,10 @@ public class CurrentCloud {
     private void DrawIt (Canvas canvas, Paint paint)
     {
         if (showGPSInfo) {
-            double altitude  = wairToNow.currentGPSAlt;
-            double heading   = wairToNow.currentGPSHdg;
-            double latitude  = wairToNow.currentGPSLat;
-            double longitude = wairToNow.currentGPSLon;
-            double speed     = wairToNow.currentGPSSpd;
-            long  time      = wairToNow.currentGPSTime;
+            double altitude = wairToNow.currentGPSAlt;
+            double heading  = wairToNow.currentGPSHdg;
+            double speed    = wairToNow.currentGPSSpd;
+            long   time     = wairToNow.currentGPSTime;
 
             int second = (int) (time / 1000 % 86400);
 
@@ -130,7 +128,7 @@ public class CurrentCloud {
             if ((gpsInfoHeading != heading) || (gpsInfoTrueOpt != trueOpt)) {
                 gpsInfoHeading = heading;
                 gpsInfoTrueOpt = trueOpt;
-                gpsInfoHdgStr  = wairToNow.optionsView.HdgString (heading, latitude, longitude, altitude);
+                gpsInfoHdgStr  = wairToNow.optionsView.HdgString (heading, wairToNow.currentMagVar);
             }
 
             if (gpsInfoAltitude != altitude) {

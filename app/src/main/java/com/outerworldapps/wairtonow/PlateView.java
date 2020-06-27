@@ -21,8 +21,6 @@
 package com.outerworldapps.wairtonow;
 
 import android.annotation.SuppressLint;
-import android.content.pm.ActivityInfo;
-import android.view.Display;
 import android.view.View;
 import android.widget.LinearLayout;
 
@@ -33,7 +31,6 @@ import android.widget.LinearLayout;
  */
 @SuppressLint("ViewConstructor")
 public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
-    private int screenOrient;
     public  PlateImage plateImage;      // displays the plate image bitmap
     private WairToNow wairToNow;
     private WaypointView waypointView;  // airport waypoint page we are part of
@@ -47,12 +44,6 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
     }
     private void construct (String fn, Waypoint.Airport aw, String pd, int ex, boolean fu)
     {
-        setOrientation (VERTICAL);
-
-        Display display = wairToNow.getWindowManager().getDefaultDisplay();
-        screenOrient = (display.getHeight () < display.getWidth ()) ?
-                ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE : ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
-
         plateImage = PlateImage.Create (wairToNow, aw, pd, ex, fn, fu);
 
         plateImage.setLayoutParams (new LayoutParams (LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
@@ -71,12 +62,6 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
     public String GetTabName ()
     {
         return waypointView.GetTabName ();
-    }
-
-    @Override  // CanBeMainView
-    public int GetOrientation ()
-    {
-        return screenOrient;
     }
 
     @Override  // CanBeMainView

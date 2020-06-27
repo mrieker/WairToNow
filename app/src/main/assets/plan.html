@@ -59,7 +59,7 @@
             {
                 var tr = document.getElementById ('linkbut_' + i);
                 tr.innerHTML =
-                    '<TD COLSPAN=3>' +
+                    '<TD COLSPAN=4>' +
                         '<FORM NAME=linkbut_' + i + '><UL>' +
                             '<LI><INPUT SIZE=60 NAME=label VALUE="' + linkbuttons[i].label + '">' +
                             '<LI><INPUT SIZE=60 NAME=link VALUE="' + linkbuttons[i].link + '">' +
@@ -87,7 +87,7 @@
             {
                 var tr = document.getElementById ('linkbut_add');
                 tr.innerHTML =
-                    '<TD COLSPAN=3>' +
+                    '<TD COLSPAN=4>' +
                         '<FORM NAME=linkbut_add><UL>' +
                             '<LI><INPUT SIZE=60 NAME=label PLACEHOLDER="Button Name">' +
                             '<LI><INPUT SIZE=60 NAME=link PLACEHOLDER="http://... or https://...">' +
@@ -134,10 +134,11 @@
                     var link  = pvjso.getLinkButtonsLink  (i);
                     linkbuttons[i] = { label: label, link: link };
                     html += '<TR ID=linkbut_' + i + '><TD><INPUT TYPE=BUTTON VALUE="' + label + '" ONCLICK="pvjso.openExternalLink(\'' + link + '\')"></TD>';
+                    html += '<TD>&nbsp;&nbsp;&nbsp;</TD>';
                     html += '<TD><INPUT TYPE=BUTTON VALUE="Edit" ONCLICK="editLinkBut(' + i + ')"></TD>';
                     html += '<TD><INPUT TYPE=BUTTON VALUE="Del" ONCLICK="delLinkBut(' + i + ')"></TD></TR>';
                 }
-                html += '<TR ID=linkbut_add><TD COLSPAN=3 ALIGN=RIGHT><INPUT TYPE=BUTTON VALUE="New" ONCLICK="addLinkBut()"></TD></TR>';
+                html += '<TR ID=linkbut_add><TD COLSPAN=4 ALIGN=RIGHT><INPUT TYPE=BUTTON VALUE="New" ONCLICK="addLinkBut()"></TD></TR>';
                 var tbl = document.getElementById ('linkbutable');
                 tbl.innerHTML = html;
             }

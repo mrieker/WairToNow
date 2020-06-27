@@ -537,32 +537,6 @@ public abstract class Waypoint {
     }
 
     /**
-     * Find airport by name, eg, "BEVERLY RGNL".
-     */
-    public static Airport GetAirportByName (String name, WairToNow wtn)
-    {
-        SQLiteDBs sqldb = openWayptDB ();
-        if (sqldb != null) {
-            try {
-                Cursor result = sqldb.query (
-                        "airports", Airport.dbcols,
-                        "apt_name=?", new String[] { name },
-                        null, null, null, null);
-                try {
-                    if (result.moveToFirst ()) {
-                        return new Airport (result, wtn);
-                    }
-                } finally {
-                    result.close ();
-                }
-            } catch (Exception e) {
-                Log.e (TAG, "error reading " + sqldb.mydbname, e);
-            }
-        }
-        return null;
-    }
-
-    /**
      * Scan database for all waypoints matching the given key.
      * @param key = keywords with all redundant spaces removed and converted to upper case
      */
@@ -852,6 +826,9 @@ public abstract class Waypoint {
     // - all others, null
     public Airport GetAirport () { return null; }
 
+    // most waypoints are not VORs
+    public boolean isAVOR () { return false; }
+
     /**
      * Get waypoints within a lat/lon area.
      */
@@ -967,7 +944,7 @@ public abstract class Waypoint {
         {
             ident    = result.getString (0);  // ICAO identifier
             faaident = result.getString (1);  // FAA identifier
-            elev     = result.isNull (2) ? ELEV_UNKNOWN : result.getDouble (2);
+            elev     = result.getDouble (2);  // feet MSL
             name     = result.getString (3);
             lat      = result.getDouble (4);
             lon      = result.getDouble (5);
@@ -1618,7 +1595,7 @@ public abstract class Waypoint {
                 "loc_type", "loc_faaid", "loc_elev",
                 "loc_name", "loc_lat", "loc_lon", "loc_thdg",
                 "gs_elev", "gs_tilt", "gs_lat", "gs_lon",
-                "dme_elev", "dme_lat", "dme_lon" };
+                "dme_elev", "dme_lat", "dme_lon", "loc_aptfid" };
 
         public String type;  // "ILS", "LOC/DME", "LOCALIZER", etc
         public String descr;
@@ -1651,14 +1628,20 @@ public abstract class Waypoint {
             this.dme_elev = result.isNull    (11) ? ELEV_UNKNOWN : result.getDouble (11);
             this.dme_lat  = result.getDouble (12);
             this.dme_lon  = result.getDouble (13);
+            String aptfid = result.getString (14);
 
-            // descr string is "<airportname> rwy <runwaynumber> - <frequency> - <cityname>"
-            // see WriteLocalizersCsv.cs
-            int i = this.descr.indexOf (" rwy ");
-            if (i >= 0) {
-                String aptname = this.descr.substring (0, i);
-                this.airport = GetAirportByName (aptname, wtn);
+            this.airport = GetAirportByIdent (aptfid, wtn);
+            if ((this.airport != null) && (this.elev == ELEV_UNKNOWN)) {
+                this.elev = this.airport.elev;
             }
+
+            if (this.elev == ELEV_UNKNOWN) {
+                short topoelev = Topography.getElevMetres (this.lat, this.lon);
+                if (topoelev == Topography.INVALID_ELEV) topoelev = 0;
+                this.elev = topoelev * Lib.FtPerM;
+            }
+
+            this.magvar = (int) Math.round (Lib.MagVariation (this.lat, this.lon, this.elev / Lib.FtPerM));
         }
 
         // make up a phony localizer pointing down the given runway
@@ -1752,11 +1735,18 @@ public abstract class Waypoint {
         {
             this.type   = result.getString (0);
             this.ident  = result.getString (1);
-            this.elev   = result.isNull (2) ? ELEV_UNKNOWN : result.getDouble (2);
             this.descr  = result.getString (3);
             this.lat    = result.getDouble (4);
             this.lon    = result.getDouble (5);
-            this.magvar = result.isNull (6) ? VAR_UNKNOWN : result.getInt (6);
+            this.magvar = result.getInt (6);
+
+            if (result.isNull (2)) {
+                short topoelev = Topography.getElevMetres (this.lat, this.lon);
+                if (topoelev == Topography.INVALID_ELEV) topoelev = 0;
+                this.elev = topoelev * Lib.FtPerM;
+            } else {
+                this.elev = result.getDouble (2);
+            }
         }
 
         @Override
@@ -1781,6 +1771,12 @@ public abstract class Waypoint {
         public String MenuKey ()
         {
             return GetDetailText ();
+        }
+
+        @Override
+        public boolean isAVOR ()
+        {
+            return type.contains ("VOR") || type.contains ("TAC");
         }
     }
 

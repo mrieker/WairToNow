@@ -25,7 +25,6 @@ import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
-import android.content.pm.ActivityInfo;
 import android.net.Uri;
 import android.text.Editable;
 import android.text.InputType;
@@ -383,12 +382,6 @@ public class WaypointView extends LinearLayout
     @Override
     public void ReClicked ()
     { }
-
-    @Override  // CanBeMainView
-    public int GetOrientation ()
-    {
-        return ActivityInfo.SCREEN_ORIENTATION_USER;
-    }
 
     @Override  // CanBeMainView
     public boolean IsPowerLocked ()
@@ -901,12 +894,6 @@ public class WaypointView extends LinearLayout
         public String GetTabName ()
         {
             return WaypointView.this.GetTabName ();
-        }
-
-        @Override  // CanBeMainView
-        public int GetOrientation ()
-        {
-            return WaypointView.this.GetOrientation ();
         }
 
         @Override  // CanBeMainView

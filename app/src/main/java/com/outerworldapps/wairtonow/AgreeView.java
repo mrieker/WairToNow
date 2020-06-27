@@ -51,12 +51,6 @@ public class AgreeView extends ScrollView implements WairToNow.CanBeMainView {
     }
 
     @Override  // CanBeMainView
-    public int GetOrientation ()
-    {
-        return ActivityInfo.SCREEN_ORIENTATION_USER;
-    }
-
-    @Override  // CanBeMainView
     public boolean IsPowerLocked ()
     {
         return false;

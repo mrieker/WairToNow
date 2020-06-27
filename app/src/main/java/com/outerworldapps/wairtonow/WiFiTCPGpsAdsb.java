@@ -62,6 +62,7 @@ public class WiFiTCPGpsAdsb extends GpsAdsbReceiver {
     private ServerSocket serverSocket;
     private String prefKey;
     private TextView btAdsbStatus;
+    private TextView netIntfsView;
 
     @SuppressLint("SetTextI18n")
     public WiFiTCPGpsAdsb (SensorsView sv, int n)
@@ -73,6 +74,7 @@ public class WiFiTCPGpsAdsb extends GpsAdsbReceiver {
         btAdsbEnable = new CheckBox (wairToNow);
         btAdsbPortNo = new EditText (wairToNow);
         btAdsbStatus = new TextView (wairToNow);
+        netIntfsView = new TextView (wairToNow);
 
         btAdsbEnable.setText ("WiFi TCP GPS/ADS-B #" + n);
 
@@ -83,6 +85,7 @@ public class WiFiTCPGpsAdsb extends GpsAdsbReceiver {
         wairToNow.SetTextSize (btAdsbEnable);
         wairToNow.SetTextSize (btAdsbPortNo);
         wairToNow.SetTextSize (btAdsbStatus);
+        wairToNow.SetTextSize (netIntfsView);
 
         TextView portnotv = new TextView (wairToNow);
         portnotv.setText (" Port");
@@ -99,6 +102,7 @@ public class WiFiTCPGpsAdsb extends GpsAdsbReceiver {
         linearLayout.addView (btAdsbStatus);
 
         createLogElements (linearLayout);
+        linearLayout.addView (netIntfsView);
 
         SharedPreferences prefs = wairToNow.getPreferences (Context.MODE_PRIVATE);
         int portno = prefs.getInt (prefKey + "PortNo", DEFAULT_PORT);
@@ -134,6 +138,7 @@ public class WiFiTCPGpsAdsb extends GpsAdsbReceiver {
     @Override  // GpsAdsbReceiver
     public View displayOpened ()
     {
+        netIntfsView.setText (NetworkInterfaces.get ());
         displayOpen = true;
         return linearLayout;
     }

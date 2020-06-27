@@ -25,11 +25,13 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.SharedPreferences;
+import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
@@ -95,6 +97,7 @@ public class WairToNow extends Activity {
     public  double currentGPSLon;    // degrees
     public  double currentGPSHdg;    // degrees true
     public  double currentGPSSpd;    // metres per second
+    public  double currentMagVar;    // degrees (maghdg = truehdg + magvar)
     public  float dotsPerInch, dotsPerInchX, dotsPerInchY;
     public  float textSize, thickLine, thinLine;
     private GlassView glassView;
@@ -436,6 +439,10 @@ public class WairToNow extends Activity {
         frameLayout.addView (menuButtonColumn);
         setContentView (frameLayout);
 
+        // so our lock/unlock screen menu will work
+        // otherwise it sees -1 and thinks screen is locked
+        setRequestedOrientation (ActivityInfo.SCREEN_ORIENTATION_USER);
+
         // set up initial active tab
         tabsVisible = prefs.getBoolean ("tabVisibility", true);
         UpdateTabVisibilities ();
@@ -641,8 +648,7 @@ public class WairToNow extends Activity {
 
             // tell the new view that it is now being displayed
             CanBeMainView cbmv = (CanBeMainView) view;
-            //noinspection ResourceType
-            setRequestedOrientation (cbmv.GetOrientation ());
+
             if (cbmv.IsPowerLocked ()) {
                 getWindow ().addFlags (WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
             } else {
@@ -786,6 +792,7 @@ public class WairToNow extends Activity {
         if (currentGPSSpd > gpsMinSpeedMPS) {
             currentGPSHdg = heading;
         }
+        currentMagVar  = Lib.MagVariation (currentGPSLat, currentGPSLon, currentGPSAlt, currentGPSTime);
 
         if (pendingCourseSetWP != null) {
             chartView.SetCourseLine (currentGPSLat, currentGPSLon, pendingCourseSetWP);
@@ -1054,43 +1061,79 @@ public class WairToNow extends Activity {
 
     // Display the main menu when the hardware menu button is clicked.
     @Override
-    public boolean onCreateOptionsMenu(Menu menu)
+    public boolean onCreateOptionsMenu (Menu menu)
     {
-        // main menu
+        return onPrepareOptionsMenu (menu);
+    }
+
+    // menu button was just clicked
+    // fill in menu based on state
+    @Override
+    public boolean onPrepareOptionsMenu (Menu menu)
+    {
+        menu.clear ();
+
         menu.add ("Chart");
-        menu.add ("<< MORE");
-        menu.add ("Hide Tabs");
-        menu.add ("Show Tabs");
-        menu.add ("Re-center");
         menu.add ("Exit");
+        menu.add ("Re-center");
+        menu.add (tabsVisible ? "Hide Tabs" : "<< MORE");
+
+        int reqori = getRequestedOrientation ();
+        if (reqori == ActivityInfo.SCREEN_ORIENTATION_USER) {
+            menu.add ("Lock Screen");
+        } else {
+            menu.add ("Unlock Screen");
+        }
 
         return true;
     }
 
     // This is called when someone clicks on an item in the
     // main menu displayed by the hardware menu button.
+    @SuppressLint("SourceLockedOrientationActivity")
     @Override
-    public boolean onOptionsItemSelected(MenuItem menuItem)
+    public boolean onOptionsItemSelected (MenuItem menuItem)
     {
-        CharSequence sel = menuItem.getTitle ();
-        if ("Chart".contentEquals (sel)) {
-            chartButton.onClick (chartButton);
+        String sel = menuItem.getTitle ().toString ();
+        switch (sel) {
+            case "Chart": {
+                chartButton.onClick (chartButton);
+                break;
+            }
+            case "Exit": {
+                MyFinish ();
+                break;
+            }
+            case "Hide Tabs": {
+                SetTabVisibility (false);
+                break;
+            }
+            case "Lock Screen": {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
+                    setRequestedOrientation (ActivityInfo.SCREEN_ORIENTATION_LOCKED);
+                } else {
+                    setRequestedOrientation (
+                            (displayHeight > displayWidth) ?
+                                    ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT :
+                                    ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+                }
+                break;
+            }
+            case "<< MORE": {
+                ShowMoreMenu ();
+                break;
+            }
+            case "Re-center": {
+                chartView.ReCenter ();
+                break;
+            }
+            case "Unlock Screen": {
+                setRequestedOrientation (ActivityInfo.SCREEN_ORIENTATION_USER);
+                break;
+            }
+            default: return false;
         }
-        if ("Exit".contentEquals (sel)) {
-            MyFinish ();
-        }
-        if ("Hide Tabs".contentEquals (sel)) {
-            SetTabVisibility (false);
-        }
-        if ("<< MORE".contentEquals (sel)) {
-            ShowMoreMenu ();
-        }
-        if ("Re-center".contentEquals (sel) && hasAgreed) {
-            chartView.ReCenter ();
-        }
-        if ("Show Tabs".contentEquals (sel)) {
-            SetTabVisibility (true);
-        }
+
         return true;
     }
 
@@ -1122,6 +1165,7 @@ public class WairToNow extends Activity {
         currentGPSLon  = prefs.getFloat ("lastKnownLon", 0);
         currentGPSSpd  = prefs.getFloat ("lastKnownSpd", 0);
         currentGPSTime = prefs.getLong ("lastKnownTime", 0);
+        currentMagVar  = Lib.MagVariation (currentGPSLat, currentGPSLon, currentGPSAlt, currentGPSTime);
     }
 
     /**
@@ -1163,6 +1207,13 @@ public class WairToNow extends Activity {
         ScrollView sv = new ScrollView (this);
         AlertDialog.Builder adb = new AlertDialog.Builder (this);
         adb.setView (sv);
+        adb.setPositiveButton ("Restore Tabs", new DialogInterface.OnClickListener () {
+            @Override
+            public void onClick (DialogInterface dialog, int which)
+            {
+                SetTabVisibility (true);
+            }
+        });
         adb.setNegativeButton ("Cancel", null);
 
         /*
@@ -1271,7 +1322,6 @@ public class WairToNow extends Activity {
      */
     public interface CanBeMainView {
         String GetTabName ();
-        int GetOrientation ();
         boolean IsPowerLocked ();
         void OpenDisplay ();
         void CloseDisplay ();

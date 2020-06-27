@@ -25,6 +25,7 @@ public class Position {
     double heading;     // degrees
     double latitude;    // degrees
     double longitude;   // degrees
+    double magvar;      // degrees (mag = true + magvar)
     double speed;       // metres per second
     long   time;        // milliseconds since Jan 1, 1970 UTC
 }

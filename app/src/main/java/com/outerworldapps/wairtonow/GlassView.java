@@ -21,7 +21,6 @@
 package com.outerworldapps.wairtonow;
 
 import android.annotation.SuppressLint;
-import android.content.pm.ActivityInfo;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -29,7 +28,6 @@ import android.graphics.Rect;
 import android.support.annotation.NonNull;
 import android.view.MotionEvent;
 import android.view.View;
-import android.view.WindowManager;
 
 import java.util.Arrays;
 import java.util.Comparator;
@@ -144,15 +142,9 @@ public class GlassView
     }
 
     @Override  // CanBeMainView
-    public int GetOrientation ()
-    {
-        return ActivityInfo.SCREEN_ORIENTATION_USER;
-    }
-
-    @Override  // CanBeMainView
     public boolean IsPowerLocked ()
     {
-        return false;
+        return true;
     }
 
     /**
@@ -167,6 +159,7 @@ public class GlassView
         p.heading   = wairToNow.currentGPSHdg;
         p.latitude  = wairToNow.currentGPSLat;
         p.longitude = wairToNow.currentGPSLon;
+        p.magvar    = wairToNow.currentMagVar;
         p.speed     = wairToNow.currentGPSSpd;
         p.time      = wairToNow.currentGPSTime;
         invalidate ();
@@ -182,26 +175,19 @@ public class GlassView
     }
 
     /**
-     * The screen is about to be made current so force portrait mode.
+     * The screen is about to be made current.
      */
     @SuppressLint("SourceLockedOrientationActivity")
     @Override  // WairToNow.CanBeMainView
     public void OpenDisplay ()
-    {
-        wairToNow.setRequestedOrientation (ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
-        if (wairToNow.optionsView.powerLockOption.checkBox.isChecked ()) {
-            wairToNow.getWindow ().addFlags (WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        }
-    }
+    { }
 
     /**
      * This screen is no longer current.
      */
     @Override  // WairToNow.CanBeMainView
     public void CloseDisplay ()
-    {
-        wairToNow.getWindow ().clearFlags (WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-    }
+    { }
 
     /**
      * Tab is being re-clicked when already active.
@@ -244,7 +230,7 @@ public class GlassView
     protected void onDraw (Canvas canvas)
     {
         Position currPos = positions[posIndex];
-        magvariation = Lib.MagVariation (currPos.latitude, currPos.longitude, currPos.altitude);
+        magvariation = currPos.magvar;
 
         int canvasWidth  = getWidth ();   // eg (600,1024)
         int canvasHeight = getHeight ();

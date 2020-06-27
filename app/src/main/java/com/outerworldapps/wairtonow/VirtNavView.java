@@ -23,7 +23,6 @@ package com.outerworldapps.wairtonow;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -49,12 +48,9 @@ public class VirtNavView extends LinearLayout
 
     private boolean oldLandscape;
     private boolean open;
-    private boolean orientLocked;
     private Button modeButton;
-    private Button orientButton;
     private CheckBox hsiCheckBox;
     private double locObsSetting;   // for ILS/LOC waypoint, corresponding OBS setting
-    private double wpmagvar;
     private NavDialView navDial;
     private PlateCIFP selectedPlateCIFP;  // non-null: CIFP tracking mode
     private String label;
@@ -107,25 +103,6 @@ public class VirtNavView extends LinearLayout
      * CanBeMainView
      **/
     public String GetTabName () { return label; }
-
-    @Override  // CanBeMainView
-    public int GetOrientation ()
-    {
-        /*
-         * Set screen orientation to match whatever button currently says.
-         */
-        switch (orientButton.getText ().toString ()) {
-            default: {  // also for "Unlkd"
-                return ActivityInfo.SCREEN_ORIENTATION_USER;
-            }
-            case "Land": {
-                return ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
-            }
-            case "Port": {
-                return ActivityInfo.SCREEN_ORIENTATION_PORTRAIT;
-            }
-        }
-    }
 
     @Override  // CanBeMainView
     public boolean IsPowerLocked ()
@@ -220,16 +197,24 @@ public class VirtNavView extends LinearLayout
         rightHalfView = chartView;
         useWaypointButtonClicked (chartView.clDest);
 
-        // set OBS setting to course line going into destination waypoint
+        // set OBS setting to course line coming out from current position to destination waypoint
         switch (navDial.getMode ()) {
             case ADF:
             case VOR: {
-                double tcfrom = Lib.LatLonTC (waypoint.lat, waypoint.lon, chartView.orgLat, chartView.orgLon);
-                double magvar = waypoint.GetMagVar (wairToNow.currentGPSAlt);
-                navDial.setObs (tcfrom + magvar + 180.0);
+                if (waypoint.isAVOR ()) {
+                    double trueradial = Lib.LatLonTC (waypoint.lat, waypoint.lon, chartView.orgLat, chartView.orgLon);
+                    double magradial = trueradial + waypoint.magvar;
+                    navDial.setObs (magradial + 180.0);
+                } else {
+                    double tcto = Lib.LatLonTC (chartView.orgLat, chartView.orgLon, waypoint.lat, waypoint.lon);
+                    double magvar = Lib.MagVariation (chartView.orgLat, chartView.orgLon,
+                            wairToNow.currentGPSAlt, wairToNow.currentGPSTime);
+                    navDial.setObs (tcto + magvar);
+                }
             }
         }
 
+        // set needle
         computeRadial ();
     }
 
@@ -289,10 +274,6 @@ public class VirtNavView extends LinearLayout
                 // set waypoint title string
                 wpIdent.setText ("CIFP: " + plateCIFP.getApproachName ());
 
-                // get magnetic variation in the neighborhood
-                Waypoint.Airport apt = (Waypoint.Airport) wp;
-                wpmagvar = Lib.MagVariation (apt.lat, apt.lon, apt.elev);
-
                 // set dial initial values
                 navDial.setMode (NavDialView.Mode.LOC);
                 computeRadial ();
@@ -341,30 +322,43 @@ public class VirtNavView extends LinearLayout
 
             // for localizer, set the mode to LOC or ILS
             // and set the obs to the localizer's course
-            wpmagvar = waypoint.GetMagVar (0);
             if (waypoint instanceof Waypoint.Localizer) {
                 Waypoint.Localizer wploc = (Waypoint.Localizer) waypoint;
                 navDial.setMode (NavDialView.Mode.LOC);
                 if (wploc.gs_elev != Waypoint.ELEV_UNKNOWN) {
                     navDial.setMode (NavDialView.Mode.ILS);
                 }
-                navDial.setObs (locObsSetting = wploc.thdg + wpmagvar);
+                locObsSetting = wploc.thdg + wploc.magvar;
+                navDial.setObs (locObsSetting);
             }
 
             // NDBs get the dial set to ADF mode
             else if (wpstr.startsWith ("NDB")) {
                 navDial.setMode (NavDialView.Mode.ADF);
-                navDial.setObs (wairToNow.currentGPSHdg +
-                        waypoint.GetMagVar (wairToNow.currentGPSAlt));
+                navDial.setObs (wairToNow.currentGPSHdg + wairToNow.currentMagVar);
             }
 
-            // everything else gets the dial set to VOR mode
+            // if VOR, set to VOR mode and set OBS to what a real VOR receiver would get
+            // for radial to the VOR.  note that this probably is not the actual heading
+            // to turn cuz it is wrong end of great circle and uses the VOR's built-in
+            // likely out-of-date magnetic variation.
+            else if (waypoint.isAVOR ()) {
+                navDial.setMode (NavDialView.Mode.VOR);
+                navDial.setObs (Lib.LatLonTC (
+                        waypoint.lat, waypoint.lon,
+                        wairToNow.currentGPSLat, wairToNow.currentGPSLon) +
+                        180.0 +
+                    waypoint.magvar);
+            }
+
+            // everything else (airports, fixes, etc) gets the dial set to VOR mode
+            // with OBS set to heading to go from current position to waypoint
             else {
                 navDial.setMode (NavDialView.Mode.VOR);
                 navDial.setObs (Lib.LatLonTC (
                         wairToNow.currentGPSLat, wairToNow.currentGPSLon,
                         waypoint.lat, waypoint.lon) +
-                    waypoint.GetMagVar (wairToNow.currentGPSAlt));
+                    wairToNow.currentMagVar);
             }
         }
 
@@ -399,7 +393,8 @@ public class VirtNavView extends LinearLayout
                     (dmeWaypoint == null) ? waypoint.ident : dmeWaypoint.ident,
                     new Waypoint.Selected () {
                         @Override
-                        public void wpSeld (Waypoint wp) {
+                        public void wpSeld (Waypoint wp)
+                        {
                             dmeWaypoint = wp;
                             dmeDisplay ();
                         }
@@ -433,7 +428,7 @@ public class VirtNavView extends LinearLayout
     }
 
     /**
-     * Screen orientaiton (portrait/landscape) just changed,
+     * Screen orientation (portrait/landscape) just changed,
      * reconfigure layout accordingly.
      * Or rebuild layout for any reason.
      */
@@ -469,7 +464,6 @@ public class VirtNavView extends LinearLayout
 
             modeButton   = findViewById (R.id.modebuttonland);
             hsiCheckBox  = findViewById (R.id.hsicheckboxland);
-            orientButton = findViewById (R.id.orientland);
             useChart     = findViewById (R.id.use_chartland);
             useFAAWP1    = findViewById (R.id.use_faawp1land);
             useFAAWP2    = findViewById (R.id.use_faawp2land);
@@ -492,7 +486,6 @@ public class VirtNavView extends LinearLayout
 
             modeButton   = findViewById (R.id.modebuttonport);
             hsiCheckBox  = findViewById (R.id.hsicheckboxport);
-            orientButton = findViewById (R.id.orientport);
             useChart     = findViewById (R.id.use_chartport);
             useFAAWP1    = findViewById (R.id.use_faawp1port);
             useFAAWP2    = findViewById (R.id.use_faawp2port);
@@ -512,7 +505,8 @@ public class VirtNavView extends LinearLayout
         wpIdent.setTextSize (TypedValue.COMPLEX_UNIT_PX, wairToNow.textSize * 1.5F);
         wpIdent.setOnClickListener (new OnClickListener () {
             @Override
-            public void onClick (View view) {
+            public void onClick (View view)
+            {
                 wpIdentClicked ();
             }
         });
@@ -520,7 +514,8 @@ public class VirtNavView extends LinearLayout
         wairToNow.SetTextSize (modeButton);
         modeButton.setOnClickListener (new OnClickListener () {
             @Override
-            public void onClick (View view) {
+            public void onClick (View view)
+            {
                 modeButtonClicked ();
             }
         });
@@ -528,20 +523,11 @@ public class VirtNavView extends LinearLayout
         wairToNow.SetTextSize (hsiCheckBox);
         hsiCheckBox.setOnClickListener (new OnClickListener () {
             @Override
-            public void onClick (View view) {
+            public void onClick (View view)
+            {
                 navDial.hsiEnable = hsiCheckBox.isChecked ();
                 setHSIPreference (navDial.hsiEnable);
                 computeRadial ();
-            }
-        });
-
-        wairToNow.SetTextSize (orientButton);
-        setOrientButtonText ();
-        orientButton.setOnClickListener (new OnClickListener () {
-            @Override
-            public void onClick (View view)
-            {
-                orientButtonClicked ();
             }
         });
 
@@ -634,56 +620,6 @@ public class VirtNavView extends LinearLayout
     }
 
     /**
-     * Step orientation each time button is clicked.
-     */
-    private void orientButtonClicked ()
-    {
-        /*
-         * Step orientation and set screen accordingly.
-         */
-        orientLocked = !orientLocked;
-        if (orientLocked) {
-            wairToNow.setRequestedOrientation (oldLandscape ?
-                    ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE :
-                    ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
-        } else {
-            wairToNow.setRequestedOrientation (ActivityInfo.SCREEN_ORIENTATION_USER);
-        }
-
-        /*
-         * Update text on button to indicate new setting.
-         */
-        setOrientButtonText ();
-    }
-
-    /**
-     * Set text on button to match what the screen orientation currently is.
-     */
-    @SuppressLint({ "SetTextI18n", "SwitchIntDef" })
-    private void setOrientButtonText ()
-    {
-        int orientation = wairToNow.getRequestedOrientation ();
-        switch (orientation) {
-            case ActivityInfo.SCREEN_ORIENTATION_USER: {
-                orientButton.setText ("Unlkd");
-                break;
-            }
-            case ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE: {
-                orientButton.setText ("Land");
-                break;
-            }
-            case ActivityInfo.SCREEN_ORIENTATION_PORTRAIT: {
-                orientButton.setText ("Port");
-                break;
-            }
-            default: {
-                orientButton.setText ("<<" + orientation + ">>");
-                break;
-            }
-        }
-    }
-
-    /**
      * If ident box clicked, prompt user to enter new waypoint.
      */
     private void wpIdentClicked ()
@@ -694,7 +630,8 @@ public class VirtNavView extends LinearLayout
                 (waypoint == null) ? "" : waypoint.ident,
                 new Waypoint.Selected () {
                     @Override
-                    public void wpSeld (Waypoint wp) {
+                    public void wpSeld (Waypoint wp)
+                    {
                         useWaypointButtonClicked (wp);
                     }
                     @Override
@@ -784,8 +721,14 @@ public class VirtNavView extends LinearLayout
                 // VOR mode - needle deflection is difference of magnetic course from waypoint to aircraft
                 //            and the OBS setting
                 case VOR: {
-                    double radial = Lib.LatLonTC (waypoint.lat, waypoint.lon, wairToNow.currentGPSLat, wairToNow.currentGPSLon);
-                    radial += wpmagvar;
+                    double radial;
+                    if (waypoint.isAVOR ()) {
+                        radial  = Lib.LatLonTC (waypoint.lat, waypoint.lon, wairToNow.currentGPSLat, wairToNow.currentGPSLon);
+                        radial += waypoint.magvar;
+                    } else {
+                        radial  = Lib.LatLonTC (wairToNow.currentGPSLat, wairToNow.currentGPSLon, waypoint.lat, waypoint.lon);
+                        radial += wairToNow.currentMagVar + 180.0;
+                    }
                     navDial.setDeflect (navDial.getObs () - radial);
                     status.append ("  Radial From: ");
                     hdgString (status, radial);
@@ -796,25 +739,26 @@ public class VirtNavView extends LinearLayout
                     break;
                 }
 
-                // ADF mode - needle deflection is difference of true course from waypoint to aircraft
+                // ADF mode - needle deflection is difference of true course from aircraft to waypoint
                 //            and true heading
                 case ADF: {
-                    double radial = Lib.LatLonTC (waypoint.lat, waypoint.lon, wairToNow.currentGPSLat, wairToNow.currentGPSLon);
-                    radial -= wairToNow.currentGPSHdg;
-                    navDial.setDeflect (radial + 180);
+                    double relbrgto = Lib.LatLonTC (
+                            wairToNow.currentGPSLat, wairToNow.currentGPSLon,
+                            waypoint.lat, waypoint.lon) - wairToNow.currentGPSHdg;
+                    navDial.setDeflect (relbrgto);
                     status.append ("  Rel Brng From: ");
-                    hdgString (status, radial);
+                    hdgString (status, relbrgto + 180);
                     status.append ("  To: ");
-                    hdgString (status, radial + 180);
+                    hdgString (status, relbrgto);
                     dmeDisplay ();
 
                     // put airplane always in straight-ahead position
                     boolean valid = wairToNow.currentGPSSpd > WairToNow.gpsMinSpeedMPS;
                     navDial.setHeading (valid ? 0.0 : NavDialView.NOHEADING);
                     // HSI mode means lock OBS to actual ground track heading
+                    // non-HSI mode looks the same except can finger-rotate the dial
                     if (valid && hsiCheckBox.isChecked ()) {
-                        double currentMH = wairToNow.currentGPSHdg + Lib.MagVariation (wairToNow.currentGPSLat,
-                                wairToNow.currentGPSLon, wairToNow.currentGPSAlt);
+                        double currentMH = wairToNow.currentGPSHdg + wairToNow.currentMagVar;
                         navDial.setObs (currentMH);
                     }
                     break;
@@ -842,8 +786,8 @@ public class VirtNavView extends LinearLayout
                     status.append ('\u00B0');
                     double descrate = Math.tan (Math.toRadians (loc.gs_tilt)) * wairToNow.currentGPSSpd * Lib.FtPerM * 60.0;
                     navDial.gsfpm   = (int) - Math.round (descrate);
-                    double tctoloc  = Lib.LatLonTC (wairToNow.currentGPSLat, wairToNow.currentGPSLon, loc.lat, loc.lon);
-                    double factor   = Math.cos (Math.toRadians (tctoloc - loc.thdg));
+                    double tctogsan = Lib.LatLonTC (wairToNow.currentGPSLat, wairToNow.currentGPSLon, loc.gs_lat, loc.gs_lon);
+                    double factor   = Math.cos (Math.toRadians (tctogsan - loc.thdg));
                     double horizfromant_nm = Lib.LatLonDist (wairToNow.currentGPSLat, wairToNow.currentGPSLon, loc.gs_lat, loc.gs_lon) * factor;
                     double aboveantenna_ft = wairToNow.currentGPSAlt * Lib.FtPerM - loc.gs_elev;
                     double degaboveantenna = Math.toDegrees (Math.atan2 (aboveantenna_ft, horizfromant_nm * Lib.MPerNM * Lib.FtPerM));
@@ -868,9 +812,9 @@ public class VirtNavView extends LinearLayout
     {
         Waypoint.Localizer loc = (Waypoint.Localizer) waypoint;
         status.append ("  Loc Hdg: ");
-        hdgString (status, loc.thdg + wpmagvar);
+        hdgString (status, loc.thdg + loc.magvar);  // theoretically what is on plate
         double tctoloc = Lib.LatLonTC (wairToNow.currentGPSLat, wairToNow.currentGPSLon, loc.lat, loc.lon);
-        navDial.setDeflect ((tctoloc - loc.thdg) * bc);
+        navDial.setDeflect ((tctoloc - loc.thdg) * bc);  // what a real loc rcvr would show
         dmeDisplay ();
         currentHeading ();
         return loc;
@@ -882,8 +826,7 @@ public class VirtNavView extends LinearLayout
     private void currentHeading ()
     {
         if (wairToNow.currentGPSSpd > WairToNow.gpsMinSpeedMPS) {
-            double currentMH = wairToNow.currentGPSHdg + Lib.MagVariation (wairToNow.currentGPSLat,
-                    wairToNow.currentGPSLon, wairToNow.currentGPSAlt);
+            double currentMH = wairToNow.currentGPSHdg + wairToNow.currentMagVar;
             navDial.setHeading (currentMH - navDial.getObs ());
         } else {
             navDial.setHeading (NavDialView.NOHEADING);

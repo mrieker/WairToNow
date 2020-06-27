@@ -25,7 +25,6 @@
 package com.outerworldapps.wairtonow;
 
 import android.annotation.SuppressLint;
-import android.content.pm.ActivityInfo;
 import android.util.Log;
 import android.view.View;
 import android.webkit.WebView;
@@ -87,12 +86,6 @@ public class OfflineFPFormView extends WebView implements WairToNow.CanBeMainVie
     @Override
     public String GetTabName () {
         return "Plan";
-    }
-
-    @Override
-    public int GetOrientation ()
-    {
-        return ActivityInfo.SCREEN_ORIENTATION_USER;
     }
 
     @Override

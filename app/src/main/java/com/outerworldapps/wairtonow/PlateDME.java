@@ -183,7 +183,7 @@ public class PlateDME {
      * Draw DME strings in lower left corner.
      * If no DME strings enabled, draw a little button to open menu.
      */
-    public void DrawDMEs (Canvas canvas, double gpslat, double gpslon, double gpsalt, long gpstime)
+    public void DrawDMEs (Canvas canvas, double gpslat, double gpslon, double gpsalt, long gpstime, double gpsmv)
     {
         int canvasHeight = plateView.getHeight ();
 
@@ -314,14 +314,18 @@ public class PlateDME {
                     }
 
                     // get what radial we are on from the navaid (should match what's on an IAP plate)
+                    // if waypoint is a vor, use what a real vor receiver would show
+                    // if not, use what a compass in the aircraft would show
                     if ((checked & DMECB_RADL) != 0) {
-                        double hdgDeg = Lib.LatLonTC (wp.lat, wp.lon, gpslat, gpslon);
-                        double varDeg = (wp.magvar == Waypoint.VAR_UNKNOWN) ? Lib.MagVariation (wp.lat, wp.lon, wp.elev) : wp.magvar;
-                        int hdgMag = (int) (Math.round (hdgDeg + varDeg) + 359) % 360 + 1;
-                        int len = sb.length ();
-                        sb.append (Integer.toString (hdgMag + 1000).substring (1));
+                        double hdgDeg = wp.isAVOR () ?
+                                Lib.LatLonTC (wp.lat, wp.lon, gpslat, gpslon) + wp.magvar :
+                                Lib.LatLonTC (gpslat, gpslon, wp.lat, wp.lon) + 180.0 + gpsmv;
+                        int hdgMag = (int) (Math.round (hdgDeg) + 359) % 360 + 1;
+                        sb.append (' ');
+                        sb.append ((char) ('0' + hdgMag / 100));
+                        sb.append ((char) ('0' + hdgMag / 10 % 10));
+                        sb.append ((char) ('0' + hdgMag % 10));
                         sb.append ((char) 0x00B0);
-                        while (sb.length () - len < 5) sb.insert (len, ' ');
                     }
 
                     // display resultant string
