@@ -319,7 +319,7 @@ public class NavDialView extends View {
             }
 
             case MotionEvent.ACTION_MOVE: {
-                if ((mode == Mode.VOR) || ((mode == Mode.ADF) && !hsiEnable)) {
+                if ((mode == Mode.VOR) || (mode == Mode.ADF)) {
                     double moveX    = event.getX ();
                     double moveY    = event.getY ();
                     double centerX  = getWidth ()  / 2.0;
@@ -378,6 +378,9 @@ public class NavDialView extends View {
         canvas.translate (lastWidth / 2, lastHeight / 2);
         canvas.scale (lastScale, lastScale);
 
+        // ADF draws DME unrotated no matter what
+        if (mode == Mode.ADF) drawDMEInfo (canvas, dmeDigitPaint, dmeIdentPaint);
+
         // maybe rotate whole mess for HSI mode
         canvas.save ();
         lastRotate = 0.0F;
@@ -386,14 +389,14 @@ public class NavDialView extends View {
             canvas.rotate (lastRotate);
         }
 
+        // draw DME information if enabled
+        if (mode != Mode.ADF) drawDMEInfo (canvas, dmeDigitPaint, dmeIdentPaint);
+
         // draw outer ring
         canvas.drawCircle (0, 0, 1000, outerRingPaint);
 
         // draw OBS arrow triangle
         canvas.drawPath (obsArrowPath, obsArrowPaint);
-
-        // draw DME information if enabled
-        drawDMEInfo (canvas, dmeDigitPaint, dmeIdentPaint);
 
         // VOR/LOC-style deflection dots and needle
         if ((mode == Mode.VOR) || (mode == Mode.LOC) || (mode == Mode.LOCBC) || (mode == Mode.ILS)) {
@@ -444,6 +447,14 @@ public class NavDialView extends View {
             canvas.drawLine ((float) needleLeftX, (float) needleCentY, (float) needleRiteX, (float) needleCentY, vorNeedlePaint);
         }
 
+        // ADF-style needle
+        if (mode == Mode.ADF) {
+            canvas.save ();
+            canvas.rotate ((float) deflect);
+            canvas.drawPath (adfNeedlePath, adfNeedlePaint);
+            canvas.restore ();
+        }
+
         // cover up end of VOR-style needle in case it goes under dial
         canvas.drawCircle (0, 0, 718, dialBackPaint);
 
@@ -475,14 +486,6 @@ public class NavDialView extends View {
             canvas.rotate (5.0F);
         }
         canvas.restore ();
-
-        // ADF-style needle
-        if (mode == Mode.ADF) {
-            canvas.save ();
-            canvas.rotate ((float) deflect);
-            canvas.drawPath (adfNeedlePath, adfNeedlePaint);
-            canvas.restore ();
-        }
 
         // heading arrow
         if (heading != NOHEADING) {

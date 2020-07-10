@@ -237,6 +237,7 @@ public class PlateDME {
             canvas.drawRect (dmeButtonBounds, dmeBGPaint);
 
             // draw DME strings
+            int[] slants = new int[6];
             for (String dmeIdent : dmeCheckboxeses.keySet ()) {
                 DMECheckboxes dmecb = dmeCheckboxeses.nnget (dmeIdent);
                 int checked = dmecb.getChecked ();
@@ -245,35 +246,35 @@ public class PlateDME {
                     StringBuilder sb = new StringBuilder (numidchars + numnumchrs);
                     sb.append (dmeIdent);
                     while (sb.length () < numidchars) sb.append (' ');
+                    int nslants = 0;
 
                     // distance (in nautical miles) to DME station
                     double dmeelev = wp.GetDMEElev ();
                     double dmelat  = wp.GetDMELat  ();
                     double dmelon  = wp.GetDMELon  ();
                     double distBin = Lib.LatLonDist (gpslat, gpslon, dmelat, dmelon);
-                    boolean slantRange = false;
-                    int slantRangeBeg = 0;
-                    int slantRangeEnd = 0;
+                    boolean dmeSlantRange = false;
                     if (dmeelev != Waypoint.ELEV_UNKNOWN) {
-                        distBin = Math.hypot (distBin, (gpsalt - dmeelev / Lib.FtPerM) / Lib.MPerNM);
-                        slantRange = true;
+                        distBin = Math.hypot (distBin, gpsalt / Lib.MPerNM - dmeelev / Lib.FtPerNM);
+                        dmeSlantRange = true;
                     }
                     if ((checked & DMECB_DIST) != 0) {
-                        slantRangeBeg = sb.length ();
-                        int dist10Bin = (int) (distBin * 10 + 0.5);
-                        int len = sb.length ();
+                        if (dmeSlantRange) slants[nslants++] = sb.length ();
+                        int dist10Bin = (int) Math.round (distBin * 10);
                         if (dist10Bin > 9999) {
-                            sb.append ("--.-");
+                            sb.append (" --.-");
                         } else {
+                            if (dist10Bin < 1000) sb.append (' ');
+                            if (dist10Bin <  100) sb.append (' ');
                             sb.append (dist10Bin / 10);
                             sb.append ('.');
                             sb.append (dist10Bin % 10);
                         }
-                        while (sb.length () - len < 5) sb.insert (len, ' ');
-                        slantRangeEnd = sb.length ();
+                        if (dmeSlantRange) slants[nslants++] = sb.length ();
                     }
 
                     // compute nautical miles per second we are closing in on the station
+                    // ...like a real DME box would
                     if (dmecb.dmeLastTime != 0) {
                         long dtms = gpstime - dmecb.dmeLastTime;
                         if (dtms > 0) dmecb.dmeLastSpeed = (dmecb.dmeLastDist - distBin) * 1000.0 / dtms;
@@ -287,6 +288,7 @@ public class PlateDME {
 
                     // see if user wants time-to-station displayed
                     if ((checked & DMECB_TIME) != 0) {
+                        if (dmeSlantRange) slants[nslants++] = sb.length ();
                         int len1 = sb.length ();
 
                         // make sure heading is valid and that the divide below won't overflow
@@ -294,7 +296,7 @@ public class PlateDME {
 
                             // how many seconds TO the DME antenna
                             // negative means it is behind us
-                            int seconds = (int) (distBin / dmecb.dmeLastSpeed + 0.5);
+                            int seconds = (int) Math.round (distBin / dmecb.dmeLastSpeed);
 
                             // we do from -99:59 to 99:59
                             if ((seconds > -6000) && (seconds < 6000)) {
@@ -311,37 +313,50 @@ public class PlateDME {
                         }
                         if (sb.length () == len1) sb.append ("--:--");
                         while (sb.length () - len1 < 6) sb.insert (len1, ' ');
+                        if (dmeSlantRange) slants[nslants++] = sb.length ();
                     }
 
                     // get what radial we are on from the navaid (should match what's on an IAP plate)
                     // if waypoint is a vor, use what a real vor receiver would show
                     // if not, use what a compass in the aircraft would show
                     if ((checked & DMECB_RADL) != 0) {
-                        double hdgDeg = wp.isAVOR () ?
+                        boolean radSlantRange = wp.isAVOR ();
+                        double hdgDeg = radSlantRange ?
                                 Lib.LatLonTC (wp.lat, wp.lon, gpslat, gpslon) + wp.magvar :
                                 Lib.LatLonTC (gpslat, gpslon, wp.lat, wp.lon) + 180.0 + gpsmv;
                         int hdgMag = (int) (Math.round (hdgDeg) + 359) % 360 + 1;
+                        if (radSlantRange) slants[nslants++] = sb.length ();
                         sb.append (' ');
                         sb.append ((char) ('0' + hdgMag / 100));
                         sb.append ((char) ('0' + hdgMag / 10 % 10));
                         sb.append ((char) ('0' + hdgMag % 10));
                         sb.append ((char) 0x00B0);
+                        if (radSlantRange) slants[nslants++] = sb.length ();
                     }
 
                     // display resultant string
                     dmey += Math.ceil (dmeTextHeight);
-                    String str = sb.toString ();
-                    if (slantRange) {
-                        double x = dmex;
-                        canvas.drawText (str, 0, slantRangeBeg, (float) x, (float) dmey, dmeTxPaint);
-                        x += dmeTxPaint.measureText (str, 0, slantRangeBeg);
+                    int j = 0;
+                    float x = dmex;
+                    for (int i = 0; i < nslants;) {
+                        int slantBeg = slants[i++];
+                        int slantEnd = slants[i++];
+                        while ((i < nslants) && (slants[i] == slantEnd)) {
+                            i ++;
+                            slantEnd = slants[i++];
+                        }
+                        if (j < slantBeg) {
+                            canvas.drawText (sb, j, slantBeg, x, dmey, dmeTxPaint);
+                            x += dmeTxPaint.measureText (sb, j, slantBeg);
+                        }
                         dmeTxPaint.setTextSkewX (-0.25F);
-                        canvas.drawText (str, slantRangeBeg, slantRangeEnd, (float) x, (float) dmey, dmeTxPaint);
-                        x += dmeTxPaint.measureText (str, slantRangeBeg, slantRangeEnd);
+                        canvas.drawText (sb, slantBeg, slantEnd, x, dmey, dmeTxPaint);
+                        x += dmeTxPaint.measureText (sb, slantBeg, slantEnd);
                         dmeTxPaint.setTextSkewX (0.0F);
-                        canvas.drawText (str, slantRangeEnd, str.length (), (float) x, (float) dmey, dmeTxPaint);
-                    } else {
-                        canvas.drawText (str, dmex, dmey, dmeTxPaint);
+                        j  = slantEnd;
+                    }
+                    if (j < sb.length ()) {
+                        canvas.drawText (sb, j, sb.length (), x, dmey, dmeTxPaint);
                     }
                 }
             }

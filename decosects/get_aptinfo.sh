@@ -175,7 +175,9 @@ then
     #  Generate SQLite databases for downloading
     #
     mono --debug MakeWaypoints.exe $expdate
+    mono --debug MakeWaypoints.exe $expdate 1
     gzip datums/waypoints_$expdate.db
+    gzip datums/wayptabbs_$expdate.db
 fi
 
 #

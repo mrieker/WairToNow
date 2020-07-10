@@ -48,10 +48,21 @@
         <P>There are also 3 checkboxes provided for each waypoint selected:</P>
         <UL>
             <LI><B>D</B> - display distance information, always in nautical miles
+                <UL>
+                    <LI><I>italics</I> represents slant-range distance where the waypoint
+                        elevation is available
+                    <LI>otherwise over-the-ground distance is
+                        displayed using normal text
+                </UL>
             <LI><B>T</B> - display time-to-waypoint information, in minutes:seconds
-                            (negative means the waypoint is behind you)
+                at the present closing rate (negative means the waypoint is behind you)
             <LI><B>R</B> - display radial FROM information, always in magnetic degrees
-                            (useful for validating cross-radials along the approach course)
+                (useful for validating cross-radials along the approach course)
+                <UL>
+                    <LI><I>italics</I> represents VOR radial as a real VOR receiver would display
+                    <LI>otherwise it is the bearing from the waypoint (as would be
+                        indicated by a compass in the aircraft) in normal text
+                </UL>
         </UL>
         <P>If you do not check any boxes, <B>D</B> will be assumed.</P>
         <P>The text is formatted in the box to minimize screen area consumed.</P>

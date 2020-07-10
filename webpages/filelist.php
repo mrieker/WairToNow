@@ -44,6 +44,21 @@
             }
         }
         echo "datums/waypoints_$cycles28.db.gz\n";
+    } else if ($undername == 'Wayptabbs') {
+
+        /*
+         * Wayptabbs (gives lat/lon of all wayptabbs):
+         *   the datums/wayptabbs_<expdate>.db.gz file
+         */
+        $dir_entries = scandir ('datums');
+        $cycles28 = 0;
+        foreach ($dir_entries as $dir_entry) {
+            if (strpos ($dir_entry, 'wayptabbs_') === 0) {
+                $xd = intval (substr ($dir_entry, 10, 8));
+                if ($cycles28 < $xd) $cycles28 = $xd;
+            }
+        }
+        echo "datums/wayptabbs_$cycles28.db.gz\n";
     } else if ($undername == 'Obstructions') {
 
         /*

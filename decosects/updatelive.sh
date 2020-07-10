@@ -133,6 +133,7 @@ processdatums datums/obstructions_   .db.gz
 processdatums datums/runways_        .csv
 processdatums datums/statezips_
 processdatums datums/waypoints_      .db.gz
+processdatums datums/wayptabbs_      .db.gz
 
 find . -mindepth 1 -maxdepth 1 -type f -exec cp -au {} $outroot/../decosects/ \;
 

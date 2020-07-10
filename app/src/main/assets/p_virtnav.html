@@ -41,7 +41,26 @@
                 you want to, for example, use an ADF dial to navigate to a VOR navaid, just click
                 the mode button in the upper left corner to select ADF mode.</LI>
         </OL>
-
+        Note:
+        <UL>
+            <LI>When in VOR mode tuned to a VOR navaid, the radials used are those that would be
+                seen by a VOR receiver in the aircraft.  This is indicated by the italics
+                <B><I>Radial From: ...&#176; To: ...&#176;</I></B> text.  It is computed by taking
+                the great circle
+                bearing at the VOR to the aircraft, using the magnetic variation programmed into
+                the VOR by the FAA.
+            <LI>In all other cases, the radial used is as would
+                be seen from the aircraft using the aircraft compass.  It is indicated by normal
+                <B>Radial From: ...&#176; To: ...&#176;</B> text.  It is computed by taking the
+                reciprocal of the
+                great circle bearing at the aircraft to the waypoint, using the magnetic variation
+                at the aircraft (as would be experienced by the aircraft's compass).
+            <LI>For short distances (< 200nm), it does not make a difference.  But coast-to-coast
+                can be significant.  Here is example of from the Boston area to San Francisco using
+                the SFO VOR and the KSFO airport:<BR>
+                <IMG SRC="bvy-sfo-vor.png" WIDTH=200 HEIGHT=320>
+                <IMG SRC="bvy-ksfo-apt.png" WIDTH=200 HEIGHT=320>
+        </UL>
         <H3>Localizer and ILS</H3>
         <P>Similarly, you can tune in a localizer or ILS.  It will by default set the display to
             LOC or ILS mode, depending on the beacon type.  When the display is in LOC or ILS mode,

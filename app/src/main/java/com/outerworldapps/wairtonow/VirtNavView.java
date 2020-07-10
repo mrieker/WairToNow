@@ -26,7 +26,10 @@ import android.content.SharedPreferences;
 import android.content.res.Configuration;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Typeface;
 import android.text.SpannableStringBuilder;
+import android.text.Spanned;
+import android.text.style.StyleSpan;
 import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -198,6 +201,7 @@ public class VirtNavView extends LinearLayout
         useWaypointButtonClicked (chartView.clDest);
 
         // set OBS setting to course line coming out from current position to destination waypoint
+        // except for VORs it should be the radial that a real VOR receiver would center on
         switch (navDial.getMode ()) {
             case ADF:
             case VOR: {
@@ -722,7 +726,8 @@ public class VirtNavView extends LinearLayout
                 //            and the OBS setting
                 case VOR: {
                     double radial;
-                    if (waypoint.isAVOR ()) {
+                    boolean isavor = waypoint.isAVOR ();
+                    if (isavor) {
                         radial  = Lib.LatLonTC (waypoint.lat, waypoint.lon, wairToNow.currentGPSLat, wairToNow.currentGPSLon);
                         radial += waypoint.magvar;
                     } else {
@@ -730,37 +735,35 @@ public class VirtNavView extends LinearLayout
                         radial += wairToNow.currentMagVar + 180.0;
                     }
                     navDial.setDeflect (navDial.getObs () - radial);
+                    int beg = status.length ();
                     status.append ("  Radial From: ");
                     hdgString (status, radial);
                     status.append ("  To: ");
                     hdgString (status, radial + 180);
+                    if (isavor) {
+                        StyleSpan italics = new StyleSpan (Typeface.ITALIC);
+                        int end = status.length ();
+                        status.setSpan (italics, beg, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    }
                     dmeDisplay ();
                     currentHeading ();
                     break;
                 }
 
-                // ADF mode - needle deflection is difference of true course from aircraft to waypoint
-                //            and true heading
+                // ADF mode - point green needle to course to beacon based on OBS dial
+                //            HSI: keep airplane (current track) at top
+                //        non-HSI: keep yellow triangle (OBS) at top
                 case ADF: {
-                    double relbrgto = Lib.LatLonTC (
+                    double magbrgto = Lib.LatLonTC (
                             wairToNow.currentGPSLat, wairToNow.currentGPSLon,
-                            waypoint.lat, waypoint.lon) - wairToNow.currentGPSHdg;
-                    navDial.setDeflect (relbrgto);
-                    status.append ("  Rel Brng From: ");
-                    hdgString (status, relbrgto + 180);
-                    status.append ("  To: ");
-                    hdgString (status, relbrgto);
+                            waypoint.lat, waypoint.lon) + wairToNow.currentMagVar;
+                    navDial.setDeflect (magbrgto - navDial.getObs ());
+                    status.append ("  Brng To: ");
+                    hdgString (status, magbrgto);
+                    status.append ("  From: ");
+                    hdgString (status, magbrgto + 180);
                     dmeDisplay ();
-
-                    // put airplane always in straight-ahead position
-                    boolean valid = wairToNow.currentGPSSpd > WairToNow.gpsMinSpeedMPS;
-                    navDial.setHeading (valid ? 0.0 : NavDialView.NOHEADING);
-                    // HSI mode means lock OBS to actual ground track heading
-                    // non-HSI mode looks the same except can finger-rotate the dial
-                    if (valid && hsiCheckBox.isChecked ()) {
-                        double currentMH = wairToNow.currentGPSHdg + wairToNow.currentMagVar;
-                        navDial.setObs (currentMH);
-                    }
+                    currentHeading ();
                     break;
                 }
 

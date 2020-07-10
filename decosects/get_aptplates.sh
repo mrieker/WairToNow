@@ -30,6 +30,14 @@ function postprocessonestate
 
 # Start of script
 
+if [ "$1" == "renamepdf" ]
+then
+    lcpdf=$2
+    ucpdf=${lcpdf/[.]pdf/.PDF}
+    mv -v $lcpdf $ucpdf
+    exit
+fi
+
 if [ cureffdate -ot cureffdate.c ]
 then
     cc -o cureffdate cureffdate.c
@@ -64,6 +72,7 @@ do
         unzip -n -q -d datums/aptplates_$expdate/pdftemp datums/DDTPP${fid}_$expdate.zip d-TPP_Metafile.xml
     else
         unzip -n -q -d datums/aptplates_$expdate/pdftemp datums/DDTPP${fid}_$expdate.zip
+        find datums/aptplates_$expdate/pdftemp -name \*.pdf -exec ./get_aptplates.sh renamepdf {} \;
     fi
 done
 

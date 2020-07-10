@@ -93,7 +93,8 @@ public class WriteNavaidsCsv {
                 rwyid  = line.Substring (15,  3).Trim ();
                 name   = line.Substring (44, 50).Trim () + " rwy " + rwyid;  // airport name and runway number
                 city   = line.Substring (94, 40).Trim () + ", " + line.Substring (136, 20).Trim ();   // city and state
-                thdg   = Double.Parse (line.Substring (281, 6).Trim ()) - ParseVariation (line.Substring (287, 3).Trim ());
+                magvar = ParseVariation (line.Substring (287, 3).Trim ());
+                thdg   = Double.Parse (line.Substring (281, 6).Trim ()) - magvar;
                 aptid  = line.Substring (159, 3).Trim ();
             }
             if (line.StartsWith ("ILS2")) {

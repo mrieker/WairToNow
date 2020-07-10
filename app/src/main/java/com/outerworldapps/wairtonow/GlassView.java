@@ -30,6 +30,7 @@ import android.view.MotionEvent;
 import android.view.View;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Comparator;
 
 /**
@@ -50,6 +51,8 @@ public class GlassView
     private double magvariation;
     private int posIndex = 0;
     private int gsalt, tdze;
+    private int rwNumCanHeight;
+    private int rwNumCanWidth;
     private Paint dgPaintBack    = new Paint ();
     private Paint dgPaintHSI     = new Paint ();
     private Paint dgPaintHSV     = new Paint ();
@@ -291,37 +294,36 @@ public class GlassView
 
         /*
          * Display destination approach selector boxes.
+         * Re-draw if different airport selected or screen orientation changed.
          */
         Waypoint clDest = wairToNow.chartView.clDest;
-        if (clDest != null) {
-            if (!(clDest instanceof Waypoint.Airport)) clDest = null;
-            if (dstAirport != clDest) {
-                dstAirport = (Waypoint.Airport) clDest;
-                rwNumbers  = null;
-                if (dstAirport != null) {
-                    int n = dstAirport.GetRunways ().values ().size ();
-                    if (n > 0) {
-                        rwNumbers = new RWNumber[n+1];
-                        n = 0;
-                        rwNumbers[n++] = new RWNumber ();
-                        for (Waypoint.Runway rw : dstAirport.GetRunways ().values ()) {
-                            rwNumbers[n] = new RWNumber ();
-                            rwNumbers[n].rw = rw;
-                            n ++;
-                        }
-                        Arrays.sort (rwNumbers, 0, n, compareRWNumbers);
-                        for (int i = 0; i < n; i ++) {
-                            rwNumbers[i].x = (int)(canvasWidth * (i + 0.5f) / n + 0.5);
-                            rwNumbers[i].y = appRwayY;
-                        }
-                        appRunway = rwNumbers[0];  // default to enroute mode
-                    }
-                }
+        if (!(clDest instanceof Waypoint.Airport)) clDest = null;
+        if ((dstAirport != clDest) || (rwNumCanHeight != canvasHeight) || (rwNumCanWidth != canvasWidth)) {
+            dstAirport     = (Waypoint.Airport) clDest;
+            rwNumCanHeight = canvasHeight;
+            rwNumCanWidth  = canvasWidth;
+            rwNumbers      = null;
+        }
+        if ((dstAirport != null) && (rwNumbers == null)) {
+            Collection<Waypoint.Runway> runways = dstAirport.GetRunways ().values ();
+            rwNumbers = new RWNumber[runways.size()+1];
+            int n = 0;
+            rwNumbers[n++] = new RWNumber ();
+            for (Waypoint.Runway rw : runways) {
+                rwNumbers[n] = new RWNumber ();
+                rwNumbers[n].rw = rw;
+                n ++;
             }
-            if (rwNumbers != null) {
-                for (RWNumber rwn : rwNumbers) {
-                    rwn.Draw (canvas);
-                }
+            Arrays.sort (rwNumbers, 0, n, compareRWNumbers);
+            for (int i = 0; i < n; i ++) {
+                rwNumbers[i].x = (int)(canvasWidth * (i + 0.5f) / n + 0.5);
+                rwNumbers[i].y = appRwayY;
+            }
+            appRunway = rwNumbers[0];  // default to enroute mode
+        }
+        if (rwNumbers != null) {
+            for (RWNumber rwn : rwNumbers) {
+                rwn.Draw (canvas);
             }
         }
 

@@ -26,6 +26,7 @@ import android.util.Log;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedList;
 
 /**
  * Check for obstacle and terrain collisions.
@@ -36,10 +37,12 @@ public class CollDetThread extends Thread {
     public final static String TAG = "WairToNow";
 
     private final static int minsecswarn = 10;
-    private final static int maxsecswarn = 120;
+    private final static int maxsecswarn = 90;
     private final static int sweepdegs   = 30;
     private final static int runwaydegs  = 15;
     private final static int padding_met = 10;
+    private final static int nearbyaptnm = 2;
+    private final static int minrwylenft = 1500;
 
     private static class Cache {
         int cycle;      // cycle last used
@@ -47,17 +50,22 @@ public class CollDetThread extends Thread {
         boolean rwy;    // has a runway
     }
 
+    private int nearbyaptilatmin;
+    private int nearbyaptilonmin;
     private int[] badllmins = new int[0];
+    private LinkedList<LatLon> nearbyaptlatlons;
     private SQLiteDBs obssqldb;
     private SQLiteDBs wptsqldb;
     private WairToNow wairToNow;
 
     private final static String[] ob_cols = new String[] { "ob_msl" };
+    private final static String[] rwy_cols = new String[] { "rwy_beglat", "rwy_beglon", "rwy_endlat", "rwy_endlon" };
 
     public CollDetThread (WairToNow wtn)
     {
         setName ("CollDetThread");
         setPriority (MIN_PRIORITY);
+        nearbyaptlatlons = new LinkedList<> ();
         wairToNow = wtn;
         start ();
     }
@@ -118,46 +126,49 @@ public class CollDetThread extends Thread {
                         }
                     }
 
-                    // calculate how far we can fly in the maxsecswarn period from now
-                    double maxnm = spdmps * Lib.KtPerMPS * maxsecswarn / 3600.0;
+                    if (! nearbyairport (curlat, curlon)) {
 
-                    // get current climb rate (metres per nm)
-                    double climbrt = (curalt - oldalt) / Lib.LatLonDist (curlat, curlon, oldlat, oldlon);
+                        // calculate how far we can fly in the maxsecswarn period from now
+                        double maxnm = spdmps * Lib.KtPerMPS * maxsecswarn / 3600.0;
 
-                    // sweep through each arc at 0.5nm steps
-                    double minnm = spdmps * Lib.KtPerMPS * minsecswarn / 3600.0;
-                nmloop:
-                    for (double nm = minnm - 0.25; nm < maxnm + 0.25; nm += 0.5) {
-                        double alt_met = curalt + climbrt * nm;     // altitude (metres) for this arc
+                        // get current climb rate (metres per nm)
+                        double climbrt = (curalt - oldalt) / Lib.LatLonDist (curlat, curlon, oldlat, oldlon);
 
-                        // sweep nm-radius arc from left to right
-                        double step_deg = Math.toDegrees (0.5 / nm);  // degrees to step 0.5nm
-                        int nsteps = (int) Math.ceil (sweepdegs / step_deg);
-                        for (int step = -nsteps; step <= nsteps; step ++) {
+                        // sweep through each arc at 0.5nm steps
+                        double minnm = spdmps * Lib.KtPerMPS * minsecswarn / 3600.0;
+                    nmloop:
+                        for (double nm = minnm - 0.25; nm < maxnm + 0.25; nm += 0.5) {
+                            double alt_met = curalt + climbrt * nm;     // altitude (metres) for this arc
 
-                            // round lat,lon to nearest minute
-                            double deltadeg = step_deg * step;
-                            double deg = hdgdeg + deltadeg;
-                            double lat = Lib.LatHdgDist2Lat (curlat, deg, nm);
-                            double lon = Lib.LatLonHdgDist2Lon (curlat, curlon, deg, nm);
-                            int llmin = (((int) Math.round (lat * 60.0)) << 16) | (((int) Math.round (lon * 60.0)) & 0xFFFF);
+                            // sweep nm-radius arc from left to right
+                            double step_deg = Math.toDegrees (0.5 / nm);  // degrees to step 0.5nm
+                            int nsteps = (int) Math.ceil (sweepdegs / step_deg);
+                            for (int step = -nsteps; step <= nsteps; step++) {
 
-                            // make sure there is a cache entry for that lat,lon
-                            Cache ce = cache.get (llmin);
-                            if (ce == null) {
-                                ce = readCacheEntry (llmin);
-                                cache.put (llmin, ce);
-                            }
-                            ce.cycle = cycle;
+                                // round lat,lon to nearest minute
+                                double deltadeg = step_deg * step;
+                                double deg = hdgdeg + deltadeg;
+                                double lat = Lib.LatHdgDist2Lat (curlat, deg, nm);
+                                double lon = Lib.LatLonHdgDist2Lon (curlat, curlon, deg, nm);
+                                int llmin = (((int) Math.round (lat * 60.0)) << 16) | (((int) Math.round (lon * 60.0)) & 0xFFFF);
 
-                            // see if there is an obstruction in the way
-                            if (alt_met < ce.elevmet + padding_met) {
-                                newbadlls.add (llmin);
+                                // make sure there is a cache entry for that lat,lon
+                                Cache ce = cache.get (llmin);
+                                if (ce == null) {
+                                    ce = readCacheEntry (llmin);
+                                    cache.put (llmin, ce);
+                                }
+                                ce.cycle = cycle;
 
-                                // if colliding with a runway, assume it is a normal landing
-                                if (ce.rwy && (Math.abs (deltadeg) < runwaydegs)) {
-                                    newbadlls.clear ();
-                                    break nmloop;
+                                // see if there is an obstruction in the way
+                                if (alt_met < ce.elevmet + padding_met) {
+                                    newbadlls.add (llmin);
+
+                                    // if colliding with a runway, assume it is a normal landing
+                                    if (ce.rwy && (Math.abs (deltadeg) < runwaydegs)) {
+                                        newbadlls.clear ();
+                                        break nmloop;
+                                    }
                                 }
                             }
                         }
@@ -203,6 +214,55 @@ public class CollDetThread extends Thread {
     public int[] getBadLLMins ()
     {
         return badllmins;
+    }
+
+    // see if there is an airport nearby
+    private boolean nearbyairport (double curlat, double curlon)
+    {
+        if (wptsqldb == null) return false;
+
+        int ilatmin = (int) Math.round (curlat * 60.0);
+        int ilonmin = (int) Math.round (curlon * 60.0);
+
+        if ((nearbyaptilatmin != ilatmin) || (nearbyaptilonmin != ilonmin)) {
+            nearbyaptilatmin = ilatmin;
+            nearbyaptilonmin = ilonmin;
+            nearbyaptlatlons.clear ();
+            double lolat = ilatmin / 60.0 - (nearbyaptnm + 2) / Lib.NMPerDeg;
+            double hilat = ilatmin / 60.0 + (nearbyaptnm + 2) / Lib.NMPerDeg;
+            double dlon  = (nearbyaptnm + 2) / Lib.NMPerDeg / Math.cos (Math.toRadians (curlat));
+            double lolon = ilonmin / 60.0 - dlon;
+            double hilon = ilonmin / 60.0 + dlon;
+            Cursor result = wptsqldb.query ("runways", rwy_cols,
+                    "rwy_beglat>=" + lolat + " AND rwy_beglat<=" + hilat + " AND rwy_beglon>=" +
+                            lolon + " AND rwy_beglon<=" + hilon, null, null, null, null, null);
+            try {
+                if (result.moveToFirst ()) do {
+                    double beglat = result.getDouble (0);
+                    double beglon = result.getDouble (1);
+                    double endlat = result.getDouble (2);
+                    double endlon = result.getDouble (3);
+                    double lennm  = Lib.LatLonTC (beglat, beglon, endlat, endlon);
+                    if (lennm >= minrwylenft / Lib.FtPerNM) {
+                        LatLon ll = new LatLon ();
+                        ll.lat = beglat;
+                        ll.lon = beglon;
+                        nearbyaptlatlons.add (ll);
+                    }
+                } while (result.moveToNext ());
+            } finally {
+                result.close ();
+            }
+        }
+
+        // see if there is a good sized runway within nearbyaptnm of here
+        for (LatLon ll : nearbyaptlatlons) {
+            double distnm = Lib.LatLonDist (ll.lat, ll.lon, curlat, curlon);
+            if (distnm <= nearbyaptnm) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // get highest of topography and obstructions within 0.5 mins of given lat,lon
@@ -251,11 +311,22 @@ public class CollDetThread extends Thread {
             double maxlat = Lib.LatHdgDist2Lat (lat,   0.0, 1.0);
             double minlon = Lib.LatLonHdgDist2Lon (lat, lon, -90.0, 1.0);
             double maxlon = Lib.LatLonHdgDist2Lon (lat, lon,  90.0, 1.0);
-            Cursor result = wptsqldb.query ("runways", new String[] { "rwy_faaid" },
+            Cursor result = wptsqldb.query ("runways", rwy_cols,
                     "rwy_beglat>" + minlat + " AND rwy_beglat<" + maxlat +
                     " AND rwy_beglon>" + minlon + " AND rwy_beglon<" + maxlon,
-                    null, null, null, null, "1");
+                    null, null, null, null, null);
             try {
+                if (result.moveToFirst ()) do {
+                    double beglat = result.getDouble (0);
+                    double beglon = result.getDouble (1);
+                    double endlat = result.getDouble (2);
+                    double endlon = result.getDouble (3);
+                    double lennm  = Lib.LatLonTC (beglat, beglon, endlat, endlon);
+                    if (lennm >= minrwylenft / Lib.FtPerNM) {
+                        ce.rwy = true;
+                        break;
+                    }
+                } while (result.moveToNext ());
                 ce.rwy = result.moveToFirst ();
             } finally {
                 result.close ();
