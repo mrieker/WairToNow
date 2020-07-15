@@ -75,7 +75,7 @@ public class IAPSynthPlateImage extends IAPPlateImage implements DisplayableChar
     private double   centerlat;     // lat,lon at center of needle
     private double   centerlon;     // = initially at center of canvas
     private double   gsintdmenm;    // glideslope distance from synth loc/dme antenna
-    private double   rwymcbin;      // runway magnetic course
+    private double   locmcbin;      // runway magnetic course
     private int      gsaltbin;      // glideslope intercept altitude feet MSL
     private int      wptexpdate;
     private Waypoint dirwaypt;
@@ -99,13 +99,13 @@ public class IAPSynthPlateImage extends IAPPlateImage implements DisplayableChar
          *   And actual plates are same scale as sectional charts
          * Position such that center of needle is in center of plate.
          */
-        double rwytc = Lib.LatLonTC (runway.lat, runway.lon, runway.endLat, runway.endLon);
+        double loctc = synthloc.thdg;
         double rwynm = Lib.LatLonDist (runway.lat, runway.lon, runway.endLat, runway.endLon);
 
         double loclat = synthloc.lat;
         double loclon = synthloc.lon;
-        centerlat = Lib.LatHdgDist2Lat (loclat, rwytc + 180.0, 7.5);
-        centerlon = Lib.LatLonHdgDist2Lon (loclat, loclon, rwytc + 180.0, 7.5);
+        centerlat = Lib.LatHdgDist2Lat (loclat, loctc + 180.0, 7.5);
+        centerlon = Lib.LatLonHdgDist2Lon (loclat, loclon, loctc + 180.0, 7.5);
 
         /*
          * Glideslope calculations.
@@ -118,8 +118,8 @@ public class IAPSynthPlateImage extends IAPPlateImage implements DisplayableChar
         double gsintaltagl = gsaltbin - runway.elev;
         double gsintdistft = gsintaltagl / Math.tan (Math.toRadians (synthloc.gs_tilt));
         double gsintdistnm = gsintdistft / Lib.FtPerNM;
-        double gsintlat = Lib.LatHdgDist2Lat (gslat, rwytc + 180.0, gsintdistnm);
-        double gsintlon = Lib.LatLonHdgDist2Lon (gslat, gslon, rwytc + 180.0, gsintdistnm);
+        double gsintlat = Lib.LatHdgDist2Lat (gslat, loctc + 180.0, gsintdistnm);
+        double gsintlon = Lib.LatLonHdgDist2Lon (gslat, gslon, loctc + 180.0, gsintdistnm);
 
         // DME antenna is located at far end of runway
         double dmelat = synthloc.GetDMELat ();
@@ -182,10 +182,10 @@ public class IAPSynthPlateImage extends IAPPlateImage implements DisplayableChar
         }
 
         /*
-         * Compute runway magnetic course.
+         * Compute localizer magnetic course.
          */
-        rwymcbin = rwytc + Lib.MagVariation (runway.lat, runway.lon, runway.elev / Lib.FtPerM);
-        String rwymcstr = Lib.Hdg2Str (rwymcbin);
+        locmcbin = loctc + synthloc.magvar;
+        String locmcstr = Lib.Hdg2Str (locmcbin);
 
         /*
          * Create plate bitmap filled with white background.
@@ -225,7 +225,7 @@ public class IAPSynthPlateImage extends IAPPlateImage implements DisplayableChar
         paint.setTextSize (23);
         canvas.drawText ("APP CRS", 345, 211, paint);
         paint.setStrokeWidth (2.0F);
-        canvas.drawText (rwymcstr, 345, 247, paint);
+        canvas.drawText (locmcstr, 345, 247, paint);
 
         paint.setStrokeWidth (1.0F);
         paint.setTextAlign (Paint.Align.LEFT);
@@ -312,8 +312,8 @@ public class IAPSynthPlateImage extends IAPPlateImage implements DisplayableChar
 
         // mag course, gs intercept altitude, glideslope descent angle strings
         paint.setTextAlign (Paint.Align.CENTER);
-        canvas.drawText ("\u21D0 " + Lib.Hdg2Str (rwymcbin + 180.0), (228 + gsintx) / 2, 1890, paint);
-        canvas.drawText (rwymcstr + " \u21D2", (228 + gsintx) / 2, 1950, paint);
+        canvas.drawText ("\u21D0 " + Lib.Hdg2Str (locmcbin + 180.0), (228 + gsintx) / 2, 1890, paint);
+        canvas.drawText (locmcstr + " \u21D2", (228 + gsintx) / 2, 1950, paint);
         canvas.drawText (gsaltbin + " ft", (228 + gsintx) / 2, 2032, paint);
         paint.setTextAlign (Paint.Align.LEFT);
         canvas.drawText (String.format (Locale.US, "  %4.2f\u00B0 \u21D8", synthloc.gs_tilt), gsintx, 2080, paint);
@@ -531,44 +531,44 @@ public class IAPSynthPlateImage extends IAPPlateImage implements DisplayableChar
         double[] needlells = new double[26];
 
         // tail of needle on centerline
-        needlells[ 6] = Lib.LatHdgDist2Lat    (loclat,         rwytc + 180.0, rwynm + 15.0);
-        needlells[ 7] = Lib.LatLonHdgDist2Lon (loclat, loclon, rwytc + 180.0, rwynm + 15.0);
+        needlells[ 6] = Lib.LatHdgDist2Lat    (loclat,         loctc + 180.0, rwynm + 15.0);
+        needlells[ 7] = Lib.LatLonHdgDist2Lon (loclat, loclon, loctc + 180.0, rwynm + 15.0);
         // tail of needle left of centerline
-        needlells[ 4] = Lib.LatHdgDist2Lat    (loclat,         rwytc + 183.0, rwynm + 15.5);
-        needlells[ 5] = Lib.LatLonHdgDist2Lon (loclat, loclon, rwytc + 183.0, rwynm + 15.5);
+        needlells[ 4] = Lib.LatHdgDist2Lat    (loclat,         loctc + 183.0, rwynm + 15.5);
+        needlells[ 5] = Lib.LatLonHdgDist2Lon (loclat, loclon, loctc + 183.0, rwynm + 15.5);
         // tail of needle right of centerline
-        needlells[ 8] = Lib.LatHdgDist2Lat    (loclat,         rwytc + 177.0, rwynm + 15.5);
-        needlells[ 9] = Lib.LatLonHdgDist2Lon (loclat, loclon, rwytc + 177.0, rwynm + 15.5);
+        needlells[ 8] = Lib.LatHdgDist2Lat    (loclat,         loctc + 177.0, rwynm + 15.5);
+        needlells[ 9] = Lib.LatLonHdgDist2Lon (loclat, loclon, loctc + 177.0, rwynm + 15.5);
 
         // tip of needle
-        needlells[ 0] = Lib.LatHdgDist2Lat    (loclat,         rwytc + 180.0, rwynm + 0.2);
-        needlells[ 1] = Lib.LatLonHdgDist2Lon (loclat, loclon, rwytc + 180.0, rwynm + 0.2);
+        needlells[ 0] = Lib.LatHdgDist2Lat    (loclat,         loctc + 180.0, rwynm + 0.2);
+        needlells[ 1] = Lib.LatLonHdgDist2Lon (loclat, loclon, loctc + 180.0, rwynm + 0.2);
         // near tip left of centerline
-        needlells[ 2] = Lib.LatHdgDist2Lat    (loclat,         rwytc + 183.0, rwynm + 0.5);
-        needlells[ 3] = Lib.LatLonHdgDist2Lon (loclat, loclon, rwytc + 183.0, rwynm + 0.5);
+        needlells[ 2] = Lib.LatHdgDist2Lat    (loclat,         loctc + 183.0, rwynm + 0.5);
+        needlells[ 3] = Lib.LatLonHdgDist2Lon (loclat, loclon, loctc + 183.0, rwynm + 0.5);
         // near tip right of centerline
-        needlells[10] = Lib.LatHdgDist2Lat    (loclat,         rwytc + 177.0, rwynm + 0.5);
-        needlells[11] = Lib.LatLonHdgDist2Lon (loclat, loclon, rwytc + 177.0, rwynm + 0.5);
+        needlells[10] = Lib.LatHdgDist2Lat    (loclat,         loctc + 177.0, rwynm + 0.5);
+        needlells[11] = Lib.LatLonHdgDist2Lon (loclat, loclon, loctc + 177.0, rwynm + 0.5);
 
         // most way toward tail on centerline
-        needlells[12] = Lib.LatHdgDist2Lat    (loclat,         rwytc + 180.0, rwynm + 10.0);
-        needlells[13] = Lib.LatLonHdgDist2Lon (loclat, loclon, rwytc + 180.0, rwynm + 10.0);
+        needlells[12] = Lib.LatHdgDist2Lat    (loclat,         loctc + 180.0, rwynm + 10.0);
+        needlells[13] = Lib.LatLonHdgDist2Lon (loclat, loclon, loctc + 180.0, rwynm + 10.0);
 
         // start of PT barb near numbers
-        needlells[18] = Lib.LatHdgDist2Lat    (loclat,         rwytc + 180.0, rwynm + 12.0);
-        needlells[19] = Lib.LatLonHdgDist2Lon (loclat, loclon, rwytc + 180.0, rwynm + 12.0);
+        needlells[18] = Lib.LatHdgDist2Lat    (loclat,         loctc + 180.0, rwynm + 12.0);
+        needlells[19] = Lib.LatLonHdgDist2Lon (loclat, loclon, loctc + 180.0, rwynm + 12.0);
 
         // elbow of PT barb near tail
-        needlells[20] = Lib.LatHdgDist2Lat    (loclat,         rwytc + 180.0, rwynm + 14.0);
-        needlells[21] = Lib.LatLonHdgDist2Lon (loclat, loclon, rwytc + 180.0, rwynm + 14.0);
+        needlells[20] = Lib.LatHdgDist2Lat    (loclat,         loctc + 180.0, rwynm + 14.0);
+        needlells[21] = Lib.LatLonHdgDist2Lon (loclat, loclon, loctc + 180.0, rwynm + 14.0);
 
         // end of left 45deg leg of PT barb
-        needlells[22] = Lib.LatHdgDist2Lat    (needlells[20],                rwytc + 135.0, 2.0);
-        needlells[23] = Lib.LatLonHdgDist2Lon (needlells[20], needlells[21], rwytc + 135.0, 2.0);
+        needlells[22] = Lib.LatHdgDist2Lat    (needlells[20],                loctc + 135.0, 2.0);
+        needlells[23] = Lib.LatLonHdgDist2Lon (needlells[20], needlells[21], loctc + 135.0, 2.0);
 
         // end of right 45deg leg of PT barb
-        needlells[24] = Lib.LatHdgDist2Lat    (needlells[20],                rwytc - 135.0, 2.0);
-        needlells[25] = Lib.LatLonHdgDist2Lon (needlells[20], needlells[21], rwytc - 135.0, 2.0);
+        needlells[24] = Lib.LatHdgDist2Lat    (needlells[20],                loctc - 135.0, 2.0);
+        needlells[25] = Lib.LatLonHdgDist2Lon (needlells[20], needlells[21], loctc - 135.0, 2.0);
 
         float[] needlexys = new float[26];
         for (int i = 0; i < 26; i += 2) {
@@ -602,14 +602,14 @@ public class IAPSynthPlateImage extends IAPPlateImage implements DisplayableChar
         float textsize = (float) Math.hypot (needlexys[6] - needlexys[4], needlexys[7] - needlexys[5]);
         paint.setStrokeWidth (2.0F);
         paint.setTextSize (textsize);
-        paint.getTextBounds (rwymcstr, 0, rwymcstr.length (), textbounds);
-        paint.setTextAlign ((rwymcbin < 0.0) ? Paint.Align.LEFT : Paint.Align.RIGHT);
+        paint.getTextBounds (locmcstr, 0, locmcstr.length (), textbounds);
+        paint.setTextAlign ((locmcbin < 0.0) ? Paint.Align.LEFT : Paint.Align.RIGHT);
         float textheight = textbounds.height ();
-        float textrotate = (float) ((rwytc < 0.0) ? (rwytc - 270.0) : (rwytc - 90.0));
+        float textrotate = (float) ((loctc < 0.0) ? (loctc - 270.0) : (loctc - 90.0));
         canvas.save ();
         canvas.rotate (textrotate, needlexys[12], needlexys[13]);
         canvas.translate (0.0F, textheight * 0.5F);
-        canvas.drawText (rwymcstr, needlexys[12], needlexys[13], paint);
+        canvas.drawText (locmcstr, needlexys[12], needlexys[13], paint);
         canvas.restore ();
 
         // glideslope intercept point crosswise line
@@ -622,11 +622,11 @@ public class IAPSynthPlateImage extends IAPPlateImage implements DisplayableChar
                 needlexys[9] - needlexys[5]);
         canvas.save ();
         try {
-            if (rwytc < 0.0) {
-                canvas.rotate ((float) (rwytc + 90.0), gsintbmpx, gsintbmpy);
+            if (loctc < 0.0) {
+                canvas.rotate ((float) (loctc + 90.0), gsintbmpx, gsintbmpy);
                 paint.setTextAlign (Paint.Align.LEFT);
             } else {
-                canvas.rotate ((float) (rwytc - 90.0), gsintbmpx, gsintbmpy);
+                canvas.rotate ((float) (loctc - 90.0), gsintbmpx, gsintbmpy);
                 paint.setTextAlign (Paint.Align.RIGHT);
             }
             paint.setStrokeWidth (3.0F);
@@ -643,16 +643,16 @@ public class IAPSynthPlateImage extends IAPPlateImage implements DisplayableChar
 
         // PT in/out heading strings
         String ptlinstr, ptloutstr, ptrinstr, ptroutstr;
-        if (rwytc < 0.0) {
-            ptlinstr  = Lib.Hdg2Str (rwymcbin + 135.0) + '\u2192';  // right arrow
-            ptloutstr = '\u2190' + Lib.Hdg2Str (rwymcbin -  45.0);  // left arrow
-            ptrinstr  = Lib.Hdg2Str (rwymcbin - 135.0) + '\u2192';  // right arrow
-            ptroutstr = '\u2190' + Lib.Hdg2Str (rwymcbin +  45.0);  // left arrow
+        if (loctc < 0.0) {
+            ptlinstr  = Lib.Hdg2Str (locmcbin + 135.0) + '\u2192';  // right arrow
+            ptloutstr = '\u2190' + Lib.Hdg2Str (locmcbin -  45.0);  // left arrow
+            ptrinstr  = Lib.Hdg2Str (locmcbin - 135.0) + '\u2192';  // right arrow
+            ptroutstr = '\u2190' + Lib.Hdg2Str (locmcbin +  45.0);  // left arrow
         } else {
-            ptlinstr  = Lib.Hdg2Str (rwymcbin -  45.0) + '\u2192';  // right arrow
-            ptloutstr = '\u2190' + Lib.Hdg2Str (rwymcbin + 135.0);  // left arrow
-            ptrinstr  = Lib.Hdg2Str (rwymcbin +  45.0) + '\u2192';  // right arrow
-            ptroutstr = '\u2190' + Lib.Hdg2Str (rwymcbin - 135.0);  // left arrow
+            ptlinstr  = Lib.Hdg2Str (locmcbin -  45.0) + '\u2192';  // right arrow
+            ptloutstr = '\u2190' + Lib.Hdg2Str (locmcbin + 135.0);  // left arrow
+            ptrinstr  = Lib.Hdg2Str (locmcbin +  45.0) + '\u2192';  // right arrow
+            ptroutstr = '\u2190' + Lib.Hdg2Str (locmcbin - 135.0);  // left arrow
         }
 
         canvas.save ();
@@ -736,24 +736,24 @@ public class IAPSynthPlateImage extends IAPPlateImage implements DisplayableChar
 
         // make a waypoint for the FAF at the glideslope intercept point
         Waypoint.Localizer synthloc = runway.GetSynthLoc ();
-        double rwymcbinbc = rwymcbin + 180.0;
-        while (rwymcbinbc <=  0.0) rwymcbinbc += 360.0;
-        while (rwymcbinbc > 360.0) rwymcbinbc -= 360.0;
-        String faf = synthloc.ident + "[" + Lib.DoubleNTZ (rwymcbinbc) + "@" + Lib.DoubleNTZ (gsintdmenm);
+        double locmcbinbc = locmcbin + 180.0;
+        while (locmcbinbc <=  0.0) locmcbinbc += 360.0;
+        while (locmcbinbc > 360.0) locmcbinbc -= 360.0;
+        String faf = synthloc.ident + "[" + Lib.DoubleNTZ (locmcbinbc) + "@" + Lib.DoubleNTZ (gsintdmenm);
         fafwaypt = FindWaypoint (faf);
 
         // make segment for left-turn PT
         plateCIFP.ParseCIFPSegment (appid, "-PT-L",
                 "CF,wp=" + faf + ",iaf;" +
-                "PI,wp=" + faf + ",toc=" + Math.round (rwymcbin * 10.0 - 1350.0) + ",td=L,a=+" + gsaltbin);
+                "PI,wp=" + faf + ",toc=" + Math.round (locmcbin * 10.0 - 1350.0) + ",td=L,a=+" + gsaltbin);
 
         // make segment for right-turn PT
         plateCIFP.ParseCIFPSegment (appid, "-PT-R",
                 "CF,wp=" + faf + ",iaf;" +
-                "PI,wp=" + faf + ",toc=" + Math.round (rwymcbin * 10.0 + 1350.0) + ",td=R,a=+" + gsaltbin);
+                "PI,wp=" + faf + ",toc=" + Math.round (locmcbin * 10.0 + 1350.0) + ",td=R,a=+" + gsaltbin);
 
         // make segment for direct in from elbow of two PTs
-        String dir = synthloc.ident + "[" + Lib.DoubleNTZ (rwymcbinbc) + "@" + Lib.DoubleNTZ (gsintdmenm * 2.0);
+        String dir = synthloc.ident + "[" + Lib.DoubleNTZ (locmcbinbc) + "@" + Lib.DoubleNTZ (gsintdmenm * 2.0);
         dirwaypt = FindWaypoint (dir);
         plateCIFP.ParseCIFPSegment (appid, "-DIR-",
                 "CF,wp=" + dir + ",iaf;" +
@@ -764,7 +764,7 @@ public class IAPSynthPlateImage extends IAPPlateImage implements DisplayableChar
         double gsfeetabovenumbers = nmfromnumberstogsant * Lib.FtPerNM * Math.tan (Math.toRadians (synthloc.gs_tilt));
         plateCIFP.ParseCIFPSegment (appid, "~f~",
                 "CF,wp=" + faf + ",a=G" + gsaltbin + ":" + gsaltbin + ",faf;" +
-                "CF,wp=RW" + runway.number + ",mc=" + Math.round (rwymcbin * 10.0) +
+                "CF,wp=RW" + runway.number + ",mc=" + Math.round (locmcbin * 10.0) +
                         ",a=@" + Math.round (runway.elev + gsfeetabovenumbers));
 
         // make missed approach segment
@@ -772,7 +772,7 @@ public class IAPSynthPlateImage extends IAPPlateImage implements DisplayableChar
         char trafdir = runway.ritraf ? 'R' : 'L';
         plateCIFP.ParseCIFPSegment (appid, "~m~",
                 "CF,wp=" + synthloc.ident + ",a=+" + gsaltbin + ";" +
-                "HM,wp=" + synthloc.ident + ",rad=" + Math.round (rwymcbin * 10.0) +
+                "HM,wp=" + synthloc.ident + ",rad=" + Math.round (locmcbin * 10.0) +
                         ",td=" + trafdir + ",a=+" + gsaltbin);
 
         // give navaid name used for the approach

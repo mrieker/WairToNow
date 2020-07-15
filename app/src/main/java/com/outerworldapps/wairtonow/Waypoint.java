@@ -1654,6 +1654,7 @@ public abstract class Waypoint {
             this.lat      = Lib.LatHdgDist2Lat (rwy.endLat, rwy.trueHdg, gsdist / Lib.FtPerNM);
             this.lon      = Lib.LatLonHdgDist2Lon (rwy.endLat, rwy.endLon, rwy.trueHdg, gsdist / Lib.FtPerNM);
             this.thdg     = rwy.trueHdg;    // computed
+            this.magvar   = (int) Math.round (Lib.MagVariation (this.lat, this.lon, this.elev / Lib.FtPerM));
             this.gs_elev  = rwy.elev;
             this.gs_tilt  = gstilt;
             this.gs_lat   = Lib.LatHdgDist2Lat (rwy.lat, rwy.trueHdg, gsdist / Lib.FtPerNM);

@@ -120,7 +120,22 @@ function purgedatum
             rm -rf "$file"
             continue
         fi
+        if [ "${file:0:16}" == "datums/wayptabbs" ]
+        then
+            rm -rf "$file"
+            continue
+        fi
+        if [ "${file:0:11}" == "datums/AFF_" ]
+        then
+            mv "$file" "purged-$file"
+            continue
+        fi
         if [ "${file:0:11}" == "datums/APT_" ]
+        then
+            mv "$file" "purged-$file"
+            continue
+        fi
+        if [ "${file:0:12}" == "datums/AWOS_" ]
         then
             mv "$file" "purged-$file"
             continue
