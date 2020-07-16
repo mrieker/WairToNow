@@ -31,7 +31,6 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
@@ -170,6 +169,18 @@ public class WairToNow extends Activity {
         dotsPerInch  = (float) Math.sqrt (dotsPerInchX * dotsPerInchY);
         thickLine    = dotsPerInch / 12.0F;
         thinLine     = dotsPerInch / 24.0F;
+
+        // differentiates the 4 orientations
+        //OrientationEventListener oel = new OrientationEventListener (this,
+        //        SensorManager.SENSOR_DELAY_NORMAL) {
+        //    @Override
+        //    public void onOrientationChanged (int orientation)
+        //    {
+        //        // 0, 90, 180, 270
+        //        Log.d (TAG, "onOrientationChanged*: " + orientation);
+        //    }
+        //};
+        //oel.enable ();
 
         // find out where we put our downloaded data
         // use external storage cuz it can be very large
@@ -441,7 +452,8 @@ public class WairToNow extends Activity {
 
         // so our lock/unlock screen menu will work
         // otherwise it sees -1 and thinks screen is locked
-        setRequestedOrientation (ActivityInfo.SCREEN_ORIENTATION_USER);
+        int orientation = prefs.getInt ("screenOrientation", ActivityInfo.SCREEN_ORIENTATION_USER);
+        setRequestedOrientation (orientation);
 
         // set up initial active tab
         tabsVisible = prefs.getBoolean ("tabVisibility", true);
@@ -1109,14 +1121,14 @@ public class WairToNow extends Activity {
                 break;
             }
             case "Lock Screen": {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
-                    setRequestedOrientation (ActivityInfo.SCREEN_ORIENTATION_LOCKED);
-                } else {
-                    setRequestedOrientation (
-                            (displayHeight > displayWidth) ?
-                                    ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT :
-                                    ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
-                }
+                int lockmode = (displayHeight > displayWidth) ?
+                        ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT :
+                        ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE;
+                SharedPreferences prefs = getPreferences (MODE_PRIVATE);
+                SharedPreferences.Editor editr = prefs.edit ();
+                editr.putInt ("screenOrientation", lockmode);
+                editr.apply ();
+                setRequestedOrientation (lockmode);
                 break;
             }
             case "<< MORE": {
@@ -1128,6 +1140,10 @@ public class WairToNow extends Activity {
                 break;
             }
             case "Unlock Screen": {
+                SharedPreferences prefs = getPreferences (MODE_PRIVATE);
+                SharedPreferences.Editor editr = prefs.edit ();
+                editr.putInt ("screenOrientation", ActivityInfo.SCREEN_ORIENTATION_USER);
+                editr.apply ();
                 setRequestedOrientation (ActivityInfo.SCREEN_ORIENTATION_USER);
                 break;
             }
@@ -1181,6 +1197,10 @@ public class WairToNow extends Activity {
 
         displayWidth  = metrics.widthPixels;
         displayHeight = metrics.heightPixels;
+
+        // does not tell reverse orientation, just landscape vs portrait
+        //Log.d (TAG, "onConfigurationChanged*: width=" + displayWidth + " height=" + displayHeight +
+        //        " orientation=" + config.orientation);
 
         dotsPerInchX  = metrics.xdpi;
         dotsPerInchY  = metrics.ydpi;
