@@ -77,6 +77,8 @@ public class StateView extends View {
     private Paint courseTxPaint     = new Paint ();
     private Paint trafficBGPaint    = new Paint ();
     private Paint trafficTxPaint    = new Paint ();
+    private Paint tfrInfoBGPaint    = new Paint ();
+    private Paint tfrInfoFGPaint    = new Paint ();
     private Path centerInfoPath     = new Path ();
     private Path courseInfoPath     = new Path ();
     private Rect centerInfoBounds   = new Rect ();
@@ -117,6 +119,17 @@ public class StateView extends View {
         courseTxPaint.setStrokeWidth (2);
         courseTxPaint.setTextSize (ts);
         courseTxPaint.setTextAlign (Paint.Align.CENTER);
+
+        tfrInfoBGPaint.setColor (Color.WHITE);
+        tfrInfoBGPaint.setStyle (Paint.Style.STROKE);
+        tfrInfoBGPaint.setStrokeWidth (wairToNow.thickLine);
+        tfrInfoBGPaint.setTextAlign (Paint.Align.RIGHT);
+        tfrInfoBGPaint.setTextSize (ts);
+        tfrInfoFGPaint.setColor (TFROutlines.COLOR);
+        tfrInfoFGPaint.setStyle (Paint.Style.FILL);
+        tfrInfoFGPaint.setStrokeWidth (2);
+        tfrInfoFGPaint.setTextAlign (Paint.Align.RIGHT);
+        tfrInfoFGPaint.setTextSize (ts);
 
         trafficBGPaint.setColor (Color.BLACK);
         trafficBGPaint.setStyle (Paint.Style.STROKE);
@@ -268,6 +281,12 @@ public class StateView extends View {
         }
 
         /*
+         * Draw TFR status string.
+         */
+        DrawStatusLines (canvas, tfrInfoBGPaint);
+        DrawStatusLines (canvas, tfrInfoFGPaint);
+
+        /*
          * Chart{2D,3D}-specific info.
          */
         chartView.backing.drawOverlay (canvas);
@@ -383,6 +402,19 @@ public class StateView extends View {
                 centerInfoPath.lineTo (ts * 2, ch - ts);
             }
             canvas.drawPath (centerInfoPath, paint);
+        }
+    }
+
+    /**
+     * Misc status lines in lower right corner of screen.
+     */
+    private void DrawStatusLines (Canvas canvas, Paint paint)
+    {
+        float x = canvasWidth - paint.getFontSpacing () / 2.0F;
+        float y = canvasHeight - paint.getFontSpacing ();
+        String sl;
+        if ((chartView.tfrOutlines != null) && ((sl = chartView.tfrOutlines.statusline) != null)) {
+            canvas.drawText (sl, x, y, paint);
         }
     }
 

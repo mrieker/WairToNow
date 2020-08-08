@@ -66,6 +66,7 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
     public  PixelMapper pmap;
     public  StateView stateView;
     private StreetChart streetChart;
+    public  TFROutlines tfrOutlines;
     public  WairToNow wairToNow;
 
     public boolean holdPosition;          // gps updates centering screen are blocked (eg, when screen has been panned)
@@ -89,6 +90,11 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
         };
 
         pmap = new PixelMapper ();
+
+        /*
+         * Gets populated from database whenever chart is displayed.
+         */
+        tfrOutlines = new TFROutlines ();
 
         /*
          * The street charts theoretically cover the whole world,
@@ -234,6 +240,9 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
     @Override  // WairToNow.CanBeMainView
     public void OpenDisplay ()
     {
+        // update TFRs
+        tfrOutlines.populate (wairToNow);
+
         // set up either 2D or 3D backing (Chart2DView or Chart3DView)
         BackingChartSelected ();
 

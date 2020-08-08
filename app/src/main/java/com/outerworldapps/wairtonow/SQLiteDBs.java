@@ -88,11 +88,13 @@ public class SQLiteDBs {
             }
         }
         files = new File (WairToNow.dbdir, "nobudb").listFiles ();
-        for (File file : files) {
-            String dbname = file.getName ();
-            if (dbname.endsWith (".db")) {
-                SQLiteDBs db = new SQLiteDBs ("nobudb/" + dbname);
-                tm.put ("nobudb/" + dbname, db);
+        if (files != null) {
+            for (File file : files) {
+                String dbname = file.getName ();
+                if (dbname.endsWith (".db")) {
+                    SQLiteDBs db = new SQLiteDBs ("nobudb/" + dbname);
+                    tm.put ("nobudb/" + dbname, db);
+                }
             }
         }
 

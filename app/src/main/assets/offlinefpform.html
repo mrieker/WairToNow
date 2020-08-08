@@ -586,6 +586,7 @@
                         sts.innerHTML = ' <FONT COLOR=RED>' + id + ': no such airport</FONT>';
                         return null;
                     }
+                    id = wp.getId ();  // convert eg 'BVY' to 'KBVY'
                     sts.innerHTML = ' ' + wp.getName ();
                     if (isICAOId (id)) {
                         form[aptname].value = id;

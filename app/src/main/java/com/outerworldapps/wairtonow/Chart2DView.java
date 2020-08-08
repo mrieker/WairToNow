@@ -21,6 +21,8 @@
 package com.outerworldapps.wairtonow;
 
 import android.annotation.SuppressLint;
+import android.app.AlertDialog;
+import android.content.DialogInterface;
 import android.content.res.AssetManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -31,10 +33,15 @@ import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.Rect;
 import android.graphics.RectF;
+import android.graphics.drawable.ColorDrawable;
 import android.support.annotation.NonNull;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.TextView;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -85,7 +92,8 @@ public class Chart2DView extends View
     private ArrayList<DrawWaypoint> allDrawWaypoints = new ArrayList<> ();
     @SuppressWarnings("FieldCanBeLocal")
     private boolean reDrawQueued;
-    private ChartView chartView;
+    public  ChartView chartView;
+    private Collection<TFROutlines.Outline> touchedTFRs;
     private double canvasHdgRadOverride;
     private double latStart, lonStart;
     private double mappingCanvasHdgRads;
@@ -370,7 +378,10 @@ public class Chart2DView extends View
                 StartFingerPainting ();
                 break;
             }
-            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_UP: {
+                MouseUp ();
+                // fall through
+            }
             case MotionEvent.ACTION_POINTER_UP: {
                 int  i = event.getActionIndex ();
                 int id = event.getPointerId (i);
@@ -575,6 +586,7 @@ public class Chart2DView extends View
 
     /**
      * Handle mouse-down for purpose of tapping buttons on the chart surface.
+     * Can also show TFR info or select a nearby waypoint.
      * @param x = canvas pixel tapped on
      * @param y = canvas pixel tapped on
      */
@@ -583,6 +595,24 @@ public class Chart2DView extends View
         long now = System.currentTimeMillis ();
         mouseDownPosX  = x;
         mouseDownPosY  = y;
+
+        // TFRs override waypoints
+        // So if one is tapped on, highlight it.
+        // When mouse is released, show TFR info if still on same TFR.
+        Collection<TFROutlines.Outline> tfrouts = chartView.tfrOutlines.touched (x, y);
+        if (tfrouts.size () > 0) {
+            if (touchedTFRs != null) {
+                for (TFROutlines.Outline tfrout : touchedTFRs) {
+                    tfrout.highlight = false;
+                }
+            }
+            touchedTFRs = tfrouts;
+            for (TFROutlines.Outline tfrout : touchedTFRs) {
+                tfrout.highlight = true;
+            }
+            invalidate ();
+            return;
+        }
 
         // set up to detect long click on a nearby waypoint
         waypointOpenAt = now + waypointopentime;
@@ -598,6 +628,56 @@ public class Chart2DView extends View
                 }
             }
         });
+    }
+
+    /**
+     * Mouse released.
+     * If over the same TFR, show TFRs info string.
+     * In any case, remove TFR highlight.
+     */
+    private void MouseUp ()
+    {
+        if ((touchedTFRs != null) && (touchedTFRs.size () > 0)) {
+
+            // display alert giving info for all touched TFRs
+            AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
+            adb.setTitle ("TFR Info");
+            LinearLayout ll = new LinearLayout (wairToNow);
+            ll.setDividerDrawable (new ColorDrawable (TFROutlines.COLOR));
+            ll.setShowDividers (LinearLayout.SHOW_DIVIDER_MIDDLE);
+            ll.setOrientation (LinearLayout.VERTICAL);
+            ViewGroup.MarginLayoutParams mlp = new ViewGroup.MarginLayoutParams (
+                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            mlp.leftMargin = mlp.rightMargin = 25;
+            mlp.bottomMargin = mlp.topMargin = 10;
+            ll.addView (new TextView (wairToNow), mlp);
+            for (TFROutlines.Outline tfrout : touchedTFRs) {
+                View infoview = tfrout.getInfo (wairToNow);
+                ll.addView (infoview, mlp);
+            }
+            ll.addView (new TextView (wairToNow), mlp);
+            ScrollView sv = new ScrollView (wairToNow);
+            sv.addView (ll);
+            adb.setView (sv);
+
+            // set up an OK button that will clear the highlighting
+            adb.setPositiveButton ("OK", new DialogInterface.OnClickListener () {
+                @Override
+                public void onClick (DialogInterface dialog, int which)
+                {
+                    if (touchedTFRs != null) {
+                        for (TFROutlines.Outline tfrout : touchedTFRs) {
+                            tfrout.highlight = false;
+                        }
+                        touchedTFRs = null;
+                        invalidate ();
+                    }
+                }
+            });
+
+            // show it
+            adb.show ();
+        }
     }
 
     /**
@@ -702,6 +782,11 @@ public class Chart2DView extends View
         if (wairToNow.optionsView.showWxSumDot.checkBox.isChecked ()) {
             DrawWxSumDots (canvas);
         }
+
+        /*
+         * Draw TFR outlines.
+         */
+        chartView.tfrOutlines.draw (canvas, this, nowms);
 
         /*
          * Maybe draw CAP grid lines and numbers.

@@ -221,6 +221,7 @@ public class OfflineFPFormView extends WebView implements WairToNow.CanBeMainVie
         private String error;
 
         // get airport waypoint given its ICAO id
+        // also finds airport by FAA id
         @SuppressWarnings ("unused")
         @android.webkit.JavascriptInterface
         public Object getAptByICAOId (String id)

@@ -21,14 +21,10 @@
 package com.outerworldapps.wairtonow;
 
 import android.annotation.SuppressLint;
-import android.app.AlertDialog;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
-import android.content.BroadcastReceiver;
 import android.content.Context;
-import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.os.ParcelUuid;
@@ -494,9 +490,10 @@ public class BluetoothGpsAdsb extends GpsAdsbReceiver {
 
             // query that device for UUIDs
             final BluetoothDevice btdev = btDeviceArray[devindex];
-            new RefreshBtUUIDArray (btdev) {
+            new RefreshBtUUIDs (wairToNow, btdev) {
                 @Override
-                public void finished () {
+                public void finished ()
+                {
                     // write UUID list to button tops
                     populateBtUUIDArray (btdev);
 
@@ -504,94 +501,6 @@ public class BluetoothGpsAdsb extends GpsAdsbReceiver {
                     btAdsbUUID.onClick (null);
                 }
             };
-        }
-    }
-
-    /**
-     * Scan device for all UUIDs it advertises.
-     * Android will remember the list, returnable by BluetoothDevice.getUuids().
-     */
-    private abstract class RefreshBtUUIDArray extends BroadcastReceiver implements Runnable {
-        private AlertDialog pleaseWait;
-        private boolean sdpComplete;
-        private String btdevname;
-
-        public abstract void finished ();
-
-        public RefreshBtUUIDArray (BluetoothDevice btdev)
-        {
-            /*
-             * Update local cache of UUIDs supported by the device.
-             * It sometimes get stuck with out-of-date information.
-             */
-            btdevname = btIdentString (btdev);
-            Class<? extends BluetoothDevice> btDevClass = btdev.getClass ();
-            try {
-                Method fuws = btDevClass.getMethod ("fetchUuidsWithSdp");
-                wairToNow.registerReceiver (this, new IntentFilter ("android.bluetooth.device.action.UUID"));
-
-                boolean rc = (Boolean) fuws.invoke (btdev);
-                Log.d (TAG, "BluetoothGpsAdsb: fetchUuidsWithSdp " + btdevname + ": " + rc);
-                if (rc) {
-                    AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
-                    adb.setTitle ("Scanning " + btdevname + " for UUIDs");
-                    adb.setMessage ("...please wait");
-                    adb.setCancelable (false);
-                    pleaseWait = adb.show ();
-
-                    // normally takes 2-5 sec so give it 20 sec
-                    WairToNow.wtnHandler.runDelayed (20000, this);
-                    return;
-                }
-            } catch (Exception e) {
-                Log.w (TAG, "error calling fetchUuidsWithSdp() for " + btdevname, e);
-            }
-            continuing ();
-        }
-
-        /**
-         * Receiver that listens for completion of fetchUuidsWithSdp() call,
-         * indicating that we now have an updated list of UUIDs supported
-         * by the device.
-         *
-         * Apparently requires android.permission.BLUETOOTH_ADMIN,
-         * even though fetchUuidsWithSdp() returns true without it.
-         */
-        @Override  // BroadcastReceiver
-        public void onReceive (Context context, Intent intent)
-        {
-            String action = intent.getAction ();
-            Log.d (TAG, "BluetoothGpsAdsb: received action " + action);
-            if ("android.bluetooth.device.action.UUID".equals (action) && !sdpComplete) {
-                BluetoothDevice bd = intent.getParcelableExtra (BluetoothDevice.EXTRA_DEVICE);
-                String bdid = btIdentString (bd);
-                Log.d (TAG, "BluetoothGpsAdsb: device ident " + bdid);
-                if (bdid.equals (btdevname)) {
-                    continuing ();
-                }
-            }
-        }
-
-        // waited too long for list of UUIDs supported by device
-        @Override  // Runnable
-        public void run () {
-            if (!sdpComplete) {
-                Log.d (TAG, "BluetoothGpsAdsb: fetchUuidsWithSdp " + btdevname + " timed out");
-                continuing ();
-            }
-        }
-
-        // received new list of UUIDs or not...
-        private void continuing ()
-        {
-            wairToNow.unregisterReceiver (this);
-            Lib.dismiss (pleaseWait);
-            pleaseWait = null;
-
-            Log.d (TAG, "BluetoothGpsAdsb: continuing...");
-
-            sdpComplete = true;
-            finished ();
         }
     }
 

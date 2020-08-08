@@ -42,9 +42,18 @@ DrawCIFP()
     canvas.drawRect() // text box
     canvas.drawText() // text strings
 
-CIFPButtonClicked()
+CIFPButtonClicked()             // lower right button clicked to open transition selection menu
     CIFPSegmentSelected()
-    GetCIFPSegments()
+    loadCIFPSegments()
+        plateImage.ReadCIFPs()  // read CIFPs from database
+            read iapcifps database table
+            for each entry
+                plateCIFP.ParseCIFPSegment()
+                    add entry to cifpApproaches if not there already
+        add transitions from dmearcs.txt
+        AddIntermediateSegments()
+        add radar vector transition
+        all cifpseg.init2()
     displaySelectionMenu()
     displaySelectionButtons()
 

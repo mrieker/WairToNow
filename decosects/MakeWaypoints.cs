@@ -40,6 +40,19 @@ public class MakeWaypoints {
     public static bool abbrdb;
     public static Dictionary<string,LinkedList<Waypoint>> waypointss = new Dictionary<string,LinkedList<Waypoint>> ();
 
+    public static string[] abbinfos = {
+        "Elev:",
+        "APCH/P",
+        "ATIS:",
+        "AWOS:",
+        "CENTER",
+        "CTAF:",
+        "DEP/P",
+        "GND/P",
+        "TWR/P",
+        "UNICOM:"
+    };
+
     public static void Main (string[] args)
     {
         string expdate = args[0];
@@ -56,8 +69,10 @@ public class MakeWaypoints {
              */
             if (abbrdb) {
                 DoCommand (dbcon, "CREATE TABLE airports (apt_icaoid TEXT PRIMARY KEY, apt_faaid TEXT NOT NULL, apt_elev REAL NOT NULL, apt_name TEXT NOT NULL, " +
-                        "apt_lat REAL NOT NULL, apt_lon REAL NOT NULL, apt_desc1 TEXT NOT NULL);");
+                        "apt_lat REAL NOT NULL, apt_lon REAL NOT NULL, apt_desc1 TEXT NOT NULL, apt_desc2 TEXT NOT NULL);");
                 DoCommand (dbcon, "CREATE INDEX airports_faaid ON airports (apt_faaid);");
+                DoCommand (dbcon, "CREATE INDEX airports_lats  ON airports (apt_lat);");
+                DoCommand (dbcon, "CREATE INDEX airports_lons  ON airports (apt_lon);");
             } else {
                 DoCommand (dbcon, "CREATE TABLE airports (apt_icaoid TEXT PRIMARY KEY, apt_faaid TEXT NOT NULL, apt_elev REAL NOT NULL, apt_name TEXT NOT NULL, " +
                         "apt_lat REAL NOT NULL, apt_lon REAL NOT NULL, apt_desc TEXT NOT NULL, apt_state TEXT NOT NULL, apt_faciluse TEXT NOT NULL);");
@@ -81,8 +96,8 @@ public class MakeWaypoints {
                 IDbCommand dbcmd1 = dbcon.CreateCommand ();
                 try {
                     if (abbrdb) {
-                        dbcmd1.CommandText = "INSERT INTO airports (apt_icaoid,apt_faaid,apt_elev,apt_name,apt_lat,apt_lon,apt_desc1) " +
-                                "VALUES (@apt_icaoid,@apt_faaid,@apt_elev,@apt_name,@apt_lat,@apt_lon,@apt_desc1); " +
+                        dbcmd1.CommandText = "INSERT INTO airports (apt_icaoid,apt_faaid,apt_elev,apt_name,apt_lat,apt_lon,apt_desc1,apt_desc2) " +
+                                "VALUES (@apt_icaoid,@apt_faaid,@apt_elev,@apt_name,@apt_lat,@apt_lon,@apt_desc1,@apt_desc2); " +
                                 "SELECT last_insert_rowid ()";
                         dbcmd1.Parameters.Add (new SqliteParameter ("@apt_icaoid"  , cols[0]));
                         dbcmd1.Parameters.Add (new SqliteParameter ("@apt_faaid"   , cols[1]));
@@ -90,7 +105,18 @@ public class MakeWaypoints {
                         dbcmd1.Parameters.Add (new SqliteParameter ("@apt_name"    , cols[3]));
                         dbcmd1.Parameters.Add (new SqliteParameter ("@apt_lat"     , double.Parse (cols[4])));
                         dbcmd1.Parameters.Add (new SqliteParameter ("@apt_lon"     , double.Parse (cols[5])));
-                        dbcmd1.Parameters.Add (new SqliteParameter ("@apt_desc1"   , cols[7].Split (linesplit)[0]));
+                        string[] infos = cols[7].Split (linesplit);
+                        dbcmd1.Parameters.Add (new SqliteParameter ("@apt_desc1"   , infos[0]));
+                        StringBuilder sb = new StringBuilder ();
+                        foreach (string info in infos) {
+                            foreach (string abbinfo in abbinfos) {
+                                if (info.StartsWith (abbinfo)) {
+                                    sb.Append ('\n');
+                                    sb.Append (info);
+                                }
+                            }
+                        }
+                        dbcmd1.Parameters.Add (new SqliteParameter ("@apt_desc2"   , sb.ToString ().Trim ()));
                     } else {
                         dbcmd1.CommandText = "INSERT INTO airports (apt_icaoid,apt_faaid,apt_elev,apt_name,apt_lat,apt_lon,apt_desc,apt_state,apt_faciluse) " +
                                 "VALUES (@apt_icaoid,@apt_faaid,@apt_elev,@apt_name,@apt_lat,@apt_lon,@apt_desc,@apt_state,@apt_faciluse); " +
@@ -127,6 +153,8 @@ public class MakeWaypoints {
             DoCommand (dbcon, "CREATE TABLE fixes (fix_name TEXT NOT NULL, fix_lat REAL NOT NULL, fix_lon REAL NOT NULL, fix_desc TEXT NOT NULL);");
             if (abbrdb) {
                 DoCommand (dbcon, "CREATE INDEX fixes_name ON fixes (fix_name);");
+                DoCommand (dbcon, "CREATE INDEX fixes_lats ON fixes (fix_lat);");
+                DoCommand (dbcon, "CREATE INDEX fixes_lons ON fixes (fix_lon);");
             } else {
                 DoCommand (dbcon, "CREATE TABLE fixkeys (kw_key TEXT NOT NULL, kw_rowid INTEGER NOT NULL);");
                 DoCommand (dbcon, "CREATE INDEX fixes_name ON fixes (fix_name);");
@@ -324,6 +352,8 @@ public class MakeWaypoints {
                 DoCommand (dbcon, "CREATE TABLE navaids (nav_type TEXT NOT NULL, nav_faaid TEXT NOT NULL, nav_elev REAL NOT NULL, nav_name TEXT NOT NULL, " +
                         "nav_lat REAL NOT NULL, nav_lon REAL NOT NULL, nav_magvar INTEGER NOT NULL);");
                 DoCommand (dbcon, "CREATE INDEX navaids_faaid ON navaids (nav_faaid);");
+                DoCommand (dbcon, "CREATE INDEX navaids_lats  ON navaids (nav_lat);");
+                DoCommand (dbcon, "CREATE INDEX navaids_lons  ON navaids (nav_lon);");
             } else {
                 DoCommand (dbcon, "CREATE TABLE navaids (nav_type TEXT NOT NULL, nav_faaid TEXT NOT NULL, nav_elev REAL NOT NULL, nav_name TEXT NOT NULL, " +
                         "nav_lat REAL NOT NULL, nav_lon REAL NOT NULL, nav_magvar INTEGER NOT NULL, nav_freq INTEGER, nav_power TEXT NOT NULL);");
@@ -389,42 +419,43 @@ public class MakeWaypoints {
             /*
              * Load runway info into database.
              */
-            if (! abbrdb) {
-                DoCommand (dbcon, "CREATE TABLE runways (rwy_faaid TEXT NOT NULL, rwy_number TEXT NOT NULL, rwy_truehdg INTEGER, rwy_tdze REAL, " +
-                        "rwy_beglat REAL NOT NULL, rwy_beglon REAL NOT NULL, rwy_endlat REAL NOT NULL, rwy_endlon REAL NOT NULL, rwy_ritraf TEXT NOT NULL);");
-                DoCommand (dbcon, "CREATE INDEX runways_faaids  ON runways (rwy_faaid);");
-                DoCommand (dbcon, "CREATE INDEX runways_beglats ON runways (rwy_beglat);");
-                DoCommand (dbcon, "CREATE INDEX runways_beglons ON runways (rwy_beglon);");
+            DoCommand (dbcon, "CREATE TABLE runways (rwy_faaid TEXT NOT NULL, rwy_number TEXT NOT NULL, rwy_truehdg INTEGER, rwy_tdze REAL, " +
+                    "rwy_beglat REAL NOT NULL, rwy_beglon REAL NOT NULL, rwy_endlat REAL NOT NULL, rwy_endlon REAL NOT NULL, " +
+                    "rwy_ritraf TEXT NOT NULL, rwy_length INTEGER NOT NULL, rwy_width INTEGER NOT NULL);");
+            DoCommand (dbcon, "CREATE INDEX runways_faaids  ON runways (rwy_faaid);");
+            DoCommand (dbcon, "CREATE INDEX runways_beglats ON runways (rwy_beglat);");
+            DoCommand (dbcon, "CREATE INDEX runways_beglons ON runways (rwy_beglon);");
 
-                csvrdr = new StreamReader ("datums/runways_" + expdate + ".csv");
-                while ((csv = csvrdr.ReadLine ()) != null) {
-                    string[] cols = QuotedCSVSplit (csv);
+            csvrdr = new StreamReader ("datums/runways_" + expdate + ".csv");
+            while ((csv = csvrdr.ReadLine ()) != null) {
+                string[] cols = QuotedCSVSplit (csv);
 
-                    IDbCommand dbcmd1 = dbcon.CreateCommand ();
-                    try {
-                        dbcmd1.CommandText = "INSERT INTO runways (rwy_faaid,rwy_number,rwy_truehdg,rwy_tdze,rwy_beglat,rwy_beglon,rwy_endlat,rwy_endlon,rwy_ritraf) " +
-                                "VALUES (@rwy_faaid,@rwy_number,@rwy_truehdg,@rwy_tdze,@rwy_beglat,@rwy_beglon,@rwy_endlat,@rwy_endlon,@rwy_ritraf);";
-                        dbcmd1.Parameters.Add (new SqliteParameter ("@rwy_faaid",   cols[0]));  // eg, "BOS"
-                        dbcmd1.Parameters.Add (new SqliteParameter ("@rwy_number",  cols[1]));  // eg, "04L"
-                        dbcmd1.Parameters.Add (new SqliteParameter ("@rwy_truehdg", (cols[2] == "") ? null : (object) int.Parse (cols[2])));
-                        dbcmd1.Parameters.Add (new SqliteParameter ("@rwy_tdze",    (cols[3] == "") ? null : (object) double.Parse (cols[3])));
-                        dbcmd1.Parameters.Add (new SqliteParameter ("@rwy_beglat", double.Parse (cols[4])));
-                        dbcmd1.Parameters.Add (new SqliteParameter ("@rwy_beglon", double.Parse (cols[5])));
-                        dbcmd1.Parameters.Add (new SqliteParameter ("@rwy_endlat", double.Parse (cols[6])));
-                        dbcmd1.Parameters.Add (new SqliteParameter ("@rwy_endlon", double.Parse (cols[7])));
-                        dbcmd1.Parameters.Add (new SqliteParameter ("@rwy_ritraf", cols[8]));
-                        dbcmd1.ExecuteScalar ();
-                    } finally {
-                        dbcmd1.Dispose ();
-                    }
-
-                    if (++ i == 1024) {
-                        DoCommand (dbcon, "COMMIT; BEGIN;");
-                        i = 0;
-                    }
+                IDbCommand dbcmd1 = dbcon.CreateCommand ();
+                try {
+                    dbcmd1.CommandText = "INSERT INTO runways (rwy_faaid,rwy_number,rwy_truehdg,rwy_tdze,rwy_beglat,rwy_beglon,rwy_endlat,rwy_endlon,rwy_ritraf,rwy_length,rwy_width) " +
+                            "VALUES (@rwy_faaid,@rwy_number,@rwy_truehdg,@rwy_tdze,@rwy_beglat,@rwy_beglon,@rwy_endlat,@rwy_endlon,@rwy_ritraf,@rwy_length,@rwy_width)";
+                    dbcmd1.Parameters.Add (new SqliteParameter ("@rwy_faaid",  cols[0]));  // eg, "BOS"
+                    dbcmd1.Parameters.Add (new SqliteParameter ("@rwy_number", cols[1]));  // eg, "04L"
+                    dbcmd1.Parameters.Add (new SqliteParameter ("@rwy_truehdg", (cols[2] == "") ? null : (object) int.Parse (cols[2])));
+                    dbcmd1.Parameters.Add (new SqliteParameter ("@rwy_tdze",   (cols[3] == "") ? null : (object) double.Parse (cols[3])));
+                    dbcmd1.Parameters.Add (new SqliteParameter ("@rwy_beglat", double.Parse (cols[4])));
+                    dbcmd1.Parameters.Add (new SqliteParameter ("@rwy_beglon", double.Parse (cols[5])));
+                    dbcmd1.Parameters.Add (new SqliteParameter ("@rwy_endlat", double.Parse (cols[6])));
+                    dbcmd1.Parameters.Add (new SqliteParameter ("@rwy_endlon", double.Parse (cols[7])));
+                    dbcmd1.Parameters.Add (new SqliteParameter ("@rwy_ritraf", cols[8]));
+                    dbcmd1.Parameters.Add (new SqliteParameter ("@rwy_length", int.Parse (cols[ 9])));
+                    dbcmd1.Parameters.Add (new SqliteParameter ("@rwy_width",  int.Parse (cols[10])));
+                    dbcmd1.ExecuteScalar ();
+                } finally {
+                    dbcmd1.Dispose ();
                 }
-                csvrdr.Close ();
+
+                if (++ i == 1024) {
+                    DoCommand (dbcon, "COMMIT; BEGIN;");
+                    i = 0;
+                }
             }
+            csvrdr.Close ();
             DoCommand (dbcon, "COMMIT;");
 
             /*

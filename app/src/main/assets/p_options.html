@@ -2,61 +2,73 @@
     <BODY>
         <H2>Options Page</H2>
         <P>This page gives access to the selectable options.</P>
-        <UL>
-            <LI><B>Show CAP grids</B> - will draw CAP grid identifiers
-                and numbers on the currently selected
-                <B><A HREF="p_chart.html">chart</A></B>.  Only valid
-                for the continental US, does not do Alaska or Hawaii.
-            <LI><B>Show obstacle/terrain collision</B> - will highlight
-                potential obstacle/terrain collisions based on current
-                position, speed and heading.  Will highlight locations
-                within 10 sec to 2 mins at current speed and within 30&#176;
-                of current heading.  The highlights will be depicted as
-                blinking red dots in the area of the collision hazard.
-                Requires that the <A HREF="p_maint.html">topography
-                and obstructions</A> databases be downloaded and current.
-            <LI><B>Show FAA waypoints</B> - will draw a dot and the
-                name of all known FAA waypoints on the currently
-                selected <B><A HREF="p_chart.html">chart</A></B>.
-                Usually very crowded with fix names.
-            <LI><B>Show User waypoints</B> - will draw a dot and the
-                name of all user waypoints on the currently
-                selected <B><A HREF="p_chart.html">chart</A></B>.
-            <LI><B>Type B Compliant</B> - dumbs WairToNow down to be
-                <A HREF="http://www.faa.gov/documentlibrary/media/advisory_circular/ac_120-76c.pdf">
-                    AC 120-76C
-                </A>
-                Type B compliant.  Basically disables any geo-referencing
-                except on airport/runway diagrams.  Disables the Crumbs,
-                Glass, Route Track, VirtNav buttons, as well as IAP DME function.</LI>
-            <LI><B>Power Lock</B> - keeps the screen powered up when
-                the <B><A HREF="p_chart.html">chart</A></B> or
-                <B><A HREF="p_glass.html">glass</A></B> pages are
-                being displayed or an approach plate is being
-                displayed.  <I>Use with caution as it can wear the
-                battery down.</I>
-            <LI><B>GPS status compass</B> - enable compass on the
-                <A HREF="p_sensors.html">sensors</A> page.
-            <LI><B>Chart orientation Unlocked</B><BR>
-                <B>Chart locked in Portrait</B><BR>
-                <B>Chart locked in Landscape</B> - locks/unlocks
-                the screen orientation so it doesn't flip on its
-                own in a possibly turbulent cockpit.
-            <LI><B>Course Up</B> - use selected course line to point up
-                on chart display.  If no course currently selected,
-                defaults to <B>Track Up</B> mode.
-            <LI><B>Finger Rotate</B> - user can rotate the chart manually.
-            <LI><B>North Up</B> - north is always up on the chart
-                display.
-            <LI><B>Track Up</B> - use GPS reported heading to point up
-                on chart display.
-            <LI><B>Magnetic</B> or <B>True</B> - select how to display
-                a heading.
-            <LI><B>Maint Plates List</B> or <B>Map</B> -
-                select how to display the states on the Maint Plates
-                page.
-            <LI><B>ddd&#176; ...</B> - select how to display a
-                latitude/longitude value.
-        </UL>
+        <TABLE>
+            <TR>
+                <TD><IMG SRC="options-page-crop.png"></TD>
+                <TD>
+                    <UL>
+                        <LI><B>Medium</B> - selects font sized used for most WairToNow text.
+                            Making a change will restart the app.
+                        <LI><B>TFR: ALL</B> - selects which TFRs are displayed on the
+                            currently selected <B><A HREF="p_chart.html">chart</A></B>.
+                        <LI><B>Show CAP grids</B> - will draw CAP grid identifiers
+                            and numbers on the currently selected
+                            <B><A HREF="p_chart.html">chart</A></B>.  Only valid
+                            for the continental US, does not do Alaska or Hawaii.
+                        <LI><B>Show obstacle/terrain collision</B> - will highlight
+                            potential obstacle/terrain collisions based on current
+                            position, speed and heading.  Will highlight locations
+                            within 10 sec to 2 mins at current speed and within 30&#176;
+                            of current heading.  The highlights will be depicted as
+                            blinking red dots in the area of the collision hazard.
+                            Requires that the <A HREF="p_maint.html">topography
+                                and obstructions</A> databases be downloaded and current.
+                        <LI><B>Show FAA waypoints</B> - will draw a dot and the
+                            name of all known FAA waypoints on the currently
+                            selected <B><A HREF="p_chart.html">chart</A></B>.
+                            Usually very crowded with fix names.
+                        <LI><B>Show User waypoints</B> - will draw a dot and the
+                            name of all user waypoints on the currently
+                            selected <B><A HREF="p_chart.html">chart</A></B>.
+                        <LI><B>Invert plate colors</B> - uses white text on black background for
+                            plates (such as airport diagram and instrument approach procedures).
+                        <LI><B>Show Synth ILS/DME plates</B> - enables selection of synthetic
+                            ILS/DME instrument approach procedure plates along with the official
+                            FAA plates for airports.
+                        <LI><B>Type B Compliant</B> - dumbs WairToNow down to be
+                            <A HREF="http://www.faa.gov/documentlibrary/media/advisory_circular/ac_120-76c.pdf">
+                                AC 120-76C
+                            </A>
+                            Type B compliant.  Basically disables any geo-referencing
+                            except on airport/runway diagrams.  Disables the Crumbs,
+                            Glass, Route Track, VirtNav buttons, as well as IAP DME function.
+                        <LI><B>Show ADS-B Nextrad</B> - display weather information on charts
+                            received from ADSB.  An ADSB receiver must be connected on the
+                            <A HREF="p_sensors.html">sensors</A> page.
+                        <LI><B>Show ADS-B Traffic</B> - display traffic information on charts
+                            received from ADSB.  An ADSB receiver must be connected on the
+                            <A HREF="p_sensors.html">sensors</A> page.
+                        <LI><B>Power Lock</B> - keeps the screen powered up when
+                            the <B><A HREF="p_chart.html">chart</A></B> or
+                            <B><A HREF="p_glass.html">glass</A></B> pages are
+                            being displayed or an approach plate is being
+                            displayed.  <I>Use with caution as it can wear the
+                                battery down.</I>
+                        <LI><B>GPS status compass</B> - enable compass on the
+                            <A HREF="p_sensors.html">sensors</A> page.
+                        <LI><B>North Up</B> - selects what direction is UP on the display
+                        <LI><B>Magnetic</B> or <B>True</B> - select how to display
+                            a heading.
+                        <LI><B>ddd&#176; ...</B> - select how to display a
+                            latitude/longitude value.
+                        <LI><B>Kts</B> or <B>MPH</B> - select speed units
+                        <LI><B>GPS updates 3 per sec</B> - selects rate of GPS updates.  depends on
+                            capability of the actual GPS receiver.  the higher rates use more battery.
+                        <LI><B>Circle Category A</B> - indicates circling category for instrument
+                            approach plates depiction of circling area
+                    </UL>
+                </TD>
+            </TR>
+        </TABLE>
     </BODY>
 </HTML>

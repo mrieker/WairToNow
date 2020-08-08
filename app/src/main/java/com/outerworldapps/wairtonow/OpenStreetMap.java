@@ -51,17 +51,22 @@ public class OpenStreetMap {
 
     public  static final int BitmapSize = 256;  // all OSM tiles are this size
     public  static final int MAXZOOM = 17;
-    private static final double MAXPIXPERSQIN = 14400;  // max tile pixels per square inch
     private static final long TILE_FILE_AGE_MS = 1000L*60*60*24*365;
     private static final long TILE_RETRY_MS = 1000L*10;
 
-    private RunwayDownloadThread runwayDownloadThread;
+    private double log2pixperin;
     private MainTileDrawer mainTileDrawer;
+    private RunwayDownloadThread runwayDownloadThread;
     private WairToNow wairToNow;
 
     public OpenStreetMap (WairToNow wtn)
     {
         wairToNow = wtn;
+
+        // using 100 pix per inch works out for font size 1/7th inch
+        // so scale pix per inch from that
+        double fontHeightInches = wairToNow.textSize / wairToNow.dotsPerInch;
+        log2pixperin = Math.log (14.0 / fontHeightInches) / Math.log (2);
 
         StartPrefetchingRunwayTiles ();
 
@@ -94,7 +99,6 @@ public class OpenStreetMap {
         private Canvas canvas;
         private DisplayableChart.Invalidatable redrawView;
         private float[] bitmappts = new float[8];
-        private long drawCycle;
         private Matrix matrix = new Matrix ();
         private Paint copyrtBGPaint = new Paint ();
         private Paint copyrtTxPaint = new Paint ();
@@ -124,10 +128,16 @@ public class OpenStreetMap {
 
             stopReadingTiles (false);
 
-            ++ drawCycle;
+            synchronized (openedBitmaps) {
+                for (int i = openedBitmaps.size (); -- i >= 0;) {
+                    TileBitmap tbm = openedBitmaps.valueAt (i);
+                    tbm.used = false;
+                }
+            }
+
             if (DrawTiles (wairToNow, pmap)) {
                 int h = pmap.canvasHeight;
-                String copyrtMessage = "Copyright OpenStreetMap contributors";
+                String copyrtMessage = "[" + zoom + "]  Copyright OpenStreetMap contributors";
                 canvas.drawText (copyrtMessage, 5, h - 5, copyrtBGPaint);
                 canvas.drawText (copyrtMessage, 5, h - 5, copyrtTxPaint);
             }
@@ -135,7 +145,7 @@ public class OpenStreetMap {
             synchronized (openedBitmaps) {
                 for (int i = openedBitmaps.size (); -- i >= 0;) {
                     TileBitmap tbm = openedBitmaps.valueAt (i);
-                    if (tbm.used < drawCycle) {
+                    if (! tbm.used) {
                         openedBitmaps.removeAt (i);
                         if (tbm.bm != null) tbm.bm.recycle ();
                     }
@@ -197,7 +207,7 @@ public class OpenStreetMap {
 
             // it is opened, remember it is being used so it doesn't get recycled
             // also it might be null meaning the bitmap file is corrupt
-            tbm.used = drawCycle;
+            tbm.used = true;
             Bitmap tile = tbm.bm;
             if (tile == null) return false;
 
@@ -269,17 +279,20 @@ public class OpenStreetMap {
 
         private void stopReadingTiles (boolean wait)
         {
+            Thread t;
             synchronized (openedBitmaps) {
                 neededBitmaps.clear ();
+                t = tileOpenerThread;
             }
-            if (wait && (tileOpenerThread != null)) {
-                try { tileOpenerThread.join (); } catch (InterruptedException ie) { Lib.Ignored (); }
+            if (wait && (t != null)) {
+                try { t.join (); } catch (InterruptedException ignored) { }
             }
             synchronized (downloadBitmaps) {
                 downloadBitmaps.clear ();
+                t = tileDownloaderThread;
             }
-            if (wait && (tileDownloaderThread != null)) {
-                try { tileDownloaderThread.join (); } catch (InterruptedException ie) { Lib.Ignored (); }
+            if (wait && (t != null)) {
+                try { t.join (); } catch (InterruptedException ignored) { }
             }
         }
 
@@ -347,7 +360,7 @@ public class OpenStreetMap {
                         tbm = null;
                     } else {
                         key = (((long) tileIX) << 36) | (((long) tileIY) << 8) | zl;
-                        tbm.used = Long.MAX_VALUE;
+                        tbm.used = true;
                     }
                 }
             }
@@ -384,14 +397,14 @@ public class OpenStreetMap {
     private static class TileBitmap {
         public DisplayableChart.Invalidatable inval;  // callback when tile gets loaded
         public Bitmap bm;                             // bitmap (or null if not on flash or corrupt)
-        public long used;                             // cycle it was used on
+        public boolean used;                          // was used this cycle
     }
 
     /**
      * This class simply scans the tiles needed to draw to a canvas.
      * It does a callback to DrawTile() for each tile needed.
      */
-    private static abstract class TileDrawer {
+    private abstract class TileDrawer {
         protected float[] canvaspts = new float[8];
         protected int tileX, tileY, zoom;
         protected PointD northwestcanpix = new PointD ();
@@ -449,22 +462,23 @@ public class OpenStreetMap {
             // see how many zoom=MAXZOOM tile pixels per canvas square inch
             double tilePixelsPerCanvasSqIn = canvasAreaTilePixels / canvasAreaSqIn;
 
-            // check each zoom level starting with zoomed-in tiles until we have tile pixel big enough
-            // eg, if the user has zoomed way out, the MAXZOOM tile pixels will be very small and so we
-            // end up stepping out a few zoom levels to get something reasonable
-            double maxPixPerSqIn = Math.min (MAXPIXPERSQIN, canvasPixPerSqIn * 1.5);
-            for (; zoom > 0; -- zoom) {
+            // each zoom level has 4 times the pixels as the lower level
 
-                // if tile pixels at this zoom level will be displayed big enough, stop scanning
-                if (tilePixelsPerCanvasSqIn <= maxPixPerSqIn) break;
+            double log4TilePixelsPerCanvasSqIn = Math.log (tilePixelsPerCanvasSqIn) / Math.log (4);
 
-                // if we use next level zoomed-out tiles to cover the same lat/lon ranges,
-                // the pixels will be bigger and so there will only be 1/4th as many per
-                // canvas square inch
-                tilePixelsPerCanvasSqIn *= 0.25;
-            }
+            // tiles look good at 128 pixels per inch, so LOG2PIXPERIN = 7
+            // assuming MAXZOOM = 17:
+            // tilePixelsPerCanvasSqIn@MAXZOOM  log4TilePixelsPerCanvasSqIn@MAXZOOM  zoom to get 128x128 pix per sq in
+            //     16M                                  12                               12 = MAXZOOM-5
+            //      4M                                  11                               13 = MAXZOOM-4
+            //      1M                                  10                               14 = MAXZOOM-3
+            //    256K                                   9                               15 = MAXZOOM-2
+            //     64K                                   8                               16 = MAXZOOM-1
+            //     16K                                   7                               17 = MAXZOOM-0
 
-            //Log.d (TAG, "DrawTiles*: w=" + w + " h=" + h + " zoom=" + zoom);
+            zoom = MAXZOOM - (int) Math.round (log4TilePixelsPerCanvasSqIn - log2pixperin);
+            if (zoom < 0) zoom = 0;
+            if (zoom > MAXZOOM) zoom = MAXZOOM;
 
             /*
              * See what range of tile numbers are needed to cover the canvas.

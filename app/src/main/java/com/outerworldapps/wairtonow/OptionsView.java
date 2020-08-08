@@ -72,9 +72,10 @@ public class OptionsView
     public  DefAltOption magTrueOption;
     public  FontOption   fontSizeOption;
     public  IntOption    chartTrackOption;
+    public  IntOption    circCatOption;
     public  IntOption    gpsUpdateOption;
     public  IntOption    latLonOption;
-    public  IntOption    circCatOption;
+    public  IntOption    tfrFilterOption;
     private WairToNow    wairToNow;
 
     private final static int LLO_DDMMMM = 0;
@@ -85,6 +86,11 @@ public class OptionsView
     public final static int CTO_NORTHUP  = 1;
     public final static int CTO_TRACKUP  = 2;
     public final static int CTO_FINGEROT = 3;
+
+    public final static int TFR_NONE = 0;
+    public final static int TFR_ACTIVE = 1;
+    public final static int TFR_TODAY = 2;
+    public final static int TFR_ALL = 3;
 
     private static NNLinkedHashMap<String,Integer> getFontSizeMap ()
     {
@@ -148,6 +154,10 @@ public class OptionsView
 
         fontSizeOption    = new FontOption ();
 
+        tfrFilterOption = new IntOption ("TFR Filter",
+                new String[] { "TFR: ALL", "TFR: TODAY", "TFR: ACTIVE", "TFR: NONE" },
+                new int[] { TFR_ALL, TFR_TODAY, TFR_ACTIVE, TFR_NONE });
+
         latLonOption      = new IntOption ("LatLon Format",
             new String[] {
                 "ddd" + (char)0xB0 + "mm'ss.ss\"",
@@ -192,6 +202,7 @@ public class OptionsView
         ll1.setOrientation (LinearLayout.VERTICAL);
 
         ll1.addView (fontSizeOption);
+        ll1.addView (tfrFilterOption);
         ll1.addView (capGridOption);
         ll1.addView (collDetOption);
         ll1.addView (faaWPOption);
@@ -351,6 +362,7 @@ public class OptionsView
                     if (name.equals ("gpsUpdate"))    gpsUpdateOption.setKeyNoWrite       (valu);
                     if (name.equals ("circCat"))      circCatOption.setKeyNoWrite         (valu);
                     if (name.equals ("fontSize"))     fontSizeOption.setKeyNoWrite        (valu);
+                    if (name.equals ("tfrFilter"))    tfrFilterOption.setKeyNoWrite       (valu);
                 }
             } finally {
                 csvreader.close ();
@@ -376,6 +388,7 @@ public class OptionsView
             gpsUpdateOption.setKeyNoWrite       (gpsUpdateOption.keys[0]);
             circCatOption.setKeyNoWrite         (circCatOption.keys[0]);
             fontSizeOption.setKeyNoWrite        (fontSizeDefault);
+            tfrFilterOption.setKeyNoWrite       ("TFR: ALL");
         } catch (Exception e) {
             Log.w (TAG, "error reading options.csv", e);
         }
@@ -409,6 +422,7 @@ public class OptionsView
                 csvwriter.write ("gpsUpdate,"    + gpsUpdateOption.getKey ()               + "\n");
                 csvwriter.write ("circCat,"      + circCatOption.getKey ()                 + "\n");
                 csvwriter.write ("fontSize,"     + fontSizeOption.getKey ()                + "\n");
+                csvwriter.write ("tfrFilter,"    + tfrFilterOption.getKey ()               + "\n");
             } finally {
                 csvwriter.close ();
             }

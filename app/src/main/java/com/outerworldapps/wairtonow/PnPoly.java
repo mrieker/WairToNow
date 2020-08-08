@@ -50,4 +50,16 @@ public class PnPoly {
         }
         return wn;
     }
+
+    // https://www.wikihow.com/Calculate-the-Area-of-a-Polygon
+    public static double area (PointD[] V, int n)
+    {
+        double prodxy = 0.0;
+        double prodyx = 0.0;
+        for (int i = 0; i < n; i ++) {
+            prodxy += V[i].x * V[i+1].y;
+            prodyx += V[i].y * V[i+1].x;
+        }
+        return Math.abs (prodxy - prodyx) / 2.0;
+    }
 }

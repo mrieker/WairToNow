@@ -280,10 +280,10 @@ public class Lib {
     public static double LatLonDist_rad (double srcLat, double srcLon, double dstLat, double dstLon)
     {
         // http://en.wikipedia.org/wiki/Great-circle_distance
-        double sLat = srcLat / 180 * Math.PI;
-        double sLon = srcLon / 180 * Math.PI;
-        double fLat = dstLat / 180 * Math.PI;
-        double fLon = dstLon / 180 * Math.PI;
+        double sLat = Math.toRadians (srcLat);
+        double sLon = Math.toRadians (srcLon);
+        double fLat = Math.toRadians (dstLat);
+        double fLon = Math.toRadians (dstLon);
         double dLon = fLon - sLon;
         double t1   = Sq (Math.cos (fLat) * Math.sin (dLon));
         double t2   = Sq (Math.cos (sLat) * Math.sin (fLat) - Math.sin (sLat) * Math.cos (fLat) * Math.cos (dLon));
@@ -305,13 +305,13 @@ public class Lib {
     public static double LatLonTC_rad (double srcLat, double srcLon, double dstLat, double dstLon)
     {
         // http://en.wikipedia.org/wiki/Great-circle_navigation
-        double sLat = srcLat / 180 * Math.PI;
-        double sLon = srcLon / 180 * Math.PI;
-        double fLat = dstLat / 180 * Math.PI;
-        double fLon = dstLon / 180 * Math.PI;
+        double sLat = Math.toRadians (srcLat);
+        double sLon = Math.toRadians (srcLon);
+        double fLat = Math.toRadians (dstLat);
+        double fLon = Math.toRadians (dstLon);
         double dLon = fLon - sLon;
         double t1 = Math.cos (sLat) * Math.tan (fLat);
-        double t2 = Math.sin(sLat) * Math.cos(dLon);
+        double t2 = Math.sin (sLat) * Math.cos (dLon);
         return Math.atan2 (Math.sin (dLon), t1 - t2);
     }
 
@@ -512,33 +512,39 @@ public class Lib {
     public static double GCOnCourseHdg (double beglatdeg, double beglondeg, double endlatdeg, double endlondeg, double curlatdeg, double curlondeg)
     {
         // convert arguments to radians
+        // rotate to make endlon = 0
         double beglatrad = Math.toRadians (beglatdeg);
-        double beglonrad = Math.toRadians (beglondeg);
+        double beglonrad = Math.toRadians (beglondeg - endlondeg);
         double endlatrad = Math.toRadians (endlatdeg);
-        double endlonrad = Math.toRadians (endlondeg);
+        //// double endlonrad = Math.toRadians (endlondeg - endlondeg);
         double curlatrad = Math.toRadians (curlatdeg);
-        double curlonrad = Math.toRadians (curlondeg);
+        double curlonrad = Math.toRadians (curlondeg - endlondeg);
+
+        double beglatcos = Math.cos (beglatrad);
+        double endlatcos = Math.cos (endlatrad);
+        double curlatcos = Math.cos (curlatrad);
 
         // find points on normalized sphere
         // +X axis goes through lat=0,lon=0
         // +Y axis goes through lat=0,lon=90
         // +Z axis goes through north pole
-        double begX = Math.cos (beglonrad) * Math.cos (beglatrad);
-        double begY = Math.sin (beglonrad) * Math.cos (beglatrad);
+        double begX = Math.cos (beglonrad) * beglatcos;
+        double begY = Math.sin (beglonrad) * beglatcos;
         double begZ = Math.sin (beglatrad);
-        double endX = Math.cos (endlonrad) * Math.cos (endlatrad);
-        double endY = Math.sin (endlonrad) * Math.cos (endlatrad);
+        //noinspection UnnecessaryLocalVariable
+        double endX = endlatcos;  //// Math.cos (endlonrad) * endlatcos;
+        //// double endY = Math.sin (endlonrad) * endlatcos;
         double endZ = Math.sin (endlatrad);
-        double curX = Math.cos (curlonrad) * Math.cos (curlatrad);
-        double curY = Math.sin (curlonrad) * Math.cos (curlatrad);
+        double curX = Math.cos (curlonrad) * curlatcos;
+        double curY = Math.sin (curlonrad) * curlatcos;
         double curZ = Math.sin (curlatrad);
 
         // compute normal to plane containing course, ie, containing beg, end, origin = beg cross end
         // note that the plane crosses through the center of earth, ie, (0,0,0)
         // equation of plane containing course: norX * x + norY * Y + norZ * z = 0
-        double courseNormalX = begY * endZ - begZ * endY;
+        double courseNormalX = begY * endZ; //// begY * endZ - begZ * endY;
         double courseNormalY = begZ * endX - begX * endZ;
-        double courseNormalZ = begX * endY - begY * endX;
+        double courseNormalZ = - begY * endX; //// begX * endY - begY * endX;
 
         // compute normal to plane containing that normal, cur and origin = cur cross courseNormal
         double currentNormalX = curY * courseNormalZ - curZ * courseNormalY;
@@ -552,24 +558,26 @@ public class Lib {
         double intersectX = courseNormalY * currentNormalZ - courseNormalZ * currentNormalY;
         double intersectY = courseNormalZ * currentNormalX - courseNormalX * currentNormalZ;
         double intersectZ = courseNormalX * currentNormalY - courseNormalY * currentNormalX;
+        double intersectM = Math.sqrt (intersectX * intersectX + intersectY * intersectY + intersectZ * intersectZ);
 
-        // find lat/lon of the intersection point
-        double intersectLat = Math.toDegrees (Math.atan2 (intersectZ, Math.sqrt (intersectX * intersectX + intersectY * intersectY)));
-        double intersectLon = Math.toDegrees (Math.atan2 (intersectY, intersectX));
+        // normal to plane from intersection to north pole (0,0,1)
+        //noinspection UnnecessaryLocalVariable,SuspiciousNameCombination
+        double norintnplX =   intersectY;
+        double norintnplY = - intersectX;
 
-        // find distance from intersection point to start and end points
-        double distInt2End = LatLonDist_rad (intersectLat, intersectLon, endlatdeg, endlondeg);
-        double distInt2Beg = LatLonDist_rad (intersectLat, intersectLon, beglatdeg, beglondeg);
+        // dot product of course normal with normal to northpole gives cos of the heading at intersectXYZ to endXYZ
+        double costheta = (courseNormalX * norintnplX + courseNormalY * norintnplY) * intersectM;
 
-        // if closer to start point, return true course from intersection point to end point
-        if (distInt2End > distInt2Beg) {
-            return LatLonTC (intersectLat, intersectLon, endlatdeg, endlondeg);
-        }
+        // cross of course normal with normal to northpole gives vector pointing directly to (or away from) intersection point
+        // its magnitude is the sin of the heading
+        double towardintX = - courseNormalZ * norintnplY;
+        double towardintY =   courseNormalZ * norintnplX;
+        double towardintZ = courseNormalX * norintnplY - courseNormalY * norintnplX;
 
-        // but/and if closer to endpoint, return reciprocal of tc from intersection to start point
-        double tc = LatLonTC (intersectLat, intersectLon, beglatdeg, beglondeg) + 180.0;
-        if (tc >= 180.0) tc -= 360.0;
-        return tc;
+        // dot that with vector to intersection is the sin of the heading
+        double sintheta = towardintX * intersectX + towardintY * intersectY + towardintZ * intersectZ;
+
+        return Math.toDegrees (Math.atan2 (sintheta, costheta));
     }
 
     /**
@@ -1351,6 +1359,50 @@ public class Lib {
             hex[i*2+1] = hexbytes.charAt (b & 15);
         }
         return new String (hex);
+    }
+
+    /**
+     * Handle 3-letter timezone names as well as full strings.
+     */
+    public static TimeZone getTimeZone (String tzname)
+    {
+        TimeZone lcltz = null;
+        if (tzname != null) {
+            switch (tzname) {
+                case "EDT": {
+                    lcltz = TimeZone.getTimeZone ("GMT-04:00");
+                    break;
+                }
+                case "EST":
+                case "CDT": {
+                    lcltz = TimeZone.getTimeZone ("GMT-05:00");
+                    break;
+                }
+                case "CST":
+                case "MDT": {
+                    lcltz = TimeZone.getTimeZone ("GMT-06:00");
+                    break;
+                }
+                case "MST":
+                case "PDT": {
+                    lcltz = TimeZone.getTimeZone ("GMT-07:00");
+                    break;
+                }
+                case "PST": {
+                    lcltz = TimeZone.getTimeZone ("GMT-08:00");
+                    break;
+                }
+                case "Guam": {
+                    lcltz = TimeZone.getTimeZone ("Pacific/Guam");
+                    break;
+                }
+                default: {
+                    lcltz = TimeZone.getTimeZone (tzname);
+                    break;
+                }
+            }
+        }
+        return lcltz;
     }
 
     /**

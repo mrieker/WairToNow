@@ -234,9 +234,12 @@ public class GetAirportIDs {
                 string elvb = TrimTZ (line.Substring (364, 7));     // elevation (feet)
                 string rtrb = line.Substring (303, 1).Trim ();
 
+                string rwlen = TrimLZ (line.Substring (23, 5));
+                string rwwid = TrimLZ (line.Substring (28, 4));
+
                 if ((lata != "") && (lona != "") && (latb != "") && (lonb != "")) {
-                    runways.WriteLine (apt.faaid + "," + numa + "," + alna + "," + elva + "," + lata + "," + lona + "," + latb + "," + lonb + "," + rtra);
-                    runways.WriteLine (apt.faaid + "," + numb + "," + alnb + "," + elvb + "," + latb + "," + lonb + "," + lata + "," + lona + "," + rtrb);
+                    runways.WriteLine (apt.faaid + "," + numa + "," + alna + "," + elva + "," + lata + "," + lona + "," + latb + "," + lonb + "," + rtra + "," + rwlen + "," + rwwid);
+                    runways.WriteLine (apt.faaid + "," + numb + "," + alnb + "," + elvb + "," + latb + "," + lonb + "," + lata + "," + lona + "," + rtrb + "," + rwlen + "," + rwwid);
                 }
 
                 string surface = line.Substring (32, 12).Trim ();
@@ -253,8 +256,8 @@ public class GetAirportIDs {
 
                 RwyPair rwp = new RwyPair ();
                 rwp.nvp["rwidpair"]      = line.Substring (     16,  7).Trim ();
-                rwp.nvp["rwlen"]         = line.Substring (     23,  5).Trim ();
-                rwp.nvp["width"]         = line.Substring (     28,  4).Trim ();
+                rwp.nvp["rwlen"]         = rwlen;
+                rwp.nvp["width"]         = rwwid;
                 rwp.nvp["surftype"]      = line.Substring (     32, 12).Trim ();
                 rwp.nvp["edgelights"]    = line.Substring (     60,  5).Trim ();
                 rwp.nvp["base_id"]       = line.Substring (     65,  3).Trim ();
