@@ -23,7 +23,6 @@ package com.outerworldapps.wairtonow;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.SharedPreferences;
-import android.content.pm.ActivityInfo;
 import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
@@ -91,7 +90,7 @@ public class AgreeView extends ScrollView implements WairToNow.CanBeMainView {
                 long now = System.currentTimeMillis ();
                 SharedPreferences.Editor editr = prefs.edit ();
                 editr.putLong ("hasAgreed", now);
-                editr.commit ();
+                editr.apply ();
 
                 wairToNow.HasAgreed ();
                 wairToNow.SetCurrentTab (wairToNow.chartView);

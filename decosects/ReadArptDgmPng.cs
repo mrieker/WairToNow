@@ -25,7 +25,8 @@
  *  yum install libexif-0.6.21-6.el7.x86_64 giflib-4.1.6-9.el7.x86_64
  *  rpm -ihv libgdiplus-2.10-9.el7.x86_64.rpm
  *  ln -s /lib64/libgdiplus.so.0 /lib64/libgdiplus.so
- *  mcs -debug -out:ReadArptDgmPng.exe -reference:System.Drawing.dll ReadArptDgmPng.cs
+ *  mcs -debug -out:ReadArptDgmPng.exe -reference:Mono.Data.Sqlite.dll -reference:System.Data.dll \
+ *      -reference:System.Drawing.dll ReadArptDgmPng.cs FindWaypoints.cs
  *
  *  Download airport diagram PDF file from http://www.faa.gov/airports/runway_safety/diagrams/
  *
@@ -34,9 +35,12 @@
  *        -sDEVICE=pngalpha -dTextAlphaBits=4 -dGraphicsAlphaBits=4 -r300x300 -dFirstPage=1 -dLastPage=1 \
  *        -sOutputFile=<pngname> <pdfname>
  *
- *    mono --debug ReadArptDgmPng.exe -verbose datums/aptplates_20160303/pngtemp/006/21ad.png.p1 \
- *        -faaid BPT -runways datums/runways_20170914.csv \
- *        -csvoutfile KBPT.csv -csvoutid KBPT
+ *  zcat datums/waypoints_20200910.db.gz > waypoints.db
+ *  mono --debug ReadArptDgmPng.exe \
+ *      -verbose datums/aptplates_20200910/pngtemp/006/54AD.png.p1 \
+ *      -faaid LWM -runways datums/runways_20200910.csv \
+ *      -csvoutfile KLWM.csv -csvoutid KLWM \
+ *      -markedpng KLWM.png -pointa WOBMU -pointb WUMUP -wayptdb waypoints.db
  */
 
 /*
@@ -338,9 +342,12 @@ public class ReadArptDgmPng {
     public static Slope recipSlope;                 // the reciprocal slope to bestSlope
     public static SortedDictionary<char,int> counts = new SortedDictionary<char,int> ();
     public static SortedDictionary<char,int[,]> learnt = new SortedDictionary<char,int[,]> ();
-    public static string pngname;                   // original .png filename
     public static string faaid;                     // airport FAA id
+    public static string pngname;                   // original .png filename
+    public static string pointa;
+    public static string pointb;
     public static string rwyname;                   // runway data file name
+    public static string wayptdb;
 
     public static void Main (string[] args)
     {
@@ -383,6 +390,16 @@ public class ReadArptDgmPng {
                 markedpng = args[i];
                 continue;
             }
+            if (arg == "-pointa") {
+                if (++ i >= args.Length) goto usage;
+                pointa = args[i];
+                continue;
+            }
+            if (arg == "-pointb") {
+                if (++ i >= args.Length) goto usage;
+                pointb = args[i];
+                continue;
+            }
             if (arg == "-runways") {
                 if (++ i >= args.Length) goto usage;
                 rwyname = args[i];
@@ -394,6 +411,11 @@ public class ReadArptDgmPng {
             }
             if (arg == "-verbose") {
                 verbose = true;
+                continue;
+            }
+            if (arg == "-wayptdb") {
+                if (++ i >= args.Length) goto usage;
+                wayptdb = args[i];
                 continue;
             }
             if (arg[0] == '-') goto usage;
@@ -544,12 +566,13 @@ public class ReadArptDgmPng {
 
     usage:
         Console.WriteLine ("usage: mono ReadArptDgmPng.exe <inputpngfile>");
-        Console.WriteLine ("           -csvoutfile <filename>         - write data to given file");
-        Console.WriteLine ("           -csvoutid <airportid>          - use this airport id in csvoutfile");
-        Console.WriteLine ("           -givens \"x,y=string\" ...     - learning mode");
-        Console.WriteLine ("           -markedpng <outputpngfilename> - write out marked-up png file");
-        Console.WriteLine ("           -stages                        - create intermediate png files (debugging)");
-        Console.WriteLine ("           -verbose                       - output intermediate messages (debugging)");
+        Console.WriteLine ("           -csvoutfile <filename>          - write data to given file");
+        Console.WriteLine ("           -csvoutid <airportid>           - use this airport id in csvoutfile");
+        Console.WriteLine ("           -givens \"x,y=string\" ...      - learning mode");
+        Console.WriteLine ("           -markedpng <outputpngfilename>  - write out marked-up png file");
+        Console.WriteLine ("           -pointa <waypt> -pointb <waypt> - draw line on markedpng");
+        Console.WriteLine ("           -stages                         - create intermediate png files (debugging)");
+        Console.WriteLine ("           -verbose                        - output intermediate messages (debugging)");
     }
 
     /**
@@ -2534,6 +2557,25 @@ public class ReadArptDgmPng {
                         DrawLine (x1, y1, x2, y2, 2, Color.Magenta);
                     }
                 }
+
+                // maybe draw line between waypoints
+                if ((pointa != null) && (pointb != null) && (wayptdb != null)) {
+                    FindWaypoints.Waypoint waypta = FindWaypoints.FindOne (wayptdb, pointa);
+                    FindWaypoints.Waypoint wayptb = FindWaypoints.FindOne (wayptdb, pointb);
+
+                    double lat1 = waypta.lat;
+                    double lon1 = waypta.lon;
+                    double lat2 = wayptb.lat;
+                    double lon2 = wayptb.lon;
+
+                    int x1 = (int)(wftA * lon1 + wftC * lat1 + wftE + 0.5);
+                    int y1 = (int)(wftB * lon1 + wftD * lat1 + wftF + 0.5);
+                    int x2 = (int)(wftA * lon2 + wftC * lat2 + wftE + 0.5);
+                    int y2 = (int)(wftB * lon2 + wftD * lat2 + wftF + 0.5);
+
+                    DrawLine (x1, y1, x2, y2, 2, Color.Blue);
+                }
+
                 file.Close ();
             }
 
