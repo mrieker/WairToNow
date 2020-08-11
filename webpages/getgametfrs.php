@@ -138,39 +138,6 @@
         $sqldb->exec ("COMMIT");
     }
 
-
-    // download web file into disk file
-    //  input:
-    //   webname = url for web file
-    //   name = name of disk file
-    //  output:
-    //   returns TRUE iff successful
-    function download ($webname, $name)
-    {
-        $tmpname = "$name.tmp";
-        $webfile = fopen ($webname, "r");
-        if (!$webfile) return FALSE;
-        @unlink ($tmpname);
-        $tmpfile = fopen ($tmpname, "w");
-        if (!$tmpfile) diedie ("error creating tmpfile $nane\n");
-        while ($buff = fread ($webfile, 8192)) {
-            fwrite ($tmpfile, $buff);
-        }
-        fclose ($webfile);
-        if (!fclose ($tmpfile)) diedie ("error closing $name\n");
-        if (!rename ($tmpname, $name)) diedie ("error renaming $name\n");
-        return TRUE;
-    }
-
-    // unzip a file, extract contents to current directory
-    function unzip ($name)
-    {
-        $zip = new ZipArchive ();
-        if ($zip->open ($name) !== TRUE) diedie ("error opening zip $name\n");
-        if (!$zip->extractTo (".")) diedie ("error extracting zip $name\n");
-        $zip->close ();
-    }
-
     // write error message to STDERR and exit with error status
     function diedie ($msg)
     {

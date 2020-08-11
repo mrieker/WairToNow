@@ -460,7 +460,7 @@ public class TFROutlines {
                 for (int eventType = xpp.getEventType (); eventType != XmlPullParser.END_DOCUMENT; eventType = xpp.next ()) {
                     switch (eventType) {
                         case XmlPullParser.START_TAG: {
-                            started.append (" ");
+                            started.append (' ');
                             started.append (xpp.getName ());
                             break;
                         }
@@ -641,7 +641,7 @@ public class TFROutlines {
                 llblob[j++] = (byte)  ilon;
             }
 
-            ContentValues values = new ContentValues (5);
+            ContentValues values = new ContentValues (8);
             values.put ("p_id",  tfrid);
             values.put ("p_eff", efftime / 1000);
             values.put ("p_exp", exptime / 1000);
@@ -718,7 +718,7 @@ public class TFROutlines {
             }
         }
 
-        // see if the given canvas x,y pixel is within the TFR
+        // see if the given canvas x,y pixel is near the TFR outline
         @Override
         public boolean touched (double canpixx, double canpixy)
         {
@@ -732,7 +732,7 @@ public class TFROutlines {
             return false;
         }
 
-        // id in altert box was clicked on, open web page
+        // id in alert box was clicked on, open web page
         @Override
         public void onClick (View v)
         {
@@ -828,7 +828,7 @@ public class TFROutlines {
         double ll = Double.parseDouble (str.substring (0, n));
         char e = str.charAt (n);
         if (e == neg) ll = - ll;
-        else if (e != pos) throw new NumberFormatException ("bad latlon suffin on " + str);
+        else if (e != pos) throw new NumberFormatException ("bad latlon suffix " + str);
         return ll;
     }
 
@@ -856,9 +856,7 @@ public class TFROutlines {
 
             canvas.drawCircle ((float) canpix.x, (float) canpix.y, (float) radpix, bgpaint);
             canvas.drawCircle ((float) canpix.x, (float) canpix.y, (float) radpix,
-                    (efftime < 0xFFFFFFFFL * 1000) ? fgpaint : blpaint);
-
-            if (highlight) canvas.drawCircle ((float) canpix.x, (float) canpix.y, (float) radpix, hipaint);
+                    highlight ? hipaint : (efftime < 0xFFFFFFFFL * 1000) ? fgpaint : blpaint);
         }
 
         @Override
@@ -939,6 +937,8 @@ public class TFROutlines {
                             "p_tz TEXT, p_bot TEXT NOT NULL, p_top TEXT NOT NULL, " +
                             "p_fet INTEGER NOT NULL, p_lls BLOB NOT NULL)");
 
+                    sqldb.execSQL ("CREATE TABLE IF NOT EXISTS asof (as_listmod INTEGER NOT NULL)");
+
                     // build TFRs from what we have from before
                     LinkedList<PathOut> pathouts = new LinkedList<> ();
                     long fetched = 0;
@@ -959,6 +959,12 @@ public class TFROutlines {
                     // ...as we rollback if there is a partial update
                     if (fetched > 0) postit (now, fetched, pathouts);
 
+                    // Thu, 02 May 2013 23:03:06 GMT
+                    SimpleDateFormat lmsdf = new SimpleDateFormat ("EEE, dd MMM yyyy HH:mm:ss 'GMT'", Locale.US);
+                    lmsdf.setTimeZone (utctz);
+
+                    String[] asofcols = new String[] { "as_listmod" };
+
                     while (true) {
 
                         // maybe we are being shut off
@@ -970,77 +976,133 @@ public class TFROutlines {
                             }
                         }
 
+                        // get modified time of previous FAA list.html file
+                        long listmod = 0;
+                        boolean hasrow = false;
+                        result = sqldb.query ("asof", asofcols, null, null, null, null, null);
+                        try {
+                            if (result.moveToFirst ()) {
+                                listmod = result.getLong (0);
+                                hasrow = true;
+                            }
+                        } finally {
+                            result.close ();
+                        }
+
                         // attempt to download new version of TFR database from FAA
                         pathouts = new LinkedList<> ();
                         now = System.currentTimeMillis ();
-                        Log.i (TAG, "downloading " + faaurl);
+                        Log.i (TAG, "downloading " + faaurl + " since " + lmsdf.format (listmod));
                         try {
-                            BufferedReader br = getHttpReader (faaurl + "/tfr2/list.html");
+                            URL url = new URL (faaurl + "/tfr2/list.html");
+                            HttpURLConnection httpCon = (HttpURLConnection) url.openConnection ();
                             try {
-                                sqldb.beginTransaction ();
-                                ContentValues updatenow = new ContentValues (1);
-                                updatenow.put ("p_fet", now / 1000);
-                                HashSet<String> dups = new HashSet<> ();
-                                for (String line; (line = br.readLine ()) != null;) {
-                                    int i, j;
-                                    for (i = 0; (j = line.indexOf (faapfx, i)) >= 0;) {
-                                        j += faapfx.length ();
-                                        i  = line.indexOf (".html", j);
-                                        if (i < 0) break;
+                                httpCon.setRequestMethod ("GET");
+                                if (listmod > 0) {
+                                    String lmstr = lmsdf.format (listmod);
+                                    httpCon.setRequestProperty ("if-modified-since", lmstr);
+                                }
+                                httpCon.connect ();
+                                int rc = httpCon.getResponseCode ();
+                                Log.d (TAG, faaurl + " http status " + rc);
+                                switch (rc) {
 
-                                        // skip any duplicated TFR entries
-                                        String detail = line.substring (j, i);
-                                        if (dups.contains (detail)) continue;
-                                        dups.add (detail);
-
-                                        // see if we already have the info from the XML file in the database
-                                        String[] det = new String[] { detail };
-                                        result = sqldb.query ("pathtfrs", pathtfrcols, "p_id=?", det, null, null, null, null);
+                                    // some change to web page, update database with new TFRs
+                                    case 200: {
+                                        BufferedReader br = new BufferedReader (new InputStreamReader (httpCon.getInputStream ()));
+                                        sqldb.beginTransaction ();
                                         try {
-                                            PathOut tfr = new PathOut ();
-                                            if (result.moveToFirst ()) {
+                                            ContentValues updatenow = new ContentValues (1);
+                                            updatenow.put ("p_fet", now / 1000);
+                                            HashSet<String> dups = new HashSet<> ();
+                                            for (String line; (line = br.readLine ()) != null;) {
+                                                int i, j;
+                                                for (i = 0; (j = line.indexOf (faapfx, i)) >= 0;) {
+                                                    j += faapfx.length ();
+                                                    i  = line.indexOf (".html", j);
+                                                    if (i < 0) break;
 
-                                                // if so, don't fetch XML file but just use database values
-                                                sqldb.update ("pathtfrs", updatenow, "p_id=?", det);
-                                                tfr.readDB (result);
-                                            } else {
+                                                    // skip any duplicated TFR entries
+                                                    String detail = line.substring (j, i);
+                                                    if (dups.contains (detail)) continue;
+                                                    dups.add (detail);
 
-                                                // if not, read XML from FAA website and write to database
-                                                Log.i (TAG, "downloading " + faaurl + " " + detail);
-                                                tfr.readXml (detail, now);
-                                                tfr.writeDB (sqldb);
+                                                    // see if we already have the info from the XML file in the database
+                                                    String[] det = new String[] { detail };
+                                                    result = sqldb.query ("pathtfrs", pathtfrcols, "p_id=?", det, null, null, null, null);
+                                                    try {
+                                                        PathOut tfr = new PathOut ();
+                                                        if (result.moveToFirst ()) {
+
+                                                            // if so, don't fetch XML file but just use database values
+                                                            sqldb.update ("pathtfrs", updatenow, "p_id=?", det);
+                                                            tfr.readDB (result);
+                                                        } else {
+
+                                                            // if not, read XML from FAA website and write to database
+                                                            Log.i (TAG, "downloading " + faaurl + " " + detail);
+                                                            tfr.readXml (detail, now);
+                                                            tfr.writeDB (sqldb);
+                                                        }
+
+                                                        // either way, add TFR to on-screen list
+                                                        pathouts.add (tfr);
+                                                    } catch (Exception e) {
+                                                        Log.w (TAG, "exception reading TFR " + detail, e);
+                                                    } finally {
+                                                        result.close ();
+                                                    }
+                                                }
                                             }
 
-                                            // either way, add TFR to on-screen list
-                                            pathouts.add (tfr);
-                                        } catch (Exception e) {
-                                            Log.w (TAG, "exception reading TFR " + detail, e);
+                                            // delete all old TFRs from database that aren't on FAA website anymore
+                                            sqldb.delete ("pathtfrs", "p_fet<" + (now / 1000), null);
+
+                                            // remember new list.html modified time
+                                            listmod = httpCon.getHeaderFieldDate ("last-modified", 0);
+                                            if (hasrow) {
+                                                sqldb.execSQL ("UPDATE asof SET as_listmod=" + listmod);
+                                            } else {
+                                                sqldb.execSQL ("INSERT INTO asof (as_listmod) VALUES (" + listmod + ")");
+                                            }
+
+                                            // got all TFRs listed on most recent FAA webpage, commit it
+                                            sqldb.setTransactionSuccessful ();
                                         } finally {
-                                            result.close ();
+                                            sqldb.endTransaction ();
+                                            br.close ();
                                         }
+                                        Log.i (TAG, "download " + faaurl + " complete");
+
+                                        // post the updated TFR list to screen
+                                        fetched = now;
+                                        postit (now, fetched, pathouts);
+                                        break;
                                     }
+
+                                    // list.html unchanged, just update TFRs as of ... time
+                                    case 304: {
+                                        fetched = now;
+                                        postit (now, fetched, null);
+                                        break;
+                                    }
+
+                                    // website failed
+                                    default: throw new IOException ("http response code " + rc);
                                 }
-
-                                // delete all old TFRs from database that aren't on FAA website anymore
-                                sqldb.delete ("pathtfrs", "p_fet<" + (now / 1000), null);
-
-                                // got all TFRs listed on most recent FAA webpage, commit it
-                                sqldb.setTransactionSuccessful ();
                             } finally {
-                                sqldb.endTransaction ();
-                                br.close ();
+                                httpCon.disconnect ();
                             }
-                            Log.i (TAG, "download " + faaurl + " complete");
-
-                            // post the updated TFR list to screen
-                            postit (now, now, pathouts);
 
                             // check FAA website again in 10 minutes
                             try { Thread.sleep (600000); } catch (InterruptedException ignored) { }
                         } catch (Exception e) {
 
-                            // maybe no internet, check again in one minute
+                            // maybe no internet
                             Log.w (TAG, "exception reading " + faaurl, e);
+                            // update TFRs as of ... (maybe includes date part)
+                            postit (now, fetched, null);
+                            // try again in one minute
                             try { Thread.sleep (60000); } catch (InterruptedException ignored) { }
                         }
                     }
@@ -1059,8 +1121,8 @@ public class TFROutlines {
                     (now - fetched < 12*60*60*1000) ? "HH:mm" : "yyyy-MM-dd@HH:mm",
                     Locale.US);
             sdfout.setTimeZone (utctz);
-            statusline   = "TFRs as of " + sdfout.format (fetched) + "z";
-            pathoutlines = pathouts;
+            statusline = "TFRs as of " + sdfout.format (fetched) + "z";
+            if (pathouts != null) pathoutlines = pathouts;
             if (chartview != null) chartview.postInvalidate ();
         }
     }
@@ -1105,27 +1167,28 @@ public class TFROutlines {
                     // note that there may be many for such as 'Yankee Stadium'
                     // ...so just keep the earliest one that hasn't expired
                     HashMap<String,GameOut> outlines = new HashMap<> ();
+                    long now = System.currentTimeMillis ();
                     String where = "g_lat<" + gnlat + " AND g_lat>" + gslat +
-                                    " AND g_lon<" + gelon + " AND g_lon>" + gwlon;
+                                    " AND g_lon<" + gelon + " AND g_lon>" + gwlon +
+                                    " AND g_eff>" + ((now - GAMETIME) / 1000);
                     SQLiteDatabase sqldb = SQLiteDatabase.openDatabase (
                                 gtpermfile.getPath (), null, SQLiteDatabase.OPEN_READONLY);
                     try {
-                        long now = System.currentTimeMillis ();
                         Cursor result = sqldb.query ("gametfrs", gametfrcols,
                                 where, null, null, null, null, null);
                         try {
                             if (result.moveToFirst ()) do {
-                                GameOut gameout = new GameOut ();
-                                gameout.efftime = result.getLong (0) * 1000;
-                                gameout.exptime = gameout.efftime + GAMETIME;
-                                gameout.text = result.getString (1);
-                                gameout.lat  = result.getDouble (2);
-                                gameout.lon  = result.getDouble (3);
-                                if (gameout.exptime > now) {
-                                    GameOut oldgo = outlines.get (gameout.text);
-                                    if ((oldgo == null) || (gameout.efftime < oldgo.efftime)) {
-                                        outlines.put (gameout.text, gameout);
-                                    }
+                                long efftime = result.getLong (0) * 1000;
+                                String text  = result.getString (1);
+                                GameOut oldgo = outlines.get (text);
+                                if ((oldgo == null) || (efftime < oldgo.efftime)) {
+                                    GameOut gameout = new GameOut ();
+                                    gameout.efftime = efftime;
+                                    gameout.exptime = efftime + GAMETIME;
+                                    gameout.text = text;
+                                    gameout.lat  = result.getDouble (2);
+                                    gameout.lon  = result.getDouble (3);
+                                    outlines.put (gameout.text, gameout);
                                 }
                             } while (result.moveToNext ());
                         } finally {
@@ -1187,6 +1250,7 @@ public class TFROutlines {
 
                     // see if we already have an up-to-date database
                     // they are created a little before 00:00z each day
+                    boolean needupdate = true;
                     if (gtpermfile.exists ()) {
                         SQLiteDatabase sqldb = SQLiteDatabase.openDatabase (gtpermfile.toString (), null, SQLiteDatabase.OPEN_READONLY);
                         try {
@@ -1194,7 +1258,7 @@ public class TFROutlines {
                             try {
                                 if (result.moveToFirst ()) {
                                     long asof = result.getLong (0);
-                                    if (asof / 86400 >= now / 86400000) return;
+                                    needupdate = asof / 86400 < now / 86400000;
                                 }
                             } finally {
                                 result.close ();
@@ -1204,36 +1268,39 @@ public class TFROutlines {
                         }
                     }
 
-                    // we don't have the one for today, try to download it
-                    // it's quite possible we don't have internet connection
-                    Log.i (TAG, "fetching latest gametfrs2.db");
-                    GZIPInputStream gis = new GZIPInputStream (getHttpStream (MaintView.dldir + "/getgametfrs.php"));
-                    try {
-                        FileOutputStream fos = new FileOutputStream (gttempfile);
+                    if (needupdate) {
+
+                        // we don't have the one for today, try to download it
+                        // it's quite possible we don't have internet connection
+                        Log.i (TAG, "fetching latest gametfrs2.db");
+                        GZIPInputStream gis = new GZIPInputStream (getHttpStream (MaintView.dldir + "/getgametfrs.php"));
                         try {
-                            byte[] buf = new byte[4096];
-                            for (int rc; (rc = gis.read (buf)) > 0;) {
-                                fos.write (buf, 0, rc);
+                            FileOutputStream fos = new FileOutputStream (gttempfile);
+                            try {
+                                byte[] buf = new byte[4096];
+                                for (int rc; (rc = gis.read (buf)) > 0;) {
+                                    fos.write (buf, 0, rc);
+                                }
+                            } finally {
+                                fos.close ();
                             }
                         } finally {
-                            fos.close ();
+                            gis.close ();
                         }
-                    } finally {
-                        gis.close ();
-                    }
-                    if (! gttempfile.renameTo (gtpermfile)) throw new IOException ("error renaming gametfrs2.db.tmp file");
-                    Log.i (TAG, "fetch gametfrs2.db complete");
+                        if (! gttempfile.renameTo (gtpermfile)) throw new IOException ("error renaming gametfrs2.db.tmp file");
+                        Log.i (TAG, "fetch gametfrs2.db complete");
 
-                    // get chart redrawn with latest data
-                    // this causes the main draw() to be called which
-                    // ...then runs the GameThread to read the database
-                    synchronized (gamelock) {
-                        gamenorthlat = -90.0;
-                        gamesouthlat =  90.0;
-                        gameeastlon = -180.0;
-                        gamewestlon =  180.0;
+                        // get chart redrawn with latest data
+                        // this causes the main draw() to be called which
+                        // ...then runs the GameThread to read the database
+                        synchronized (gamelock) {
+                            gamenorthlat = -90.0;
+                            gamesouthlat =  90.0;
+                            gameeastlon = -180.0;
+                            gamewestlon =  180.0;
+                        }
+                        if (chartview != null) chartview.postInvalidate ();
                     }
-                    if (chartview != null) chartview.postInvalidate ();
                     nextrun = 86400000;
                 } catch (Exception e) {
 
@@ -1245,6 +1312,7 @@ public class TFROutlines {
                 // ... or during first hour of next day if update was ok
                 long now = System.currentTimeMillis ();
                 long del = nextrun - now % nextrun + now % 3600000;
+                Log.d (TAG, "gupdthread next update " + Lib.TimeStringUTC (now + del));
                 try { Thread.sleep (del); } catch (InterruptedException ignored) { }
             }
         }
