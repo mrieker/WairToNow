@@ -44,18 +44,18 @@ import android.widget.TextView;
 import org.xmlpull.v1.XmlPullParser;
 
 import java.io.BufferedReader;
+import java.io.EOFException;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.StringReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -76,11 +76,10 @@ public class TFROutlines {
     public  final static int COLOR = 0xFFFF5500;
     private final static int GAMETIME = 8*60*60*1000;
     private final static int TOUCHDIST = 20;
-    private final static LatLon[] nullLatLonArray = new LatLon[0];
-    private final static Outline[] nullOutlineArray = new Outline[0];
     private final static String TAG = "WairToNow";
     private final static String[] gametfrcols = new String[] { "g_eff", "g_name", "g_lat", "g_lon" };
-    private final static String[] pathtfrcols = new String[] { "p_id", "p_eff", "p_exp", "p_tz", "p_bot", "p_top", "p_fet", "p_lls" };
+    private final static String[] pathtfrcols = new String[] {
+            "p_id", "p_area", "p_eff", "p_exp", "p_tz", "p_bot", "p_top", "p_fet", "p_lls" };
     private final static TimeZone utctz = TimeZone.getTimeZone ("UTC");
 
     private final static String faaurl = "https://tfr.faa.gov";
@@ -119,56 +118,55 @@ public class TFROutlines {
      */
     public void populate (WairToNow wtn)
     {
+        tfrFilter = wtn.optionsView.tfrFilterOption.getVal ();
+
+        // one-time inits
+        if (sdfout == null) {
+            sdfout = new SimpleDateFormat ("yyyy-MM-dd@HH:mm", Locale.US);
+
+            bgpaint = new Paint ();
+            bgpaint.setColor (COLOR);
+            bgpaint.setStrokeWidth (TOUCHDIST * 2);
+            bgpaint.setStyle (Paint.Style.STROKE);
+            bgpaint.setXfermode (new PorterDuffXfermode (PorterDuff.Mode.SCREEN));
+
+            blpaint = new Paint ();
+            blpaint.setColor (COLOR);
+            blpaint.setPathEffect (new DashPathEffect (new float[] { 5, 10 }, 0));
+            blpaint.setStrokeWidth (5);
+            blpaint.setStyle (Paint.Style.STROKE);
+
+            fgpaint = new Paint ();
+            fgpaint.setColor (COLOR);
+            fgpaint.setStrokeWidth (5);
+            fgpaint.setStyle (Paint.Style.STROKE);
+
+            hipaint = new Paint ();
+            hipaint.setColor (COLOR);
+            hipaint.setStrokeWidth (10);
+            hipaint.setStyle (Paint.Style.STROKE);
+
+            // start with empty lists so we don't have to test for null
+            gameoutlines = new LinkedList<> ();
+            pathoutlines = new LinkedList<> ();
+
+            // game and path tfr databases
+            // - gametfrs2.db gets downloaded from server via gametfrs.php
+            // - pathtfrs.db gets built by scanning tfr.faa.gov
+            gtpermfile = new File (WairToNow.dbdir + "/nobudb/gametfrs2.db");
+            gttempfile = new File (WairToNow.dbdir + "/nobudb/gametfrs2.db.tmp");
+            ptpermfile = new File (WairToNow.dbdir + "/nobudb/pathtfrs2.db");
+        }
+
         synchronized (pathlock) {
-            tfrFilter = wtn.optionsView.tfrFilterOption.getVal ();
 
             // if user is shutting TFRs off, break thread out if its sleep
             if ((pathThread != null) && (tfrFilter == OptionsView.TFR_NONE)) {
                 pathThread.interrupt ();
             }
 
-            // if user is turning TFRs on, set stuff up and start thread up
+            // if user is turning TFRs on, start thread up
             if ((pathThread == null) && (tfrFilter != OptionsView.TFR_NONE)) {
-
-                // one-time inits
-                if (sdfout == null) {
-                    sdfout = new SimpleDateFormat ("yyyy-MM-dd@HH:mm", Locale.US);
-
-                    bgpaint = new Paint ();
-                    bgpaint.setColor (COLOR);
-                    bgpaint.setStrokeWidth (TOUCHDIST * 2);
-                    bgpaint.setStyle (Paint.Style.STROKE);
-                    bgpaint.setXfermode (new PorterDuffXfermode (PorterDuff.Mode.SCREEN));
-
-                    blpaint = new Paint ();
-                    blpaint.setColor (COLOR);
-                    blpaint.setPathEffect (new DashPathEffect (new float[] { 5, 10 }, 0));
-                    blpaint.setStrokeWidth (5);
-                    blpaint.setStyle (Paint.Style.STROKE);
-
-                    fgpaint = new Paint ();
-                    fgpaint.setColor (COLOR);
-                    fgpaint.setStrokeWidth (5);
-                    fgpaint.setStyle (Paint.Style.STROKE);
-
-                    hipaint = new Paint ();
-                    hipaint.setColor (COLOR);
-                    hipaint.setStrokeWidth (10);
-                    hipaint.setStyle (Paint.Style.STROKE);
-
-                    // start with empty lists so we don't have to test for null
-                    gameoutlines = new LinkedList<> ();
-                    pathoutlines = new LinkedList<> ();
-
-                    // game and path tfr databases
-                    // - gametfrs2.db gets downloaded from server via gametfrs.php
-                    // - pathtfrs.db gets built by scanning tfr.faa.gov
-                    gtpermfile = new File (WairToNow.dbdir + "/nobudb/gametfrs2.db");
-                    gttempfile = new File (WairToNow.dbdir + "/nobudb/gametfrs2.db.tmp");
-                    ptpermfile = new File (WairToNow.dbdir + "/nobudb/pathtfrs.db");
-                }
-
-                // start downloading and/or reading data files
                 pathThread = new PathThread ();
                 pathThread.start ();
             }
@@ -281,9 +279,8 @@ public class TFROutlines {
         }
 
         // return sorted by ascending effective time
-        Outline[] array = touched.toArray (nullOutlineArray);
-        Arrays.sort (array);
-        return Arrays.asList (array);
+        Collections.sort (touched);
+        return touched;
     }
 
     /**
@@ -391,30 +388,38 @@ public class TFROutlines {
 
     /**
      * Contains path of an arbitrary shaped TFR (Hazard, Security, VIP, ...)
+     * One of these per area of multi-area TFR.
      */
     private class PathOut extends Outline implements View.OnClickListener {
-        private boolean appears;
+        private boolean appears;            // appears on canvas
+        private char areacode;              // area letter 'A', 'B', 'C', ...
         private Context context;
-        private double northmostLat;
-        private double southmostLat;
-        private double eastmostLon;
-        private double westmostLon;
-        private LatLon[] latlons;
-        private long fetched;
-        private Path path = new Path ();
-        private PointD[] canpixs;
-        private String botaltcode;
-        private String tfrid;
-        private String topaltcode;
+        private double northmostLat;        // northmost latitude of points
+        private double southmostLat;        // southmost latitude of points
+        private double eastmostLon;         // eastmost longitude of points
+        private double westmostLon;         // westmost longitude of points
+        private double[] canpixs;           // where last drawn on canvas
+        private double[] latlons;           // list of all points, first == last
+        private long fetched;               // date/time fetched from internet
+        private Path path = new Path ();    // draws the shape
+        private PointD canpix = new PointD ();
+        private String botaltcode;          // bottom altitude code "ALT 2499 FT"
+        private String tfrid;               // main TFR id "0_0986"
+        private String topaltcode;          // top altitude code
 
         /**
-         * Construct by downloading and decoding XML file from FAA.
+         * Construct by decoding XML file from FAA.
          *  Input:
+         *   xpp = positioned just past <TFRAreaGroup>
          *   ident = "0_9876"
+         *   now = current time (time we fetched list.html from FAA)
+         *   tzname = timezone the TFR is located in (might be null)
+         *   areacode = 'A', 'B', 'C', ... for multi-area TFRs
          *  Output:
-         *   this filled in
+         *   this filled in from XML
+         *   xpp = positioned just past </TFRAreaGroup>
          */
-        public void readXml (String ident, long now)
+        public void readXml (XmlPullParser xpp, String ident, long now, String tzname, char areacode)
                 throws Exception
         {
             tfrid   = ident;
@@ -422,9 +427,13 @@ public class TFROutlines {
             exptime = 0xFFFFFFFFL * 1000;
             fetched = now;
 
+            this.areacode = areacode;
+            this.tzname   = tzname;
+
             double geolat = Double.NaN;
             double geolon = Double.NaN;
-            LinkedList<LatLon> lllist = new LinkedList<> ();
+            double[] lllist = new double[400];
+            int nlls = 0;
             String botaltval = null;
             String botaltuom = null;
             String topaltval = null;
@@ -433,134 +442,113 @@ public class TFROutlines {
             SimpleDateFormat sdf = new SimpleDateFormat ("yyyy-MM-dd@HH:mm:ss", Locale.US);
             sdf.setTimeZone (utctz);
 
-            // start reading XML file from FAA website
-            BufferedReader br = getHttpReader (faaurl + faapfx + tfrid + ".xml");
-            try {
+            // scan the XML text
+            StringBuilder started = new StringBuilder ();
+            started.append (" TFRAreaGroup");
+            for (int eventType; (started.length () > 0) && (eventType = xpp.next ()) != XmlPullParser.END_DOCUMENT;) {
+                switch (eventType) {
+                    case XmlPullParser.START_TAG: {
+                        started.append (' ');
+                        started.append (xpp.getName ());
+                        break;
+                    }
 
-                // XmlPullParser gags on stuff before <Group> and after </Group>
-                // so strip all that off
-                StringBuilder sb = new StringBuilder ();
-                for (String line; (line = br.readLine ()) != null;) {
-                    sb.append (line);
-                }
-                br.close ();
-                String st = sb.toString ().trim ();
-                int gb = st.indexOf ("<Group>");
-                int ge = st.lastIndexOf ("</Group>");
-                st = st.substring (gb, ge + 8);
-                br = new BufferedReader (new StringReader (st));
-
-                // pass to parser
-                XmlPullParser xpp = Xml.newPullParser ();
-                xpp.setFeature (XmlPullParser.FEATURE_PROCESS_NAMESPACES, false);
-                xpp.setInput (br);
-
-                // scan the XML text
-                StringBuilder started = new StringBuilder ();
-                for (int eventType = xpp.getEventType (); eventType != XmlPullParser.END_DOCUMENT; eventType = xpp.next ()) {
-                    switch (eventType) {
-                        case XmlPullParser.START_TAG: {
-                            started.append (' ');
-                            started.append (xpp.getName ());
-                            break;
-                        }
-
-                        case XmlPullParser.TEXT: {
-                            switch (started.toString ()) {
-                                case " Group Add Not dateEffective": {
-                                    efftime = decodeXmlTime (sdf, xpp.getText ());
-                                    break;
-                                }
-                                case " Group Add Not dateExpire": {
-                                    exptime = decodeXmlTime (sdf, xpp.getText ());
-                                    break;
-                                }
-                                case " Group Add Not codeTimeZone": {
-                                    tzname = xpp.getText ();
-                                    break;
-                                }
-
-                                case " Group Add Not TfrNot TFRAreaGroup aseTFRArea codeDistVerLower": {
-                                    botaltcode = xpp.getText ();
-                                    break;
-                                }
-                                case " Group Add Not TfrNot TFRAreaGroup aseTFRArea valDistVerLower": {
-                                    botaltval  = xpp.getText ();
-                                    break;
-                                }
-                                case " Group Add Not TfrNot TFRAreaGroup aseTFRArea uomDistVerLower": {
-                                    botaltuom  = xpp.getText ();
-                                    break;
-                                }
-                                case " Group Add Not TfrNot TFRAreaGroup aseTFRArea codeDistVerUpper": {
-                                    topaltcode = xpp.getText ();
-                                    break;
-                                }
-                                case " Group Add Not TfrNot TFRAreaGroup aseTFRArea valDistVerUpper": {
-                                    topaltval  = xpp.getText ();
-                                    break;
-                                }
-                                case " Group Add Not TfrNot TFRAreaGroup aseTFRArea uomDistVerUpper": {
-                                    topaltuom  = xpp.getText ();
-                                    break;
-                                }
-
-                                case " Group Add Not TfrNot TFRAreaGroup abdMergedArea Avx geoLat": {
-                                    geolat = decodeXmlLL (xpp.getText (), 'N', 'S');
-                                    break;
-                                }
-                                case " Group Add Not TfrNot TFRAreaGroup abdMergedArea Avx geoLong": {
-                                    geolon = decodeXmlLL (xpp.getText (), 'E', 'W');
-                                    break;
-                                }
+                    case XmlPullParser.TEXT: {
+                        switch (started.toString ()) {
+                            case " TFRAreaGroup aseTFRArea codeDistVerLower": {
+                                botaltcode = xpp.getText ();
+                                break;
                             }
-                            break;
-                        }
-
-                        case XmlPullParser.END_TAG: {
-                            String ending = " " + xpp.getName ();
-                            String startd = started.toString ();
-                            if (! startd.endsWith (ending)) throw new Exception ("xml <" + startd + "> ends with </" + ending + ">");
-                            switch (startd) {
-                                case " Group Add Not TfrNot TFRAreaGroup abdMergedArea Avx": {
-                                    lllist.add (new LatLon (geolat, geolon));
-                                    geolat = Double.NaN;
-                                    geolon = Double.NaN;
-                                    break;
-                                }
+                            case " TFRAreaGroup aseTFRArea valDistVerLower": {
+                                botaltval  = xpp.getText ();
+                                break;
                             }
-                            started.delete (started.length () - ending.length (), started.length ());
-                            break;
+                            case " TFRAreaGroup aseTFRArea uomDistVerLower": {
+                                botaltuom  = xpp.getText ();
+                                break;
+                            }
+                            case " TFRAreaGroup aseTFRArea codeDistVerUpper": {
+                                topaltcode = xpp.getText ();
+                                break;
+                            }
+                            case " TFRAreaGroup aseTFRArea valDistVerUpper": {
+                                topaltval  = xpp.getText ();
+                                break;
+                            }
+                            case " TFRAreaGroup aseTFRArea uomDistVerUpper": {
+                                topaltuom  = xpp.getText ();
+                                break;
+                            }
+
+                            case " TFRAreaGroup aseTFRArea ScheduleGroup dateEffective": {
+                                efftime = decodeXmlTime (sdf, xpp.getText ());
+                                break;
+                            }
+                            case " TFRAreaGroup aseTFRArea ScheduleGroup dateExpire": {
+                                exptime = decodeXmlTime (sdf, xpp.getText ());
+                                break;
+                            }
+
+                            case " TFRAreaGroup abdMergedArea Avx geoLat": {
+                                geolat = decodeXmlLL (xpp.getText (), 'N', 'S');
+                                break;
+                            }
+                            case " TFRAreaGroup abdMergedArea Avx geoLong": {
+                                geolon = decodeXmlLL (xpp.getText (), 'E', 'W');
+                                break;
+                            }
                         }
+                        break;
+                    }
+
+                    case XmlPullParser.END_TAG: {
+                        String ending = " " + xpp.getName ();
+                        String startd = started.toString ();
+                        if (! startd.endsWith (ending)) throw new Exception ("xml <" + startd + "> ends with </" + ending + ">");
+                        switch (startd) {
+                            case " TFRAreaGroup abdMergedArea Avx": {
+                                lllist = appendll (lllist, nlls, geolat, geolon);
+                                nlls  += 2;
+                                geolat = Double.NaN;
+                                geolon = Double.NaN;
+                                break;
+                            }
+                        }
+                        started.delete (started.length () - ending.length (), started.length ());
+                        break;
                     }
                 }
-            } finally {
-                br.close ();
             }
 
             // make sure first and last lat/lon are the same
-            if (! lllist.isEmpty ()) {
-                LatLon llbeg = lllist.getFirst ();
-                LatLon llend = lllist.getLast ();
-                if ((llbeg.lat != llend.lat) || (llbeg.lon != llend.lon)) {
-                    lllist.add (llbeg);
+            if (nlls > 0) {
+                if ((lllist[0] != lllist[nlls-2]) || (lllist[1] != lllist[nlls-1])) {
+                    lllist = appendll (lllist, nlls, lllist[0], lllist[1]);
+                    nlls  += 2;
                 }
             }
 
-            // make it into an array cuz it won't change after this
-            // also alloc array for canvas pixels
-            latlons = lllist.toArray (nullLatLonArray);
-            int nlls = latlons.length;
-            canpixs = new PointD[nlls];
-            for (int i = 0; i < nlls; i ++) {
-                canpixs[i] = new PointD ();
-            }
+            // save an exact sized array
+            latlons = new double[nlls];
+            System.arraycopy (lllist, 0, latlons, 0, nlls);
 
             // ALT/HEI 2499 FL/FT
             botaltcode += " " + botaltval + " " + botaltuom;
             topaltcode += " " + topaltval + " " + topaltuom;
 
             computeLatLonLimits ();
+        }
+
+        private double[] appendll (double[] lllist, int nlls, double lat, double lon)
+        {
+            if (nlls + 2 > lllist.length) {
+                double[] newlll = new double[lllist.length*3/2];
+                System.arraycopy (lllist, 0, newlll, 0, nlls);
+                lllist = newlll;
+            }
+            lllist[nlls++] = lat;
+            lllist[nlls]   = lon;
+            return lllist;
         }
 
         /**
@@ -574,30 +562,25 @@ public class TFROutlines {
         public long readDB (Cursor result)
         {
             tfrid      = result.getString (0);
-            efftime    = result.getLong   (1) * 1000;
-            exptime    = result.getLong   (2) * 1000;
-            tzname     = result.getString (3);
-            botaltcode = result.getString (4);
-            topaltcode = result.getString (5);
-            fetched    = result.getLong   (6) * 1000;
-            byte[] llblob = result.getBlob (7);
+            areacode   = result.getString (1).charAt (0);
+            efftime    = result.getLong   (2) * 1000;
+            exptime    = result.getLong   (3) * 1000;
+            tzname     = result.getString (4);
+            botaltcode = result.getString (5);
+            topaltcode = result.getString (6);
+            fetched    = result.getLong   (7) * 1000;
+            byte[] llblob = result.getBlob (8);
 
-            int nlls = llblob.length / 8;
-            latlons = new LatLon[nlls];
-            canpixs = new PointD[nlls];
+            int nlls = llblob.length / 4;
+            latlons = new double[nlls];
 
             int j = 0;
             for (int i = 0; i < nlls; i ++) {
-                int ilat = llblob[j++];
-                ilat = (ilat << 8) | (llblob[j++] & 0xFF);
-                ilat = (ilat << 8) | (llblob[j++] & 0xFF);
-                ilat = (ilat << 8) | (llblob[j++] & 0xFF);
-                int ilon = llblob[j++];
-                ilon = (ilon << 8) | (llblob[j++] & 0xFF);
-                ilon = (ilon << 8) | (llblob[j++] & 0xFF);
-                ilon = (ilon << 8) | (llblob[j++] & 0xFF);
-                latlons[i] = new LatLon (ilat * 90.0 / 0x40000000, ilon * 90.0 / 0x40000000);
-                canpixs[i] = new PointD ();
+                int ill = llblob[j++];
+                ill = (ill << 8) | (llblob[j++] & 0xFF);
+                ill = (ill << 8) | (llblob[j++] & 0xFF);
+                ill = (ill << 8) | (llblob[j++] & 0xFF);
+                latlons[i] = ill * 90.0 / 0x40000000;
             }
 
             computeLatLonLimits ();
@@ -612,11 +595,13 @@ public class TFROutlines {
             southmostLat =  90.0;
             eastmostLon = -180.0;
             westmostLon =  180.0;
-            for (LatLon ll : latlons) {
-                if (northmostLat < ll.lat) northmostLat = ll.lat;
-                if (southmostLat > ll.lat) southmostLat = ll.lat;
-                eastmostLon = Lib.Eastmost (eastmostLon, ll.lon);
-                westmostLon = Lib.Westmost (westmostLon, ll.lon);
+            for (int i = latlons.length; i > 0;) {
+                double lon = latlons[--i];
+                double lat = latlons[--i];
+                if (northmostLat < lat) northmostLat = lat;
+                if (southmostLat > lat) southmostLat = lat;
+                eastmostLon = Lib.Eastmost (eastmostLon, lon);
+                westmostLon = Lib.Westmost (westmostLon, lon);
             }
         }
 
@@ -626,30 +611,29 @@ public class TFROutlines {
         public void writeDB (SQLiteDatabase sqldb)
         {
             int nlls = latlons.length;
-            byte[] llblob = new byte[nlls*8];
+            byte[] llblob = new byte[nlls*4];
             int j = 0;
-            for (LatLon latlon : latlons) {
-                int ilat = (int) Math.round (latlon.lat * 0x40000000 / 90.0);
-                int ilon = (int) Math.round (latlon.lon * 0x40000000 / 90.0);
-                llblob[j++] = (byte) (ilat >> 24);
-                llblob[j++] = (byte) (ilat >> 16);
-                llblob[j++] = (byte) (ilat >>  8);
-                llblob[j++] = (byte)  ilat;
-                llblob[j++] = (byte) (ilon >> 24);
-                llblob[j++] = (byte) (ilon >> 16);
-                llblob[j++] = (byte) (ilon >>  8);
-                llblob[j++] = (byte)  ilon;
+            for (double ll : latlons) {
+                int ill = (int) Math.round (ll * (0x40000000 / 90.0));
+                llblob[j++] = (byte) (ill >> 24);
+                llblob[j++] = (byte) (ill >> 16);
+                llblob[j++] = (byte) (ill >>  8);
+                llblob[j++] = (byte)  ill;
             }
 
-            ContentValues values = new ContentValues (8);
-            values.put ("p_id",  tfrid);
-            values.put ("p_eff", efftime / 1000);
-            values.put ("p_exp", exptime / 1000);
-            values.put ("p_tz",  tzname);
-            values.put ("p_bot", botaltcode);
-            values.put ("p_top", topaltcode);
-            values.put ("p_fet", fetched / 1000);
-            values.put ("p_lls", llblob);
+            char[] areaarr = new char[] { areacode };
+            String areastr = new String (areaarr);
+
+            ContentValues values = new ContentValues (9);
+            values.put ("p_id",   tfrid);
+            values.put ("p_area", areastr);
+            values.put ("p_eff",  efftime / 1000);
+            values.put ("p_exp",  exptime / 1000);
+            values.put ("p_tz",   tzname);
+            values.put ("p_bot",  botaltcode);
+            values.put ("p_top",  topaltcode);
+            values.put ("p_fet",  fetched / 1000);
+            values.put ("p_lls",  llblob);
             sqldb.insert ("pathtfrs", null, values);
         }
 
@@ -659,17 +643,27 @@ public class TFROutlines {
         public View getInfo (Context ctx)
         {
             context = ctx;
+
             TextView tv1 = new TextView (ctx);
             tv1.setText ("TFR ID: ");
+
             TextView tv2 = new TextView (ctx);
             tv2.setOnClickListener (this);
             tv2.setPaintFlags (tv2.getPaintFlags () | Paint.UNDERLINE_TEXT_FLAG);
             tv2.setText (tfrid.replace ('_', '/'));
             tv2.setTextColor (Color.CYAN);
+
             LinearLayout ll1 = new LinearLayout (ctx);
             ll1.setOrientation (LinearLayout.HORIZONTAL);
             ll1.addView (tv1);
             ll1.addView (tv2);
+
+            if ((areacode != 'A') || otherAreaCodes ()) {
+                TextView tv4 = new TextView (ctx);
+                tv4.setText (" area " + areacode);
+                ll1.addView (tv4);
+            }
+
             TextView tv3 = new TextView (ctx);
             String botalt = getAltitude (botaltcode);
             String topalt = getAltitude (topaltcode);
@@ -686,11 +680,23 @@ public class TFROutlines {
                 tv3.append ((topmsl == null) ? topalt : topmsl);
             }
             formatTimeRange (tv3);
+
             LinearLayout ll2 = new LinearLayout (ctx);
             ll2.setOrientation (LinearLayout.VERTICAL);
             ll2.addView (ll1);
             ll2.addView (tv3);
             return ll2;
+        }
+
+        // see if there are other TFRs with same tfrid but different area code
+        private boolean otherAreaCodes ()
+        {
+            for (PathOut other : pathoutlines) {
+                if (other.tfrid.equals (tfrid) && (other.areacode != areacode)) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         // draw TFR on the given canvas, highlighted or normal
@@ -702,12 +708,16 @@ public class TFROutlines {
                 path.rewind ();
                 appears = false;
                 boolean first = true;
-                int i = 0;
-                for (LatLon ll : latlons) {
-                    PointD canpix = canpixs[i++];
-                    appears |= chart.LatLon2CanPixExact (ll.lat, ll.lon, canpix);
+                int n = latlons.length;
+                if (canpixs == null) canpixs = new double[n];
+                for (int i = 0; i < n;) {
+                    double lat = latlons[i];
+                    double lon = latlons[i+1];
+                    appears |= chart.LatLon2CanPixExact (lat, lon, canpix);
                     if (first) path.moveTo ((float) canpix.x, (float) canpix.y);
-                    else path.lineTo ((float) canpix.x, (float) canpix.y);
+                          else path.lineTo ((float) canpix.x, (float) canpix.y);
+                    canpixs[i++] = canpix.x;
+                    canpixs[i++] = canpix.y;
                     first = false;
                 }
                 path.close ();
@@ -723,11 +733,15 @@ public class TFROutlines {
         public boolean touched (double canpixx, double canpixy)
         {
             if (! appears) return false;
-            int n = canpixs.length - 1;
-            for (int i = 0; i < n;) {
-                PointD p1 = canpixs[i];
-                PointD p2 = canpixs[++i];
-                if (Lib.distToLineSeg (canpixx, canpixy, p1.x, p1.y, p2.x, p2.y) < TOUCHDIST) return true;
+            double p1x = canpixs[0];
+            double p1y = canpixs[1];
+            int n = canpixs.length;
+            for (int i = 2; i < n;) {
+                double p2x = canpixs[i++];
+                double p2y = canpixs[i++];
+                if (Lib.distToLineSeg (canpixx, canpixy, p1x, p1y, p2x, p2y) < TOUCHDIST) return true;
+                p1x = p2x;
+                p1y = p2y;
             }
             return false;
         }
@@ -792,17 +806,21 @@ public class TFROutlines {
         private void calcElevFeet ()
         {
             if (Double.isNaN (elevfeet)) {
-                int nsegs = latlons.length - 1;
                 double totallen = 0.0;
                 double totallat = 0.0;
                 double totallon = 0.0;
-                for (int i = 0; i < nsegs;) {
-                    LatLon p1 = latlons[i];
-                    LatLon p2 = latlons[++i];
-                    double dist = Lib.LatLonDist (p1.lat, p1.lon, p2.lat, p2.lon);
+                double p1lat = latlons[0];
+                double p1lon = latlons[1];
+                int nsegs = latlons.length;
+                for (int i = 2; i < nsegs;) {
+                    double p2lat = latlons[i++];
+                    double p2lon = latlons[i++];
+                    double dist = Lib.LatLonDist (p1lat, p1lon, p2lat, p2lon);
                     totallen += dist;
-                    totallat += (p1.lat + p2.lat) * dist;
-                    totallon += (p1.lon + p2.lon) * dist;
+                    totallat += (p1lat + p2lat) * dist;
+                    totallon += (p1lon + p2lon) * dist;
+                    p1lat = p2lat;
+                    p1lon = p2lon;
                 }
                 double centerlat = totallat / (2.0 * totallen);
                 double centerlon = totallon / (2.0 * totallen);
@@ -932,10 +950,13 @@ public class TFROutlines {
                 SQLiteDatabase sqldb = SQLiteDatabase.openDatabase (
                         ptpermfile.getPath (), null, SQLiteDatabase.CREATE_IF_NECESSARY);
                 try {
-                    sqldb.execSQL ("CREATE TABLE IF NOT EXISTS pathtfrs (p_id TEXT PRIMARY KEY, " +
-                            "p_eff INTEGER NOT NULL, p_exp INTEGER NOT NULL, " +
+                    sqldb.execSQL ("CREATE TABLE IF NOT EXISTS pathtfrs (p_id TEXT NOT NULL, " +
+                            "p_area TEXT NOT NULL, p_eff INTEGER NOT NULL, p_exp INTEGER NOT NULL, " +
                             "p_tz TEXT, p_bot TEXT NOT NULL, p_top TEXT NOT NULL, " +
-                            "p_fet INTEGER NOT NULL, p_lls BLOB NOT NULL)");
+                            "p_fet INTEGER NOT NULL, p_lls BLOB NOT NULL, " +
+                            "PRIMARY KEY (p_id, p_area))");
+
+                    sqldb.execSQL ("CREATE INDEX IF NOT EXISTS pathtfrs_id ON pathtfrs (p_id)");
 
                     sqldb.execSQL ("CREATE TABLE IF NOT EXISTS asof (as_listmod INTEGER NOT NULL)");
 
@@ -972,6 +993,7 @@ public class TFROutlines {
                             if (tfrFilter == OptionsView.TFR_NONE) {
                                 statusline = null;
                                 pathThread = null;
+                                pathoutlines = new LinkedList<> ();
                                 break;
                             }
                         }
@@ -1031,22 +1053,24 @@ public class TFROutlines {
                                                     String[] det = new String[] { detail };
                                                     result = sqldb.query ("pathtfrs", pathtfrcols, "p_id=?", det, null, null, null, null);
                                                     try {
-                                                        PathOut tfr = new PathOut ();
                                                         if (result.moveToFirst ()) {
 
                                                             // if so, don't fetch XML file but just use database values
+                                                            do {
+                                                                PathOut tfr = new PathOut ();
+                                                                tfr.readDB (result);
+                                                                pathouts.add (tfr);
+                                                            } while (result.moveToNext ());
+
+                                                            // update database cuz this TFR is in current list.html
                                                             sqldb.update ("pathtfrs", updatenow, "p_id=?", det);
-                                                            tfr.readDB (result);
                                                         } else {
 
                                                             // if not, read XML from FAA website and write to database
+                                                            // this may generate more than one PathOut
                                                             Log.i (TAG, "downloading " + faaurl + " " + detail);
-                                                            tfr.readXml (detail, now);
-                                                            tfr.writeDB (sqldb);
+                                                            readXml (pathouts, sqldb, detail, now);
                                                         }
-
-                                                        // either way, add TFR to on-screen list
-                                                        pathouts.add (tfr);
                                                     } catch (Exception e) {
                                                         Log.w (TAG, "exception reading TFR " + detail, e);
                                                     } finally {
@@ -1060,6 +1084,7 @@ public class TFROutlines {
 
                                             // remember new list.html modified time
                                             listmod = httpCon.getHeaderFieldDate ("last-modified", 0);
+                                            Log.d (TAG, faaurl + " last-modified " + lmsdf.format (listmod));
                                             if (hasrow) {
                                                 sqldb.execSQL ("UPDATE asof SET as_listmod=" + listmod);
                                             } else {
@@ -1124,6 +1149,85 @@ public class TFROutlines {
             statusline = "TFRs as of " + sdfout.format (fetched) + "z";
             if (pathouts != null) pathoutlines = pathouts;
             if (chartview != null) chartview.postInvalidate ();
+        }
+
+        /**
+         * Construct by downloading and decoding XML file from FAA.
+         * May contain multiple areas.
+         *  Input:
+         *   ident = eg "0_9876"
+         *   now = time list.html was fetched
+         *  Output:
+         *   pathouts = PathOut object added for each area
+         *   sqldb = record added for each area
+         */
+        private void readXml (LinkedList<PathOut> pathouts, SQLiteDatabase sqldb, String ident, long now)
+                throws Exception
+        {
+            // start reading XML file from FAA website
+            BufferedReader br = getHttpReader (faaurl + faapfx + ident + ".xml");
+            try {
+
+                // strip first couple garbage characters off the front or XmlPullParser will puque
+                while (true) {
+                    br.mark (1);
+                    int c = br.read ();
+                    if (c < 0) throw new EOFException ("eof reading xml file");
+                    if (c == '<') break;
+                }
+                br.reset ();
+
+                // pass to parser
+                XmlPullParser xpp = Xml.newPullParser ();
+                xpp.setFeature (XmlPullParser.FEATURE_PROCESS_NAMESPACES, false);
+                xpp.setInput (br);
+
+                // start with area A and we don't have timezone next
+                char areacode = 'A';
+                String tzname = null;
+
+                // scan the XML text
+                StringBuilder started = new StringBuilder ();
+                for (int eventType = xpp.getEventType (); eventType != XmlPullParser.END_DOCUMENT; eventType = xpp.next ()) {
+                    switch (eventType) {
+                        case XmlPullParser.START_TAG: {
+                            started.append (' ');
+                            started.append (xpp.getName ());
+                            switch (started.toString ()) {
+                                case " XNOTAM-Update Group Add Not TfrNot TFRAreaGroup": {
+                                    PathOut pathout = new PathOut ();
+                                    pathout.readXml (xpp, ident, now, tzname, areacode ++);
+                                    pathouts.add (pathout);
+                                    pathout.writeDB (sqldb);
+                                    started.delete (started.length () - " TFRAreaGroup".length (), started.length ());
+                                    break;
+                                }
+                            }
+                            break;
+                        }
+
+                        case XmlPullParser.TEXT: {
+                            switch (started.toString ()) {
+                                case " XNOTAM-Update Group Add Not codeTimeZone": {
+                                    tzname = xpp.getText ();
+                                    break;
+                                }
+                            }
+                            break;
+                        }
+
+                        case XmlPullParser.END_TAG: {
+                            String ending = " " + xpp.getName ();
+                            String startd = started.toString ();
+                            if (! startd.endsWith (ending)) throw new Exception ("xml <" + startd + "> ends with </" + ending + ">");
+                            started.delete (started.length () - ending.length (), started.length ());
+                            break;
+                        }
+                    }
+                }
+            } finally {
+                br.close ();
+            }
         }
     }
 
@@ -1239,7 +1343,12 @@ public class TFROutlines {
                 // maybe we are shut down
                 synchronized (gamelock) {
                     if (tfrFilter == OptionsView.TFR_NONE) {
-                        gupdThread = null;
+                        gupdThread   = null;
+                        gamenorthlat = 0.0;
+                        gamesouthlat = 0.0;
+                        gameeastlon  = 0.0;
+                        gamewestlon  = 0.0;
+                        gameoutlines = new LinkedList<> ();
                         break;
                     }
                 }
