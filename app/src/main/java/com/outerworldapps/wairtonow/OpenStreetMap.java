@@ -845,7 +845,9 @@ public class OpenStreetMap {
                         /*
                          * Read stream into temp file.
                          */
-                        Lib.Ignored (permfile.getParentFile ().mkdirs ());
+                        File permparent = permfile.getParentFile ();
+                        assert permparent != null;
+                        Lib.Ignored (permparent.mkdirs ());
                         OutputStream os = new FileOutputStream (tempname);
                         try {
                             byte[] buff = new byte[4096];

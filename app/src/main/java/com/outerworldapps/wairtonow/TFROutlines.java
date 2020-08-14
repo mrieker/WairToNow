@@ -56,6 +56,7 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -77,7 +78,8 @@ public class TFROutlines {
     private final static int GAMETIME = 8*60*60*1000;
     private final static int TOUCHDIST = 20;
     private final static String TAG = "WairToNow";
-    private final static String[] gametfrcols = new String[] { "g_eff", "g_name", "g_lat", "g_lon" };
+    private final static String[] gametfrcols = new String[] {
+            "g_eff", "g_name", "g_lat", "g_lon", "g_tz" };
     private final static String[] pathtfrcols = new String[] {
             "p_id", "p_area", "p_eff", "p_exp", "p_tz", "p_bot", "p_top", "p_fet", "p_lls" };
     private final static TimeZone utctz = TimeZone.getTimeZone ("UTC");
@@ -153,8 +155,8 @@ public class TFROutlines {
             // game and path tfr databases
             // - gametfrs2.db gets downloaded from server via gametfrs.php
             // - pathtfrs.db gets built by scanning tfr.faa.gov
-            gtpermfile = new File (WairToNow.dbdir + "/nobudb/gametfrs2.db");
-            gttempfile = new File (WairToNow.dbdir + "/nobudb/gametfrs2.db.tmp");
+            gtpermfile = new File (WairToNow.dbdir + "/nobudb/gametfrs3.db");
+            gttempfile = new File (WairToNow.dbdir + "/nobudb/gametfrs3.db.tmp");
             ptpermfile = new File (WairToNow.dbdir + "/nobudb/pathtfrs2.db");
         }
 
@@ -213,11 +215,46 @@ public class TFROutlines {
                 }
             }
 
-            // anyway, draw what we currently know about
-            drawNormal (pathoutlines, canvas, chart, now);
-            drawNormal (gameoutlines, canvas, chart, now);
-            drawHighlighted (pathoutlines, canvas, chart, now);
-            drawHighlighted (gameoutlines, canvas, chart, now);
+            // anyway, calculate pixels for current latlon<->pixel mapping
+            dopredraw (pathoutlines, chart, now);
+            dopredraw (gameoutlines, chart, now);
+
+            // draw all backgrounds
+            for (Outline outline : pathoutlines) {
+                if (outline.isFilteredOn (now)) {
+                    outline.draw (canvas, bgpaint);
+                }
+            }
+            for (Outline outline : gameoutlines) {
+                if (outline.isFilteredOn (now)) {
+                    outline.draw (canvas, bgpaint);
+                }
+            }
+
+            // draw non-highlighted foregrounds
+            for (Outline outline : pathoutlines) {
+                if (!outline.highlight && outline.isFilteredOn (now)) {
+                    outline.draw (canvas, fgpaint);
+                }
+            }
+            for (GameOut outline : gameoutlines) {
+                if (!outline.highlight && outline.isFilteredOn (now)) {
+                    outline.draw (canvas,
+                            (outline.exptime < 0xFFFFFFFFL * 1000) ? fgpaint : blpaint);
+                }
+            }
+
+            // draw highlighted foregrounds
+            for (Outline outline : pathoutlines) {
+                if (outline.highlight && outline.isFilteredOn (now)) {
+                    outline.draw (canvas, hipaint);
+                }
+            }
+            for (Outline outline : gameoutlines) {
+                if (outline.highlight && outline.isFilteredOn (now)) {
+                    outline.draw (canvas, hipaint);
+                }
+            }
         }
     }
 
@@ -232,26 +269,16 @@ public class TFROutlines {
                 (canvaswestlon < gamewestlon);
     }
 
-    // draw all non-highlighted TFRs in the given list
+    // compute paths for current latlon<->pixel mapping
     // also delete all expired TFRs
-    private void drawNormal (Collection<? extends Outline> outlines, Canvas canvas, Chart2DView chart, long now)
+    private void dopredraw (Collection<? extends Outline> outlines, Chart2DView chart, long now)
     {
         for (Iterator<? extends Outline> it = outlines.iterator (); it.hasNext ();) {
             Outline outline = it.next ();
             if (outline.exptime < now) {
                 it.remove ();
-            } else if (! outline.highlight && outline.isFilteredOn (now)) {
-                outline.draw (canvas, chart);
-            }
-        }
-    }
-
-    // draw all highlighted TFRs in the list
-    private void drawHighlighted (Collection<? extends Outline> outlines, Canvas canvas, Chart2DView chart, long now)
-    {
-        for (Outline outline : outlines) {
-            if (outline.highlight && outline.isFilteredOn (now)) {
-                outline.draw (canvas, chart);
+            } else if (outline.isFilteredOn (now)) {
+                outline.predraw (chart);
             }
         }
     }
@@ -292,7 +319,8 @@ public class TFROutlines {
         public long exptime;
         public String tzname;
 
-        public abstract void draw (Canvas canvas, Chart2DView chart);
+        public abstract void predraw (Chart2DView chart);
+        public abstract void draw (Canvas canvas, Paint paint);
         public abstract boolean touched (double canpixx, double canpixy);
         public abstract View getInfo (Context ctx);
 
@@ -352,7 +380,7 @@ public class TFROutlines {
                     tv.append ("\n           ");
                     tv.append (lclefftime);
                     tv.append (" ");
-                    tv.append (tzname);
+                    tv.append (getTZName ());
                 }
             }
 
@@ -368,9 +396,23 @@ public class TFROutlines {
                     tv.append ("\n           ");
                     tv.append (lclexptime);
                     tv.append (" ");
-                    tv.append (tzname);
+                    tv.append (getTZName ());
                 }
             }
+        }
+
+        // get timezone name displayed in the info alert box
+        private String getTZName ()
+        {
+            switch (tzname) {
+                case "America/New_York": return "Eastern";
+                case "America/Chicago": return "Central";
+                case "America/Denver": return "Mountain";
+                case "America/Los_Angeles": return "Pacific";
+            }
+            if (tzname.startsWith ("America/")) return tzname.substring (8);
+            if (tzname.startsWith ("Pacific/")) return tzname.substring (8);
+            return tzname;
         }
 
         // sort by ascending effective time for touched() method
@@ -391,6 +433,7 @@ public class TFROutlines {
      * One of these per area of multi-area TFR.
      */
     private class PathOut extends Outline implements View.OnClickListener {
+        private AirChart achart;            // chart the chtpixs are for
         private boolean appears;            // appears on canvas
         private char areacode;              // area letter 'A', 'B', 'C', ...
         private Context context;
@@ -399,6 +442,7 @@ public class TFROutlines {
         private double eastmostLon;         // eastmost longitude of points
         private double westmostLon;         // westmost longitude of points
         private double[] canpixs;           // where last drawn on canvas
+        private double[] chtpixs;           // chart pixels for the outline
         private double[] latlons;           // list of all points, first == last
         private long fetched;               // date/time fetched from internet
         private Path path = new Path ();    // draws the shape
@@ -537,6 +581,8 @@ public class TFROutlines {
             topaltcode += " " + topaltval + " " + topaltuom;
 
             computeLatLonLimits ();
+
+            fillTimeZone ();
         }
 
         private double[] appendll (double[] lllist, int nlls, double lat, double lon)
@@ -585,6 +631,8 @@ public class TFROutlines {
 
             computeLatLonLimits ();
 
+            fillTimeZone ();
+
             return fetched;
         }
 
@@ -602,6 +650,17 @@ public class TFROutlines {
                 if (southmostLat > lat) southmostLat = lat;
                 eastmostLon = Lib.Eastmost (eastmostLon, lon);
                 westmostLon = Lib.Westmost (westmostLon, lon);
+            }
+        }
+
+        private void fillTimeZone ()
+        {
+            if ((this.tzname == null) || this.tzname.equals ("") || this.tzname.equals ("UTC")) {
+                if (latlons.length > 0) {
+                    LatLon center = new LatLon ();
+                    calcCenterLatLon (center);
+                    this.tzname = getTimezoneAtLatLon (center.lat, center.lon);
+                }
             }
         }
 
@@ -699,21 +758,54 @@ public class TFROutlines {
             return false;
         }
 
-        // draw TFR on the given canvas, highlighted or normal
+        // do computation for drawing
         @Override
-        public void draw (Canvas canvas, Chart2DView chart)
+        public void predraw (Chart2DView chart)
         {
+            appears = false;
             if (Lib.LatOverlap (southmostLat, northmostLat, chart.chartView.pmap.canvasSouthLat, chart.chartView.pmap.canvasNorthLat) &&
                     Lib.LonOverlap (westmostLon, eastmostLon, chart.chartView.pmap.canvasWestLon, chart.chartView.pmap.canvasEastLon)) {
-                path.rewind ();
-                appears = false;
-                boolean first = true;
+                appears = true;
+
+                // for air charts, lambert latlon->pixel is expensive,
+                // so precompute it as the outline->chart pixel mapping is constant,
+                // ie, one could draw the outline in ink on a paper chart
+                // changes only when the user selects a different chart
                 int n = latlons.length;
+                DisplayableChart dchart = chart.chartView.selectedChart;
+                if (achart != dchart) {
+                    if (dchart instanceof AirChart) {
+                        achart = (AirChart) dchart;
+                        if (chtpixs == null) chtpixs = new double[n];
+                        for (int i = 0; i < n;) {
+                            double lat = latlons[i];
+                            double lon = latlons[i+1];
+                            achart.LatLon2ChartPixelExact (lat, lon, canpix);
+                            chtpixs[i++] = canpix.x;
+                            chtpixs[i++] = canpix.y;
+                        }
+                    } else {
+                        // street map, don't have latlon->chartpixel & chartpixel->canvaspixel mapping available
+                        achart  = null;
+                        chtpixs = null;
+                    }
+                }
+
+                // compute the outline path
+                // it changes if the chart is panned and/or zoomed
                 if (canpixs == null) canpixs = new double[n];
+                path.rewind ();
+                boolean first = true;
                 for (int i = 0; i < n;) {
-                    double lat = latlons[i];
-                    double lon = latlons[i+1];
-                    appears |= chart.LatLon2CanPixExact (lat, lon, canpix);
+                    if (chtpixs == null) {
+                        double lat = latlons[i];
+                        double lon = latlons[i+1];
+                        chart.LatLon2CanPixExact (lat, lon, canpix);
+                    } else {
+                        double chx = chtpixs[i];
+                        double chy = chtpixs[i+1];
+                        achart.ChartPixel2CanPix (chx, chy, canpix);
+                    }
                     if (first) path.moveTo ((float) canpix.x, (float) canpix.y);
                           else path.lineTo ((float) canpix.x, (float) canpix.y);
                     canpixs[i++] = canpix.x;
@@ -721,10 +813,15 @@ public class TFROutlines {
                     first = false;
                 }
                 path.close ();
-                if (appears) {
-                    canvas.drawPath (path, bgpaint);
-                    canvas.drawPath (path, highlight ? hipaint : fgpaint);
-                }
+            }
+        }
+
+        // draw TFR on the given canvas, highlighted or normal
+        @Override
+        public void draw (Canvas canvas, Paint paint)
+        {
+            if (appears) {
+                canvas.drawPath (path, paint);
             }
         }
 
@@ -806,28 +903,35 @@ public class TFROutlines {
         private void calcElevFeet ()
         {
             if (Double.isNaN (elevfeet)) {
-                double totallen = 0.0;
-                double totallat = 0.0;
-                double totallon = 0.0;
-                double p1lat = latlons[0];
-                double p1lon = latlons[1];
-                int nsegs = latlons.length;
-                for (int i = 2; i < nsegs;) {
-                    double p2lat = latlons[i++];
-                    double p2lon = latlons[i++];
-                    double dist = Lib.LatLonDist (p1lat, p1lon, p2lat, p2lon);
-                    totallen += dist;
-                    totallat += (p1lat + p2lat) * dist;
-                    totallon += (p1lon + p2lon) * dist;
-                    p1lat = p2lat;
-                    p1lon = p2lon;
-                }
-                double centerlat = totallat / (2.0 * totallen);
-                double centerlon = totallon / (2.0 * totallen);
-
-                elevmetres = Topography.getElevMetres (centerlat, centerlon);
+                LatLon center = new LatLon ();
+                calcCenterLatLon (center);
+                elevmetres = Topography.getElevMetres (center.lat, center.lon);
                 elevfeet = elevmetres * Lib.FtPerM;
+                if (elevfeet < 0.0) elevfeet = 0.0;
             }
+        }
+
+        // calculate TFR center lat,lon
+        private void calcCenterLatLon (LatLon ll)
+        {
+            double totallen = 0.0;
+            double totallat = 0.0;
+            double totallon = 0.0;
+            double p1lat = latlons[0];
+            double p1lon = latlons[1];
+            int nsegs = latlons.length;
+            for (int i = 2; i < nsegs;) {
+                double p2lat = latlons[i++];
+                double p2lon = latlons[i++];
+                double dist = Lib.LatLonDist (p1lat, p1lon, p2lat, p2lon);
+                totallen += dist;
+                totallat += (p1lat + p2lat) * dist;
+                totallon += (p1lon + p2lon) * dist;
+                p1lat = p2lat;
+                p1lon = p2lon;
+            }
+            ll.lat = totallat / (2.0 * totallen);
+            ll.lon = totallon / (2.0 * totallen);
         }
     }
 
@@ -836,7 +940,9 @@ public class TFROutlines {
             throws ParseException
     {
         str = str.replace ("T", "@");
-        return sdf.parse (str).getTime ();
+        Date parsed = sdf.parse (str);
+        if (parsed == null) throw new ParseException ("sdf parse returned null " + str, -1);
+        return parsed.getTime ();
     }
 
     // decode latlon string in format number{pos/net}
@@ -848,6 +954,24 @@ public class TFROutlines {
         if (e == neg) ll = - ll;
         else if (e != pos) throw new NumberFormatException ("bad latlon suffix " + str);
         return ll;
+    }
+
+    // if no timezone given for tfr, try to get one
+    // returns string like "America/New_York"
+    private static String getTimezoneAtLatLon (double lat, double lon)
+    {
+        try {
+            BufferedReader br = getHttpReader (MaintView.dldir + "/tzforlatlon.php?lat=" + lat + "&lon=" + lon);
+            try {
+                String tzname = br.readLine ();
+                if (tzname != null) tzname = tzname.trim ();
+                return tzname;
+            } finally {
+                br.close ();
+            }
+        } catch (IOException ioe) {
+            return null;
+        }
     }
 
     /**
@@ -863,7 +987,7 @@ public class TFROutlines {
         private PointD canpix = new PointD ();
 
         @Override
-        public void draw (Canvas canvas, Chart2DView chart)
+        public void predraw (Chart2DView chart)
         {
             if (northlat == 0.0) northlat = Lib.LatHdgDist2Lat (lat, 0, GAMERADNM);
             chart.LatLon2CanPixExact (northlat, lon, canpix);
@@ -871,10 +995,12 @@ public class TFROutlines {
 
             chart.LatLon2CanPixExact (lat, lon, canpix);
             radpix = canpix.y - northpixy;
+        }
 
-            canvas.drawCircle ((float) canpix.x, (float) canpix.y, (float) radpix, bgpaint);
-            canvas.drawCircle ((float) canpix.x, (float) canpix.y, (float) radpix,
-                    highlight ? hipaint : (efftime < 0xFFFFFFFFL * 1000) ? fgpaint : blpaint);
+        @Override
+        public void draw (Canvas canvas, Paint paint)
+        {
+            canvas.drawCircle ((float) canpix.x, (float) canpix.y, (float) radpix, paint);
         }
 
         @Override
@@ -908,6 +1034,7 @@ public class TFROutlines {
             if (Double.isNaN (elevfeet)) {
                 elevmetres = Topography.getElevMetres (lat, lon);
                 elevfeet = elevmetres * Lib.FtPerM;
+                if (elevfeet < 0.0) elevfeet = 0.0;
             }
         }
     }
@@ -1126,7 +1253,7 @@ public class TFROutlines {
                             // maybe no internet
                             Log.w (TAG, "exception reading " + faaurl, e);
                             // update TFRs as of ... (maybe includes date part)
-                            postit (now, fetched, null);
+                            if (fetched > 0) postit (now, fetched, null);
                             // try again in one minute
                             try { Thread.sleep (60000); } catch (InterruptedException ignored) { }
                         }
@@ -1289,9 +1416,10 @@ public class TFROutlines {
                                     GameOut gameout = new GameOut ();
                                     gameout.efftime = efftime;
                                     gameout.exptime = efftime + GAMETIME;
-                                    gameout.text = text;
-                                    gameout.lat  = result.getDouble (2);
-                                    gameout.lon  = result.getDouble (3);
+                                    gameout.text    = text;
+                                    gameout.lat     = result.getDouble (2);
+                                    gameout.lon     = result.getDouble (3);
+                                    gameout.tzname  = result.getString (4);
                                     outlines.put (gameout.text, gameout);
                                 }
                             } while (result.moveToNext ());
@@ -1381,7 +1509,7 @@ public class TFROutlines {
 
                         // we don't have the one for today, try to download it
                         // it's quite possible we don't have internet connection
-                        Log.i (TAG, "fetching latest gametfrs2.db");
+                        Log.i (TAG, "fetching latest gametfrs3.db");
                         GZIPInputStream gis = new GZIPInputStream (getHttpStream (MaintView.dldir + "/getgametfrs.php"));
                         try {
                             FileOutputStream fos = new FileOutputStream (gttempfile);
@@ -1396,8 +1524,8 @@ public class TFROutlines {
                         } finally {
                             gis.close ();
                         }
-                        if (! gttempfile.renameTo (gtpermfile)) throw new IOException ("error renaming gametfrs2.db.tmp file");
-                        Log.i (TAG, "fetch gametfrs2.db complete");
+                        if (! gttempfile.renameTo (gtpermfile)) throw new IOException ("error renaming gametfrs3.db.tmp file");
+                        Log.i (TAG, "fetch gametfrs3.db complete");
 
                         // get chart redrawn with latest data
                         // this causes the main draw() to be called which
@@ -1414,7 +1542,7 @@ public class TFROutlines {
                 } catch (Exception e) {
 
                     // probably no internet connection
-                    Log.w (TAG, "exception updating gametfrs2.db", e);
+                    Log.w (TAG, "exception updating gametfrs3.db", e);
                 }
 
                 // schedule to run one hour from now if failed to update

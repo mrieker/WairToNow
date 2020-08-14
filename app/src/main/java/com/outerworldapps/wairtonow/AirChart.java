@@ -430,14 +430,18 @@ public abstract class AirChart implements DisplayableChart {
     public boolean LatLon2CanPixExact (double lat, double lon, @NonNull PointD canpix)
     {
         LatLon2ChartPixelExact (lat, lon, canpix);
+        ChartPixel2CanPix (canpix.x, canpix.y, canpix);
+        return true;
+    }
 
+    public void ChartPixel2CanPix (double chtpixx, double chtpixy, @NonNull PointD canpix)
+    {
         float[] flt = flt4PerThread.nnget ();
-        flt[0] = (float) canpix.x;
-        flt[1] = (float) canpix.y;
+        flt[0] = (float) chtpixx;
+        flt[1] = (float) chtpixy;
         drawOnCanvasChartMat.mapPoints (flt, 2, flt, 0, 1);
         canpix.x = flt[2];
         canpix.y = flt[3];
-        return true;
     }
 
     /**
@@ -815,7 +819,9 @@ public abstract class AirChart implements DisplayableChart {
     {
         // write .png file
         String pngName = pngFile.getPath ();
-        Lib.Ignored (pngFile.getParentFile ().mkdirs ());
+        File pngParent = pngFile.getParentFile ();
+        assert pngParent != null;
+        Lib.Ignored (pngParent.mkdirs ());
         FileOutputStream os = new FileOutputStream (pngName + ".tmp");
         bm.compress (Bitmap.CompressFormat.PNG, 0, os);
         os.close ();
@@ -952,6 +958,7 @@ public abstract class AirChart implements DisplayableChart {
                 openTileZipFile ();
                 InputStream is = tileZipFile.getInputStream (tileZipFile.getEntry (pngName));
                 bm = BitmapFactory.decodeStream (is, null, bfo);
+                if (bm == null) throw new IOException ("error reading bitmap " + tileZipName + " " + pngName);
             } else {
 
                 // some tile we manufacture, make image filename if we haven't already
@@ -979,10 +986,11 @@ public abstract class AirChart implements DisplayableChart {
 
                 // read tile, possibly undersampling
                 if (bm == null) bm = BitmapFactory.decodeFile (pngName, bfo);
+                if (bm == null) throw new IOException ("error reading bitmap " + pngName);
             }
 
             // draw hash if expired
-            if ((bm != null) && (enddate < MaintView.deaddate)) {
+            if (enddate < MaintView.deaddate) {
                 int bmw = bm.getWidth ();
                 int bmh = bm.getHeight ();
                 if (!bm.isMutable ()) {
@@ -1261,6 +1269,7 @@ public abstract class AirChart implements DisplayableChart {
         int latestrevno = 0;
         File[] files = new File (WairToNow.dbdir + "/charts/").listFiles ();
         String undername = spacenamenr.replace (' ', '_') + "_";
+        assert files != null;
         for (File file : files) {
             String name = file.getName ();
             if (name.startsWith (undername) && name.endsWith (".wtn.zip")) {

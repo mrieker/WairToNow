@@ -78,6 +78,7 @@ public class AcraApplication extends Application {
          */
         File dir = context.getFilesDir ();
         File[] filelist = dir.listFiles ();
+        assert filelist != null;
         for (File file : filelist) {
 
             /*

@@ -660,10 +660,16 @@ public class Chart2DView extends View
             sv.addView (ll);
             adb.setView (sv);
 
-            // set up an OK button that will clear the highlighting
-            adb.setPositiveButton ("OK", new DialogInterface.OnClickListener () {
+            // set up an OK button that will dismiss dialog
+            adb.setPositiveButton ("OK", null);
+
+            // show it
+            AlertDialog ad = adb.show ();
+
+            // turn off highlights when dismissed
+            ad.setOnDismissListener (new DialogInterface.OnDismissListener () {
                 @Override
-                public void onClick (DialogInterface dialog, int which)
+                public void onDismiss (DialogInterface dialogInterface)
                 {
                     if (touchedTFRs != null) {
                         for (TFROutlines.Outline tfrout : touchedTFRs) {
@@ -674,9 +680,6 @@ public class Chart2DView extends View
                     }
                 }
             });
-
-            // show it
-            adb.show ();
         }
     }
 

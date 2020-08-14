@@ -202,11 +202,13 @@
     {
         global $datadir;
 
+        /*
         date_default_timezone_set ("UTC");
         $pid = getmypid ();
         $now = date ("Y-m-d@H:i:s");
         $split = explode ("@", $now);
         file_put_contents ("$datadir/streets.log." . $split[0], $split[1] . " $pid $die $msg\n", FILE_APPEND);
+        */
         if ($die) {
             ob_end_flush ();
             die ("@@error=$msg\n");

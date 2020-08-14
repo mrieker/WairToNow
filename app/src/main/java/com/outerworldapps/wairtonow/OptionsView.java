@@ -603,7 +603,7 @@ public class OptionsView
                 int pendingIntentId = 123456;
                 PendingIntent pendingIntent = PendingIntent.getActivity (wairToNow, pendingIntentId, startActivity, PendingIntent.FLAG_CANCEL_CURRENT);
                 AlarmManager mgr = (AlarmManager) wairToNow.getSystemService (Context.ALARM_SERVICE);
-                mgr.set (AlarmManager.RTC, System.currentTimeMillis () + 333, pendingIntent);
+                if (mgr != null) mgr.set (AlarmManager.RTC, System.currentTimeMillis () + 333, pendingIntent);
                 System.exit (0);
             }
             return true;

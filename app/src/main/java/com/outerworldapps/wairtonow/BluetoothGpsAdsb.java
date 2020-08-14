@@ -38,7 +38,6 @@ import android.widget.TextView;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Set;
 import java.util.UUID;
@@ -816,19 +815,7 @@ public class BluetoothGpsAdsb extends GpsAdsbReceiver {
             if (btAdsbSecure.isChecked ()) {
                 socket = btDevice.createRfcommSocketToServiceRecord (btUUID);
             } else {
-                Class<? extends BluetoothDevice> btDevClass = btDevice.getClass ();
-                try {
-                    Method cirstcr = btDevClass.getMethod (
-                            "createInsecureRfcommSocketToServiceRecord",
-                            btUUID.getClass ());
-                    socket = (BluetoothSocket) cirstcr.invoke (btDevice, btUUID);
-                } catch (NoSuchMethodException nsme) {
-                    throw new IOException ("insecure mode not available - nsme");
-                } catch (IllegalAccessException iae) {
-                    throw new IOException ("insecure mode not available - iae");
-                } catch (InvocationTargetException ite) {
-                    throw new IOException ("insecure mode not available - ite");
-                }
+                socket = btDevice.createInsecureRfcommSocketToServiceRecord (btUUID);
             }
 
             /*

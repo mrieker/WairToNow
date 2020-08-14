@@ -69,7 +69,7 @@ public class SQLiteDBs {
         // get list of existing databases but don't open them yet
         NNTreeMap<String,SQLiteDBs> tm = new NNTreeMap<> ();
         File[] files = new File (WairToNow.dbdir).listFiles ();
-        for (File file : files) {
+        if (files != null) for (File file : files) {
             String dbname = file.getName ();
             if (dbname.endsWith (".db")) {
                 if (dbname.startsWith ("obstructions_") ||

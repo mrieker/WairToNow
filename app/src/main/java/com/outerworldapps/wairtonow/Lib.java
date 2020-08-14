@@ -1196,6 +1196,7 @@ public class Lib {
     {
         if (f.isDirectory ()) {
             File[] fs = f.listFiles ();
+            assert fs != null;
             for (File x : fs) RecursiveDelete (x);
         }
         Ignored (f.delete ());

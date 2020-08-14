@@ -192,6 +192,7 @@ public class FilesView
             CreateFileButton cfb = new CreateFileButton ();
             ll1.addView (cfb);
             File[] fileList = dirfile.listFiles ();
+            assert fileList != null;
             Arrays.sort (fileList);
             for (File file : fileList) {
                 if (! file.getName ().equals (".") && ! file.getName ().equals ("..")) {
@@ -442,6 +443,7 @@ public class FilesView
             {
                 if (file.isDirectory ()) {
                     File[] fileList = file.listFiles ();
+                    assert fileList != null;
                     Arrays.sort (fileList);
                     for (File f : fileList) {
                         if (canceled) throw new CanceledException ();

@@ -123,6 +123,7 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
             // sort them by descending date
             File[] existingFiles = new File (crumbsdir).listFiles ();
             TreeMap<Long,ShowExistingButton> sortedFiles = new TreeMap<> ();
+            assert existingFiles != null;
             for (File f : existingFiles) {
                 String name = f.getName ();
                 int type = TYPE_UNKNOWN;
@@ -893,10 +894,12 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
                                                 if (pos == null) throw new NullPointerException ("<time> outside of <trkpt>");
                                                 Date date;
                                                 try {
+                                                    //noinspection ConstantConditions
                                                     date = gpxdatefmtms.parse (text);
                                                 } catch (ParseException pe) {
                                                     date = gpxdatefmtsec.parse (text);
                                                 }
+                                                //noinspection ConstantConditions
                                                 pos.time = date.getTime ();
                                                 text = null;
                                                 break;

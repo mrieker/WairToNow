@@ -545,16 +545,19 @@ public class WairToNow extends Activity {
 
             private void EmptyDirectory (File dir)
             {
-                for (File file : dir.listFiles ()) {
-                    String path = file.getPath ();
-                    if (path.endsWith ("/crumbs")) continue;
-                    if (path.endsWith ("/dmecheckboxes.db")) continue;
-                    if (path.endsWith ("/georefs.db")) continue;
-                    if (path.endsWith ("/options.csv")) continue;
-                    if (path.endsWith ("/routes")) continue;
-                    if (path.endsWith ("/userwaypts.csv")) continue;
-                    if (file.isDirectory ()) EmptyDirectory (file);
-                    Lib.Ignored (file.delete ());
+                File[] files = dir.listFiles ();
+                if (files != null) {
+                    for (File file : files) {
+                        String path = file.getPath ();
+                        if (path.endsWith ("/crumbs")) continue;
+                        if (path.endsWith ("/dmecheckboxes.db")) continue;
+                        if (path.endsWith ("/georefs.db")) continue;
+                        if (path.endsWith ("/options.csv")) continue;
+                        if (path.endsWith ("/routes")) continue;
+                        if (path.endsWith ("/userwaypts.csv")) continue;
+                        if (file.isDirectory ()) EmptyDirectory (file);
+                        Lib.Ignored (file.delete ());
+                    }
                 }
             }
         });
@@ -1188,7 +1191,7 @@ public class WairToNow extends Activity {
      * Sense landscape/portrait change.
      */
     @Override
-    public void onConfigurationChanged (Configuration config)
+    public void onConfigurationChanged (@NonNull Configuration config)
     {
         super.onConfigurationChanged (config);
 

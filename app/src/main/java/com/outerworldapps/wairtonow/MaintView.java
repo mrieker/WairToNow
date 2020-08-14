@@ -1137,7 +1137,7 @@ public class MaintView
             // delete it iff we are deleting all versions
             if (all) {
                 File[] files = new File (WairToNow.dbdir + "/datums").listFiles ();
-                for (File file : files) {
+                if (files != null) for (File file : files) {
                     if (file.getName ().startsWith ("topo")) {
                         Lib.RecursiveDelete (file);
                     }
@@ -1229,7 +1229,7 @@ public class MaintView
             // delete any partial downloads
             if (all) {
                 File[] files = new File (WairToNow.dbdir, "nobudb").listFiles ();
-                for (File file : files) {
+                if (files != null) for (File file : files) {
                     if (file.getName ().startsWith ("waypoints_")) {
                         Lib.Ignored (file.delete ());
                     }
@@ -1403,7 +1403,7 @@ public class MaintView
             // delete any partial downloads
             if (all) {
                 File[] files = new File (WairToNow.dbdir, "nobudb").listFiles ();
-                for (File file : files) {
+                if (files != null) for (File file : files) {
                     if (file.getName ().startsWith ("obstructions_")) {
                         Lib.Ignored (file.delete ());
                     }
@@ -1558,7 +1558,7 @@ public class MaintView
 
             // if deleting all but latest, get name of latest chart .wtn.zip file
             if (!all) {
-                for (File file : files) {
+                if (files != null) for (File file : files) {
                     String name = file.getName ();
                     if (name.startsWith (undername) && name.endsWith (".wtn.zip")) {
                         int revno = Integer.parseInt (name.substring (undername.length (), name.length () - 8));
@@ -1573,7 +1573,7 @@ public class MaintView
             // delete all .wtn.zip files for this chart except possibly the latest
             // there might also be a directory of that name with tiles we generated
             // also delete any partial downloads
-            for (File file : files) {
+            if (files != null) for (File file : files) {
                 String name = file.getName ();
                 if (name.startsWith (undername) &&                  // eg, "New_York_SEC_"
                         !name.equals (latestfname) &&               // eg, "New_York_SEC_96"
@@ -1931,7 +1931,7 @@ public class MaintView
 
             // if deleting all but latest, get name of latest statezips_expdate/ss.zip file
             if (!all) {
-                for (File file : files) {
+                if (files != null) for (File file : files) {
                     String name = file.getName ();
                     if (name.startsWith ("statezips_")) {
                         File zipfile = new File (file, zipname);
@@ -1949,11 +1949,11 @@ public class MaintView
             // delete all versions of ss.zip except possibly the latest one
             // delete the corresponding statezips_expdate directory iff it is now empty
             // also delete any partial download
-            for (File file : files) {
+            if (files != null) for (File file : files) {
                 String name = file.getName ();
                 if (name.startsWith ("statezips_") && !name.equals (latestfname)) {
                     File[] fs = file.listFiles ();
-                    for (File f : fs) {
+                    if (fs != null) for (File f : fs) {
                         if (f.getName ().startsWith (zipname)) {
                             Lib.Ignored (f.delete ());
                         }
@@ -2672,7 +2672,9 @@ public class MaintView
 
                     // start downloading the rest of the file and hash as we go along
                     String servermd5;
-                    Lib.Ignored (tempfile.getParentFile ().mkdirs ());
+                    File tempparent = tempfile.getParentFile ();
+                    assert tempparent != null;
+                    Lib.Ignored (tempparent.mkdirs ());
                     FileOutputStream outputStream = new FileOutputStream (tempfile, true);
                     try {
                         while (skip < size) {

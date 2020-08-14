@@ -889,8 +889,11 @@ public abstract class Waypoint {
                     try {
                         for (Class<? extends Waypoint> wpclass : Waypoint.wpclasses) {
                             String dbtable = (String) wpclass.getField ("dbtable").get (null);
-                            String prefix = ((String) wpclass.getField ("dbkeyid").get (null)).substring (0, 4);
+                            String keyid = ((String) wpclass.getField ("dbkeyid").get (null));
                             String[] dbcols = (String[]) wpclass.getField ("dbcols").get (null);
+
+                            assert keyid != null;
+                            String prefix = keyid.substring (0, 4);
 
                             Cursor result = sqldb.query (
                                     dbtable, dbcols,
@@ -1569,18 +1572,6 @@ public abstract class Waypoint {
         // Get associated airport
         @Override  // Waypoint
         public Airport GetAirport () { return airport; }
-
-        // Get opposite direction runway
-        public Runway GetOpposite ()
-        {
-            for (Runway rwy : airport.GetRunways ().values ()) {
-                if ((rwy.lat == endLat) && (rwy.lon == endLon) &&
-                        (rwy.endLat == lat) && (rwy.endLon == lon)) {
-                    return rwy;
-                }
-            }
-            return null;
-        }
     }
 
     public static class Localizer extends Waypoint {

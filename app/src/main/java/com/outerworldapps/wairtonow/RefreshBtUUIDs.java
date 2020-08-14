@@ -67,9 +67,9 @@ public abstract class RefreshBtUUIDs extends BroadcastReceiver implements Runnab
             Method fuws = btDevClass.getMethod ("fetchUuidsWithSdp");
             ctx.registerReceiver (this, new IntentFilter ("android.bluetooth.device.action.UUID"));
 
-            boolean rc = (Boolean) fuws.invoke (btdev);
+            Boolean rc = (Boolean) fuws.invoke (btdev);
             Log.d (TAG, "BluetoothGpsAdsb: fetchUuidsWithSdp " + btdevname + ": " + rc);
-            if (rc) {
+            if ((rc != null) && rc) {
                 AlertDialog.Builder adb = new AlertDialog.Builder (ctx);
                 adb.setTitle ("Scanning " + btdevname + " for UUIDs");
                 adb.setMessage ("...please wait");
@@ -79,6 +79,7 @@ public abstract class RefreshBtUUIDs extends BroadcastReceiver implements Runnab
                 // normally takes 2-5 seconds
                 // call run() after 20 seconds
                 Looper looper = Looper.myLooper ();
+                if (looper == null) throw new NullPointerException ("null looper");
                 Handler handler = new Handler (looper);
                 handler.postDelayed (this, 20000);
                 return;
@@ -104,10 +105,14 @@ public abstract class RefreshBtUUIDs extends BroadcastReceiver implements Runnab
         Log.d (TAG, "BluetoothGpsAdsb: received action " + action);
         if ("android.bluetooth.device.action.UUID".equals (action) && !sdpComplete) {
             BluetoothDevice bd = intent.getParcelableExtra (BluetoothDevice.EXTRA_DEVICE);
-            String bdid = btIdentString (bd);
-            Log.d (TAG, "BluetoothGpsAdsb: device ident " + bdid);
-            if (bdid.equals (btdevname)) {
-                continuing ();
+            if (bd == null) {
+                Log.d (TAG, "BluetoothGpsAdsb: no device in received intent");
+            } else {
+                String bdid = btIdentString (bd);
+                Log.d (TAG, "BluetoothGpsAdsb: device ident " + bdid);
+                if (bdid.equals (btdevname)) {
+                    continuing ();
+                }
             }
         }
     }

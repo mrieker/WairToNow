@@ -953,6 +953,7 @@ public class IAPSynthPlateImage extends IAPPlateImage implements DisplayableChar
 
                     // delete any older versions so they don't keep piling up
                     File[] oldfiles = sidir.listFiles ();
+                    assert oldfiles != null;
                     for (File oldfile : oldfiles) {
                         String oldname = oldfile.getName ();
                         if (oldname.startsWith (base) && ! oldname.equals (name)) {
