@@ -74,6 +74,7 @@ public class TFROutlines {
     private final static int GAMEAGLFT = 3000;
     private final static int GAMERADNM = 3;
 
+    private final static double[] nullDoubleArray = new double[0];
     public  final static int COLOR = 0xFFFF5500;
     private final static int GAMETIME = 8*60*60*1000;
     private final static int TOUCHDIST = 20;
@@ -153,7 +154,7 @@ public class TFROutlines {
             pathoutlines = new LinkedList<> ();
 
             // game and path tfr databases
-            // - gametfrs2.db gets downloaded from server via gametfrs.php
+            // - gametfrs.db gets downloaded from server via gametfrs.php
             // - pathtfrs.db gets built by scanning tfr.faa.gov
             gtpermfile = new File (WairToNow.dbdir + "/nobudb/gametfrs3.db");
             gttempfile = new File (WairToNow.dbdir + "/nobudb/gametfrs3.db.tmp");
@@ -314,10 +315,16 @@ public class TFROutlines {
      * Either an outlined (path) TFR or a stadium (game) TFR.
      */
     public abstract class Outline implements Comparable<Outline> {
-        public boolean highlight;
-        public long efftime;
-        public long exptime;
-        public String tzname;
+        public boolean highlight;   // draw highlighted outline
+        public long efftime;        // effective time
+        public long exptime;        // expiration time
+
+        protected double cntrlat;   // centroid of area (or NaN if runt)
+        protected double cntrlon;
+        protected String tzname;    // local timezone (or null if unknown)
+
+        private double elevfeet = Double.NaN;
+        private short elevmetres = 0;
 
         public abstract void predraw (Chart2DView chart);
         public abstract void draw (Canvas canvas, Paint paint);
@@ -333,6 +340,17 @@ public class TFROutlines {
                 case OptionsView.TFR_TODAY: return efftime - now < 24*60*60*1000;
                 default: return true;
             }
+        }
+
+        // try to get elevation of TFR
+        protected double getElevFeet ()
+        {
+            if (Double.isNaN (elevfeet)) {
+                elevmetres = Topography.getElevMetres (cntrlat, cntrlon);
+                elevfeet = elevmetres * Lib.FtPerM;
+                if (elevfeet < 0.0) elevfeet = 0.0;
+            }
+            return (elevmetres == Topography.INVALID_ELEV) ? Double.NaN : elevfeet;
         }
 
         // append efftime/exptime strings to the given text view
@@ -478,10 +496,12 @@ public class TFROutlines {
             double geolon = Double.NaN;
             double[] lllist = new double[400];
             int nlls = 0;
-            String botaltval = null;
-            String botaltuom = null;
-            String topaltval = null;
-            String topaltuom = null;
+            botaltcode = "(code)";
+            topaltcode = "(code)";
+            String botaltnum = "(num)";
+            String botaltuom = "(uom)";
+            String topaltnum = "(num)";
+            String topaltuom = "(uom)";
 
             SimpleDateFormat sdf = new SimpleDateFormat ("yyyy-MM-dd@HH:mm:ss", Locale.US);
             sdf.setTimeZone (utctz);
@@ -498,47 +518,48 @@ public class TFROutlines {
                     }
 
                     case XmlPullParser.TEXT: {
+                        String text = xpp.getText ().trim ();
                         switch (started.toString ()) {
                             case " TFRAreaGroup aseTFRArea codeDistVerLower": {
-                                botaltcode = xpp.getText ();
+                                botaltcode = text;
                                 break;
                             }
                             case " TFRAreaGroup aseTFRArea valDistVerLower": {
-                                botaltval  = xpp.getText ();
+                                botaltnum  = text;
                                 break;
                             }
                             case " TFRAreaGroup aseTFRArea uomDistVerLower": {
-                                botaltuom  = xpp.getText ();
+                                botaltuom  = text;
                                 break;
                             }
                             case " TFRAreaGroup aseTFRArea codeDistVerUpper": {
-                                topaltcode = xpp.getText ();
+                                topaltcode = text;
                                 break;
                             }
                             case " TFRAreaGroup aseTFRArea valDistVerUpper": {
-                                topaltval  = xpp.getText ();
+                                topaltnum  = text;
                                 break;
                             }
                             case " TFRAreaGroup aseTFRArea uomDistVerUpper": {
-                                topaltuom  = xpp.getText ();
+                                topaltuom  = text;
                                 break;
                             }
 
                             case " TFRAreaGroup aseTFRArea ScheduleGroup dateEffective": {
-                                efftime = decodeXmlTime (sdf, xpp.getText ());
+                                efftime = decodeXmlTime (sdf, text);
                                 break;
                             }
                             case " TFRAreaGroup aseTFRArea ScheduleGroup dateExpire": {
-                                exptime = decodeXmlTime (sdf, xpp.getText ());
+                                exptime = decodeXmlTime (sdf, text);
                                 break;
                             }
 
                             case " TFRAreaGroup abdMergedArea Avx geoLat": {
-                                geolat = decodeXmlLL (xpp.getText (), 'N', 'S');
+                                geolat = decodeXmlLL (text, 'N', 'S');
                                 break;
                             }
                             case " TFRAreaGroup abdMergedArea Avx geoLong": {
-                                geolon = decodeXmlLL (xpp.getText (), 'E', 'W');
+                                geolon = decodeXmlLL (text, 'E', 'W');
                                 break;
                             }
                         }
@@ -577,8 +598,10 @@ public class TFROutlines {
             System.arraycopy (lllist, 0, latlons, 0, nlls);
 
             // ALT/HEI 2499 FL/FT
-            botaltcode += " " + botaltval + " " + botaltuom;
-            topaltcode += " " + topaltval + " " + topaltuom;
+            botaltcode += " " + botaltnum + " " + botaltuom;
+            topaltcode += " " + topaltnum + " " + topaltuom;
+
+            calcCenterLatLon ();
 
             computeLatLonLimits ();
 
@@ -629,11 +652,59 @@ public class TFROutlines {
                 latlons[i] = ill * 90.0 / 0x40000000;
             }
 
+            calcCenterLatLon ();
+
             computeLatLonLimits ();
 
             fillTimeZone ();
 
             return fetched;
+        }
+
+        // calculate TFR center lat,lon
+        // adapted from centroid.c
+        //  Written by Joseph O'Rourke
+        //  orourke@cs.smith.edu
+        //  October 27, 1995
+        private void calcCenterLatLon ()
+        {
+            int n = latlons.length - 2;
+            if (n >= 6) {
+                double glat = 0.0;
+                double glon = 0.0;
+                double alat = latlons[0];
+                double alon = latlons[1];
+                double blat = latlons[2];
+                double blon = latlons[3];
+                double areasum2 = 0.0;
+
+                for (int i = 4; i < n;) {
+                    double clat = latlons[i++];
+                    double clon = latlons[i++];
+
+                    double a2 =
+                            (blat - alat) * (clon - alon) -
+                            (clat - alat) * (blon - alon);
+
+                    glat += a2 * (alat + blat + clat);
+                    glon += a2 * (alon + blon + clon);
+                    areasum2 += a2;
+
+                    blat = clat;
+                    blon = clon;
+                }
+
+                if (Math.abs (areasum2) >= 1.0/4096.0/4096.0) {
+                    cntrlat = glat / (3.0 * areasum2);
+                    cntrlon = glon / (3.0 * areasum2);
+                    return;
+                }
+            }
+
+            // runt
+            cntrlat = Double.NaN;
+            cntrlon = Double.NaN;
+            latlons = nullDoubleArray;
         }
 
         // compute the lat/lon limits
@@ -653,19 +724,22 @@ public class TFROutlines {
             }
         }
 
+        // set up some timezone for the TFR
+        // if not given any or given UTC, try to get TFRs local timezone
         private void fillTimeZone ()
         {
-            if ((this.tzname == null) || this.tzname.equals ("") || this.tzname.equals ("UTC")) {
-                if (latlons.length > 0) {
-                    LatLon center = new LatLon ();
-                    calcCenterLatLon (center);
-                    this.tzname = getTimezoneAtLatLon (center.lat, center.lon);
+            if ((tzname == null) || tzname.equals ("") || tzname.equals ("UTC")) {
+                if (Double.isNaN (cntrlat)) {
+                    tzname = null;
+                } else {
+                    tzname = getTimezoneAtLatLon (cntrlat, cntrlon);
                 }
             }
         }
 
         /**
          * Write to SQL database.
+         * Even write runts so we don't keep fetching them from web.
          */
         public void writeDB (SQLiteDatabase sqldb)
         {
@@ -763,7 +837,8 @@ public class TFROutlines {
         public void predraw (Chart2DView chart)
         {
             appears = false;
-            if (Lib.LatOverlap (southmostLat, northmostLat, chart.chartView.pmap.canvasSouthLat, chart.chartView.pmap.canvasNorthLat) &&
+            if (! Double.isNaN (cntrlat) &&
+                    Lib.LatOverlap (southmostLat, northmostLat, chart.chartView.pmap.canvasSouthLat, chart.chartView.pmap.canvasNorthLat) &&
                     Lib.LonOverlap (westmostLon, eastmostLon, chart.chartView.pmap.canvasWestLon, chart.chartView.pmap.canvasEastLon)) {
                 appears = true;
 
@@ -863,18 +938,16 @@ public class TFROutlines {
         // convert the '{ALT|HEI} number {FL|FT}' string to displayable string
         private String getAltitude (String altcode)
         {
-            if (altcode.endsWith (" 0 FT")) return "SFC";
             String[] parts = altcode.split (" ");
-            switch (parts[0]) {
-                case "ALT": {
-                    switch (parts[2]) {
-                        case "FL": return "FL " + parts[1];
-                        case "FT": return parts[1] + " ft MSL";
+            if (parts.length != 3) return altcode;
+            if (parts[1].equals ("0")) return "SFC";
+            switch (parts[2]) {
+                case "FL": return "FL " + parts[1];
+                case "FT": {
+                    switch (parts[0]) {
+                        case "ALT": return parts[1] + " ft MSL";
+                        case "HEI": return parts[1] + " ft AGL";
                     }
-                    break;
-                }
-                case "HEI": {
-                    if (parts[2].equals ("FT")) return parts[1] + " ft AGL";
                     break;
                 }
             }
@@ -885,53 +958,21 @@ public class TFROutlines {
         // returns null if same as getAltitude()
         private String getAltMSL (String altcode)
         {
-            if (altcode.endsWith (" 0 FT")) return null;
-
             // the only thing we convert is 'HEI number FT'
+            // but number 0 always means surface
             String[] parts = altcode.split (" ");
+            if (parts.length != 3) return null;
+            if (parts[1].equals ("0")) return null;
             if (! parts[0].equals ("HEI")) return null;
             if (! parts[2].equals ("FT")) return null;
 
-            calcElevFeet ();
-            if (elevmetres == Topography.INVALID_ELEV) return null;
-            return Math.round (Double.parseDouble (parts[1]) + elevfeet) + " ft MSL";
-        }
-
-        // try to get elevation of TFR area
-        private short elevmetres = 0;
-        private double elevfeet = Double.NaN;
-        private void calcElevFeet ()
-        {
-            if (Double.isNaN (elevfeet)) {
-                LatLon center = new LatLon ();
-                calcCenterLatLon (center);
-                elevmetres = Topography.getElevMetres (center.lat, center.lon);
-                elevfeet = elevmetres * Lib.FtPerM;
-                if (elevfeet < 0.0) elevfeet = 0.0;
+            double elft = getElevFeet ();
+            if (Double.isNaN (elft)) return null;
+            try {
+                return Math.round (Double.parseDouble (parts[1]) + elft) + " ft MSL";
+            } catch (NumberFormatException nfe) {
+                return null;
             }
-        }
-
-        // calculate TFR center lat,lon
-        private void calcCenterLatLon (LatLon ll)
-        {
-            double totallen = 0.0;
-            double totallat = 0.0;
-            double totallon = 0.0;
-            double p1lat = latlons[0];
-            double p1lon = latlons[1];
-            int nsegs = latlons.length;
-            for (int i = 2; i < nsegs;) {
-                double p2lat = latlons[i++];
-                double p2lon = latlons[i++];
-                double dist = Lib.LatLonDist (p1lat, p1lon, p2lat, p2lon);
-                totallen += dist;
-                totallat += (p1lat + p2lat) * dist;
-                totallon += (p1lon + p2lon) * dist;
-                p1lat = p2lat;
-                p1lon = p2lon;
-            }
-            ll.lat = totallat / (2.0 * totallen);
-            ll.lon = totallon / (2.0 * totallen);
         }
     }
 
@@ -945,7 +986,7 @@ public class TFROutlines {
         return parsed.getTime ();
     }
 
-    // decode latlon string in format number{pos/net}
+    // decode latlon string in format number{pos/neg}
     private static double decodeXmlLL (String str, char pos, char neg)
     {
         int n = str.length () - 1;
@@ -978,22 +1019,30 @@ public class TFROutlines {
      * These TFRs are always 3000' AGL and 3nm radius circle
      */
     private class GameOut extends Outline {
-        public double lat;
-        public double lon;
         public String text;
 
         private double northlat;
         private double radpix;
         private PointD canpix = new PointD ();
 
+        public GameOut (long efftime, String text, Cursor result)
+        {
+            this.efftime  = efftime;
+            this.exptime  = efftime + GAMETIME;
+            this.text     = text;
+            this.cntrlat  = result.getDouble (2);
+            this.cntrlon  = result.getDouble (3);
+            this.tzname   = result.getString (4);
+            this.northlat = Lib.LatHdgDist2Lat (cntrlat, 0, GAMERADNM);
+        }
+
         @Override
         public void predraw (Chart2DView chart)
         {
-            if (northlat == 0.0) northlat = Lib.LatHdgDist2Lat (lat, 0, GAMERADNM);
-            chart.LatLon2CanPixExact (northlat, lon, canpix);
+            chart.LatLon2CanPixExact (northlat, cntrlon, canpix);
             double northpixy = canpix.y;
 
-            chart.LatLon2CanPixExact (lat, lon, canpix);
+            chart.LatLon2CanPixExact (cntrlat, cntrlon, canpix);
             radpix = canpix.y - northpixy;
         }
 
@@ -1016,26 +1065,14 @@ public class TFROutlines {
             TextView tv = new TextView (ctx);
             tv.append (text);
             tv.append ("\naltitude: SFC - " + GAMEAGLFT + " ft AGL");
-            calcElevFeet ();
-            if (elevmetres != Topography.INVALID_ELEV) {
-                tv.append ("\n...approx: SFC - " + Math.round (elevfeet + GAMEAGLFT) + " ft MSL");
+            double elft = getElevFeet ();
+            if (! Double.isNaN (elft)) {
+                tv.append ("\n...approx: SFC - " + Math.round (elft + GAMEAGLFT) + " ft MSL");
             }
             if (efftime < 0xFFFFFFFFL * 1000) {
                 formatTimeRange (tv);
             }
             return tv;
-        }
-
-        // try to get elevation of TFR
-        private short elevmetres = 0;
-        private double elevfeet = Double.NaN;
-        private void calcElevFeet ()
-        {
-            if (Double.isNaN (elevfeet)) {
-                elevmetres = Topography.getElevMetres (lat, lon);
-                elevfeet = elevmetres * Lib.FtPerM;
-                if (elevfeet < 0.0) elevfeet = 0.0;
-            }
         }
     }
 
@@ -1336,7 +1373,7 @@ public class TFROutlines {
                         case XmlPullParser.TEXT: {
                             switch (started.toString ()) {
                                 case " XNOTAM-Update Group Add Not codeTimeZone": {
-                                    tzname = xpp.getText ();
+                                    tzname = xpp.getText ().trim ();
                                     break;
                                 }
                             }
@@ -1413,14 +1450,8 @@ public class TFROutlines {
                                 String text  = result.getString (1);
                                 GameOut oldgo = outlines.get (text);
                                 if ((oldgo == null) || (efftime < oldgo.efftime)) {
-                                    GameOut gameout = new GameOut ();
-                                    gameout.efftime = efftime;
-                                    gameout.exptime = efftime + GAMETIME;
-                                    gameout.text    = text;
-                                    gameout.lat     = result.getDouble (2);
-                                    gameout.lon     = result.getDouble (3);
-                                    gameout.tzname  = result.getString (4);
-                                    outlines.put (gameout.text, gameout);
+                                    GameOut gameout = new GameOut (efftime, text, result);
+                                    outlines.put (text, gameout);
                                 }
                             } while (result.moveToNext ());
                         } finally {
