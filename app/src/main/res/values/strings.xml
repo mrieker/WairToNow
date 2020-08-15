@@ -1,5 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 	<string name="app_name">WairToNow</string>
-	<string name="crash_toast_text">Sorry the app is crashing.  Please restart it.</string>
+
+	<string name="crash_dialog_comment_prompt">Optional:  What you just did (clicked on …):</string>
+	<string name="crash_dialog_email_prompt">Optional:  Email address (we will use it only to resolve this issue):</string>
+	<string name="crash_dialog_text">
+		We would like to resolve the problem with the app.
+		Please fill in either, both or neither box then click OK to send
+		a crash report to us.  Click Cancel to send nothing.
+		Thank you for your help.</string>
+	<string name="crash_dialog_title">Sorry WairToNow has crashed</string>
 </resources>

@@ -2,7 +2,8 @@
     <BODY>
         <H2>WairToNow, version <SCRIPT LANGUAGE=JAVASCRIPT>
             document.write (hvjso.getVersionName () +
-                ' [' + hvjso.getGithubLink () + (hvjso.getGitDirtyFlag () ? ' (dirty)' : '') +
+                ' [' + hvjso.getGithubLink () +
+                 (hvjso.getGitDirtyFlag () ? ' (<A HREF="javascript:hvjso.imDirty()">dirty</A>)' : '') +
                 ']');
         </SCRIPT></H2>
         <H3>... an aviation oriented map program from <A HREF="http://www.outerworldapps.com">Outer World Apps</A>.</H3>

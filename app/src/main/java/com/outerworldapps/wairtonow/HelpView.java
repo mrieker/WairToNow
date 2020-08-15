@@ -34,6 +34,8 @@ import android.webkit.WebView;
 @SuppressLint("ViewConstructor")
 public class HelpView extends WebView
         implements WairToNow.CanBeMainView {
+
+    public int barfmeout;
     private WairToNow wairToNow;
 
     @SuppressLint({ "AddJavascriptInterface", "SetJavaScriptEnabled" })
@@ -144,6 +146,19 @@ public class HelpView extends WebView
                 }
             }
             return false;
+        }
+
+        @SuppressWarnings ("unused")
+        @android.webkit.JavascriptInterface
+        public void imDirty ()
+        {
+            wairToNow.runOnUiThread (new Runnable () {
+                @Override
+                public void run ()
+                {
+                    barfmeout = 50 / barfmeout;
+                }
+            });
         }
     }
 }

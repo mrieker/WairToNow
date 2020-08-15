@@ -55,8 +55,11 @@ import java.util.zip.GZIPOutputStream;
 // https://github.com/ACRA/acra/wiki/AdvancedUsage#reports-content
 @ReportsCrashes (
         reportSenderFactoryClasses = { AcraApplication.YourOwnSenderFactory.class },
-        mode = ReportingInteractionMode.TOAST,
-        resToastText = R.string.crash_toast_text
+        mode = ReportingInteractionMode.DIALOG,
+        resDialogCommentPrompt = R.string.crash_dialog_comment_prompt,
+        resDialogEmailPrompt = R.string.crash_dialog_email_prompt,
+        resDialogText = R.string.crash_dialog_text,
+        resDialogTitle = R.string.crash_dialog_title
 )
 public class AcraApplication extends Application {
     @Override
@@ -150,6 +153,7 @@ public class AcraApplication extends Application {
                     throw new IOException ("error renaming " + temp.getPath () + " to " + perm.getPath ());
                 }
                 Log.i ("WairToNow", "created ACRA report " + perm.getPath ());
+                sendReports (context);
             } catch (Exception e) {
                 throw new ReportSenderException ("error creating ACRA file", e);
             }
