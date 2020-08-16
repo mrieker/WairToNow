@@ -516,8 +516,6 @@ public class WairToNow extends Activity {
     {
         Log.d (TAG, "StartupError: " + msg, e);
 
-        ACRA.getErrorReporter ().handleException (new StartupErrorException (msg, e));
-
         if (e != null) {
             String emsg = e.getMessage ();
             if (emsg == null) emsg = e.getClass ().getSimpleName ();
@@ -527,8 +525,7 @@ public class WairToNow extends Activity {
         AlertDialog.Builder adb = new AlertDialog.Builder (this);
         adb.setTitle ("Startup error");
         adb.setMessage (msg + "\nTry clearing data or removing and re-installing app.");
-        adb.setPositiveButton ("OK", new DialogInterface.OnClickListener ()
-        {
+        adb.setPositiveButton ("Close App", new DialogInterface.OnClickListener () {
             @Override
             public void onClick (DialogInterface dialogInterface, int i)
             {
@@ -539,7 +536,7 @@ public class WairToNow extends Activity {
             @Override
             public void onClick (DialogInterface dialogInterface, int i)
             {
-                EmptyDirectory (new File (dbdir));
+                if (dbdir != null) EmptyDirectory (new File (dbdir));
                 System.exit (-1);
             }
 
@@ -886,11 +883,15 @@ public class WairToNow extends Activity {
     public void onPause ()
     {
         super.onPause ();
-        sensorsView.stopGPSReceiverDelayed ();
+        if (sensorsView != null) {
+            sensorsView.stopGPSReceiverDelayed ();
+        }
 
         // maybe some database files marked for delete
         // so close our handles so they will be deleted
-        SQLiteDBs.CloseAll ();
+        if (dbdir != null) {
+            SQLiteDBs.CloseAll ();
+        }
     }
 
     /**

@@ -65,6 +65,8 @@ import java.util.Locale;
 import java.util.TimeZone;
 import java.util.zip.GZIPInputStream;
 
+import javax.net.ssl.SSLHandshakeException;
+
 /**
  * Maintain list of current TFRs.
  */
@@ -86,8 +88,9 @@ public class TFROutlines {
     private final static TimeZone utctz = TimeZone.getTimeZone ("UTC");
 
     private final static String faaurl = "https://tfr.faa.gov";
-    private final static String faapfx = "/save_pages/detail_";
+    private final static String faapfx = "save_pages/detail_";
 
+    private boolean useproxy;
     private Collection<GameOut> gameoutlines;       // game TFRs in vicinity of canvas
     private Collection<PathOut> pathoutlines;       // all path-style TFRs
     private double canvasnorthlat;                  // what is currently covered by the canvas
@@ -475,18 +478,22 @@ public class TFROutlines {
          *   xpp = positioned just past <TFRAreaGroup>
          *   ident = "0_9876"
          *   now = current time (time we fetched list.html from FAA)
+         *   defefftime = default effective time
+         *   defexptime = default expiration time
          *   tzname = timezone the TFR is located in (might be null)
          *   areacode = 'A', 'B', 'C', ... for multi-area TFRs
          *  Output:
          *   this filled in from XML
          *   xpp = positioned just past </TFRAreaGroup>
          */
-        public void readXml (XmlPullParser xpp, String ident, long now, String tzname, char areacode)
+        public void readXml (XmlPullParser xpp, String ident, long now,
+                             long defefftime, long defexptime,
+                             String tzname, char areacode)
                 throws Exception
         {
             tfrid   = ident;
-            efftime = 0;
-            exptime = 0xFFFFFFFFL * 1000;
+            efftime = defefftime;
+            exptime = defexptime;
             fetched = now;
 
             this.areacode = areacode;
@@ -502,9 +509,6 @@ public class TFROutlines {
             String botaltuom = "(uom)";
             String topaltnum = "(num)";
             String topaltuom = "(uom)";
-
-            SimpleDateFormat sdf = new SimpleDateFormat ("yyyy-MM-dd@HH:mm:ss", Locale.US);
-            sdf.setTimeZone (utctz);
 
             // scan the XML text
             StringBuilder started = new StringBuilder ();
@@ -546,11 +550,11 @@ public class TFROutlines {
                             }
 
                             case " TFRAreaGroup aseTFRArea ScheduleGroup dateEffective": {
-                                efftime = decodeXmlTime (sdf, text);
+                                efftime = decodeXmlTime (text);
                                 break;
                             }
                             case " TFRAreaGroup aseTFRArea ScheduleGroup dateExpire": {
-                                exptime = decodeXmlTime (sdf, text);
+                                exptime = decodeXmlTime (text);
                                 break;
                             }
 
@@ -781,10 +785,12 @@ public class TFROutlines {
             tv1.setText ("TFR ID: ");
 
             TextView tv2 = new TextView (ctx);
-            tv2.setOnClickListener (this);
-            tv2.setPaintFlags (tv2.getPaintFlags () | Paint.UNDERLINE_TEXT_FLAG);
             tv2.setText (tfrid.replace ('_', '/'));
-            tv2.setTextColor (Color.CYAN);
+            if (! useproxy) {
+                tv2.setOnClickListener (this);
+                tv2.setPaintFlags (tv2.getPaintFlags () | Paint.UNDERLINE_TEXT_FLAG);
+                tv2.setTextColor (Color.CYAN);
+            }
 
             LinearLayout ll1 = new LinearLayout (ctx);
             ll1.setOrientation (LinearLayout.HORIZONTAL);
@@ -922,7 +928,7 @@ public class TFROutlines {
         @Override
         public void onClick (View v)
         {
-            String weblink = faaurl + faapfx + tfrid + ".html";
+            String weblink = faaurl + "/" + faapfx + tfrid + ".html";
             try {
                 Intent intent = new Intent (Intent.ACTION_VIEW);
                 intent.setData (Uri.parse (weblink));
@@ -977,13 +983,14 @@ public class TFROutlines {
     }
 
     // decode time string in format yyyy-mm-ddThh:mm:ss
-    private static long decodeXmlTime (SimpleDateFormat sdf, String str)
+    private static long decodeXmlTime (String str)
             throws ParseException
     {
-        str = str.replace ("T", "@");
-        Date parsed = sdf.parse (str);
-        if (parsed == null) throw new ParseException ("sdf parse returned null " + str, -1);
-        return parsed.getTime ();
+        String[] strs = str.split ("[-T:]");
+        if (strs.length != 6) throw new ParseException ("bad time string " + str, -1);
+        int[] nums = new int[6];
+        for (int i = 0; i < 6; i ++) nums[i] = Integer.parseInt (strs[i], 10);
+        return Date.UTC (nums[0] - 1900, nums[1] - 1, nums[2], nums[3], nums[4], nums[5]);
     }
 
     // decode latlon string in format number{pos/neg}
@@ -1122,8 +1129,6 @@ public class TFROutlines {
 
                     sqldb.execSQL ("CREATE INDEX IF NOT EXISTS pathtfrs_id ON pathtfrs (p_id)");
 
-                    sqldb.execSQL ("CREATE TABLE IF NOT EXISTS asof (as_listmod INTEGER NOT NULL)");
-
                     // build TFRs from what we have from before
                     LinkedList<PathOut> pathouts = new LinkedList<> ();
                     long fetched = 0;
@@ -1148,7 +1153,7 @@ public class TFROutlines {
                     SimpleDateFormat lmsdf = new SimpleDateFormat ("EEE, dd MMM yyyy HH:mm:ss 'GMT'", Locale.US);
                     lmsdf.setTimeZone (utctz);
 
-                    String[] asofcols = new String[] { "as_listmod" };
+                    long listmod = 0;
 
                     while (true) {
 
@@ -1162,33 +1167,13 @@ public class TFROutlines {
                             }
                         }
 
-                        // get modified time of previous FAA list.html file
-                        long listmod = 0;
-                        boolean hasrow = false;
-                        result = sqldb.query ("asof", asofcols, null, null, null, null, null);
-                        try {
-                            if (result.moveToFirst ()) {
-                                listmod = result.getLong (0);
-                                hasrow = true;
-                            }
-                        } finally {
-                            result.close ();
-                        }
-
                         // attempt to download new version of TFR database from FAA
                         pathouts = new LinkedList<> ();
                         now = System.currentTimeMillis ();
                         Log.i (TAG, "downloading " + faaurl + " since " + lmsdf.format (listmod));
                         try {
-                            URL url = new URL (faaurl + "/tfr2/list.html");
-                            HttpURLConnection httpCon = (HttpURLConnection) url.openConnection ();
+                            HttpURLConnection httpCon = possiblyProxiedConnection ("tfr2/list.html", listmod);
                             try {
-                                httpCon.setRequestMethod ("GET");
-                                if (listmod > 0) {
-                                    String lmstr = lmsdf.format (listmod);
-                                    httpCon.setRequestProperty ("if-modified-since", lmstr);
-                                }
-                                httpCon.connect ();
                                 int rc = httpCon.getResponseCode ();
                                 Log.d (TAG, faaurl + " http status " + rc);
                                 switch (rc) {
@@ -1249,11 +1234,6 @@ public class TFROutlines {
                                             // remember new list.html modified time
                                             listmod = httpCon.getHeaderFieldDate ("last-modified", 0);
                                             Log.d (TAG, faaurl + " last-modified " + lmsdf.format (listmod));
-                                            if (hasrow) {
-                                                sqldb.execSQL ("UPDATE asof SET as_listmod=" + listmod);
-                                            } else {
-                                                sqldb.execSQL ("INSERT INTO asof (as_listmod) VALUES (" + listmod + ")");
-                                            }
 
                                             // got all TFRs listed on most recent FAA webpage, commit it
                                             sqldb.setTransactionSuccessful ();
@@ -1318,6 +1298,7 @@ public class TFROutlines {
         /**
          * Construct by downloading and decoding XML file from FAA.
          * May contain multiple areas.
+         * Write each area to database.
          *  Input:
          *   ident = eg "0_9876"
          *   now = time list.html was fetched
@@ -1329,8 +1310,11 @@ public class TFROutlines {
                 throws Exception
         {
             // start reading XML file from FAA website
-            BufferedReader br = getHttpReader (faaurl + faapfx + ident + ".xml");
+            HttpURLConnection httpCon = possiblyProxiedConnection (faapfx + ident + ".xml", 0);
             try {
+                int rc = httpCon.getResponseCode ();
+                if (rc != 200) throw new IOException ("http response code " + rc);
+                BufferedReader br = new BufferedReader (new InputStreamReader (httpCon.getInputStream ()));
 
                 // strip first couple garbage characters off the front or XmlPullParser will puque
                 while (true) {
@@ -1348,6 +1332,8 @@ public class TFROutlines {
 
                 // start with area A and we don't have timezone next
                 char areacode = 'A';
+                long efftime  = 0;
+                long exptime  = 0xFFFFFFFFL * 1000;
                 String tzname = null;
 
                 // scan the XML text
@@ -1360,7 +1346,7 @@ public class TFROutlines {
                             switch (started.toString ()) {
                                 case " XNOTAM-Update Group Add Not TfrNot TFRAreaGroup": {
                                     PathOut pathout = new PathOut ();
-                                    pathout.readXml (xpp, ident, now, tzname, areacode ++);
+                                    pathout.readXml (xpp, ident, now, efftime, exptime, tzname, areacode ++);
                                     pathouts.add (pathout);
                                     pathout.writeDB (sqldb);
                                     started.delete (started.length () - " TFRAreaGroup".length (), started.length ());
@@ -1371,9 +1357,18 @@ public class TFROutlines {
                         }
 
                         case XmlPullParser.TEXT: {
+                            String text = xpp.getText ().trim ();
                             switch (started.toString ()) {
+                                case " XNOTAM-Update Group Add Not dateEffective": {
+                                    efftime = decodeXmlTime (text);
+                                    break;
+                                }
+                                case " XNOTAM-Update Group Add Not dateExpire": {
+                                    exptime = decodeXmlTime (text);
+                                    break;
+                                }
                                 case " XNOTAM-Update Group Add Not codeTimeZone": {
-                                    tzname = xpp.getText ().trim ();
+                                    tzname = text;
                                     break;
                                 }
                             }
@@ -1390,8 +1385,59 @@ public class TFROutlines {
                     }
                 }
             } finally {
-                br.close ();
+                httpCon.disconnect ();
             }
+        }
+    }
+
+    // read a page from FAA website
+    //  urlfile = name of file to read
+    //  ifmodsince = 0: read whatever version
+    //            else: read only if modified after this time
+    private HttpURLConnection possiblyProxiedConnection (String urlfile, long ifmodsince)
+            throws IOException
+    {
+        // try direct access
+        if (! useproxy) {
+            URL url = new URL (faaurl + "/" + urlfile);
+            HttpURLConnection httpCon = (HttpURLConnection) url.openConnection ();
+            try {
+                httpCon.setRequestMethod ("GET");
+                if (ifmodsince > 0) {
+                    // Thu, 02 May 2013 23:03:06 GMT
+                    SimpleDateFormat lmsdf = new SimpleDateFormat ("EEE, dd MMM yyyy HH:mm:ss 'GMT'", Locale.US);
+                    lmsdf.setTimeZone (utctz);
+                    String lmstr = lmsdf.format (ifmodsince);
+                    httpCon.setRequestProperty ("if-modified-since", lmstr);
+                }
+                try {
+                    httpCon.connect ();
+                    HttpURLConnection hc = httpCon;
+                    httpCon = null;
+                    return hc;
+                } catch (SSLHandshakeException she) {
+                    useproxy = true;
+                }
+            } finally {
+                if (httpCon != null) httpCon.disconnect ();
+            }
+        }
+
+        // ssl handshake exception going directly to FAA website, use proxy
+        String urlstr = MaintView.dldir + "/tfrfaagov.php?tfrfaaurl=" + urlfile;
+        if (ifmodsince > 0) {
+            urlstr += "&ifmodsince=" + (ifmodsince / 1000);
+        }
+        URL url = new URL (urlstr);
+        HttpURLConnection httpCon = (HttpURLConnection) url.openConnection ();
+        try {
+            httpCon.setRequestMethod ("GET");
+            httpCon.connect ();
+            HttpURLConnection hc = httpCon;
+            httpCon = null;
+            return hc;
+        } finally {
+            if (httpCon != null) httpCon.disconnect ();
         }
     }
 
@@ -1440,7 +1486,8 @@ public class TFROutlines {
                                     " AND g_lon<" + gelon + " AND g_lon>" + gwlon +
                                     " AND g_eff>" + ((now - GAMETIME) / 1000);
                     SQLiteDatabase sqldb = SQLiteDatabase.openDatabase (
-                                gtpermfile.getPath (), null, SQLiteDatabase.OPEN_READONLY);
+                            gtpermfile.getPath (), null,
+                            SQLiteDatabase.NO_LOCALIZED_COLLATORS | SQLiteDatabase.OPEN_READONLY);
                     try {
                         Cursor result = sqldb.query ("gametfrs", gametfrcols,
                                 where, null, null, null, null, null);
