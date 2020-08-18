@@ -78,11 +78,8 @@ public class TFROutlines {
 
     private final static double[] nullDoubleArray = new double[0];
     public  final static int COLOR = 0xFFFF5500;
-    private final static int GAMETIME = 8*60*60*1000;
     private final static int TOUCHDIST = 20;
     private final static String TAG = "WairToNow";
-    private final static String[] gametfrcols = new String[] {
-            "g_eff", "g_name", "g_lat", "g_lon", "g_tz" };
     private final static String[] pathtfrcols = new String[] {
             "p_id", "p_area", "p_eff", "p_exp", "p_tz", "p_bot", "p_top", "p_fet", "p_lls" };
     private final static TimeZone utctz = TimeZone.getTimeZone ("UTC");
@@ -159,8 +156,8 @@ public class TFROutlines {
             // game and path tfr databases
             // - gametfrs.db gets downloaded from server via gametfrs.php
             // - pathtfrs.db gets built by scanning tfr.faa.gov
-            gtpermfile = new File (WairToNow.dbdir + "/nobudb/gametfrs3.db");
-            gttempfile = new File (WairToNow.dbdir + "/nobudb/gametfrs3.db.tmp");
+            gtpermfile = new File (WairToNow.dbdir + "/nobudb/gametfrs4.db");
+            gttempfile = new File (WairToNow.dbdir + "/nobudb/gametfrs4.db.tmp");
             ptpermfile = new File (WairToNow.dbdir + "/nobudb/pathtfrs2.db");
         }
 
@@ -1032,10 +1029,10 @@ public class TFROutlines {
         private double radpix;
         private PointD canpix = new PointD ();
 
-        public GameOut (long efftime, String text, Cursor result)
+        public GameOut (long efftime, long exptime, String text, Cursor result)
         {
             this.efftime  = efftime;
-            this.exptime  = efftime + GAMETIME;
+            this.exptime  = exptime;
             this.text     = text;
             this.cntrlat  = result.getDouble (2);
             this.cntrlon  = result.getDouble (3);
@@ -1482,23 +1479,36 @@ public class TFROutlines {
                     // ...so just keep the earliest one that hasn't expired
                     HashMap<String,GameOut> outlines = new HashMap<> ();
                     long now = System.currentTimeMillis ();
-                    String where = "g_lat<" + gnlat + " AND g_lat>" + gslat +
-                                    " AND g_lon<" + gelon + " AND g_lon>" + gwlon +
-                                    " AND g_eff>" + ((now - GAMETIME) / 1000);
+                    String query = "SELECT g_eff,g_desc,s_lat,s_lon,s_tz,s_name,g_exp" +
+                            " FROM stadiums LEFT JOIN gametfrs ON g_stadium=s_name" +
+                            " WHERE s_lat<" + gnlat + " AND s_lat>" + gslat +
+                            " AND s_lon<" + gelon + " AND s_lon>" + gwlon;
                     SQLiteDatabase sqldb = SQLiteDatabase.openDatabase (
                             gtpermfile.getPath (), null,
                             SQLiteDatabase.NO_LOCALIZED_COLLATORS | SQLiteDatabase.OPEN_READONLY);
                     try {
-                        Cursor result = sqldb.query ("gametfrs", gametfrcols,
-                                where, null, null, null, null, null);
+                        Cursor result = sqldb.rawQuery (query, null);
                         try {
                             if (result.moveToFirst ()) do {
-                                long efftime = result.getLong (0) * 1000;
-                                String text  = result.getString (1);
-                                GameOut oldgo = outlines.get (text);
-                                if ((oldgo == null) || (efftime < oldgo.efftime)) {
-                                    GameOut gameout = new GameOut (efftime, text, result);
-                                    outlines.put (text, gameout);
+                                // null values if stadium without any event scheduled
+                                // so say event happens way far off in the future
+                                long efftime = (result.isNull (0) ? 0xFFFFFFFFL : result.getLong (0)) * 1000;
+                                long exptime = (result.isNull (6) ? 0xFFFFFFFFL : result.getLong (6)) * 1000;
+                                // only do it if not expired
+                                if (exptime > now) {
+                                    // only do earliest per stadium
+                                    String stadium = result.getString (5);
+                                    GameOut oldgo = outlines.get (stadium);
+                                    if ((oldgo == null) || (efftime < oldgo.efftime)) {
+                                        String text = stadium;
+                                        // add team names if available for verification
+                                        if (! result.isNull (1)) {
+                                            text += "\n" + result.getString (1);
+                                        }
+                                        // add TFR to list, possibly replacing a later one at this stadium
+                                        GameOut gameout = new GameOut (efftime, exptime, text, result);
+                                        outlines.put (stadium, gameout);
+                                    }
                                 }
                             } while (result.moveToNext ());
                         } finally {
@@ -1524,13 +1534,15 @@ public class TFROutlines {
                 }
             } catch (Exception e) {
                 Log.w (TAG, "exception processing game tfrs", e);
-                // some error reading database, delete and get another downloaded asap
+                // wait a minute before doing anything to retry download
+                try { Thread.sleep (60000); } catch (InterruptedException ignored) { }
+                // some error reading database, delete and get another downloaded
                 // do it locked to prevent draw() from starting us up again
                 synchronized (gamelock) {
                     Lib.Ignored (gtpermfile.delete ());
                     gameThread = null;
+                    if (gupdThread != null) gupdThread.interrupt ();
                 }
-                if (gupdThread != null) gupdThread.interrupt ();
             }
         }
     }
@@ -1587,8 +1599,8 @@ public class TFROutlines {
 
                         // we don't have the one for today, try to download it
                         // it's quite possible we don't have internet connection
-                        Log.i (TAG, "fetching latest gametfrs3.db");
-                        GZIPInputStream gis = new GZIPInputStream (getHttpStream (MaintView.dldir + "/getgametfrs.php"));
+                        Log.i (TAG, "fetching latest gametfrs4.db");
+                        GZIPInputStream gis = new GZIPInputStream (getHttpStream (MaintView.dldir + "/getgametfrs4.php"));
                         try {
                             FileOutputStream fos = new FileOutputStream (gttempfile);
                             try {
@@ -1602,8 +1614,8 @@ public class TFROutlines {
                         } finally {
                             gis.close ();
                         }
-                        if (! gttempfile.renameTo (gtpermfile)) throw new IOException ("error renaming gametfrs3.db.tmp file");
-                        Log.i (TAG, "fetch gametfrs3.db complete");
+                        if (! gttempfile.renameTo (gtpermfile)) throw new IOException ("error renaming gametfrs4.db.tmp file");
+                        Log.i (TAG, "fetch gametfrs4.db complete");
 
                         // get chart redrawn with latest data
                         // this causes the main draw() to be called which
@@ -1620,7 +1632,7 @@ public class TFROutlines {
                 } catch (Exception e) {
 
                     // probably no internet connection
-                    Log.w (TAG, "exception updating gametfrs3.db", e);
+                    Log.w (TAG, "exception updating gametfrs4.db", e);
                 }
 
                 // schedule to run one hour from now if failed to update
