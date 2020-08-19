@@ -55,8 +55,6 @@ import android.widget.TableLayout;
 import android.widget.TableRow;
 import android.widget.TextView;
 
-import org.acra.ACRA;
-
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -480,10 +478,13 @@ public class WairToNow extends Activity {
         adb.setMessage ("Are you sure you want to exit?");
         adb.setPositiveButton ("Yes - Close App", new DialogInterface.OnClickListener () {
             @Override
-            public void onClick (DialogInterface dialogInterface, int i) {
-                saveLastKnownPosition ();
-                crumbsView.CloseFiles ();
-                SQLiteDBs.CloseAll ();
+            public void onClick (DialogInterface dialogInterface, int i)
+            {
+                if (hasAgreed) {
+                    saveLastKnownPosition ();
+                    crumbsView.CloseFiles ();
+                    SQLiteDBs.CloseAll ();
+                }
                 System.exit (0);
             }
         });
@@ -559,20 +560,6 @@ public class WairToNow extends Activity {
             }
         });
         adb.show ();
-    }
-
-    private static class StartupErrorException extends Exception {
-        private String msg;
-        public StartupErrorException (String m, Exception e)
-        {
-            super (e);
-            msg = m;
-        }
-        @Override
-        public @NonNull String toString ()
-        {
-            return "StartupErrorException: " + msg + "\n" + super.toString ();
-        }
     }
 
     /**
@@ -1089,16 +1076,20 @@ public class WairToNow extends Activity {
     {
         menu.clear ();
 
-        menu.add ("Chart");
+        if (hasAgreed) {
+            menu.add ("Chart");
+        }
         menu.add ("Exit");
-        menu.add ("Re-center");
-        menu.add (tabsVisible ? "Hide Tabs" : "<< MORE");
+        if (hasAgreed) {
+            menu.add ("Re-center");
+            menu.add (tabsVisible ? "Hide Tabs" : "<< MORE");
 
-        int reqori = getRequestedOrientation ();
-        if (reqori == ActivityInfo.SCREEN_ORIENTATION_USER) {
-            menu.add ("Lock Screen");
-        } else {
-            menu.add ("Unlock Screen");
+            int reqori = getRequestedOrientation ();
+            if (reqori == ActivityInfo.SCREEN_ORIENTATION_USER) {
+                menu.add ("Lock Screen");
+            } else {
+                menu.add ("Unlock Screen");
+            }
         }
 
         return true;

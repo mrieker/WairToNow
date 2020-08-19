@@ -23,6 +23,7 @@ package com.outerworldapps.wairtonow;
 import android.annotation.SuppressLint;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.os.Build;
 import android.view.View;
 import android.webkit.WebView;
 
@@ -159,6 +160,13 @@ public class HelpView extends WebView
                     barfmeout = 50 / barfmeout;
                 }
             });
+        }
+
+        @SuppressWarnings ("unused")
+        @android.webkit.JavascriptInterface
+        public int getSdkVersion ()
+        {
+            return Build.VERSION.SDK_INT;
         }
     }
 }
