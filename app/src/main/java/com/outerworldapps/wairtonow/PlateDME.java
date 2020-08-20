@@ -220,8 +220,8 @@ public class PlateDME {
             // user doesn't want any DMEs shown, draw a little button instead
             float ts = wairToNow.textSize;
             dmeButtonBounds.left   = 0;
-            dmeButtonBounds.right  = (int) (ts * 2);
-            dmeButtonBounds.top    = (int) (canvasHeight - ts * 2);
+            dmeButtonBounds.right  = Math.round (ts * 4);
+            dmeButtonBounds.top    = Math.round (canvasHeight - ts * 4);
             dmeButtonBounds.bottom = canvasHeight;
 
             dmeButtonPath.rewind ();

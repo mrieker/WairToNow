@@ -196,7 +196,8 @@ public class StateView extends View {
                 if (centerInfoBounds.contains (x, y)) {
                     showCenterInfo ^= (now - downOnCenterInfo < 500);
                     downOnCenterInfo = 0;
-                    invalidate ();
+                    invalidate ();  // redraw button vs text cloud
+                    chartView.backing.invalidate ();  // redraw with or without cross at center
                     return true;
                 }
 
@@ -204,11 +205,13 @@ public class StateView extends View {
                     showCourseInfo ^= (now - downOnCourseInfo < 500);
                     downOnCourseInfo = 0;
                     invalidate ();
+                    chartView.backing.invalidate ();
                     return true;
                 }
 
                 if (wairToNow.currentCloud.MouseUp (x, y, now)) {
                     invalidate ();
+                    chartView.backing.invalidate ();
                     return true;
                 }
 
@@ -390,8 +393,8 @@ public class StateView extends View {
             float ts = wairToNow.textSize;
             int   ch = canvasHeight;
             centerInfoBounds.left   = 0;
-            centerInfoBounds.right  = (int) (ts * 2);
-            centerInfoBounds.top    = (int) (ch - ts * 2);
+            centerInfoBounds.right  = Math.round (ts * 4);
+            centerInfoBounds.top    = Math.round (ch - ts * 4);
             centerInfoBounds.bottom = ch;
 
             if (centerInfoCanvasHeight != ch) {
@@ -474,10 +477,10 @@ public class StateView extends View {
             float ts = wairToNow.textSize;
             int   cw = canvasWidth;
 
-            courseInfoBounds.left   = (int) (cw - ts * 2);
+            courseInfoBounds.left   = Math.round (cw - ts * 4);
             courseInfoBounds.right  = cw;
             courseInfoBounds.top    = 0;
-            courseInfoBounds.bottom = (int) (ts * 2);
+            courseInfoBounds.bottom = Math.round (ts * 4);
 
             if (courseInfoCanvasWidth != cw) {
                 courseInfoCanvasWidth = cw;

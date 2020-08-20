@@ -778,9 +778,9 @@ public class PlateCIFP {
 
             // user doesn't want any CIFP text, draw a little button instead
             float ts = wairToNow.textSize;
-            cifpButtonBounds.left   = (int) (canvasWidth - ts * 2);
+            cifpButtonBounds.left   = Math.round (canvasWidth - ts * 4);
             cifpButtonBounds.right  = canvasWidth;
-            cifpButtonBounds.top    = (int) (canvasHeight - ts * 2);
+            cifpButtonBounds.top    = Math.round (canvasHeight - ts * 4);
             cifpButtonBounds.bottom = canvasHeight;
 
             cifpButtonPath.rewind ();
@@ -1729,6 +1729,7 @@ public class PlateCIFP {
         // ...so we don't make them current, and also are hard to calculate a
         // true course entry and exit as they may actually just be a single point
         // must not alter step's internal state (in case called outside UpdateState())
+        @SuppressWarnings("BooleanMethodIsAlwaysInverted")
         public boolean isRuntStep ()
         {
             return Math.hypot (endptbmx - begptbmx, endptbmy - begptbmy) < runtbmpix;
@@ -2105,20 +2106,6 @@ public class PlateCIFP {
                 // the first character says what it is
                 switch (alt.charAt (0)) {
 
-                    // cross fix at a1 altitude
-                    case '@': {
-                        sb.append ('=');
-                        appendAlt (sb, a1);
-                        break;
-                    }
-
-                    // cross fix at or above a1 altitude
-                    case '+': {
-                        sb.append ('\u2265');  // >=
-                        appendAlt (sb, a1);
-                        break;
-                    }
-
                     // cross fix at or below a1 altitude
                     case '-': {
                         sb.append ('\u2264');  // <=
@@ -2166,6 +2153,8 @@ public class PlateCIFP {
                     }
 
                     // cross fix at a1 altitude
+                    case '@':
+                    // cross fix at a1 altitude
                     // subsequently descend to a2 (but that is mentioned in next leg anyway)
                     case 'I': {  // ORL ILS 25 at MARYB
                         sb.append ('=');
@@ -2173,6 +2162,8 @@ public class PlateCIFP {
                         break;
                     }
 
+                    // cross fix at or above a1 altitude
+                    case '+':
                     // cross fix at min of a1 altitude
                     // subsequent descent to a2 (but that is mentioned in next leg anyway)
                     case 'J': {  // MHT ILS 6 at JAAZZ; BED ILS 11 at ZELKA
@@ -2263,50 +2254,32 @@ public class PlateCIFP {
             // the first character says what it is
             switch (altlet) {
 
-                // cross fix at alt1ft altitude
-                case '@': {
-                    return alt1ft;
-                }
-
-                // cross fix at or above alt1ft altitude
-                case '+': {
-                    return alt1ft;
-                }
-
-                // cross fix at or below alt1ft altitude
-                case '-': {
-                    return alt1ft;
-                }
-
                 // cross fix between alt1ft and alt2ft altitudes (alt1ft <= alt2ft)
                 case 'B': {
                     return (alt1ft + alt2ft) / 2.0;
                 }
 
+                // cross fix at alt1ft altitude
+                case '@':
+                // cross fix at or above alt1ft altitude
+                case '+':
+                // cross fix at or below alt1ft altitude
+                case '-':
                 // approach fix at alt2ft and intercept glide slope
                 // when at fix and on glide slope, altitude should be equal to alt1ft
-                case 'G': {  // ORL ILS 25 at CBOYD
-                    return alt1ft;
-                }
-
-                // approach fix at alt1ft and intercept glide slope
-                // when at fix and on glide slope, altitude should be equal to alt2ft
-                case 'H': {  // MHT ILS 6 at FITZY
-                    return alt2ft;
-                }
-
+                case 'G':  // ORL ILS 25 at CBOYD
                 // cross fix at alt1ft altitude
                 // subsequently descend to alt2ft (but that is mentioned in next leg anyway)
-                case 'I': {  // ORL ILS 25 at MARYB
-                    return alt1ft;
-                }
-
+                case 'I':  // ORL ILS 25 at MARYB
                 // cross fix at min of alt1ft altitude
                 // subsequent descent to alt2ft (but that is mentioned in next leg anyway)
                 case 'J': {  // MHT ILS 6 at JAAZZ
                     return alt1ft;
                 }
 
+                // approach fix at alt1ft and intercept glide slope
+                // when at fix and on glide slope, altitude should be equal to alt2ft
+                case 'H':  // MHT ILS 6 at FITZY
                 // along glide path for precision approach such as GPS LPV
                 // alt1ft gives non-precision minimum altitude at this fix
                 // alt2ft gives on-glideslope exact altitude at this fix

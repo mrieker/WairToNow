@@ -154,9 +154,9 @@ public class CurrentCloud {
             float ts = wairToNow.textSize;
 
             gpsInfoBounds.left   = 0;
-            gpsInfoBounds.right  = (int) (ts * 2);
+            gpsInfoBounds.right  = Math.round (ts * 4);
             gpsInfoBounds.top    = 0;
-            gpsInfoBounds.bottom = (int) (ts * 2);
+            gpsInfoBounds.bottom = Math.round (ts * 4);
 
             if (gpsInfoPath == null) {
                 gpsInfoPath = new Path ();

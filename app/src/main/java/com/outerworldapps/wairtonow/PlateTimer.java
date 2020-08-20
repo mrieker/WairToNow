@@ -134,10 +134,10 @@ public class PlateTimer {
 
             // user doesn't want timer shown, draw a little button instead
             float ts = wairToNow.textSize;
-            timrButtonBounds.left   = canvasWidth - (int) (ts * 2);
+            timrButtonBounds.left   = canvasWidth - Math.round (ts * 4);
             timrButtonBounds.right  = canvasWidth;
             timrButtonBounds.top    = 0;
-            timrButtonBounds.bottom = (int) (ts * 2);
+            timrButtonBounds.bottom = Math.round (ts * 4);
 
             timrButtonPath.rewind ();
             timrButtonPath.moveTo (canvasWidth - ts,     ts * 2);

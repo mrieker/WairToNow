@@ -1150,7 +1150,9 @@ public class WairToNow extends Activity {
 
     /**
      * Save most recent GPS position to preferences so it will be there on restart.
+     * Use commit() instead of apply() so it gets saved to flash.
      */
+    @SuppressLint("ApplySharedPref")
     private void saveLastKnownPosition ()
     {
         SharedPreferences prefs = getPreferences (MODE_PRIVATE);
@@ -1161,7 +1163,7 @@ public class WairToNow extends Activity {
         editr.putFloat ("lastKnownLon", (float) currentGPSLon);
         editr.putFloat ("lastKnownSpd", (float) currentGPSSpd);
         editr.putLong ("lastKnownTime", currentGPSTime);
-        editr.apply ();
+        editr.commit ();
     }
 
     /**
@@ -1308,12 +1310,14 @@ public class WairToNow extends Activity {
     @Override
     public void onBackPressed()
     {
-        View backView = ((CanBeMainView) currentTabButton.view).GetBackPage ();
-        if (backView != null) {
-            SetCurrentTab (backView);
-        } else {
-            super.onBackPressed ();
+        if (hasAgreed) {
+            View backView = ((CanBeMainView) currentTabButton.view).GetBackPage ();
+            if (backView != null) {
+                SetCurrentTab (backView);
+                return;
+            }
         }
+        super.onBackPressed ();
     }
 
     // Permission granting

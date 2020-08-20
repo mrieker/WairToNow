@@ -202,43 +202,34 @@ public class TFROutlines {
             // what to invalidate when download threads complete
             chartview = chart;
 
-            // see if we need to re-scan game TFRs cuz chart has moved too far
-            // if so, start a thread to reload gameoutlines
-            // ...and meanwhile we will draw the old stuff
-            synchronized (gamelock) {
-                canvasnorthlat = chart.chartView.pmap.canvasNorthLat;
-                canvassouthlat = chart.chartView.pmap.canvasSouthLat;
-                canvaseastlon  = chart.chartView.pmap.canvasEastLon;
-                canvaswestlon  = chart.chartView.pmap.canvasWestLon;
-                if ((gameThread == null) && needToLoadGames () && gtpermfile.exists ()) {
-                    gameThread = new GameThread ();
-                    gameThread.start ();
-                }
-            }
+            // use same lists throughout in case threads are about to switch them
+            Collection<PathOut> pathouts = pathoutlines;
+            Collection<GameOut> gameouts = gameoutlines;
 
-            // anyway, calculate pixels for current latlon<->pixel mapping
-            dopredraw (pathoutlines, chart, now);
-            dopredraw (gameoutlines, chart, now);
+            // calculate pixels for current latlon<->pixel mapping
+            // also remove expired TFRs
+            dopredraw (pathouts, chart, now);
+            boolean gameremoved = dopredraw (gameouts, chart, now);
 
             // draw all backgrounds
-            for (Outline outline : pathoutlines) {
+            for (Outline outline : pathouts) {
                 if (outline.isFilteredOn (now)) {
                     outline.draw (canvas, bgpaint);
                 }
             }
-            for (Outline outline : gameoutlines) {
+            for (Outline outline : gameouts) {
                 if (outline.isFilteredOn (now)) {
                     outline.draw (canvas, bgpaint);
                 }
             }
 
             // draw non-highlighted foregrounds
-            for (Outline outline : pathoutlines) {
+            for (Outline outline : pathouts) {
                 if (!outline.highlight && outline.isFilteredOn (now)) {
                     outline.draw (canvas, fgpaint);
                 }
             }
-            for (GameOut outline : gameoutlines) {
+            for (GameOut outline : gameouts) {
                 if (!outline.highlight && outline.isFilteredOn (now)) {
                     outline.draw (canvas,
                             (outline.exptime < 0xFFFFFFFFL * 1000) ? fgpaint : blpaint);
@@ -246,14 +237,42 @@ public class TFROutlines {
             }
 
             // draw highlighted foregrounds
-            for (Outline outline : pathoutlines) {
+            for (Outline outline : pathouts) {
                 if (outline.highlight && outline.isFilteredOn (now)) {
                     outline.draw (canvas, hipaint);
                 }
             }
-            for (Outline outline : gameoutlines) {
+            for (Outline outline : gameouts) {
                 if (outline.highlight && outline.isFilteredOn (now)) {
                     outline.draw (canvas, hipaint);
+                }
+            }
+
+            // see if we need to re-scan game TFRs cuz chart has moved too far
+            // if so, start a thread to reload gameoutlines
+            // it calls invalidate() when done
+            synchronized (gamelock) {
+
+                // if game just expired, re-read database cuz we only had earliest event per stadium
+                // ...and there might be another one in the database or at least the dotted circle.
+                if (gameremoved) {
+                    gamenorthlat = -90.0;
+                    gamesouthlat =  90.0;
+                    gameeastlon = -180.0;
+                    gamewestlon =  180.0;
+                }
+
+                // tell game thread limits of stuff it must cover
+                canvasnorthlat = chart.chartView.pmap.canvasNorthLat;
+                canvassouthlat = chart.chartView.pmap.canvasSouthLat;
+                canvaseastlon  = chart.chartView.pmap.canvasEastLon;
+                canvaswestlon  = chart.chartView.pmap.canvasWestLon;
+
+                // if it isn't already running and it doesn't already cover the
+                // canvas area and we have a datafile available, start it going
+                if ((gameThread == null) && needToLoadGames () && gtpermfile.exists ()) {
+                    gameThread = new GameThread ();
+                    gameThread.start ();
                 }
             }
         }
@@ -272,16 +291,19 @@ public class TFROutlines {
 
     // compute paths for current latlon<->pixel mapping
     // also delete all expired TFRs
-    private void dopredraw (Collection<? extends Outline> outlines, Chart2DView chart, long now)
+    private boolean dopredraw (Collection<? extends Outline> outlines, Chart2DView chart, long now)
     {
+        boolean removed = false;
         for (Iterator<? extends Outline> it = outlines.iterator (); it.hasNext ();) {
             Outline outline = it.next ();
             if (outline.exptime < now) {
                 it.remove ();
+                removed = true;
             } else if (outline.isFilteredOn (now)) {
                 outline.predraw (chart);
             }
         }
+        return removed;
     }
 
     /**
@@ -338,6 +360,7 @@ public class TFROutlines {
                 case OptionsView.TFR_NONE: return false;
                 case OptionsView.TFR_ACTIVE: return efftime < now;
                 case OptionsView.TFR_TODAY: return efftime - now < 24*60*60*1000;
+                case OptionsView.TFR_3DAYS: return efftime - now < 3*24*60*60*1000;
                 default: return true;
             }
         }
@@ -1044,10 +1067,11 @@ public class TFROutlines {
         public void predraw (Chart2DView chart)
         {
             chart.LatLon2CanPixExact (northlat, cntrlon, canpix);
+            double northpixx = canpix.x;
             double northpixy = canpix.y;
 
             chart.LatLon2CanPixExact (cntrlat, cntrlon, canpix);
-            radpix = canpix.y - northpixy;
+            radpix = Math.hypot (canpix.x - northpixx, canpix.y - northpixy);
         }
 
         @Override
@@ -1474,13 +1498,16 @@ public class TFROutlines {
                     double gwlon = cwlon - canwidth  / 2.0;
 
                     // read records on and nearby the canvas from the .db file into memory
-                    // should be just a few out of a couple thousand
+                    // should be just a few out of a few hundred
                     // note that there may be many for such as 'Yankee Stadium'
                     // ...so just keep the earliest one that hasn't expired
+                    // if no unexpired games at 'Yankee Stadium' just return the stadium record
+                    //   without a joined gametfrs record so we get a dotted circle around stadium
                     HashMap<String,GameOut> outlines = new HashMap<> ();
                     long now = System.currentTimeMillis ();
-                    String query = "SELECT g_eff,g_desc,s_lat,s_lon,s_tz,s_name,g_exp" +
-                            " FROM stadiums LEFT JOIN gametfrs ON g_stadium=s_name" +
+                    String query =
+                            "SELECT g_eff,g_desc,s_lat,s_lon,s_tz,s_name,g_exp FROM stadiums" +
+                            " LEFT JOIN gametfrs ON g_stadium=s_name AND g_exp>" + (now / 1000) +
                             " WHERE s_lat<" + gnlat + " AND s_lat>" + gslat +
                             " AND s_lon<" + gelon + " AND s_lon>" + gwlon;
                     SQLiteDatabase sqldb = SQLiteDatabase.openDatabase (
@@ -1490,25 +1517,27 @@ public class TFROutlines {
                         Cursor result = sqldb.rawQuery (query, null);
                         try {
                             if (result.moveToFirst ()) do {
+
                                 // null values if stadium without any event scheduled
                                 // so say event happens way far off in the future
+                                // triggers drawing a dotted circle around stadium
                                 long efftime = (result.isNull (0) ? 0xFFFFFFFFL : result.getLong (0)) * 1000;
                                 long exptime = (result.isNull (6) ? 0xFFFFFFFFL : result.getLong (6)) * 1000;
-                                // only do it if not expired
-                                if (exptime > now) {
-                                    // only do earliest per stadium
-                                    String stadium = result.getString (5);
-                                    GameOut oldgo = outlines.get (stadium);
-                                    if ((oldgo == null) || (efftime < oldgo.efftime)) {
-                                        String text = stadium;
-                                        // add team names if available for verification
-                                        if (! result.isNull (1)) {
-                                            text += "\n" + result.getString (1);
-                                        }
-                                        // add TFR to list, possibly replacing a later one at this stadium
-                                        GameOut gameout = new GameOut (efftime, exptime, text, result);
-                                        outlines.put (stadium, gameout);
+
+                                // only do earliest per stadium
+                                String stadium = result.getString (5);
+                                GameOut oldgo = outlines.get (stadium);
+                                if ((oldgo == null) || (efftime < oldgo.efftime)) {
+                                    String text = stadium;
+
+                                    // add team names if available for verification
+                                    if (! result.isNull (1)) {
+                                        text += "\n" + result.getString (1);
                                     }
+
+                                    // add TFR to list, possibly replacing a later one at this stadium
+                                    GameOut gameout = new GameOut (efftime, exptime, text, result);
+                                    outlines.put (stadium, gameout);
                                 }
                             } while (result.moveToNext ());
                         } finally {

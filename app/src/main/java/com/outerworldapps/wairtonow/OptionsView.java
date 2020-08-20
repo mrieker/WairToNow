@@ -90,7 +90,8 @@ public class OptionsView
     public final static int TFR_NONE = 0;
     public final static int TFR_ACTIVE = 1;
     public final static int TFR_TODAY = 2;
-    public final static int TFR_ALL = 3;
+    public final static int TFR_3DAYS = 3;
+    public final static int TFR_ALL = 4;
 
     private static NNLinkedHashMap<String,Integer> getFontSizeMap ()
     {
@@ -155,8 +156,8 @@ public class OptionsView
         fontSizeOption    = new FontOption ();
 
         tfrFilterOption = new IntOption ("TFR Filter",
-                new String[] { "TFR: ALL", "TFR: TODAY", "TFR: ACTIVE", "TFR: NONE" },
-                new int[] { TFR_ALL, TFR_TODAY, TFR_ACTIVE, TFR_NONE });
+                new String[] { "TFR: ALL", "TFR: TODAY", "TFR: 3DAYS", "TFR: ACTIVE", "TFR: NONE" },
+                new int[] { TFR_ALL, TFR_TODAY, TFR_3DAYS, TFR_ACTIVE, TFR_NONE });
 
         latLonOption      = new IntOption ("LatLon Format",
             new String[] {
@@ -222,9 +223,10 @@ public class OptionsView
         ll1.addView (gpsUpdateOption);
         ll1.addView (circCatOption);
 
+        LayoutParams llp = new LayoutParams (LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
         ScrollView sv1 = new ScrollView (ctx);
         sv1.addView (ll1);
-        addView (sv1);
+        addView (sv1, llp);
 
         ReadOptionsCsvFile ();
     }
