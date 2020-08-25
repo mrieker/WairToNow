@@ -135,11 +135,12 @@ public class RWYPlateImage extends GRPlateImage implements DisplayableChart.Inva
     private final static double defnm = 0.75;
     private final static double padnm = 0.25;
 
-    private boolean firstDraw = true;
     private double longestNM;
     private double qtrTextHeight;
     private HashMap<String,RwyInfo> runways = new HashMap<> ();
     private HashMap<String,WpInfo> waypoints = new HashMap<> ();
+    private int mappedCanWidth;
+    private int mappedCanHeight;
     private int synthWidth;
     private int synthHeight;
     private Paint rwyPaint;
@@ -227,121 +228,144 @@ public class RWYPlateImage extends GRPlateImage implements DisplayableChart.Inva
         /*
          * Draw Open Street Map as background.
          */
-        int width  = getWidth ();
-        int height = getHeight ();
-        CalcOSMBackground (width, height);
-        wairToNow.openStreetMap.Draw (canvas, pmap, this);
+        int canwidth  = getWidth ();
+        int canheight = getHeight ();
+        boolean landscape = (canwidth > canheight);
 
-        /*
-         * Show debugging lines through airport reference point.
-         */
-        /*{
-            rwyPaint.setColor (Color.WHITE);
-            double aptCanX = BitmapX2CanvasX (LatLon2BitmapX (airport.lat, airport.lon));
-            double aptCanY = BitmapY2CanvasY (LatLon2BitmapY (airport.lat, airport.lon));
-            canvas.drawLine (0, aptCanY, width, aptCanY, rwyPaint);
-            canvas.drawLine (aptCanX, 0, aptCanX, height, rwyPaint);
-        }*/
+        // get same pixel sizes used during prefetch = whole screen
+        int diswidth  = wairToNow.displayWidth;
+        int disheight = wairToNow.displayHeight;
+        int lower  = Math.min (diswidth, disheight);
+        int higher = diswidth ^ disheight ^ lower;
+        diswidth  = landscape ? higher : lower;
+        disheight = landscape ? lower : higher;
 
-        /*
-         * Draw scale.
-         */
-        /*
-        rwyPaint.setColor (Color.CYAN);
-        double aptlatcos = Math.cos (Math.toRadians (airport.lat));
-        double smFactor  = wairToNow.optionsView.ktsMphOption.getAlt () ? Lib.SMPerNM : 1.0;
-        double canx0     = BitmapX2CanvasX (0);
-        double cany0     = BitmapY2CanvasY (synthHeight);
-        double canx0lim  = canx0 + metrics.xdpi / 4;
-        double cany0lim  = cany0 - metrics.ydpi / 4;
-        int   nsteps    = (int) Math.ceil (longestNM * smFactor / stepMi / 2.0);
-        for (int step = 0; step <= nsteps; step ++) {
-            String str = Double.toString (step * stepMi);
-            int strlen = str.length ();
+        // draw using whole screen size so it will use prefetched scaling
+        // it will be smaller because of button row
+        // also accounts for any user panning/zooming
+        CalcOSMBackground (diswidth, disheight);
 
-            double dlatdeg = step * stepMi / smFactor / Lib.NMPerDeg;
-            double dlondeg = dlatdeg / aptlatcos;
+        canvas.save ();
+        try {
+            // translate to draw centered on canvas (assuming user has not panned/zoomed it)
+            canvas.translate ((canwidth - diswidth) / 2.0F, (canheight - disheight) / 2.0F);
 
-            // left column
+            // draw tiles and copyright message
+            wairToNow.openStreetMap.Draw (canvas, pmap, this, (canheight + disheight) / 2.0F);
+
+            /*
+             * Show debugging lines through airport reference point.
+             */
+            /*{
+                rwyPaint.setColor (Color.WHITE);
+                double aptCanX = BitmapX2CanvasX (LatLon2BitmapX (airport.lat, airport.lon));
+                double aptCanY = BitmapY2CanvasY (LatLon2BitmapY (airport.lat, airport.lon));
+                canvas.drawLine (0, aptCanY, width, aptCanY, rwyPaint);
+                canvas.drawLine (aptCanX, 0, aptCanX, height, rwyPaint);
+            }*/
+
+            /*
+             * Draw scale.
+             */
+            /*
+            rwyPaint.setColor (Color.CYAN);
+            double aptlatcos = Math.cos (Math.toRadians (airport.lat));
+            double smFactor  = wairToNow.optionsView.ktsMphOption.getAlt () ? Lib.SMPerNM : 1.0;
+            double canx0     = BitmapX2CanvasX (0);
+            double cany0     = BitmapY2CanvasY (synthHeight);
+            double canx0lim  = canx0 + metrics.xdpi / 4;
+            double cany0lim  = cany0 - metrics.ydpi / 4;
+            int   nsteps    = (int) Math.ceil (longestNM * smFactor / stepMi / 2.0);
+            for (int step = 0; step <= nsteps; step ++) {
+                String str = Double.toString (step * stepMi);
+                int strlen = str.length ();
+
+                double dlatdeg = step * stepMi / smFactor / Lib.NMPerDeg;
+                double dlondeg = dlatdeg / aptlatcos;
+
+                // left column
+                rwyPaint.setTextAlign (Paint.Align.LEFT);
+                double cany1 = BitmapY2CanvasY (LatLon2BitmapY (airport.lat + dlatdeg, airport.lon)) + qtrTextHeight * 2;
+                canvas.drawText (str, 0, strlen, canx0, cany1, rwyPaint);
+                double cany2 = BitmapY2CanvasY (LatLon2BitmapY (airport.lat - dlatdeg, airport.lon)) + qtrTextHeight * 2;
+                if (cany2 < cany0lim) canvas.drawText (str, 0, strlen, canx0, cany2, rwyPaint);
+
+                // bottom row
+                rwyPaint.setTextAlign (Paint.Align.CENTER);
+                double canx1 = BitmapX2CanvasX (LatLon2BitmapX (airport.lat, airport.lon + dlondeg));
+                canvas.drawText (str, 0, strlen, canx1, cany0, rwyPaint);
+                double canx2 = BitmapX2CanvasX (LatLon2BitmapX (airport.lat, airport.lon - dlondeg));
+                if (canx2 > canx0lim) canvas.drawText (str, 0, strlen, canx2, cany0, rwyPaint);
+            }
+            */
+
+            /*
+             * Draw rectangles for each runway.
+             */
+            for (RwyInfo rwy : runways.values ()) {
+
+                // compute corresponding canvas pixels
+                double begLeftCanX = BitmapX2CanvasX (rwy.begLeftBmpX);
+                double begLeftCanY = BitmapY2CanvasY (rwy.begLeftBmpY);
+                double begRiteCanX = BitmapX2CanvasX (rwy.begRiteBmpX);
+                double begRiteCanY = BitmapY2CanvasY (rwy.begRiteBmpY);
+
+                double midLeftCanX = BitmapX2CanvasX (rwy.midLeftBmpX);
+                double midLeftCanY = BitmapY2CanvasY (rwy.midLeftBmpY);
+                double midRiteCanX = BitmapX2CanvasX (rwy.midRiteBmpX);
+                double midRiteCanY = BitmapY2CanvasY (rwy.midRiteBmpY);
+
+                // draw rectangle for this runway half
+                rwyPath.reset ();
+                rwyPath.moveTo ((float) begLeftCanX, (float) begLeftCanY);
+                rwyPath.lineTo ((float) begRiteCanX, (float) begRiteCanY);
+                rwyPath.lineTo ((float) midRiteCanX, (float) midRiteCanY);
+                rwyPath.lineTo ((float) midLeftCanX, (float) midLeftCanY);
+                rwyPath.lineTo ((float) begLeftCanX, (float) begLeftCanY);
+
+                rwyPaint.setColor (rwy.surfColor);
+                canvas.drawPath (rwyPath, rwyPaint);
+            }
+
+            /*
+             * Draw waypoints.
+             */
+            rwyPaint.setColor (Color.MAGENTA);
             rwyPaint.setTextAlign (Paint.Align.LEFT);
-            double cany1 = BitmapY2CanvasY (LatLon2BitmapY (airport.lat + dlatdeg, airport.lon)) + qtrTextHeight * 2;
-            canvas.drawText (str, 0, strlen, canx0, cany1, rwyPaint);
-            double cany2 = BitmapY2CanvasY (LatLon2BitmapY (airport.lat - dlatdeg, airport.lon)) + qtrTextHeight * 2;
-            if (cany2 < cany0lim) canvas.drawText (str, 0, strlen, canx0, cany2, rwyPaint);
+            for (WpInfo wpInfo : waypoints.values ()) {
+                double canX = BitmapX2CanvasX (wpInfo.bmpX);
+                double canY = BitmapY2CanvasY (wpInfo.bmpY);
+                canvas.drawCircle ((float) canX, (float) canY, (float) qtrTextHeight, rwyPaint);
+                canX += qtrTextHeight * 2;
+                canY -= qtrTextHeight;
+                canvas.drawText (wpInfo.ident, 0, wpInfo.ident.length (), (float) canX, (float) canY, rwyPaint);
+                canY += qtrTextHeight * 6;
+                canvas.drawText (wpInfo.type, 0, wpInfo.type.length (), (float) canX, (float) canY, rwyPaint);
+            }
 
-            // bottom row
+            /*
+             * Draw runway numbers.
+             */
+            rwyPaint.setColor (Color.RED);
             rwyPaint.setTextAlign (Paint.Align.CENTER);
-            double canx1 = BitmapX2CanvasX (LatLon2BitmapX (airport.lat, airport.lon + dlondeg));
-            canvas.drawText (str, 0, strlen, canx1, cany0, rwyPaint);
-            double canx2 = BitmapX2CanvasX (LatLon2BitmapX (airport.lat, airport.lon - dlondeg));
-            if (canx2 > canx0lim) canvas.drawText (str, 0, strlen, canx2, cany0, rwyPaint);
-        }
-        */
+            for (RwyInfo rwy : runways.values ()) {
+                canvas.save ();
+                double canX = BitmapX2CanvasX (rwy.numsTopBmpX);
+                double canY = BitmapY2CanvasY (rwy.numsTopBmpY);
+                double deg  = rwy.rwywp.trueHdg;
+                canvas.rotate ((float) deg, (float) canX, (float) canY);
+                canvas.drawText (rwy.rwywp.number, 0, rwy.rwywp.number.length (),
+                        (float) canX, (float) (canY + rwy.numBounds.height () * 1.5), rwyPaint);
+                canvas.restore ();
+            }
 
-        /*
-         * Draw rectangles for each runway.
-         */
-        for (RwyInfo rwy : runways.values ()) {
-
-            // compute corresponding canvas pixels
-            double begLeftCanX = BitmapX2CanvasX (rwy.begLeftBmpX);
-            double begLeftCanY = BitmapY2CanvasY (rwy.begLeftBmpY);
-            double begRiteCanX = BitmapX2CanvasX (rwy.begRiteBmpX);
-            double begRiteCanY = BitmapY2CanvasY (rwy.begRiteBmpY);
-
-            double midLeftCanX = BitmapX2CanvasX (rwy.midLeftBmpX);
-            double midLeftCanY = BitmapY2CanvasY (rwy.midLeftBmpY);
-            double midRiteCanX = BitmapX2CanvasX (rwy.midRiteBmpX);
-            double midRiteCanY = BitmapY2CanvasY (rwy.midRiteBmpY);
-
-            // draw rectangle for this runway half
-            rwyPath.reset ();
-            rwyPath.moveTo ((float) begLeftCanX, (float) begLeftCanY);
-            rwyPath.lineTo ((float) begRiteCanX, (float) begRiteCanY);
-            rwyPath.lineTo ((float) midRiteCanX, (float) midRiteCanY);
-            rwyPath.lineTo ((float) midLeftCanX, (float) midLeftCanY);
-            rwyPath.lineTo ((float) begLeftCanX, (float) begLeftCanY);
-
-            rwyPaint.setColor (rwy.surfColor);
-            canvas.drawPath (rwyPath, rwyPaint);
-        }
-
-        /*
-         * Draw waypoints.
-         */
-        rwyPaint.setColor (Color.MAGENTA);
-        rwyPaint.setTextAlign (Paint.Align.LEFT);
-        for (WpInfo wpInfo : waypoints.values ()) {
-            double canX = BitmapX2CanvasX (wpInfo.bmpX);
-            double canY = BitmapY2CanvasY (wpInfo.bmpY);
-            canvas.drawCircle ((float) canX, (float) canY, (float) qtrTextHeight, rwyPaint);
-            canX += qtrTextHeight * 2;
-            canY -= qtrTextHeight;
-            canvas.drawText (wpInfo.ident, 0, wpInfo.ident.length (), (float) canX, (float) canY, rwyPaint);
-            canY += qtrTextHeight * 6;
-            canvas.drawText (wpInfo.type, 0, wpInfo.type.length (), (float) canX, (float) canY, rwyPaint);
-        }
-
-        /*
-         * Draw runway numbers.
-         */
-        rwyPaint.setColor (Color.RED);
-        rwyPaint.setTextAlign (Paint.Align.CENTER);
-        for (RwyInfo rwy : runways.values ()) {
-            canvas.save ();
-            double canX = BitmapX2CanvasX (rwy.numsTopBmpX);
-            double canY = BitmapY2CanvasY (rwy.numsTopBmpY);
-            double deg  = rwy.rwywp.trueHdg;
-            canvas.rotate ((float) deg, (float) canX, (float) canY);
-            canvas.drawText (rwy.rwywp.number, 0, rwy.rwywp.number.length (),
-                    (float) canX, (float) (canY + rwy.numBounds.height () * 1.5), rwyPaint);
+            /*
+             * Draw airplane.
+             */
+            DrawLocationArrow (canvas, true);
+        } finally {
             canvas.restore ();
         }
-
-        /*
-         * Draw airplane.
-         */
-        DrawLocationArrow (canvas, true);
     }
 
     /**
@@ -353,12 +377,14 @@ public class RWYPlateImage extends GRPlateImage implements DisplayableChart.Inva
     public void CalcOSMBackground (int canWidth, int canHeight)
     {
         /*
-         * If first time calling onDraw(), set up initial bitmap=>canvas mapping.
-         * User can then pan/zoom after this.
+         * If first time calling onDraw() or if screen is flipped landscape<->portrait,
+         * set up initial bitmap=>canvas mapping.  User can then pan/zoom after this.
+         * This mapping shows airport centered on screen with a little margin around runways.
          */
-        if (firstDraw) {
+        if ((mappedCanWidth != canWidth) || (mappedCanHeight != canHeight)) {
+            mappedCanWidth  = canWidth;
+            mappedCanHeight = canHeight;
             SetBitmapMapping2 (synthWidth, synthHeight, canWidth, canHeight);
-            firstDraw = false;
         }
 
         double leftbmx = CanvasX2BitmapX (0);

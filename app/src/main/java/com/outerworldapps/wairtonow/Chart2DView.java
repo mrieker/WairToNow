@@ -643,7 +643,7 @@ public class Chart2DView extends View
             AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
             adb.setTitle ("TFR Info");
             LinearLayout ll = new LinearLayout (wairToNow);
-            ll.setDividerDrawable (new ColorDrawable (TFROutlines.COLOR));
+            ll.setDividerDrawable (new ColorDrawable (TFROutlines.WNGCOLOR));
             ll.setShowDividers (LinearLayout.SHOW_DIVIDER_MIDDLE);
             ll.setOrientation (LinearLayout.VERTICAL);
             ViewGroup.MarginLayoutParams mlp = new ViewGroup.MarginLayoutParams (

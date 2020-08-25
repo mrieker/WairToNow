@@ -54,15 +54,15 @@ public class VirtNavView extends LinearLayout
     private Button modeButton;
     private CheckBox hsiCheckBox;
     private double locObsSetting;   // for ILS/LOC waypoint, corresponding OBS setting
-    private NavDialView navDial;
-    private PlateCIFP selectedPlateCIFP;  // non-null: CIFP tracking mode
+    public  NavDialView navDial;
+    public  PlateCIFP selectedPlateCIFP;  // non-null: CIFP tracking mode
     private String label;
     private TextView wpIdent;
     private TextView wpStatus;
     private View rightHalfView;     // plate to display in right-hand half of landscape mode
     private WairToNow wairToNow;
     private Waypoint dmeWaypoint;   // what waypoint to display in DME window
-    private Waypoint waypoint;      // what waypoint we are navigating to
+    public  Waypoint waypoint;      // what waypoint we are navigating to
 
     public VirtNavView (WairToNow wtn, String lbl)
     {

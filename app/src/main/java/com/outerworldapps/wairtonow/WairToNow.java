@@ -139,7 +139,7 @@ public class WairToNow extends Activity {
     public  TextView downloadStatusText;
     public  final TrafficRepo trafficRepo = new TrafficRepo ();
     public  UserWPView userWPView;
-    private VirtNavView virtNav1View, virtNav2View;
+    public  VirtNavView virtNav1View, virtNav2View;
     public  WaypointView waypointView1, waypointView2;
     private Waypoint pendingCourseSetWP;
 
@@ -155,19 +155,6 @@ public class WairToNow extends Activity {
         StrictMode.VmPolicy.Builder builder = new StrictMode.VmPolicy.Builder ();
         StrictMode.setVmPolicy (builder.build ());
 
-        if (wtnHandler == null) wtnHandler = new WTNHandler ();
-
-        ctvllp.weight = 1;
-
-        // get display and pixel size
-        DisplayMetrics metrics = new DisplayMetrics ();
-        getWindowManager ().getDefaultDisplay ().getMetrics (metrics);
-        dotsPerInchX = metrics.xdpi;
-        dotsPerInchY = metrics.ydpi;
-        dotsPerInch  = (float) Math.sqrt (dotsPerInchX * dotsPerInchY);
-        thickLine    = dotsPerInch / 12.0F;
-        thinLine     = dotsPerInch / 24.0F;
-
         // differentiates the 4 orientations
         //OrientationEventListener oel = new OrientationEventListener (this,
         //        SensorManager.SENSOR_DELAY_NORMAL) {
@@ -180,20 +167,74 @@ public class WairToNow extends Activity {
         //};
         //oel.enable ();
 
-        // find out where we put our downloaded data
-        // use external storage cuz it can be very large
-        File efd = getExternalFilesDir (null);
-        if (efd == null) {
-            StartupError ("external storage not available", null);
-            return;
-        }
-        dbdir = efd.getAbsolutePath ();
-
         // dump prefs to logcat for debugging
         SharedPreferences prefs = getPreferences (MODE_PRIVATE);
         Map<String,?> keys = prefs.getAll ();
         for (Map.Entry<String,?> entry : keys.entrySet ()) {
             Log.d (TAG, "pref[" + entry.getKey () + "]=" + entry.getValue ().toString ());
+        }
+
+        checkStorageAccess ();
+    }
+
+    @SuppressLint("ApplySharedPref")
+    private void checkStorageAccess ()
+    {
+        SharedPreferences prefs = getPreferences (MODE_PRIVATE);
+        dbdir = prefs.getString ("storageLocation", null);
+
+        // find out where to put our downloaded data
+        // use external storage cuz it can be very large
+        if (dbdir == null) {
+            File efd = getExternalFilesDir (null);
+            if ((efd != null) && tryToCreateNoMediaFile (efd)) {
+                SharedPreferences.Editor editr = prefs.edit ();
+                editr.putString ("storageLocation", efd.getAbsolutePath ());
+                editr.commit ();
+                checkStorageAccess ();
+                return;
+            }
+
+            //// requestPermissions() does not display anything
+            //if (ActivityCompat.checkSelfPermission (this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+            //    ActivityCompat.requestPermissions (this, new String[] { Manifest.permission.WRITE_EXTERNAL_STORAGE }, RC_WES);
+            //    return;
+            //}
+
+            AlertDialog.Builder adb = new AlertDialog.Builder (this);
+            adb.setTitle ("Data Storage");
+            adb.setMessage ("External storage not available");
+            adb.setPositiveButton ("Check Again", new DialogInterface.OnClickListener () {
+                @Override
+                public void onClick (DialogInterface dialogInterface, int i)
+                {
+                    checkStorageAccess ();
+                }
+            });
+            final File ifd = getFilesDir ();
+            if ((ifd != null) && tryToCreateNoMediaFile (ifd)) {
+                adb.setNeutralButton ("Use Internal", new DialogInterface.OnClickListener () {
+                    @Override
+                    public void onClick (DialogInterface dialogInterface, int i)
+                    {
+                        SharedPreferences prefs = getPreferences (MODE_PRIVATE);
+                        SharedPreferences.Editor editr = prefs.edit ();
+                        editr.putString ("storageLocation", ifd.getAbsolutePath ());
+                        editr.commit ();
+                        checkStorageAccess ();
+                    }
+                });
+            }
+            adb.setNegativeButton ("Close App", null);
+            AlertDialog ad = adb.show ();
+            ad.setOnDismissListener (new DialogInterface.OnDismissListener () {
+                @Override
+                public void onDismiss (DialogInterface dialogInterface)
+                {
+                    finish ();
+                }
+            });
+            return;
         }
 
         // get last GPS position in case GPS not synchronized yet
@@ -214,6 +255,19 @@ public class WairToNow extends Activity {
                 Log.w (TAG, "error creating " + nmf.getAbsolutePath (), ioe);
             }
         }
+
+        if (wtnHandler == null) wtnHandler = new WTNHandler ();
+
+        ctvllp.weight = 1;
+
+        // get display and pixel size
+        DisplayMetrics metrics = new DisplayMetrics ();
+        getWindowManager ().getDefaultDisplay ().getMetrics (metrics);
+        dotsPerInchX = metrics.xdpi;
+        dotsPerInchY = metrics.ydpi;
+        dotsPerInch = (float) Math.sqrt (dotsPerInchX * dotsPerInchY);
+        thickLine = dotsPerInch / 12.0F;
+        thinLine = dotsPerInch / 24.0F;
 
         /*
          * Get text size to use throughout.
@@ -457,6 +511,26 @@ public class WairToNow extends Activity {
         tabsVisible = prefs.getBoolean ("tabVisibility", true);
         UpdateTabVisibilities ();
         chartButton.DisplayNewTab ();
+    }
+
+    /**
+     * Try to create .nomedia file in given directory.
+     * Tells us that we have write access to the given directory.
+     * Tells other apps not to scan the tree for media files so
+     * it won't list all our map tiles as pictures.
+     */
+    private static boolean tryToCreateNoMediaFile (File dir)
+    {
+        File nmf = new File (dir, ".nomedia");
+        if (nmf.exists ()) return true;
+        try {
+            Lib.Ignored (nmf.createNewFile ());
+            if (nmf.exists ()) return true;
+            throw new IOException ("createNewFile() failed");
+        } catch (IOException ioe) {
+            Log.w (TAG, "error creating " + nmf.getAbsolutePath (), ioe);
+        }
+        return false;
     }
 
     /**

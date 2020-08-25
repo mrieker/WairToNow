@@ -78,10 +78,11 @@ public class OpenStreetMap {
      * @param canvas = canvas that draws to the view
      * @param pmap = maps canvas/view pixels to lat/lon
      * @param inval = what to call in an arbitrary thread when a tile gets loaded
+     * @param copyrty = where to put copyright message
      */
-    public void Draw (@NonNull Canvas canvas, @NonNull PixelMapper pmap, @NonNull DisplayableChart.Invalidatable inval)
+    public void Draw (@NonNull Canvas canvas, @NonNull PixelMapper pmap, @NonNull DisplayableChart.Invalidatable inval, float copyrty)
     {
-        mainTileDrawer.Draw (canvas, pmap, inval);
+        mainTileDrawer.Draw (canvas, pmap, inval, copyrty);
     }
 
     /**
@@ -121,7 +122,7 @@ public class OpenStreetMap {
             copyrtTxPaint.setTextSize (wairToNow.textSize * 3 / 4);
         }
 
-        public void Draw (@NonNull Canvas canvas, @NonNull PixelMapper pmap, @NonNull DisplayableChart.Invalidatable inval)
+        public void Draw (@NonNull Canvas canvas, @NonNull PixelMapper pmap, @NonNull DisplayableChart.Invalidatable inval, float copyrty)
         {
             redrawView = inval;
             this.canvas = canvas;
@@ -136,10 +137,9 @@ public class OpenStreetMap {
             }
 
             if (DrawTiles (wairToNow, pmap)) {
-                int h = pmap.canvasHeight;
                 String copyrtMessage = "[" + zoom + "]  Copyright OpenStreetMap contributors";
-                canvas.drawText (copyrtMessage, 5, h - 5, copyrtBGPaint);
-                canvas.drawText (copyrtMessage, 5, h - 5, copyrtTxPaint);
+                canvas.drawText (copyrtMessage, 5, copyrty - 5, copyrtBGPaint);
+                canvas.drawText (copyrtMessage, 5, copyrty - 5, copyrtTxPaint);
             }
 
             synchronized (openedBitmaps) {
@@ -767,7 +767,7 @@ public class OpenStreetMap {
                         httpCon.disconnect ();
                     }
                 } catch (Exception e) {
-                    Log.e (TAG, "error downloading tiles" + ((tilename == null) ? "" : (" (" + tilename + ")")), e);
+                    Log.e (TAG, "error downloading osm tiles" + ((tilename == null) ? "" : (" (" + tilename + ")")), e);
                     try { Thread.sleep (TILE_RETRY_MS); } catch (InterruptedException ie) { Lib.Ignored (); }
                     return false;
                 }
@@ -874,7 +874,7 @@ public class OpenStreetMap {
             }
             return permname;
         } catch (Exception e) {
-            Log.e (TAG, "error downloading tile: " + tilename, e);
+            Log.e (TAG, "error downloading osm tile: " + tilename, e);
             Lib.Ignored (permfile.delete ());
             try { Thread.sleep (TILE_RETRY_MS); } catch (InterruptedException ie) { Lib.Ignored (); }
             return null;

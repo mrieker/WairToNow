@@ -53,6 +53,16 @@ public class OptionsView
         implements WairToNow.CanBeMainView {
     public final static String TAG = "WairToNow";
 
+    // works on 30 (emulated Nexus 10)
+    // works on 29 (emulated Nexus 10)
+    // works on 28 (hardware Tab A)
+    // broken on 28 (emulated Nexus 10)
+    // broken on 27 (emulated Nexus 10)
+    // broken on 25 (emulated Nexus 10)
+    // broken on 24 (hardware LG K20)
+    // broken on 22 (hardware Nexus 10)
+    private final static boolean PDOVERLAYWORKS = false; // (Build.VERSION.SDK_INT >= 29);
+
     private final static String fontSizeDefault = "Medium";
     private final static NNLinkedHashMap<String,Integer> fontSizeMap = getFontSizeMap ();
 
@@ -66,6 +76,7 @@ public class OptionsView
     public  CheckOption  showTraffic;
     public  CheckOption  showWxSumDot;
     public  CheckOption  synthILSDMEOption;
+    public  CheckOption  tfrPDOverOption;
     public  CheckOption  userWPOption;
     public  CheckOption  typeBOption;
     public  DefAltOption ktsMphOption;
@@ -156,8 +167,9 @@ public class OptionsView
         fontSizeOption    = new FontOption ();
 
         tfrFilterOption = new IntOption ("TFR Filter",
-                new String[] { "TFR: ALL", "TFR: TODAY", "TFR: 3DAYS", "TFR: ACTIVE", "TFR: NONE" },
-                new int[] { TFR_ALL, TFR_TODAY, TFR_3DAYS, TFR_ACTIVE, TFR_NONE });
+                new String[] { "TFR: ALL", "TFR: 3DAYS", "TFR: TODAY", "TFR: ACTIVE", "TFR: NONE" },
+                new int[] { TFR_ALL, TFR_3DAYS, TFR_TODAY, TFR_ACTIVE, TFR_NONE });
+        tfrPDOverOption = new CheckOption ("TFR PD Overlay shading", PDOVERLAYWORKS);
 
         latLonOption      = new IntOption ("LatLon Format",
             new String[] {
@@ -204,6 +216,7 @@ public class OptionsView
 
         ll1.addView (fontSizeOption);
         ll1.addView (tfrFilterOption);
+        ll1.addView (tfrPDOverOption);
         ll1.addView (capGridOption);
         ll1.addView (collDetOption);
         ll1.addView (faaWPOption);
@@ -365,6 +378,7 @@ public class OptionsView
                     if (name.equals ("circCat"))      circCatOption.setKeyNoWrite         (valu);
                     if (name.equals ("fontSize"))     fontSizeOption.setKeyNoWrite        (valu);
                     if (name.equals ("tfrFilter"))    tfrFilterOption.setKeyNoWrite       (valu);
+                    if (name.equals ("tfrPDOver"))    tfrPDOverOption.setCheckedNoWrite   (valu.equals (boolTrue));
                 }
             } finally {
                 csvreader.close ();
@@ -391,6 +405,7 @@ public class OptionsView
             circCatOption.setKeyNoWrite         (circCatOption.keys[0]);
             fontSizeOption.setKeyNoWrite        (fontSizeDefault);
             tfrFilterOption.setKeyNoWrite       ("TFR: ALL");
+            tfrPDOverOption.setCheckedNoWrite   (PDOVERLAYWORKS);
         } catch (Exception e) {
             Log.w (TAG, "error reading options.csv", e);
         }
@@ -425,6 +440,7 @@ public class OptionsView
                 csvwriter.write ("circCat,"      + circCatOption.getKey ()                 + "\n");
                 csvwriter.write ("fontSize,"     + fontSizeOption.getKey ()                + "\n");
                 csvwriter.write ("tfrFilter,"    + tfrFilterOption.getKey ()               + "\n");
+                csvwriter.write ("tfrPDOver,"    + tfrPDOverOption.checkBox.isChecked ()   + "\n");
             } finally {
                 csvwriter.close ();
             }

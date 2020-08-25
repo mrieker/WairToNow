@@ -125,7 +125,7 @@ public class StateView extends View {
         tfrInfoBGPaint.setStrokeWidth (wairToNow.thickLine);
         tfrInfoBGPaint.setTextAlign (Paint.Align.RIGHT);
         tfrInfoBGPaint.setTextSize (ts);
-        tfrInfoFGPaint.setColor (TFROutlines.COLOR);
+        tfrInfoFGPaint.setColor (TFROutlines.WNGCOLOR);
         tfrInfoFGPaint.setStyle (Paint.Style.FILL);
         tfrInfoFGPaint.setStrokeWidth (2);
         tfrInfoFGPaint.setTextAlign (Paint.Align.RIGHT);

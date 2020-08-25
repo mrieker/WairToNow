@@ -58,12 +58,13 @@ public class NavDialView extends View {
     private boolean dmeSlant;
     public  boolean hsiEnable;
     public  DMEClickedListener dmeClickedListener;
-    private double deflect;
-    private double distance;
+    public  double deflect;
+    public  double degdiffnp;
+    public  double distance;
     private double heading;
     private float  lastHeight, lastRotate, lastScale, lastWidth;
     private double obsSetting;
-    private double slope;
+    public  double slope;
     private double touchDownOBS;
     private double touchDownX;
     private double touchDownY;
@@ -425,6 +426,7 @@ public class NavDialView extends View {
                 if (degdiff >= 180) degdiff -= 360;
                 degdiff = - degdiff;
             }
+            degdiffnp = degdiff;
             double maxdeflect = (mode == Mode.VOR) ? VORDEFLECT : LOCDEFLECT;
             double pegdeflect = maxdeflect * 1.2;
             if (degdiff >= pegdeflect) degdiff =  pegdeflect;
@@ -530,15 +532,20 @@ public class NavDialView extends View {
         if (mode != Mode.OFF) {
             int x0 = -80;
             int idist10 = (int) Math.round (distance * 10.0);
+            int idist1 = (int) Math.round (distance);
             if ((idist10 >= 0) && (idist10 <= 1999)) {
                 x0 = drawDMEDigit (canvas, digitPaint, x0, idist10 % 10);
                 x0 = drawDMEDot (canvas, digitPaint, x0);
                 x0 = drawDMEDigit (canvas, digitPaint, x0, idist10 / 10 % 10);
                 x0 = drawDMEDigit (canvas, digitPaint, x0, idist10 / 100 % 10);
                 if (idist10 > 999) drawDMEDigit (canvas, digitPaint, x0, idist10 / 1000);
+            } else if (idist1 <= 1999) {
+                x0 = drawDMEDigit (canvas, digitPaint, x0, idist1 % 10);
+                x0 = drawDMEDigit (canvas, digitPaint, x0, idist1 / 10 % 10);
+                x0 = drawDMEDigit (canvas, digitPaint, x0, idist1 / 100 % 10);
+                if (idist1 > 999) drawDMEDigit (canvas, digitPaint, x0, idist1 / 1000);
             } else {
                 x0 = drawDMEDigit (canvas, digitPaint, x0, 10);
-                x0 = drawDMEDot (canvas, digitPaint, x0);
                 x0 = drawDMEDigit (canvas, digitPaint, x0, 10);
                 drawDMEDigit (canvas, digitPaint, x0, 10);
             }

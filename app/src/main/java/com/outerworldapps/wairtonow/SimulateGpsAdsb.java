@@ -37,6 +37,8 @@ public class SimulateGpsAdsb extends GpsAdsbReceiver implements Runnable {
     private boolean displayOpen;
     private boolean pretendEnabled;
     private boolean ptendTimerPend;
+    private CheckBox trackVirtNav1;
+    private CheckBox trackVirtNav2;
     private EditText ptendAltitude;
     private EditText ptendClimbRt;
     private EditText ptendHeading;
@@ -47,6 +49,7 @@ public class SimulateGpsAdsb extends GpsAdsbReceiver implements Runnable {
     private LinearLayout linearLayout;
     private long ptendTime;
     private long simtimerstarted;
+    private VirtNavView trackVirtNav;
     private TrueMag ptendHdgFrame;
 
     public SimulateGpsAdsb (WairToNow wtn)
@@ -221,6 +224,14 @@ public class SimulateGpsAdsb extends GpsAdsbReceiver implements Runnable {
         lp6.addView (ptendClimbRt);
         lp6.addView (TextString ("ft per min"));
 
+        trackVirtNav1 = TrackVirtNav (1);
+        trackVirtNav2 = TrackVirtNav (2);
+        LinearLayout lp7 = new LinearLayout (wairToNow);
+        lp7.setOrientation (LinearLayout.HORIZONTAL);
+        lp7.addView (trackVirtNav1);
+        lp7.addView (TextString ("  "));
+        lp7.addView (trackVirtNav2);
+
         /*
          * Layout the screen and display it.
          */
@@ -237,6 +248,7 @@ public class SimulateGpsAdsb extends GpsAdsbReceiver implements Runnable {
         linearLayout.addView (lp5, llpwc);
         linearLayout.addView (lp4, llpwc);
         linearLayout.addView (lp6, llpwc);
+        linearLayout.addView (lp7, llpwc);
 
         /*// set up a course for debugging
         ptendCheckbox.setChecked (true);
@@ -252,6 +264,40 @@ public class SimulateGpsAdsb extends GpsAdsbReceiver implements Runnable {
         */
     }
 
+    // create a track nav dial checkbox with text label
+    @SuppressLint("SetTextI18n")
+    private CheckBox TrackVirtNav (int n)
+    {
+        CheckBox cb = new CheckBox (wairToNow);
+        cb.setTag (n);
+        cb.setText ("track VirtNav" + n);
+        wairToNow.SetTextSize (cb);
+        cb.setOnClickListener (trackClicked);
+        return cb;
+    }
+
+    // one of the track nav dial #n buttons was clicked
+    // enable/disable nav dial tracking
+    private final View.OnClickListener trackClicked = new View.OnClickListener () {
+        @Override
+        public void onClick (View view) {
+            switch ((Integer) view.getTag ())
+            {
+                case 1: {
+                    trackVirtNav2.setChecked (false);
+                    trackVirtNav = trackVirtNav1.isChecked () ? wairToNow.virtNav1View : null;
+                    break;
+                }
+                case 2: {
+                    trackVirtNav1.setChecked (false);
+                    trackVirtNav = trackVirtNav2.isChecked () ? wairToNow.virtNav2View : null;
+                    break;
+                }
+            }
+        }
+    };
+
+    // create a text view and set the text string
     private TextView TextString (String str)
     {
         TextView tv = new TextView (wairToNow);
@@ -274,30 +320,110 @@ public class SimulateGpsAdsb extends GpsAdsbReceiver implements Runnable {
             double oldlat = ptendLat.getVal ();
             double oldlon = ptendLon.getVal ();
             double spdkts = 0.0;
-            double hdgdeg = 0.0;
-            double altft  = 0.0;
-            double turnrt = 0.0;
-            double climrt = 0.0;
+            double oldhdg = 0.0;    // degrees
+            double oldalt = 0.0;    // feet
+            double turnrt = 0.0;    // degrees per second
+            double climrt = 0.0;    // feet per minute
             try { spdkts = Double.parseDouble (ptendSpeed.getText ().toString ()); } catch (NumberFormatException nfe) { Lib.Ignored (); }
-            try { hdgdeg = Double.parseDouble (ptendHeading.getText ().toString ()); } catch (NumberFormatException nfe) { Lib.Ignored (); }
-            try { altft  = Double.parseDouble (ptendAltitude.getText ().toString ()); } catch (NumberFormatException nfe) { Lib.Ignored (); }
+            try { oldhdg = Double.parseDouble (ptendHeading.getText ().toString ()); } catch (NumberFormatException nfe) { Lib.Ignored (); }
+            try { oldalt = Double.parseDouble (ptendAltitude.getText ().toString ()); } catch (NumberFormatException nfe) { Lib.Ignored (); }
             try { turnrt = Double.parseDouble (ptendTurnRt.getText ().toString ()); } catch (NumberFormatException nfe) { Lib.Ignored (); }
             try { climrt = Double.parseDouble (ptendClimbRt.getText ().toString ()); } catch (NumberFormatException nfe) { Lib.Ignored (); }
 
             /*
-             * Get updated lat/lon, heading and time.
+             * Overwrite turnrt and climrt if tracking a virt nav dial.
+             */
+            if (trackVirtNav != null) {
+                // magcourse = truecourse + magvar
+                double magvar = Lib.MagVariation (oldlat, oldlon, oldalt / Lib.FtPerM, ptendTime);
+                //uble oldth  = ptendHdgFrame.getVal () ? oldhdg : oldhdg - magvar;
+                double oldmh  = ptendHdgFrame.getVal () ? oldhdg + magvar : oldhdg;
+
+                NavDialView.Mode mode = trackVirtNav.navDial.getMode ();
+
+                if (trackVirtNav.selectedPlateCIFP != null) {
+                    switch (mode) {
+
+                        // OFF
+                        default: break;
+
+                        // control climb/descent if ILS mode
+                        case ILS: {
+                            climrt = calcTrackingILSClimbRate ();
+                            turnrt = calcTrackingVORTurnRate (oldmh);
+                            break;
+                        }
+
+                        // LOC mode
+                        case LOC: {
+
+                            // get step's target altitude and climb/descend toward that altitude
+                            double targetalt = trackVirtNav.selectedPlateCIFP.getTargetAltitude ();
+                            if (! Double.isNaN (targetalt)) {
+                                // pitch max of +- 5 degrees until within 50 ft of target
+                                double gsfpm = spdkts * Lib.FtPerNM / 60.0;
+                                double climbby = targetalt - oldalt;
+                                if (climbby < -50.0) climbby = -50.0;
+                                if (climbby >  50.0) climbby =  50.0;
+                                climrt = Math.tan (Math.toRadians (climbby / 10.0)) * gsfpm;
+                            }
+
+                            // compute turn rate to track OBS heading to waypoint
+                            // if beacon is behind aircraft, track OBS heading away from waypoint
+                            turnrt = calcTrackingVORTurnRate (oldmh);
+                            break;
+                        }
+                    }
+                } else {
+                    switch (mode) {
+
+                        // OFF
+                        default: break;
+
+                        // control climb/descent if ILS mode
+                        case ILS: {
+                            climrt = calcTrackingILSClimbRate ();
+                            // fall through
+                        }
+
+                        // VOR, LOC, LOCBC, ILS modes
+                        case VOR:
+                        case LOC:
+                        case LOCBC: {
+                            // compute turn rate to track OBS heading to waypoint
+                            // if beacon is behind aircraft, track OBS heading away from waypoint
+                            turnrt = calcTrackingVORTurnRate (oldmh);
+                            break;
+                        }
+
+                        // ADF mode
+                        case ADF: {
+                            // compute turn rate to track OBS heading to waypoint
+                            // but if beacon is behind aircraft, track OBS heading away from waypoint
+                            turnrt = calcTrackingADFTurnRate (oldmh);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            /*
+             * Get updated lat/lon, heading, altitude and time.
              */
             long   newnow = System.currentTimeMillis ();
             long   dtms   = newnow - ptendTime;
             double distnm = spdkts * dtms / 3600000.0;
-            double newhdg = hdgdeg + dtms / 1000.0 * turnrt;
-            double hdgtru = ptendHdgFrame.getVal () ? newhdg : newhdg - Lib.MagVariation (oldlat, oldlon, altft / Lib.FtPerM, ptendTime);
-            double newlat = Lib.LatHdgDist2Lat (oldlat, hdgtru, distnm);
-            double newlon = Lib.LatLonHdgDist2Lon (oldlat, oldlon, hdgtru, distnm);
-            double newalt = altft + dtms / 60000.0 * climrt;
+            double newhdg = oldhdg + dtms / 1000.0 * turnrt;
+            double newth  = ptendHdgFrame.getVal () ? newhdg : newhdg - Lib.MagVariation (oldlat, oldlon, oldalt / Lib.FtPerM, ptendTime);
+            double newlat = Lib.LatHdgDist2Lat (oldlat, newth, distnm);
+            double newlon = Lib.LatLonHdgDist2Lon (oldlat, oldlon, newth, distnm);
+            double newalt = oldalt + dtms / 60000.0 * climrt;
 
             while (newhdg <=  0.0) newhdg += 360.0;
             while (newhdg > 360.0) newhdg -= 360.0;
+
+            while (newth < -180.0) newth += 360.0;
+            while (newth >= 180.0) newth -= 360.0;
 
             /*
              * Save the new values in the on-screen boxes.
@@ -312,8 +438,8 @@ public class SimulateGpsAdsb extends GpsAdsbReceiver implements Runnable {
              * Send the values in the form of a GPS reading to the active screen.
              */
             wairToNow.SetCurrentLocation (
-                    spdkts / Lib.KtPerMPS, altft / Lib.FtPerM,
-                    hdgtru, newlat, newlon, newnow);
+                    spdkts / Lib.KtPerMPS, oldalt / Lib.FtPerM,
+                    newth, newlat, newlon, newnow);
 
             /*
              * Start the timer to do next interval.
@@ -326,6 +452,104 @@ public class SimulateGpsAdsb extends GpsAdsbReceiver implements Runnable {
             long   mstonextstep    = Math.round ((1.0 - tinyfraction) * 1000.0 / simsteppersec);
             WairToNow.wtnHandler.runDelayed (mstonextstep, this);
         }
+    }
+
+    /**
+     * Calculate climb rate to intercept/maintain glide slope.
+     */
+    private double calcTrackingILSClimbRate ()
+    {
+        double gsdots = trackVirtNav.navDial.slope * (5.0 / NavDialView.GSDEFLECT);
+
+        // level off if needle above the bubble
+        double climrt;
+        if (gsdots >= 1.0) climrt = 0.0;
+
+        // otherwise if in top half of bubble, descend a little bit
+        // if needle says we need to go down, descend steeper
+        else climrt = trackVirtNav.navDial.gsfpm * Math.sqrt (1.0 - gsdots);
+
+        // display what we are doing
+        ptendClimbRt.setText (Lib.DoubleNTZ (climrt, 2));
+
+        return climrt;
+    }
+
+    /**
+     * Calculate turn rate to intercept track.
+     */
+    private double calcTrackingVORTurnRate (double oldmh)
+    {
+        // see what magnetic heading the user wants to follow
+        double oncoursemh = trackVirtNav.navDial.getObs ();
+
+        // see what deflection the needle is showing, without pegging, ie, -90..+90
+        // <0 : airplane is right of course (assuming OBS pointing up)
+        // >0 : airplane is left of course (assuming OBS pointing up)
+        double offcourseby = trackVirtNav.navDial.degdiffnp;
+
+        // needle gets pegged at +- 12 deg on dial
+        if (offcourseby < -12.0) offcourseby = -12.0;
+        if (offcourseby >  12.0) offcourseby =  12.0;
+
+        // this is how much to correct into oncoursemh to center the needle
+        // scale it to use max of 45deg correction for max 12deg off course
+        // should put red airplane at top of needle like a pilot would fly it
+        double scaling = Math.sin (Math.toRadians (45.0)) / 12.0;
+        double correction = Math.toDegrees (Math.asin (offcourseby * scaling));
+
+        // this is the heading we want to be flying right now
+        double interceptmh = oncoursemh + correction;
+
+        // this is how much we need to turn from current heading
+        double needtoturn = interceptmh - oldmh;
+        while (needtoturn < -180.0) needtoturn += 360.0;
+        while (needtoturn >= 180.0) needtoturn -= 360.0;
+
+        // take a half second to turn that far but never more than standard rate
+        double turnrt = needtoturn * 2.0;
+        if (turnrt < -3.0) turnrt = -3.0;
+        if (turnrt >  3.0) turnrt =  3.0;
+        ptendTurnRt.setText (Lib.DoubleNTZ (turnrt, 2));
+
+        return turnrt;
+    }
+
+    /**
+     * Calculate turn rate to intercept track.
+     */
+    private double calcTrackingADFTurnRate (double oldmh)
+    {
+        // see what magnetic heading the user wants to follow
+        double oncoursemh = trackVirtNav.navDial.getObs ();
+
+        // see what deflection the needle is showing
+        double offcourseby = trackVirtNav.navDial.deflect;
+
+        // maybe it is pointing behind, so we assume tracking away from beacon
+        if (offcourseby < -90.0) offcourseby = -180.0 - offcourseby;
+        if (offcourseby >  90.0) offcourseby =  180.0 - offcourseby;
+
+        // this is how much to correct into oncoursemh to center the needle
+        double correction = offcourseby * 2.0;
+        if (correction < -80.0) correction = -80.0;
+        if (correction >  80.0) correction =  80.0;
+
+        // this is the heading we want to turn to now to center the needle
+        double interceptheading = oncoursemh + correction;
+
+        // this is how much we need to turn from current heading
+        double needtoturn = interceptheading - oldmh;
+        while (needtoturn < -180.0) needtoturn += 360.0;
+        while (needtoturn >= 180.0) needtoturn -= 360.0;
+
+        // take one second to turn that far but never more than standard rate
+        double turnrt = needtoturn;
+        if (turnrt < -3.0) turnrt = -3.0;
+        if (turnrt >  3.0) turnrt =  3.0;
+        ptendTurnRt.setText (Lib.DoubleNTZ (turnrt, 2));
+
+        return turnrt;
     }
 
     /**

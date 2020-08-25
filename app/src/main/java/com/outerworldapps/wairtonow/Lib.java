@@ -1330,6 +1330,22 @@ public class Lib {
         }
     }
 
+    public static void DrawBoundedString (Canvas canvas, Rect overallBounds, Paint paint, int cx, int ty, char[] st)
+    {
+        if (st != null) {
+            canvas.drawText (st, 0, st.length, cx, ty, paint);
+
+            if ((overallBounds.left == 0) && (overallBounds.right == 0)) {
+                paint.getTextBounds (st, 0, st.length, overallBounds);
+                overallBounds.offset (cx - overallBounds.width () / 2, ty);
+            } else {
+                paint.getTextBounds (st, 0, st.length, drawBoundedStringBounds);
+                drawBoundedStringBounds.offset (cx - drawBoundedStringBounds.width () / 2, ty);
+                overallBounds.union (drawBoundedStringBounds);
+            }
+        }
+    }
+
     /**
      * Dismiss a dialog box.
      */

@@ -33,10 +33,11 @@ public class CurrentCloud {
     public  static final int currentColor = Color.RED;
 
     private boolean gpsInfoMphOpt;
-    private boolean gpsInfoTrueOpt;
-    public  boolean showGPSInfo   = true;
+    public  boolean showGPSInfo    = true;
+    private char[] gpsInfoMagHdgStr;
+    private char[] gpsInfoSecStr;
+    private char[] gpsinfoTrueHdgStr;
     private double gpsInfoAltitude = Double.NaN;
-    private double gpsInfoHeading  = Double.NaN;
     private double gpsInfoSpeed    = Double.NaN;
     private int gpsInfoSecond;
     private long downOnGPSInfo    = 0;
@@ -45,8 +46,6 @@ public class CurrentCloud {
     private Path gpsInfoPath;
     private Rect gpsInfoBounds    = new Rect ();
     private String gpsInfoAltStr;
-    private String gpsInfoHdgStr;
-    private String gpsInfoSecStr;
     private String gpsInfoSpdStr;
     private WairToNow wairToNow;
 
@@ -65,6 +64,10 @@ public class CurrentCloud {
         currentTxPaint.setStrokeWidth (2);
         currentTxPaint.setTextSize (ts);
         currentTxPaint.setTextAlign (Paint.Align.CENTER);
+
+        gpsInfoMagHdgStr = new char[] { 'x', 'x', 'x', 0xB0, ' ', 'M', 'a', 'g' };
+        gpsInfoSecStr = new char[] { 'h', 'h', ':', 'm', 'm', ':', 's', 's', 'z' };
+        gpsinfoTrueHdgStr = new char[] { 'x', 'x', 'x', 0xB0, ' ', 'T', 'r', 'u', 'e' };
     }
 
     /**
@@ -109,26 +112,37 @@ public class CurrentCloud {
             double heading  = wairToNow.currentGPSHdg;
             double speed    = wairToNow.currentGPSSpd;
             long   time     = wairToNow.currentGPSTime;
-
-            int second = (int) (time / 1000 % 86400);
-
             boolean mphOpt  = wairToNow.optionsView.ktsMphOption.getAlt ();
             boolean trueOpt = wairToNow.optionsView.magTrueOption.getAlt ();
 
+            int second = (int) ((time + 500) / 1000 % 86400);
             if (gpsInfoSecond != second) {
                 gpsInfoSecond = second;
                 int hh = second / 3600;
                 int mm = second / 60 % 60;
                 int ss = second % 60;
-                gpsInfoSecStr = Integer.toString (hh + 100).substring (1) + ":" +
-                        Integer.toString (mm + 100).substring (1) + ":" +
-                        Integer.toString (ss + 100).substring (1) + "z";
+                gpsInfoSecStr[0] = (char) (hh / 10 + '0');
+                gpsInfoSecStr[1] = (char) (hh % 10 + '0');
+                gpsInfoSecStr[3] = (char) (mm / 10 + '0');
+                gpsInfoSecStr[4] = (char) (mm % 10 + '0');
+                gpsInfoSecStr[6] = (char) (ss / 10 + '0');
+                gpsInfoSecStr[7] = (char) (ss % 10 + '0');
             }
 
-            if ((gpsInfoHeading != heading) || (gpsInfoTrueOpt != trueOpt)) {
-                gpsInfoHeading = heading;
-                gpsInfoTrueOpt = trueOpt;
-                gpsInfoHdgStr  = wairToNow.optionsView.HdgString (heading, wairToNow.currentMagVar);
+            if (trueOpt) {
+                int th = (int) Math.round (heading);
+                while (th <=  0) th += 360;
+                while (th > 360) th -= 360;
+                gpsinfoTrueHdgStr[0] = (char) (th / 100 + '0');
+                gpsinfoTrueHdgStr[1] = (char) (th / 10 % 10 + '0');
+                gpsinfoTrueHdgStr[2] = (char) (th % 10 + '0');
+            } else {
+                int mh = (int) Math.round (heading + wairToNow.currentMagVar);
+                while (mh <=  0) mh += 360;
+                while (mh > 360) mh -= 360;
+                gpsInfoMagHdgStr[0] = (char) (mh / 100 + '0');
+                gpsInfoMagHdgStr[1] = (char) (mh / 10 % 10 + '0');
+                gpsInfoMagHdgStr[2] = (char) (mh % 10 + '0');
             }
 
             if (gpsInfoAltitude != altitude) {
@@ -148,7 +162,7 @@ public class CurrentCloud {
             gpsInfoBounds.setEmpty ();
             Lib.DrawBoundedString (canvas, gpsInfoBounds, paint, cx, dy, gpsInfoSecStr);
             Lib.DrawBoundedString (canvas, gpsInfoBounds, paint, cx, dy * 2, gpsInfoAltStr);
-            Lib.DrawBoundedString (canvas, gpsInfoBounds, paint, cx, dy * 3, gpsInfoHdgStr);
+            Lib.DrawBoundedString (canvas, gpsInfoBounds, paint, cx, dy * 3, trueOpt ? gpsinfoTrueHdgStr : gpsInfoMagHdgStr);
             Lib.DrawBoundedString (canvas, gpsInfoBounds, paint, cx, dy * 4, gpsInfoSpdStr);
         } else {
             float ts = wairToNow.textSize;

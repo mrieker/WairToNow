@@ -325,6 +325,17 @@ public class PlateCIFP {
     }
 
     /**
+     * Get target altitude for current step.
+     * It is what the step says for altitude .gt. .ge. .lt. .le. .eq.
+     * Returns NaN if no altitude defined for step, else altitude in feet.
+     */
+    public double getTargetAltitude ()
+    {
+        if (cifpSelected == null) return Double.NaN;
+        return cifpSteps[currentStep].cifpLeg.getAltitude ();
+    }
+
+    /**
      * A new GPS location was received, update state.
      */
     public void SetGPSLocation ()
@@ -1662,7 +1673,9 @@ public class PlateCIFP {
      */
     private final static CIFPStep[] nullarrayCIFPStep = new CIFPStep[0];
     private abstract class CIFPStep {
-        public char arcturndir;  // if step is an arc, arc turn direction ('L' or 'R'), else 0 for line
+        public final CIFPLeg cifpLeg;
+
+        public char arcturndir;   // if step is an arc, arc turn direction ('L' or 'R'), else 0 for line
         public double arcctrbmx;  // if step is an arc, center of arc
         public double arcctrbmy;
         public double arcbegrad;  // if step is an arc, beginning radial from center (true)
@@ -1680,6 +1693,8 @@ public class PlateCIFP {
 
         public int   drawIndex;  // index in cifpSteps[] array
         public double acrftdist;  // distance aircraft is from dots
+
+        public CIFPStep (CIFPLeg cl) { cifpLeg = cl; }
 
         // draw the step
         // may alter step's internal state (called only from UpdateState())
@@ -1876,7 +1891,8 @@ public class PlateCIFP {
         protected boolean inEndFillet (NavDialView navDial)
         {
             if ((bmpToNextTurn (nextTurn) <= 0.0) && !Double.isNaN (nextTurn.truecourse)) {
-                navDial.setObs (nextTurn.truecourse + aptmagvar);
+                double obs = arcObsSetting (filletArc.x, filletArc.y, filletArc.turndir);
+                navDial.setObs (obs);
                 return true;
             }
             return false;
@@ -2298,7 +2314,7 @@ public class PlateCIFP {
      * Pilot will get a 10,9,8,... countdown coming up on a fillet.
      */
     private class FilletArc extends PointD {
-        public char turndir;  // which direction the pilot is turning in the arc
+        public char turndir;   // which direction the pilot is turning in the arc
         public double start;   // degrees clockwise from due East where ccwmost part of arc is
         public double sweep;   // degrees clockwise from start that arc sweeps
         public double startc;  // tc from center of fillet where the pilot starts
@@ -2746,7 +2762,7 @@ public class PlateCIFP {
 
         private PointD navpt = new PointD ();
 
-        private final CIFPStep afstep = new CIFPStep () {
+        private final CIFPStep afstep = new CIFPStep (this) {
             @Override
             public String getTextLine ()
             {
@@ -2854,7 +2870,7 @@ public class PlateCIFP {
         private double climbegbmx, climbegbmy;
         private double endbmx, endbmy;
 
-        private final CIFPStep castep = new CIFPStep () {
+        private final CIFPStep castep = new CIFPStep (this) {
             @Override
             public String getTextLine ()
             {
@@ -2957,7 +2973,7 @@ public class PlateCIFP {
         private PointD navpt = new PointD ();
         private Waypoint navwp;
 
-        private final CIFPStep cdstep = new CIFPStep () {
+        private final CIFPStep cdstep = new CIFPStep (this) {
             private String vnwpid;
 
             @Override
@@ -3016,7 +3032,7 @@ public class PlateCIFP {
         public Waypoint navwp;
         private PointD navpt = new PointD ();
 
-        private final CIFPStep cfstep = new CIFPStep () {
+        private final CIFPStep cfstep = new CIFPStep (this) {
             @Override
             public String getTextLine ()
             {
@@ -3157,7 +3173,7 @@ public class PlateCIFP {
         private CIFPLeg nextleg;
         private double trucrs;
 
-        private final CIFPStep cistep = new CIFPStep () {
+        private final CIFPStep cistep = new CIFPStep (this) {
             @Override
             public String getTextLine ()
             {
@@ -3227,7 +3243,7 @@ public class PlateCIFP {
         private PointD navpt = new PointD ();
         private Waypoint navwp;
 
-        private final CIFPStep crstep = new CIFPStep () {
+        private final CIFPStep crstep = new CIFPStep (this) {
             private String vnwpid;
 
             @Override
@@ -3286,7 +3302,7 @@ public class PlateCIFP {
         private double endbmx, endbmy;
         private double ochdg;
 
-        private final CIFPStep fcstep = new CIFPStep () {
+        private final CIFPStep fcstep = new CIFPStep (this) {
             @Override
             public String getTextLine ()
             {
@@ -3404,6 +3420,7 @@ public class PlateCIFP {
             }
         }
     }
+
     // hold indefinitely
     // - currently only used at end of missed segment, ie, end of approach
     //   so we can assume there is no next step
@@ -3486,7 +3503,7 @@ public class PlateCIFP {
          * - teardrop: diagonal radial, far-end turn to inbound
          * - direct: near-end turn to outbound line, outbound line, far-end turn to inbound
          */
-        protected final CIFPStep hstep1 = new CIFPStep () {
+        protected final CIFPStep hstep1 = new CIFPStep (this) {
             private double dist0, dist1, dist2, dist3;
             private long starttime;
 
@@ -3861,7 +3878,7 @@ public class PlateCIFP {
          * - parallel: head inbound along diagonal, make little turn at end to inbound heading over navwp
          * - teardrop and direct: head along inbound radial to over navwp
          */
-        protected final CIFPStep hstep2 = new CIFPStep () {
+        protected final CIFPStep hstep2 = new CIFPStep (this) {
 
             // get text line describing the hold
             @Override
@@ -3983,8 +4000,11 @@ public class PlateCIFP {
          * Start at the navwp, go around normal oval pattern back to navwp.
          * Used only for indefinite hold (HM) at the end.
          */
-        protected final CIFPStep hstep3 = new CIFPStep () {
-            private double dist1, dist2, dist3, dist4;
+        protected final CIFPStep hstep3 = new CIFPStep (this) {
+            private double dist1;   // distance of aircraft from near-end arc
+            private double dist2;   // distance of aircraft from outbound line
+            private double dist3;   // distance of aircraft from far-end arc
+            private double dist4;   // distance of aircraft from inbound line
 
             // get text line describing the hold
             @Override
@@ -4382,7 +4402,7 @@ public class PlateCIFP {
         public  Waypoint navwp;  // navigating using this beacon
 
         // line going outbound from beacon and for one minute past the extended navwp
-        private final CIFPStep pistep1 = new CIFPStep () {
+        private final CIFPStep pistep1 = new CIFPStep (this) {
             private String textline;
 
             @Override
@@ -4435,7 +4455,7 @@ public class PlateCIFP {
         };
 
         // outbound line on 45deg angle
-        private final CIFPStep pistep2 = new CIFPStep () {
+        private final CIFPStep pistep2 = new CIFPStep (this) {
             private String textline;
 
             @Override
@@ -4486,7 +4506,7 @@ public class PlateCIFP {
         };
 
         // 180deg turn
-        private final CIFPStep pistep3 = new CIFPStep () {
+        private final CIFPStep pistep3 = new CIFPStep (this) {
             private String textline;
 
             @Override
@@ -4534,7 +4554,7 @@ public class PlateCIFP {
         };
 
         // line on 45-deg offset inbound
-        private final CIFPStep pistep4 = new CIFPStep () {
+        private final CIFPStep pistep4 = new CIFPStep (this) {
             private String textline;
 
             @Override
@@ -4720,7 +4740,7 @@ public class PlateCIFP {
         private PointD endpt = new PointD ();
         private Waypoint endwp;
 
-        private final CIFPStep rfstep = new CIFPStep () {
+        private final CIFPStep rfstep = new CIFPStep (this) {
             @Override
             public String getTextLine ()
             {
@@ -4838,7 +4858,7 @@ public class PlateCIFP {
         //   the CIFP data often has some other point outside the FAF
         //   listed in the final approach segment so it has to be left out
         //   see CIFPSegment::getSteps()
-        private final CIFPStep rvstep = new CIFPStep () {
+        private final CIFPStep rvstep = new CIFPStep (this) {
             private boolean behind;
 
             @Override
@@ -4988,7 +5008,7 @@ public class PlateCIFP {
         private PointD navpt = new PointD ();
 
         // standard rate turn until fix dead ahead
-        private final CIFPStep tdstep = new CIFPStep () {
+        private final CIFPStep tdstep = new CIFPStep (this) {
             @Override
             public String getTextLine ()
             {

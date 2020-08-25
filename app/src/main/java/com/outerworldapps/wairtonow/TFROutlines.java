@@ -54,6 +54,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
@@ -77,7 +78,8 @@ public class TFROutlines {
     private final static int GAMERADNM = 3;
 
     private final static double[] nullDoubleArray = new double[0];
-    public  final static int COLOR = 0xFFFF5500;
+    private final static int ACTCOLOR = 0xFFFF0000;
+    public  final static int WNGCOLOR = 0xFFFF8800;
     private final static int TOUCHDIST = 20;
     private final static String TAG = "WairToNow";
     private final static String[] pathtfrcols = new String[] {
@@ -87,6 +89,9 @@ public class TFROutlines {
     private final static String faaurl = "https://tfr.faa.gov";
     private final static String faapfx = "save_pages/detail_";
 
+    private ArrayList<Outline> actlines;
+    private ArrayList<Outline> dorlines;
+    private boolean pdOverlayEnabd;
     private boolean useproxy;
     private Collection<GameOut> gameoutlines;       // game TFRs in vicinity of canvas
     private Collection<PathOut> pathoutlines;       // all path-style TFRs
@@ -111,6 +116,7 @@ public class TFROutlines {
     private Paint blpaint;
     private Paint fgpaint;
     private Paint hipaint;
+    private PorterDuffXfermode pdxmover;
     private SimpleDateFormat sdfout;
     private View chartview;
 
@@ -121,32 +127,31 @@ public class TFROutlines {
      */
     public void populate (WairToNow wtn)
     {
+        pdOverlayEnabd = wtn.optionsView.tfrPDOverOption.checkBox.isChecked ();
         tfrFilter = wtn.optionsView.tfrFilterOption.getVal ();
 
         // one-time inits
         if (sdfout == null) {
-            sdfout = new SimpleDateFormat ("yyyy-MM-dd@HH:mm", Locale.US);
+            sdfout   = new SimpleDateFormat ("yyyy-MM-dd@HH:mm", Locale.US);
+            pdxmover = new PorterDuffXfermode (PorterDuff.Mode.OVERLAY);
+            actlines = new ArrayList<> (10);
+            dorlines = new ArrayList<> (10);
 
             bgpaint = new Paint ();
-            bgpaint.setColor (COLOR);
-            bgpaint.setStrokeWidth (TOUCHDIST * 2);
-            bgpaint.setStyle (Paint.Style.STROKE);
-            bgpaint.setXfermode (new PorterDuffXfermode (PorterDuff.Mode.SCREEN));
+            bgpaint.setStyle (Paint.Style.FILL_AND_STROKE);
 
             blpaint = new Paint ();
-            blpaint.setColor (COLOR);
-            blpaint.setPathEffect (new DashPathEffect (new float[] { 5, 10 }, 0));
-            blpaint.setStrokeWidth (5);
+            blpaint.setColor (WNGCOLOR);
+            blpaint.setPathEffect (new DashPathEffect (new float[] { 20, 10 }, 0));
+            blpaint.setStrokeWidth (10);
             blpaint.setStyle (Paint.Style.STROKE);
 
             fgpaint = new Paint ();
-            fgpaint.setColor (COLOR);
-            fgpaint.setStrokeWidth (5);
+            fgpaint.setStrokeWidth (10);
             fgpaint.setStyle (Paint.Style.STROKE);
 
             hipaint = new Paint ();
-            hipaint.setColor (COLOR);
-            hipaint.setStrokeWidth (10);
+            hipaint.setStrokeWidth (20);
             hipaint.setStyle (Paint.Style.STROKE);
 
             // start with empty lists so we don't have to test for null
@@ -202,50 +207,51 @@ public class TFROutlines {
             // what to invalidate when download threads complete
             chartview = chart;
 
-            // use same lists throughout in case threads are about to switch them
-            Collection<PathOut> pathouts = pathoutlines;
-            Collection<GameOut> gameouts = gameoutlines;
-
-            // calculate pixels for current latlon<->pixel mapping
-            // also remove expired TFRs
-            dopredraw (pathouts, chart, now);
-            boolean gameremoved = dopredraw (gameouts, chart, now);
-
-            // draw all backgrounds
-            for (Outline outline : pathouts) {
-                if (outline.isFilteredOn (now)) {
-                    outline.draw (canvas, bgpaint);
+            // get composite list of TFRs that are enabled for display
+            actlines.clear ();
+            dorlines.clear ();
+            for (Iterator<PathOut> i = pathoutlines.iterator (); i.hasNext ();) {
+                Outline o = i.next ();
+                if (o.exptime <= now) i.remove ();
+                else if (o.isFilteredOn (now, chart)) {
+                    o.predraw (chart);
+                    ((o.efftime > now) ? dorlines : actlines).add (o);
                 }
             }
-            for (Outline outline : gameouts) {
-                if (outline.isFilteredOn (now)) {
-                    outline.draw (canvas, bgpaint);
-                }
-            }
-
-            // draw non-highlighted foregrounds
-            for (Outline outline : pathouts) {
-                if (!outline.highlight && outline.isFilteredOn (now)) {
-                    outline.draw (canvas, fgpaint);
-                }
-            }
-            for (GameOut outline : gameouts) {
-                if (!outline.highlight && outline.isFilteredOn (now)) {
-                    outline.draw (canvas,
-                            (outline.exptime < 0xFFFFFFFFL * 1000) ? fgpaint : blpaint);
+            boolean gameremoved = false;
+            for (Iterator<GameOut> i = gameoutlines.iterator (); i.hasNext ();) {
+                Outline o = i.next ();
+                if (o.exptime <= now) {
+                    i.remove ();
+                    gameremoved = true;
+                } else if (o.isFilteredOn (now, chart)) {
+                    o.predraw (chart);
+                    ((o.efftime > now) ? dorlines : actlines).add (o);
                 }
             }
 
-            // draw highlighted foregrounds
-            for (Outline outline : pathouts) {
-                if (outline.highlight && outline.isFilteredOn (now)) {
-                    outline.draw (canvas, hipaint);
-                }
+            // draw dormant backgrounds then foregrounds
+            bgpaint.setXfermode (pdOverlayEnabd ? pdxmover : null);
+            bgpaint.setColor (pdOverlayEnabd ? WNGCOLOR : WNGCOLOR & 0x55FFFFFF);
+            for (Outline outline : dorlines) {
+                outline.draw (canvas, bgpaint);
             }
-            for (Outline outline : gameouts) {
-                if (outline.highlight && outline.isFilteredOn (now)) {
-                    outline.draw (canvas, hipaint);
-                }
+            fgpaint.setColor (WNGCOLOR);
+            hipaint.setColor (WNGCOLOR);
+            for (Outline outline : dorlines) {
+                outline.draw (canvas, outline.highlight ? hipaint :
+                        (outline.efftime < 0xFFFFFFFFL * 1000) ? fgpaint : blpaint);
+            }
+
+            // then active ones
+            bgpaint.setColor (pdOverlayEnabd ? ACTCOLOR : ACTCOLOR & 0x55FFFFFF);
+            for (Outline outline : actlines) {
+                outline.draw (canvas, bgpaint);
+            }
+            fgpaint.setColor (ACTCOLOR);
+            hipaint.setColor (ACTCOLOR);
+            for (Outline outline : actlines) {
+                outline.draw (canvas, outline.highlight ? hipaint : fgpaint);
             }
 
             // see if we need to re-scan game TFRs cuz chart has moved too far
@@ -289,23 +295,6 @@ public class TFROutlines {
                 (canvaswestlon < gamewestlon);
     }
 
-    // compute paths for current latlon<->pixel mapping
-    // also delete all expired TFRs
-    private boolean dopredraw (Collection<? extends Outline> outlines, Chart2DView chart, long now)
-    {
-        boolean removed = false;
-        for (Iterator<? extends Outline> it = outlines.iterator (); it.hasNext ();) {
-            Outline outline = it.next ();
-            if (outline.exptime < now) {
-                it.remove ();
-                removed = true;
-            } else if (outline.isFilteredOn (now)) {
-                outline.predraw (chart);
-            }
-        }
-        return removed;
-    }
-
     /**
      * See if any TFR outlines are near the given canpixx,canpixy.
      */
@@ -316,14 +305,13 @@ public class TFROutlines {
         if (tfrFilter == OptionsView.TFR_NONE) return touched;
 
         // get all TFRs near the given canpixx,canpixy
-        long now = System.currentTimeMillis ();
         for (Outline outline : pathoutlines) {
-            if (outline.isFilteredOn (now) && outline.touched (canpixx, canpixy)) {
+            if (outline.appears && outline.touched (canpixx, canpixy)) {
                 touched.add (outline);
             }
         }
         for (Outline outline : gameoutlines) {
-            if (outline.isFilteredOn (now) && outline.touched (canpixx, canpixy)) {
+            if (outline.appears && outline.touched (canpixx, canpixy)) {
                 touched.add (outline);
             }
         }
@@ -341,8 +329,13 @@ public class TFROutlines {
         public long efftime;        // effective time
         public long exptime;        // expiration time
 
+        protected boolean appears;  // false: no part appears; else: maybe some part appears on canvas
         protected double cntrlat;   // centroid of area (or NaN if runt)
         protected double cntrlon;
+        protected double eastmostLon;
+        protected double northmostLat;
+        protected double southmostLat;
+        protected double westmostLon;
         protected String tzname;    // local timezone (or null if unknown)
 
         private double elevfeet = Double.NaN;
@@ -354,15 +347,21 @@ public class TFROutlines {
         public abstract View getInfo (Context ctx);
 
         // see if the options filter enables this TFR
-        public boolean isFilteredOn (long now)
+        // also see if some part might appear on canvas
+        public boolean isFilteredOn (long now, Chart2DView chart)
         {
             switch (tfrFilter) {
-                case OptionsView.TFR_NONE: return false;
-                case OptionsView.TFR_ACTIVE: return efftime < now;
-                case OptionsView.TFR_TODAY: return efftime - now < 24*60*60*1000;
-                case OptionsView.TFR_3DAYS: return efftime - now < 3*24*60*60*1000;
-                default: return true;
+                case OptionsView.TFR_NONE: appears = false; break;
+                case OptionsView.TFR_ACTIVE: appears = efftime < now; break;
+                case OptionsView.TFR_TODAY: appears = efftime - now < 24*60*60*1000; break;
+                case OptionsView.TFR_3DAYS: appears = efftime - now < 3*24*60*60*1000; break;
+                default: appears = true; break;
             }
+            if (! appears) return false;
+            appears = ! Double.isNaN (cntrlat) &&
+                    Lib.LatOverlap (southmostLat, northmostLat, chart.chartView.pmap.canvasSouthLat, chart.chartView.pmap.canvasNorthLat) &&
+                    Lib.LonOverlap (westmostLon, eastmostLon, chart.chartView.pmap.canvasWestLon, chart.chartView.pmap.canvasEastLon);
+            return appears;
         }
 
         // try to get elevation of TFR
@@ -475,13 +474,8 @@ public class TFROutlines {
      */
     private class PathOut extends Outline implements View.OnClickListener {
         private AirChart achart;            // chart the chtpixs are for
-        private boolean appears;            // appears on canvas
         private char areacode;              // area letter 'A', 'B', 'C', ...
         private Context context;
-        private double northmostLat;        // northmost latitude of points
-        private double southmostLat;        // southmost latitude of points
-        private double eastmostLon;         // eastmost longitude of points
-        private double westmostLon;         // westmost longitude of points
         private double[] canpixs;           // where last drawn on canvas
         private double[] chtpixs;           // chart pixels for the outline
         private double[] latlons;           // list of all points, first == last
@@ -862,75 +856,65 @@ public class TFROutlines {
         @Override
         public void predraw (Chart2DView chart)
         {
-            appears = false;
-            if (! Double.isNaN (cntrlat) &&
-                    Lib.LatOverlap (southmostLat, northmostLat, chart.chartView.pmap.canvasSouthLat, chart.chartView.pmap.canvasNorthLat) &&
-                    Lib.LonOverlap (westmostLon, eastmostLon, chart.chartView.pmap.canvasWestLon, chart.chartView.pmap.canvasEastLon)) {
-                appears = true;
-
-                // for air charts, lambert latlon->pixel is expensive,
-                // so precompute it as the outline->chart pixel mapping is constant,
-                // ie, one could draw the outline in ink on a paper chart
-                // changes only when the user selects a different chart
-                int n = latlons.length;
-                DisplayableChart dchart = chart.chartView.selectedChart;
-                if (achart != dchart) {
-                    if (dchart instanceof AirChart) {
-                        achart = (AirChart) dchart;
-                        if (chtpixs == null) chtpixs = new double[n];
-                        for (int i = 0; i < n;) {
-                            double lat = latlons[i];
-                            double lon = latlons[i+1];
-                            achart.LatLon2ChartPixelExact (lat, lon, canpix);
-                            chtpixs[i++] = canpix.x;
-                            chtpixs[i++] = canpix.y;
-                        }
-                    } else {
-                        // street map, don't have latlon->chartpixel & chartpixel->canvaspixel mapping available
-                        achart  = null;
-                        chtpixs = null;
-                    }
-                }
-
-                // compute the outline path
-                // it changes if the chart is panned and/or zoomed
-                if (canpixs == null) canpixs = new double[n];
-                path.rewind ();
-                boolean first = true;
-                for (int i = 0; i < n;) {
-                    if (chtpixs == null) {
+            // for air charts, lambert latlon->pixel is expensive,
+            // so precompute it as the outline->chart pixel mapping is constant,
+            // ie, one could draw the outline in ink on a paper chart
+            // changes only when the user selects a different chart
+            int n = latlons.length;
+            DisplayableChart dchart = chart.chartView.selectedChart;
+            if (achart != dchart) {
+                if (dchart instanceof AirChart) {
+                    achart = (AirChart) dchart;
+                    if (chtpixs == null) chtpixs = new double[n];
+                    for (int i = 0; i < n;) {
                         double lat = latlons[i];
                         double lon = latlons[i+1];
-                        chart.LatLon2CanPixExact (lat, lon, canpix);
-                    } else {
-                        double chx = chtpixs[i];
-                        double chy = chtpixs[i+1];
-                        achart.ChartPixel2CanPix (chx, chy, canpix);
+                        achart.LatLon2ChartPixelExact (lat, lon, canpix);
+                        chtpixs[i++] = canpix.x;
+                        chtpixs[i++] = canpix.y;
                     }
-                    if (first) path.moveTo ((float) canpix.x, (float) canpix.y);
-                          else path.lineTo ((float) canpix.x, (float) canpix.y);
-                    canpixs[i++] = canpix.x;
-                    canpixs[i++] = canpix.y;
-                    first = false;
+                } else {
+                    // street map, don't have latlon->chartpixel & chartpixel->canvaspixel mapping available
+                    achart  = null;
+                    chtpixs = null;
                 }
-                path.close ();
             }
+
+            // compute the outline path
+            // it changes if the chart is panned and/or zoomed
+            if (canpixs == null) canpixs = new double[n];
+            path.rewind ();
+            boolean first = true;
+            for (int i = 0; i < n;) {
+                if (chtpixs == null) {
+                    double lat = latlons[i];
+                    double lon = latlons[i+1];
+                    chart.LatLon2CanPixExact (lat, lon, canpix);
+                } else {
+                    double chx = chtpixs[i];
+                    double chy = chtpixs[i+1];
+                    achart.ChartPixel2CanPix (chx, chy, canpix);
+                }
+                if (first) path.moveTo ((float) canpix.x, (float) canpix.y);
+                      else path.lineTo ((float) canpix.x, (float) canpix.y);
+                canpixs[i++] = canpix.x;
+                canpixs[i++] = canpix.y;
+                first = false;
+            }
+            path.close ();
         }
 
         // draw TFR on the given canvas, highlighted or normal
         @Override
         public void draw (Canvas canvas, Paint paint)
         {
-            if (appears) {
-                canvas.drawPath (path, paint);
-            }
+            canvas.drawPath (path, paint);
         }
 
         // see if the given canvas x,y pixel is near the TFR outline
         @Override
         public boolean touched (double canpixx, double canpixy)
         {
-            if (! appears) return false;
             double p1x = canpixs[0];
             double p1y = canpixs[1];
             int n = canpixs.length;
@@ -1048,7 +1032,6 @@ public class TFROutlines {
     private class GameOut extends Outline {
         public String text;
 
-        private double northlat;
         private double radpix;
         private PointD canpix = new PointD ();
 
@@ -1060,13 +1043,16 @@ public class TFROutlines {
             this.cntrlat  = result.getDouble (2);
             this.cntrlon  = result.getDouble (3);
             this.tzname   = result.getString (4);
-            this.northlat = Lib.LatHdgDist2Lat (cntrlat, 0, GAMERADNM);
+            this.northmostLat = Lib.LatHdgDist2Lat (cntrlat, 0, GAMERADNM);
+            this.southmostLat = Lib.LatHdgDist2Lat (cntrlat, 180, GAMERADNM);
+            this.eastmostLon  = Lib.LatLonHdgDist2Lon (cntrlat, cntrlon, 90, GAMERADNM);
+            this.westmostLon  = Lib.LatLonHdgDist2Lon (cntrlat, cntrlon, 270, GAMERADNM);
         }
 
         @Override
         public void predraw (Chart2DView chart)
         {
-            chart.LatLon2CanPixExact (northlat, cntrlon, canpix);
+            chart.LatLon2CanPixExact (northmostLat, cntrlon, canpix);
             double northpixx = canpix.x;
             double northpixy = canpix.y;
 
@@ -1608,7 +1594,8 @@ public class TFROutlines {
                     // they are created a little before 00:00z each day
                     boolean needupdate = true;
                     if (gtpermfile.exists ()) {
-                        SQLiteDatabase sqldb = SQLiteDatabase.openDatabase (gtpermfile.toString (), null, SQLiteDatabase.OPEN_READONLY);
+                        SQLiteDatabase sqldb = SQLiteDatabase.openDatabase (gtpermfile.toString (), null,
+                                SQLiteDatabase.OPEN_READONLY | SQLiteDatabase.NO_LOCALIZED_COLLATORS);
                         try {
                             Cursor result = sqldb.query ("asof", new String[] { "as_of" }, null, null, null, null, null);
                             try {
