@@ -350,7 +350,7 @@ public class SimulateGpsAdsb extends GpsAdsbReceiver implements Runnable {
                         // control climb/descent if ILS mode
                         case ILS: {
                             climrt = calcTrackingILSClimbRate ();
-                            turnrt = calcTrackingVORTurnRate (oldmh);
+                            turnrt = calcTrackingVORTurnRate (oldmh, oldlat, oldlon);
                             break;
                         }
 
@@ -370,7 +370,7 @@ public class SimulateGpsAdsb extends GpsAdsbReceiver implements Runnable {
 
                             // compute turn rate to track OBS heading to waypoint
                             // if beacon is behind aircraft, track OBS heading away from waypoint
-                            turnrt = calcTrackingVORTurnRate (oldmh);
+                            turnrt = calcTrackingVORTurnRate (oldmh, oldlat, oldlon);
                             break;
                         }
                     }
@@ -392,7 +392,7 @@ public class SimulateGpsAdsb extends GpsAdsbReceiver implements Runnable {
                         case LOCBC: {
                             // compute turn rate to track OBS heading to waypoint
                             // if beacon is behind aircraft, track OBS heading away from waypoint
-                            turnrt = calcTrackingVORTurnRate (oldmh);
+                            turnrt = calcTrackingVORTurnRate (oldmh, oldlat, oldlon);
                             break;
                         }
 
@@ -478,7 +478,7 @@ public class SimulateGpsAdsb extends GpsAdsbReceiver implements Runnable {
     /**
      * Calculate turn rate to intercept track.
      */
-    private double calcTrackingVORTurnRate (double oldmh)
+    private double calcTrackingVORTurnRate (double oldmh, double oldlat, double oldlon)
     {
         // see what magnetic heading the user wants to follow
         double oncoursemh = trackVirtNav.navDial.getObs ();
@@ -488,15 +488,39 @@ public class SimulateGpsAdsb extends GpsAdsbReceiver implements Runnable {
         // >0 : airplane is left of course (assuming OBS pointing up)
         double offcourseby = trackVirtNav.navDial.degdiffnp;
 
-        // needle gets pegged at +- 12 deg on dial
-        if (offcourseby < -12.0) offcourseby = -12.0;
-        if (offcourseby >  12.0) offcourseby =  12.0;
+        // fudge factor: inflate it the farther away from the waypoint we are
+        // it makes us turn sharper when far away from waypoint so correction works
+        // if FF is big, the needle deflects very little when tracking a VOR radial over long distance
+        //               but it oscillates trying to track a VOR radial outbound
+        //        small, the needle deflects larger to maintain tracking VOR radial over long distance
+        // eventually settles on airplane heading = great circle heading to VOR at current position
+        //                                          but with needle offset enough to make up difference
+        //                                          between OBS and the gc heading at current position
+        // example:
+        //  starting at KPAO head directly to GDM VOR
+        //  GDM radial is 294 giving inbound heading of 114 at the GDM end of the route
+        //  near KPAO the initial GC heading is 053
+        //  so it steers southeast to begin with until needle is displaced sufficiently to maintain GC heading
+        //  ...although the airplane is displaced to the south
+        //  displacement reduces to zero by the time it gets to GDM VOR
+        //  ...cuz the GC heading and the inbound radial converge on 114
+        if (trackVirtNav.waypoint != null) {
+            final double FF = 0.001;
+            double distnm = Lib.LatLonDist (oldlat, oldlon, trackVirtNav.waypoint.lat, trackVirtNav.waypoint.lon);
+            offcourseby *= (1.0 + distnm * FF);
+        }
+
+        // limit correction angle to +- 80 degrees
+        // see scaling factor below
+        if (offcourseby < -15.0) offcourseby = -15.0;
+        if (offcourseby >  15.0) offcourseby =  15.0;
 
         // this is how much to correct into oncoursemh to center the needle
-        // scale it to use max of 45deg correction for max 12deg off course
+        // scale it to use max of 80deg correction for max 15deg off course
+        // cuz dial shows about 80deg heading correction when needle is displaced 15deg
         // should put red airplane at top of needle like a pilot would fly it
-        double scaling = Math.sin (Math.toRadians (45.0)) / 12.0;
-        double correction = Math.toDegrees (Math.asin (offcourseby * scaling));
+        final double SCALING = Math.sin (Math.toRadians (80.0)) / 15.0;
+        double correction = Math.toDegrees (Math.asin (offcourseby * SCALING));
 
         // this is the heading we want to be flying right now
         double interceptmh = oncoursemh + correction;
