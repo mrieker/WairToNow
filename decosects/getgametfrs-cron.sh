@@ -8,4 +8,12 @@
 cd `dirname $0`
 cd ../webpages
 date
-exec php getgametfrs4.php > /dev/null
+php getgametfrs4.php > /dev/null
+cd ../webdata/tfrs
+find . -name arcgis_\*.json -mtime +5 -delete
+find . -name gametfrs_\*.db\* -mtime +5 -delete
+find . -name gametfrs4_\*.d\* -mtime +5 -delete
+find . -name mlb_\*.html -mtime +5 -delete
+find . -name nascar\*.html -mtime +5 -delete
+find . -name ncaa_\*.html -mtime +5 -delete
+find . -name nfl_\*.html -mtime +5 -delete

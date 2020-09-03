@@ -36,3 +36,5 @@ ls -l $icaoid.csv ${icaoid}_marked.png
 grep -v "$icaoid," datums/apdgeorefs_$cycles28/$stateid.csv > apdgeorefs_$stateid.csv.old
 sort $icaoid.csv apdgeorefs_$stateid.csv.old > apdgeorefs_$stateid.csv.new
 mv apdgeorefs_$stateid.csv.new datums/apdgeorefs_$cycles28/$stateid.csv
+rm -f datums/statezips_$cycles28/$stateid.zip
+./makestatezips.sh $stateid

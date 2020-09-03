@@ -650,7 +650,7 @@
                 "SF"  => "32.747802, -97.093035",   // "AT&T Park",                       // San Francisco Giants
                 "SEA" => "47.591799,-122.331900",   // "Safeco Field",                    // Seattle Mariners
                 "STL" => "38.622584, -90.193064",   // "Busch Stadium",                   // St. Louis Cardinals
-                "TAM" => "27.768200, -82.653400",   // "Tropicana Field",                 // Tampa Bay Rays
+                "TB"  => "27.768200, -82.653400",   // "Tropicana Field",                 // Tampa Bay Rays
                 "TEX" => "32.746705, -97.087807",   // "Globe Life Field",                // Texas Rangers
                 "TOR" => "43.641399, -79.389399",   // "Rogers Centre",                   // Toronto Blue Jays
                 "WSH" => "38.873057, -77.007402",   // "Nationals Park"                   // Washington Nationals

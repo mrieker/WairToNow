@@ -33,7 +33,7 @@
         $ilat = intval ($lat * 1000000.0);
         $ilon = intval ($lon * 1000000.0);
 
-        $sqldb->exec ("CREATE TABLE IF NOT EXISTS timezones (lat INTEGER NOT NULL, lon INTEGER NOT NULL, tzname TEXT NOT NULL)");
+        $sqldb->exec ("CREATE TABLE IF NOT EXISTS timezones (lat INTEGER NOT NULL, lon INTEGER NOT NULL, tzname TEXT NOT NULL, PRIMARY KEY (lat, lon))");
 
         $row = $sqldb->querySingle ("SELECT tzname FROM timezones WHERE lat=$ilat AND lon=$ilon");
 
@@ -43,7 +43,7 @@
             if (!$repl) exit;
             $json = json_decode ($repl);
             $tzname = addslashes (trim ($json->timezoneId));
-
+            if ($tzname == "") $tzname = "-";
             $sqldb->exec ("INSERT INTO timezones (lat,lon,tzname) VALUES ($ilat,$ilon,'$tzname')");
         } else {
             $tzname = $row;
@@ -53,6 +53,6 @@
 
         fclose ($lockfile);
 
-        return $tzname;
+        return ($tzname == "-") ? "" : $tzname;
     }
 ?>
