@@ -294,7 +294,7 @@ public class AutoAirChart implements DisplayableChart, Comparator<AirChart> {
     {
         // get list of the 2 or 3 charts we will be drawing this time
         long dcn = ++ viewDrawCycle;
-        for (Iterator<AirChart> it = wairToNow.maintView.GetAirChartIterator (); it.hasNext ();) {
+        for (Iterator<AirChart> it = wairToNow.maintView.GetCurentAirChartIterator (); it.hasNext ();) {
             AirChart ac = it.next ();
             if (Matches (ac.GetSpacenameSansRev ()) && ac.ContributesToCanvas (pmap)) {
                 airCharts.put (ac, dcn);

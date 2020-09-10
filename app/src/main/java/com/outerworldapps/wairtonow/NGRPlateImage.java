@@ -58,7 +58,7 @@ public class NGRPlateImage extends PlateImage {
         String fndotp = fn + ".p";
         int fndotplen = fndotp.length ();
         try {
-            ZipFile zf = wairToNow.maintView.getStateZipFile (airport.state);
+            ZipFile zf = wairToNow.maintView.getCurentStateZipFile (airport.state);
             for (Enumeration<? extends ZipEntry> it = zf.entries (); it.hasMoreElements ();) {
                 ZipEntry ze = it.nextElement ();
                 String en = ze.getName ();

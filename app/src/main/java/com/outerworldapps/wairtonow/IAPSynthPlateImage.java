@@ -264,7 +264,7 @@ public class IAPSynthPlateImage extends IAPPlateImage implements DisplayableChar
         /*
          * Draw expiration date strings.
          */
-        wptexpdate = MaintView.GetWaypointExpDate ();
+        wptexpdate = wairToNow.maintView.GetCurentWaypointExpDate ();
         int wptexpmonidx = wptexpdate / 100 % 100 * 3;
         String wptexpmonth = "JANFEBMARAPRMAYJUNJULAUGSEPOCTNOVDEC".substring (wptexpmonidx - 3, wptexpmonidx);
         String expstr = "VALID to " + (wptexpdate % 100) + " " + wptexpmonth + " " + (wptexpdate / 10000);
@@ -434,7 +434,7 @@ public class IAPSynthPlateImage extends IAPPlateImage implements DisplayableChar
          * Get obstructions within area of the chart.
          */
         Rect textbounds = new Rect ();
-        int obstructionexpdate = MaintView.GetObstructionExpDate ();
+        int obstructionexpdate = wairToNow.maintView.GetCurentObstructionExpDate ();
         String dbname = "nobudb/obstructions_" + obstructionexpdate + ".db";
         SQLiteDBs sqldb = SQLiteDBs.open (dbname);
         if (sqldb != null) {
@@ -812,7 +812,6 @@ public class IAPSynthPlateImage extends IAPPlateImage implements DisplayableChar
     /**
      * Draw the plate image and any other marks on it we want.
      */
-    @SuppressWarnings({ "PointlessArithmeticExpression" })
     @Override  // View
     public void onDraw (Canvas canvas)
     {

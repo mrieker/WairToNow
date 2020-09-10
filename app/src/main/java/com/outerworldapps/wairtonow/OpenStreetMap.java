@@ -603,7 +603,7 @@ public class OpenStreetMap {
                     /*
                      * Prefetch some runway diagram tiles.
                      */
-                    int platesexpdate = MaintView.GetPlatesExpDate ();
+                    int platesexpdate = MaintView.GetLatestPlatesExpDate ();
                     String dbname = "nobudb/plates_" + platesexpdate + ".db";
                     try {
 

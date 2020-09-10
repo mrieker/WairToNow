@@ -268,7 +268,7 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
     @Override  // WairToNow.CanBeMainView
     public void CloseDisplay ()
     {
-        for (Iterator<AirChart> it = wairToNow.maintView.GetAirChartIterator (); it.hasNext ();) {
+        for (Iterator<AirChart> it = wairToNow.maintView.GetCurentAirChartIterator (); it.hasNext ();) {
             it.next ().CloseBitmaps ();
         }
         for (AutoAirChart aac : autoAirCharts) aac.CloseBitmaps ();
@@ -313,7 +313,7 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
             displayableCharts.put (streetChart.GetSpacenameSansRev (), streetChart);
 
             boolean[] autoAirChartHits = new boolean[autoAirCharts.length];
-            for (Iterator<AirChart> it = wairToNow.maintView.GetAirChartIterator (); it.hasNext ();) {
+            for (Iterator<AirChart> it = wairToNow.maintView.GetCurentAirChartIterator (); it.hasNext ();) {
                 AirChart ac = it.next ();
                 if (ac.ContributesToCanvas (pmap)) {
                     String spn = ac.GetSpacenameSansRev ();
@@ -382,7 +382,7 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
                 public void onClick (DialogInterface dialogInterface, int i)
                 {
                     use3DChart = !use3DChart;
-                    if (use3DChart && (MaintView.GetTopographyExpDate () == 0)) {
+                    if (use3DChart && (MaintView.GetCurentTopographyExpDate () == 0)) {
                         AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
                         adb.setTitle ("Topography");
                         adb.setMessage ("Topography database should be downloaded or you will get flat terrain.");
@@ -537,7 +537,7 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
                         TreeMap<String,DisplayableChart> charts = new TreeMap<> ();
                         charts.put (streetChart.GetSpacenameSansRev (), streetChart);
                         for (AutoAirChart aac : autoAirCharts) charts.put (aac.GetSpacenameSansRev (), aac);
-                        for (Iterator<AirChart> it = wairToNow.maintView.GetAirChartIterator (); it.hasNext ();) {
+                        for (Iterator<AirChart> it = wairToNow.maintView.GetCurentAirChartIterator (); it.hasNext ();) {
                             AirChart ac = it.next ();
                             charts.put (ac.GetSpacenameSansRev (), ac);
                         }

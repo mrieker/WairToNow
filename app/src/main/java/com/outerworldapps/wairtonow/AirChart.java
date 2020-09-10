@@ -50,6 +50,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 /**
@@ -85,6 +86,7 @@ public abstract class AirChart implements DisplayableChart {
     private int ntilez;         // number of entries in tilez that are valid
     private int scaling;        // 1=full scale, 2=half sized, 3=third sized, etc
     private int wstep;          // widthwise pixel step for each tile
+    private int thisrevno;      // this chart's revision number
     private int[] expiredpixels;
     private LinkedList<AirTile> loadedBitmaps = new LinkedList<> ();
     private long viewDrawCycle = 0;  // incremented each drawing cycle
@@ -112,7 +114,7 @@ public abstract class AirChart implements DisplayableChart {
     private double chartedSouthLat;
     public  int autoOrder;
     public  int begdate;
-    public  int enddate;
+    public  int enddate;            // date this version of this chart expires
     private int chartedBotPix, chartedLeftPix;  // pixel limits of charted (non-legend) area
     private int chartedRitePix, chartedTopPix;
     public  int chartheight, chartwidth;  // pixel width & height of this chart including legend areas
@@ -166,9 +168,8 @@ public abstract class AirChart implements DisplayableChart {
         // in case not downloaded, use generic line for chartwidth, height etc
         ParseCSVLine (csvLine);
 
-        // find latest downloaded revision if any
-        // ...and set up parameters to access it
-        StartUsingLatestDownloadedRevision ();
+        // set up parameters to access it
+        StartUsingDownloadedRevision (thisrevno);
     }
 
     @Override  // DisplayableChart
@@ -293,7 +294,8 @@ public abstract class AirChart implements DisplayableChart {
         // make text part of entry, contains the spacenamenr and a few spaces for spacing
         TextView tv = new TextView (wairToNow);
         tv.setText (spacenamenr + "   ");
-        tv.setTextColor (MaintView.DownloadLinkColor (enddate));
+        AirChart latestrev = wairToNow.maintView.GetLatestAirChart (this);
+        tv.setTextColor (MaintView.DownloadLinkColor (latestrev.enddate));
         tv.setTextSize (TypedValue.COMPLEX_UNIT_PX, wairToNow.textSize * 1.5F);
 
         LinearLayout.LayoutParams tvllp = new LinearLayout.LayoutParams (ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -728,6 +730,7 @@ public abstract class AirChart implements DisplayableChart {
     /**
      * Make sure we have the size of the unscaled tile bitmaps from server.
      */
+    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     private boolean MakeSureWeHaveTileSize ()
     {
         // get dimensions of unscaled tile 0,0 and assume that all tiles are the same
@@ -990,7 +993,7 @@ public abstract class AirChart implements DisplayableChart {
             }
 
             // draw hash if expired
-            if (enddate < MaintView.deaddate) {
+            if (enddate <= MaintView.deaddate) {
                 int bmw = bm.getWidth ();
                 int bmh = bm.getHeight ();
                 if (!bm.isMutable ()) {
@@ -1244,7 +1247,7 @@ public abstract class AirChart implements DisplayableChart {
     }
 
     /**
-     * Update mapping values based on data provided in latest .wtn.zip file.
+     * Update mapping values based on data provided in given .wtn.zip file.
      * Returns:
      *  if not downloaded:
      *   begdate = 0
@@ -1257,35 +1260,26 @@ public abstract class AirChart implements DisplayableChart {
      *   spacenamewr = actual eg 'Boston TAC 91'
      *   tileZipName = actual eg '.../Boston_TAC_91.wtn.zip'
      */
-    public void StartUsingLatestDownloadedRevision ()
+    public void StartUsingDownloadedRevision (int revno)
     {
-        // assume no rev of chart is currently downloaded
+        // close any currently opened revision
         begdate = enddate = 0;
         spacenamewr = null;
         tileZipName = null;
         CloseBitmaps ();
 
-        // get latest revision that we have completely downloaded if any
-        int latestrevno = 0;
-        File[] files = new File (WairToNow.dbdir + "/charts/").listFiles ();
-        String undername = spacenamenr.replace (' ', '_') + "_";
-        assert files != null;
-        for (File file : files) {
-            String name = file.getName ();
-            if (name.startsWith (undername) && name.endsWith (".wtn.zip")) {
-                int revno = Integer.parseInt (name.substring (undername.length (), name.length () - 8));
-                if (latestrevno < revno) {
-                    latestrevno = revno;
-                    spacenamewr = spacenamenr + " " + latestrevno;
-                    tileZipName = file.getAbsolutePath ();
-                }
-            }
-        }
-        if (spacenamewr == null) return;
+        // caller doesn't want any revision opened
+        if (revno == 0) return;
 
-        /*
-         * Read the csv line from the .wtn.zip file's undernamewr.csv file.
-         */
+        // open requested revision
+        File chartdir = new File (WairToNow.dbdir + "/charts");
+        String undername = spacenamenr.replace (' ', '_') + "_";
+        File file = new File (chartdir, undername + revno + ".wtn.zip");
+        if (!file.exists ()) return;
+        spacenamewr = spacenamenr + " " + revno;
+        tileZipName = file.getAbsolutePath ();
+
+        // read the csv line from the .wtn.zip file's undernamewr.csv file
         String csvLine;
         String entname = spacenamewr.replace (' ', '_') + ".csv";
         try {
@@ -1306,7 +1300,41 @@ public abstract class AirChart implements DisplayableChart {
             return;
         }
 
+        // decode latlon<->pixel mapping and date range
         ParseCSVLine (csvLine);
+
+        // there might be a later revision downloaded that has a begin date earlier than our end date
+        // if so, use its begin date for our end date
+        File[] chartfiles = chartdir.listFiles ();
+        if (chartfiles != null) {
+            for (File chartfile : chartfiles) {
+                String chartname = chartfile.getName ();
+                if (chartname.startsWith (undername) && chartname.endsWith (".wtn.zip")) {
+                    int chartrevno = Integer.parseInt (chartname.substring (undername.length (), chartname.length () - 8));
+                    if (chartrevno > revno) {
+                        // found a .wtn.zip at a later revision than this one
+                        // read its .csv line to get begin date for the newer rev
+                        // if its begin date is earlier than our end date, overwrite our end date
+                        try {
+                            ZipFile zf = new ZipFile (chartfile);
+                            try {
+                                ZipEntry ze = zf.getEntry (undername + chartrevno + ".csv");
+                                InputStream is = zf.getInputStream (ze);
+                                BufferedReader br = new BufferedReader (new InputStreamReader (is));
+                                String line = br.readLine ();
+                                String[] parts = Lib.QuotedCSVSplit (line);
+                                int newerbegdate = Integer.parseInt (parts[parts.length-3]);
+                                if (enddate > newerbegdate) enddate = newerbegdate;
+                            } finally {
+                                zf.close ();
+                            }
+                        } catch (Exception e) {
+                            Log.w (TAG, "error reading " + chartname, e);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -1330,6 +1358,7 @@ public abstract class AirChart implements DisplayableChart {
         spacenamewr     = values[4];
         int i           = spacenamewr.lastIndexOf (' ');
         spacenamenr     = spacenamewr.substring (0, i);
+        thisrevno       = Integer.parseInt (spacenamewr.substring (++ i));
 
         /*
          * Most helicopter charts don't have a published expiration date,

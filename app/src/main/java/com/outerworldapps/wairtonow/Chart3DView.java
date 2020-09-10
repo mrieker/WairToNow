@@ -1067,7 +1067,7 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
                         if (sector.hashkey == hashkey) break;
                     }
                     if (sector == null) {
-                        sector = new EarthSector (displayableChart, slat, nlat, wlon, elon);
+                        sector = new EarthSector (wairToNow, displayableChart, slat, nlat, wlon, elon);
                         sector.hashkey = hashkey;
                         sector.nextAll = knownSectors;
                         knownSectors = sector;

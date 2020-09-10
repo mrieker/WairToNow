@@ -847,7 +847,7 @@ public class IAPRealPlateImage extends IAPPlateImage {
 
     private SQLiteDBs openPlateDB ()
     {
-        int expdate = MaintView.GetPlatesExpDate (airport.state);
+        int expdate = wairToNow.maintView.GetCurrentPlatesExpDate (airport.state);
         String dbname = "nobudb/plates_" + expdate + ".db";
         return SQLiteDBs.open (dbname);
     }

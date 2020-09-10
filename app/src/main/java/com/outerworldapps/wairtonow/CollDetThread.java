@@ -112,7 +112,7 @@ public class CollDetThread extends Thread {
                     // try to open obstructions if not open
                     // ie, maybe just downloaded for first time
                     if (obssqldb == null) {
-                        int expdate = MaintView.GetObstructionExpDate ();
+                        int expdate = wairToNow.maintView.GetCurentObstructionExpDate ();
                         if (expdate > 0) {
                             obssqldb = SQLiteDBs.open ("nobudb/obstructions_" + expdate + ".db");
                         }
@@ -120,7 +120,7 @@ public class CollDetThread extends Thread {
 
                     // likewise for waypoints
                     if (wptsqldb == null) {
-                        int expdate = MaintView.GetWaypointExpDate ();
+                        int expdate = wairToNow.maintView.GetCurentWaypointExpDate ();
                         if (expdate > 0) {
                             wptsqldb = SQLiteDBs.open ("nobudb/waypoints_" + expdate + ".db");
                         }

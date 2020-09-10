@@ -256,7 +256,7 @@ public class PlanView extends WebView
                 /*
                  * Open database.
                  */
-                SQLiteDBs sqldb = Waypoint.openWayptDB ();
+                SQLiteDBs sqldb = Waypoint.openWayptDB (wairToNow);
 
                 /*
                  * Find starting point airport's lat/lon.

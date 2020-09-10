@@ -916,7 +916,7 @@ public class WairToNow extends Activity {
         agreeButton.setVisibility (View.GONE);
         sensorsView.startGPSReceiver ();
 
-        if (!atAMinimumShown && (MaintView.GetWaypointExpDate () <= 0)) {
+        if (!atAMinimumShown && (maintView.GetCurentWaypointExpDate () <= 0)) {
             atAMinimumShown = true;
             AlertDialog.Builder adb = new AlertDialog.Builder (this);
             adb.setTitle ("Chart Maint");
@@ -935,6 +935,9 @@ public class WairToNow extends Activity {
 
         // maybe show alert box for expired charts
         maintView.ExpdateCheck ();
+
+        // maybe update TFRs
+        chartView.tfrOutlines.updateNow ();
     }
 
     /**

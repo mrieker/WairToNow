@@ -71,11 +71,13 @@ public class EarthSector {
     private int mTextureID;
     private PointD intpoint;
     private Runnable onLoad;
+    private WairToNow wairToNow;
 
     private final static String[] obstrs_col_names = new String[] { "ob_agl", "ob_msl", "ob_lat", "ob_lon" };
 
-    public EarthSector (@NonNull DisplayableChart dc, double slat, double nlat, double wlon, double elon)
+    public EarthSector (@NonNull WairToNow wtn, @NonNull DisplayableChart dc, double slat, double nlat, double wlon, double elon)
     {
+        wairToNow = wtn;
         displayableChart = dc;
         this.slat = slat;
         this.nlat = nlat;
@@ -217,7 +219,7 @@ public class EarthSector {
      */
     private float[] GetObstructions ()
     {
-        int expdate = MaintView.GetObstructionExpDate ();
+        int expdate = wairToNow.maintView.GetCurentObstructionExpDate ();
         if (expdate == 0) return null;
         SQLiteDBs sqldb = SQLiteDBs.open ("nobudb/obstructions_" + expdate + ".db");
         if (sqldb == null) return null;

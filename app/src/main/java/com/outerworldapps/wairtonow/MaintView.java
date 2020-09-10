@@ -21,13 +21,10 @@
 package com.outerworldapps.wairtonow;
 
 import android.annotation.SuppressLint;
-import android.app.AlarmManager;
 import android.app.AlertDialog;
-import android.app.PendingIntent;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.DialogInterface;
-import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.AssetManager;
 import android.database.Cursor;
@@ -75,6 +72,8 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Locale;
+import java.util.TimeZone;
+import java.util.TreeMap;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -91,13 +90,17 @@ public class MaintView
         CompoundButton.OnCheckedChangeListener {
     public  final static String TAG = "WairToNow";
     public  final static String dldir = GetDLDir ();
+    public  final static int DAYBEGINS = 9*60+1;  // 0901z
     public  final static int NWARNDAYS = 5;
     public  final static int INDEFINITE = 99999999;
 
     public static int deaddate;     // yyyymmdd of when charts are expired
+                                    // - this is today that started at 09:01z
+                                    //   this gets set to 20200910 at 0901z
+                                    //   eg a chart says it expires 20200910 at 0901z
+                                    //   ... will be expired when this is 20200910 or greater
     public static int warndate;     // yyyymmdd of when charts about to be expired
 
-    private boolean checkExpdateAlarmed;
     private boolean downloadAgain;
     private boolean getChartNamesBusy;
     private boolean updateDLProgSent;
@@ -116,6 +119,7 @@ public class MaintView
     private LinkedList<Downloadable> allDownloadables = new LinkedList<> ();
     private LinkedList<Runnable> callbacksWhenChartsLoaded = new LinkedList<> ();
     private final Object postDLProgLock = new Object ();
+    private ObstructionsCheckBox obstructionsCheckBox;
     private ScrollView itemsScrollView;
     private StateMapView stateMapView;
     private String postDLProcText;
@@ -228,9 +232,10 @@ public class MaintView
         addView (itemsScrollView);
 
         waypointsCheckBox = new WaypointsCheckBox ();
+        obstructionsCheckBox = new ObstructionsCheckBox ();
 
         miscCategory.addView (waypointsCheckBox);
-        miscCategory.addView (new ObstructionsCheckBox ());
+        miscCategory.addView (obstructionsCheckBox);
         miscCategory.addView (new TopographyCheckBox ());
         miscCategory.addView (new TextView (wairToNow));
         miscCategory.addView (new UpdateAllButton ());
@@ -308,7 +313,7 @@ public class MaintView
          * It is an aggregation of all charts/<undername>.csv files on the server.
          * It maps the lat/lon <-> chart pixels.
          */
-        HashMap<String, ChartCheckBox> possibleCharts = new HashMap<> ();
+        final TreeMap<String,ChartCheckBox> possibleCharts = new TreeMap<> ();
         FileReader csvFileReader;
         try {
             csvFileReader = new FileReader (WairToNow.dbdir + "/chartlimits.csv");
@@ -322,21 +327,11 @@ public class MaintView
         BufferedReader csvReader = new BufferedReader (csvFileReader, 4096);
         String csvLine;
         while ((csvLine = csvReader.readLine ()) != null) {
-            AirChart airChart = AirChart.Factory (this, csvLine);
-            ChartCheckBox chartCheckBox = new ChartCheckBox (airChart);
-            if (!possibleCharts.containsKey (airChart.spacenamenr)) {
-                possibleCharts.put (airChart.spacenamenr, chartCheckBox);
-                if (airChart.spacenamenr.contains ("TAC")) {
-                    tacCategory.addView (chartCheckBox);
-                } else if (airChart.spacenamenr.contains ("ENR")) {
-                    enrCategory.addView (chartCheckBox);
-                } else if (airChart.spacenamenr.contains ("HEL")) {
-                    helCategory.addView (chartCheckBox);
-                } else if (airChart.spacenamenr.contains ("SEC")) {
-                    secCategory.addView (chartCheckBox);
-                } else {
-                    otherCategory.addView (chartCheckBox);
-                }
+            AirChart curentAirChart = AirChart.Factory (this, csvLine);
+            AirChart latestAirChart = AirChart.Factory (this, csvLine);
+            ChartCheckBox chartCheckBox = new ChartCheckBox (curentAirChart, latestAirChart);
+            if (!possibleCharts.containsKey (latestAirChart.spacenamenr)) {
+                possibleCharts.put (latestAirChart.spacenamenr, chartCheckBox);
             }
         }
         csvReader.close ();
@@ -345,6 +340,20 @@ public class MaintView
             @Override
             public void run () {
                 getChartNamesBusy = false;
+                for (ChartCheckBox chartCheckBox : possibleCharts.values ()) {
+                    AirChart airChart = chartCheckBox.GetCurentAirChart ();
+                    if (airChart.spacenamenr.contains ("TAC")) {
+                        tacCategory.addView (chartCheckBox);
+                    } else if (airChart.spacenamenr.contains ("ENR")) {
+                        enrCategory.addView (chartCheckBox);
+                    } else if (airChart.spacenamenr.contains ("HEL")) {
+                        helCategory.addView (chartCheckBox);
+                    } else if (airChart.spacenamenr.contains ("SEC")) {
+                        secCategory.addView (chartCheckBox);
+                    } else {
+                        otherCategory.addView (chartCheckBox);
+                    }
+                }
                 ExpdateCheck ();
                 for (Runnable r : callbacksWhenChartsLoaded) r.run ();
                 callbacksWhenChartsLoaded = null;
@@ -389,6 +398,8 @@ public class MaintView
             if (checkExpdateThread == null) {
                 checkExpdateThread = new CheckExpdateThread ();
                 checkExpdateThread.start ();
+            } else {
+                checkExpdateThread.sleeper.wake ();
             }
         }
     }
@@ -397,163 +408,159 @@ public class MaintView
      * Check expiration dates and webserver availability.
      */
     private class CheckExpdateThread extends Thread {
+        public WakeableSleep sleeper = new WakeableSleep ();
+
         @Override
         public void run ()
         {
-            int nextrunms = 60 * 60 * 1000;
-            try {
-
-                /*
-                 * Check for internet connectivity by seeing if we can access webserver.
-                 */
-                URL url = new URL (dldir + "/chartlimits.php");
-                HttpURLConnection httpCon = (HttpURLConnection)url.openConnection ();
+            //noinspection InfiniteLoopStatement
+            while (true) {
+                Log.d (TAG, "CheckExpdateThread: scanning " + dldir);
+                boolean online = false;
                 try {
-                    httpCon.setRequestMethod ("GET");
-                    httpCon.connect ();
-                    int rc = httpCon.getResponseCode ();
-                    if (rc != HttpURLConnection.HTTP_OK) {
-                        throw new IOException ("http response code " + rc);
-                    }
 
                     /*
-                     * Able to access webserver, might as well see if there are helicopter chart updates.
-                     * If so, mark the current helicopter expiration date = updated chart effective date.
+                     * Check for internet connectivity by seeing if we can access webserver.
                      */
-                    BufferedReader csvReader = new BufferedReader (new InputStreamReader (httpCon.getInputStream ()), 4096);
-                    String csvLine;
-                    while ((csvLine = csvReader.readLine ()) != null) {
-
-                        // all csv lines end with ...,begdate,enddate,space name with revno
-                        String[] csvParts = Lib.QuotedCSVSplit (csvLine);
-                        int np = csvParts.length;
-                        int newbegdate;
-                        try {
-                            newbegdate = Integer.parseInt (csvParts[np - 3]);
-                        } catch (NumberFormatException nfe) {
-                            continue;
+                    URL url = new URL (dldir + "/chartlimits.php");
+                    HttpURLConnection httpCon = (HttpURLConnection)url.openConnection ();
+                    try {
+                        httpCon.setRequestMethod ("GET");
+                        httpCon.connect ();
+                        int rc = httpCon.getResponseCode ();
+                        if (rc != HttpURLConnection.HTTP_OK) {
+                            throw new IOException ("http response code " + rc);
                         }
-                        String newnamewr = csvParts[np-1];
-                        int ls = newnamewr.lastIndexOf (' ');
-                        if (ls < 0) continue;
-                        String newnamenr = newnamewr.substring (0, ls);
 
-                        // find existing chart with same name excluding revno
-                        AirChart oldAirChart = null;
-                        for (Downloadable downloadable : allDownloadables) {
-                            if (downloadable.GetSpaceNameNoRev ().equals (newnamenr)) {
-                                oldAirChart = downloadable.GetAirChart ();
-                                break;
+                        /*
+                         * Able to access webserver, might as well see if there are helicopter chart updates.
+                         * If so, mark the current helicopter expiration date = updated chart effective date.
+                         */
+                        BufferedReader csvReader = new BufferedReader (new InputStreamReader (httpCon.getInputStream ()), 4096);
+                        String csvLine;
+                        while ((csvLine = csvReader.readLine ()) != null) {
+
+                            // all csv lines end with ...,begdate,enddate,space name with revno
+                            String[] csvParts = Lib.QuotedCSVSplit (csvLine);
+                            int np = csvParts.length;
+                            int newbegdate;
+                            try {
+                                newbegdate = Integer.parseInt (csvParts[np - 3]);
+                            } catch (NumberFormatException nfe) {
+                                continue;
+                            }
+                            String newnamewr = csvParts[np-1];
+                            int ls = newnamewr.lastIndexOf (' ');
+                            if (ls < 0) continue;
+                            String newnamenr = newnamewr.substring (0, ls);
+
+                            // find existing chart with same name excluding revno
+                            for (Downloadable downloadable : allDownloadables) {
+                                if (downloadable.GetSpaceNameNoRev ().equals (newnamenr)) {
+                                    AirChart oldAirChart = downloadable.GetCurentAirChart ();
+                                    // if found and it begins before the newest one begins but ends after the newest one begins,
+                                    // set its end time to the newest one's begin time
+                                    if ((oldAirChart != null) && (oldAirChart.begdate < newbegdate) && (oldAirChart.enddate > newbegdate)) {
+                                        oldAirChart.enddate = newbegdate;
+                                    }
+                                    break;
+                                }
                             }
                         }
+                        online = true;
 
-                        // if found and it has an indefinite end date and there is a newer
-                        // revision waiting, set existing end date to newer one's begin date
-                        if ((oldAirChart != null) && (oldAirChart.enddate == INDEFINITE)
-                                && (newbegdate > oldAirChart.begdate)) {
-                            oldAirChart.enddate = newbegdate;
-                        }
+                        /*
+                         * Webserver accessible, maybe there are ACRA reports to send on.
+                         */
+                        AcraApplication.sendReports (wairToNow);
+                    } finally {
+                        httpCon.disconnect ();
+                        SQLiteDBs.CloseAll ();
                     }
+                } catch (Exception e) {
+                    Log.i (TAG, "CheckExpdateThread: error probing " + dldir, e);
                 } finally {
-                    httpCon.disconnect ();
                     SQLiteDBs.CloseAll ();
                 }
 
                 /*
-                 * Webserver accessible, update buttons and maybe output dialog warning box.
+                 * Update buttons and maybe output dialog warning box.
                  */
+                final boolean onnline = online;
                 wairToNow.runOnUiThread (new Runnable () {
                     @Override
                     public void run ()
                     {
                         int maintColor = UpdateAllButtonColors ();
-                        String msg = null;
-                        switch (maintColor) {
-                            case Color.RED: {
-                                msg = "Charts are expired";
-                                break;
+                        if (onnline) {
+                            String msg = null;
+                            switch (maintColor) {
+                                case Color.RED: {
+                                    msg = "Charts are expired";
+                                    break;
+                                }
+                                case Color.YELLOW: {
+                                    msg = "Charts are about to expire";
+                                    break;
+                                }
                             }
-                            case Color.YELLOW: {
-                                msg = "Charts are about to expire";
-                                break;
+                            if (msg != null) {
+                                GregorianCalendar now = new GregorianCalendar ();
+                                final int today = now.get (Calendar.YEAR) * 10000 +
+                                        (now.get (Calendar.MONTH) - Calendar.JANUARY + 1) * 100 +
+                                        now.get (Calendar.DAY_OF_MONTH);
+
+                                final SharedPreferences prefs = wairToNow.getPreferences (MODE_PRIVATE);
+                                final int chartMaintDelay = prefs.getInt ("chartMaintDelay", 0);
+
+                                // don't prompt more than once per day
+                                if (today > chartMaintDelay) {
+                                    AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
+                                    adb.setTitle ("Chart Maint");
+                                    adb.setMessage (msg);
+                                    adb.setPositiveButton ("Update", new DialogInterface.OnClickListener () {
+                                        @Override
+                                        public void onClick (DialogInterface dialogInterface, int i)
+                                        {
+                                            miscCategory.onClick (null);
+                                            wairToNow.maintButton.DisplayNewTab ();
+                                        }
+                                    });
+                                    adb.setNegativeButton ("Tomorrow", new DialogInterface.OnClickListener () {
+                                        @Override
+                                        public void onClick (DialogInterface dialogInterface, int i)
+                                        {
+                                            // if user says don't prompt again until tomorrow,
+                                            // remember which day we last prompted on
+                                            SharedPreferences.Editor editr = prefs.edit ();
+                                            editr.putInt ("chartMaintDelay", today);  // yyyymmdd
+                                            editr.apply ();
+                                        }
+                                    });
+                                    adb.show ();
+                                }
                             }
-                        }
-                        if (msg != null) {
-                            GregorianCalendar now = new GregorianCalendar ();
-                            final int today = now.get (Calendar.YEAR) * 10000 +
-                                    (now.get (Calendar.MONTH) - Calendar.JANUARY + 1) * 100 +
-                                    now.get (Calendar.DAY_OF_MONTH);
-
-                            final SharedPreferences prefs = wairToNow.getPreferences (MODE_PRIVATE);
-                            final int chartMaintDelay = prefs.getInt ("chartMaintDelay", 0);
-
-                            // don't prompt more than once per day
-                            if (today > chartMaintDelay) {
-                                AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
-                                adb.setTitle ("Chart Maint");
-                                adb.setMessage (msg);
-                                adb.setPositiveButton ("Update", new DialogInterface.OnClickListener () {
-                                    @Override
-                                    public void onClick (DialogInterface dialogInterface, int i)
-                                    {
-                                        miscCategory.onClick (null);
-                                        wairToNow.maintButton.DisplayNewTab ();
-                                    }
-                                });
-                                adb.setNegativeButton ("Tomorrow", new DialogInterface.OnClickListener () {
-                                    @Override
-                                    public void onClick (DialogInterface dialogInterface, int i)
-                                    {
-                                        // if user says don't prompt again until tomorrow,
-                                        // remember which day we last prompted on
-                                        SharedPreferences.Editor editr = prefs.edit ();
-                                        editr.putInt ("chartMaintDelay", today);  // yyyymmdd
-                                        editr.apply ();
-                                    }
-                                });
-                                adb.show ();
-                            }
-                        }
-                    }
-                });
-
-                /*
-                 * Webserver accessible, maybe there are ACRA reports to send on.
-                 */
-                AcraApplication.sendReports (wairToNow);
-
-                /*
-                 * Don't need to run for another half day.
-                 */
-                nextrunms *= 12;
-            } catch (IOException ioe) {
-                Log.i (TAG, "error probing " + dldir, ioe);
-            } finally {
-                SQLiteDBs.CloseAll ();
-
-                /*
-                 * Call back via alarm in an hour or in half a day.
-                 * Use an alarm so the time counts when screen is off.
-                 */
-                final long nextrunat = System.currentTimeMillis () + nextrunms;
-                wairToNow.runOnUiThread (new Runnable () {
-                    @Override
-                    public void run () {
-                        checkExpdateThread = null;
-
-                        if (!checkExpdateAlarmed) {
-                            checkExpdateAlarmed = true;
-
-                            Intent intent = new Intent ();
-                            intent.setAction ("WairToNow.CheckExpdateThread.WakeUp");
-                            PendingIntent pendint = PendingIntent.getBroadcast (wairToNow, 0, intent, 0);
-
-                            AlarmManager am = (AlarmManager) wairToNow.getSystemService (Context.ALARM_SERVICE);
-                            if (am == null) throw new NullPointerException ();
-                            am.set (AlarmManager.RTC, nextrunat, pendint);
                         }
                     }
                 });
+
+                // if offline, check again in an hour
+                // if online, sleep until next 0901z when charts might expire
+                // if device deep sleeps, we get woken by
+                //   wairToNow.onResume()->maintView.ExpdateCheck()
+                long sleepfor;
+                if (onnline) {
+                    long now = System.currentTimeMillis ();     // 09-03 10:04z  09-04 08:07z
+                    long then = now - DAYBEGINS * 60000;        // 09-03 01:03z  09-03 23:06z
+                    then -= then % 86400000;                    // 09-03 00:00z  09-03 00:00z
+                    then += 86400000 + DAYBEGINS * 60000;       // 09-04 09:01z  09-04 09:01z
+                    Log.d (TAG, "CheckExpdateThread: sleep until " + Lib.TimeStringUTC (then));
+                    sleepfor = then - now;
+                } else {
+                    Log.d (TAG, "CheckExpdateThread: sleep for an hour");
+                    sleepfor = 3600000;
+                }
+                sleeper.sleep (sleepfor);
             }
         }
     }
@@ -564,19 +571,23 @@ public class MaintView
     private int UpdateAllButtonColors ()
     {
         // get dates to check chart expiration dates against
-        GregorianCalendar now = new GregorianCalendar ();
+        //  boolean chart_is_expired = (chart_enddate <= deaddate)
+        //  boolean chart_warning    = (chart_enddate <= warndate)
+        GregorianCalendar now = new GregorianCalendar (TimeZone.getTimeZone ("UTC"), Locale.US);
+        now.add (Calendar.MINUTE, -DAYBEGINS);  // day starts at 0901z
         deaddate = now.get (Calendar.YEAR) * 10000 + (now.get (Calendar.MONTH) -
                 Calendar.JANUARY + 1) * 100 + now.get (Calendar.DAY_OF_MONTH);
         now.add (Calendar.DAY_OF_YEAR, NWARNDAYS);
         warndate = now.get (Calendar.YEAR) * 10000 + (now.get (Calendar.MONTH) -
                 Calendar.JANUARY + 1) * 100 + now.get (Calendar.DAY_OF_MONTH);
 
-        // update text color based on current date
+        // update text color based on latest downloaded chart date
         if (! getChartNamesBusy) {
             for (Downloadable dcb : allDownloadables) {
-                int enddate = dcb.GetEndDate ();
-                int textColor = DownloadLinkColor (enddate);
-                String textString = DownloadLinkText (enddate);
+                int curentenddate = dcb.GetCurentEndDate ();
+                int latestenddate = dcb.GetLatestEndDate ();
+                int textColor = DownloadLinkColor (latestenddate);
+                String textString = DownloadLinkText (curentenddate, latestenddate);
                 dcb.UpdateSingleLinkText (textColor, textString);
             }
         }
@@ -703,9 +714,10 @@ public class MaintView
                 }
 
                 dcb.UncheckBox ();
-                int enddate = dcb.GetEndDate ();
-                int textColor = DownloadLinkColor (enddate);
-                String textString = DownloadLinkText (enddate);
+                int curentenddate = dcb.GetCurentEndDate ();
+                int latestenddate = dcb.GetLatestEndDate ();
+                int textColor = DownloadLinkColor (latestenddate);
+                String textString = DownloadLinkText (curentenddate, latestenddate);
                 dcb.UpdateSingleLinkText (textColor, textString);
                 break;
             }
@@ -811,8 +823,8 @@ public class MaintView
         /*
          * Count the records in the rwypreloads table, as it is updated as tiles are downloaded.
          */
-        int expdate = GetPlatesExpDate ();
-        String dbname = "nobudb/plates_" + expdate + ".db";
+        int latestexpdate = GetLatestPlatesExpDate ();
+        String dbname = "nobudb/plates_" + latestexpdate + ".db";
         SQLiteDBs sqldb = SQLiteDBs.open (dbname);
         if (sqldb != null) {
             if (sqldb.tableExists ("rwypreloads")) {
@@ -866,10 +878,10 @@ public class MaintView
      * Returns null if state file not downloaded
      * @param ss = 2-letter state code, eg, "MA"
      */
-    public ZipFile getStateZipFile (String ss)
+    public ZipFile getCurentStateZipFile (String ss)
             throws IOException
     {
-        return stateMapView.stateCheckBoxes.nnget (ss).getStateZipFile ();
+        return stateMapView.stateCheckBoxes.nnget (ss).getCurentStateZipFile ();
     }
 
     /**
@@ -908,8 +920,8 @@ public class MaintView
                 View v = vg.getChildAt (i);
                 if (v instanceof Downloadable) {
                     Downloadable dcb = (Downloadable) v;
-                    int enddate = dcb.GetEndDate ();
-                    int textColor = DownloadLinkColor (enddate);
+                    int latestenddate = dcb.GetLatestEndDate ();
+                    int textColor = DownloadLinkColor (latestenddate);
                     color = ComposeButtonColor (color, textColor);
                 } else if (v instanceof ViewGroup) {
                     color = UpdateButtonColor (color, (ViewGroup) v);
@@ -951,18 +963,27 @@ public class MaintView
      *    YELLOW : expires within NWARNDAYS days
      *    RED    : expires in less than 1 day
      */
-    public static int DownloadLinkColor (int enddate)
+    public static int DownloadLinkColor (int latestenddate)
     {
-        if (enddate == 0) return Color.WHITE;
-        if (enddate < deaddate) return Color.RED;
-        if (enddate < warndate) return Color.YELLOW;
+        if (latestenddate == 0) return Color.WHITE;
+        if (latestenddate <= deaddate) return Color.RED;
+        if (latestenddate <= warndate) return Color.YELLOW;
         return Color.GREEN;
     }
-    public static String DownloadLinkText (int enddate)
+    public static String DownloadLinkText (int curentenddate, int latestenddate)
     {
-        return (enddate == 0) ? "not downloaded" :
-               (enddate == INDEFINITE) ? "valid indefinitely" :
-               ("valid to " + enddate);
+        if (latestenddate == 0) return "not downloaded";
+        if (latestenddate == INDEFINITE) return "valid indefinitely";
+        StringBuilder sb = new StringBuilder (24);
+        sb.append ("valid to ");
+        if (curentenddate < latestenddate) {
+            sb.append (curentenddate);
+            sb.append ('\u2794');
+            latestenddate %= 10000;
+            if (latestenddate < 1000) sb.append ('0');
+        }
+        sb.append (latestenddate);
+        return sb.toString ();
     }
 
     /**
@@ -994,7 +1015,7 @@ public class MaintView
         {
             // check all items that already have something on them
             for (Downloadable downloadable : allDownloadables) {
-                if (downloadable.GetEndDate () > 0) downloadable.CheckBox ();
+                if (downloadable.GetLatestEndDate () > 0) downloadable.CheckBox ();
             }
 
             // make like we checked the Download button
@@ -1005,21 +1026,22 @@ public class MaintView
     /**
      * Anything we want to be able to download implements this interface.
      * And its constructor must add the instance to allDownloadables.
-     * And the checkbox itself must setOnChedkedChangeListener (MaintView.this);
+     * And the checkbox itself must setOnCheckedChangeListener (MaintView.this);
      */
     public interface Downloadable {
         String GetSpaceNameNoRev ();
         boolean IsChecked ();
         void CheckBox ();
         void UncheckBox ();
-        int GetEndDate ();
+        int GetCurentEndDate ();
+        int GetLatestEndDate ();
         void DownloadFiles () throws IOException;
         void DownloadFileComplete ();
         void DownloadThreadExited ();
         void DeleteDownloadedFiles (boolean all);
         void RemovedDownloadedChart ();
         void UpdateSingleLinkText (int c, String t);
-        AirChart GetAirChart ();
+        AirChart GetCurentAirChart ();
     }
 
     /**
@@ -1048,7 +1070,7 @@ public class MaintView
         public boolean IsChecked () { return checkBox.isChecked (); }
         public void CheckBox () { checkBox.setChecked (true); }
         public void UncheckBox () { checkBox.setChecked (false); }
-        public AirChart GetAirChart () { return null; }
+        public AirChart GetCurentAirChart () { return null; }
 
         public abstract void DownloadFiles () throws IOException;
         public abstract void DownloadFileComplete ();
@@ -1070,9 +1092,15 @@ public class MaintView
     private class TopographyCheckBox extends DownloadCheckBox {
 
         @Override  // DownloadCheckBox
-        public int GetEndDate ()
+        public int GetCurentEndDate ()
         {
-            return GetTopographyExpDate ();
+            return GetCurentTopographyExpDate ();
+        }
+
+        @Override  // DownloadCheckBox
+        public int GetLatestEndDate ()
+        {
+            return GetLatestTopographyExpDate ();
         }
 
         @Override  // DownloadCheckBox
@@ -1131,7 +1159,7 @@ public class MaintView
         { }
 
         @Override  // DownloadCheckBox
-        public void DeleteDownloadedFiles (boolean all)
+        public synchronized void DeleteDownloadedFiles (boolean all)
         {
             // since there is only one topo version
             // delete it iff we are deleting all versions
@@ -1151,7 +1179,11 @@ public class MaintView
         { }
     }
 
-    public static int GetTopographyExpDate ()
+    public static int GetCurentTopographyExpDate ()
+    {
+        return GetLatestTopographyExpDate ();
+    }
+    public static int GetLatestTopographyExpDate ()
     {
         // see if we have all 180 /datums/topo/<ilatdeg>.zip files
         String[] topoNames = new File (WairToNow.dbdir + "/datums/topo").list ();
@@ -1178,17 +1210,27 @@ public class MaintView
      * datums/waypoints_<expdate>.db.gz
      */
     private class WaypointsCheckBox extends DownloadCheckBox {
-        private int enddate;
+        private int curentenddate;
+        private int latestenddate;
 
         public WaypointsCheckBox ()
         {
-            enddate = GetWaypointExpDate ();
+            DeleteDownloadedFiles (false);
         }
 
         @Override  // DownloadCheckBox
-        public int GetEndDate ()
+        public int GetCurentEndDate ()
         {
-            return enddate;
+            if ((curentenddate < latestenddate) && (curentenddate <= deaddate)) {
+                DeleteDownloadedFiles (false);
+            }
+            return curentenddate;
+        }
+
+        @Override  // DownloadCheckBox
+        public int GetLatestEndDate ()
+        {
+            return latestenddate;
         }
 
         @Override  // DownloadCheckBox
@@ -1198,46 +1240,11 @@ public class MaintView
         }
 
         @Override  // DownloadCheckBox
-        public void DeleteDownloadedFiles (boolean all)
+        public synchronized void DeleteDownloadedFiles (boolean all)
         {
-            int latestexdate = 0;
-            String latestdbname = "";
-
-            String[] dbnames = SQLiteDBs.Enumerate ();
-
-            // if deleting all but latest, get name of latest waypoint file
-            if (!all) {
-                for (String dbname : dbnames) {
-                    if (dbname.startsWith ("nobudb/waypoints_") && dbname.endsWith (".db")) {
-                        int i = Integer.parseInt (dbname.substring (17, dbname.length () - 3));
-                        if (latestexdate < i) {
-                            latestexdate = i;
-                            latestdbname = dbname;
-                        }
-                    }
-                }
-            }
-
-            // delete all versions except possibly the latest version
-            for (String dbname : dbnames) {
-                if (dbname.startsWith ("nobudb/waypoints_") && !dbname.equals (latestdbname)) {
-                    SQLiteDBs sqldb = SQLiteDBs.open (dbname);
-                    if (sqldb != null) sqldb.markForDelete ();
-                }
-            }
-
-            // delete any partial downloads
-            if (all) {
-                File[] files = new File (WairToNow.dbdir, "nobudb").listFiles ();
-                if (files != null) for (File file : files) {
-                    if (file.getName ().startsWith ("waypoints_")) {
-                        Lib.Ignored (file.delete ());
-                    }
-                }
-            }
-
-            // if deleted everything, say we ain't got nothing
-            if (all) enddate = 0;
+            int[] last2 = PurgeDownloadedDatabases (all, "nobudb/waypoints_");
+            curentenddate = last2[0];
+            latestenddate = last2[1];
         }
 
         /**
@@ -1278,14 +1285,15 @@ public class MaintView
         @Override  // DownloadCheckBox
         public void RemovedDownloadedChart ()
         {
-            enddate = 0;
+            curentenddate = 0;
+            latestenddate = 0;
         }
 
         @Override  // DownloadCheckBox
         public void UncheckBox ()
         {
             super.UncheckBox ();
-            enddate = GetWaypointExpDate ();
+            DeleteDownloadedFiles (false);
             wairToNow.waypointView1.waypointsWithin.clear ();
             wairToNow.waypointView2.waypointsWithin.clear ();
         }
@@ -1327,24 +1335,12 @@ public class MaintView
     }
 
     /**
-     * Get name of current valid waypoint files (56-day cycle).
-     * @return 0: no such files; else: expiration date of files
+     * Get name of current valid waypoint file (28-day cycle).
+     * @return 0: no such file; else: expiration date of file
      */
-    public static int GetWaypointExpDate ()
+    public int GetCurentWaypointExpDate ()
     {
-        int enddate_database = 0;
-
-        String[] dbnames = SQLiteDBs.Enumerate ();
-        for (String dbname : dbnames) {
-            if (dbname.startsWith ("nobudb/waypoints_") && dbname.endsWith (".db")) {
-                int i = Integer.parseInt (dbname.substring (17, dbname.length () - 3));
-                if (enddate_database < i) {
-                    enddate_database = i;
-                }
-            }
-        }
-
-        return enddate_database;
+        return waypointsCheckBox.GetCurentEndDate ();
     }
 
     /**
@@ -1352,17 +1348,27 @@ public class MaintView
      * datums/obstructions_<expdate>.db.gz
      */
     private class ObstructionsCheckBox extends DownloadCheckBox {
-        private int enddate;
+        private int curentenddate;
+        private int latestenddate;
 
         public ObstructionsCheckBox ()
         {
-            enddate = GetObstructionExpDate ();
+            DeleteDownloadedFiles (false);
         }
 
         @Override  // DownloadCheckBox
-        public int GetEndDate ()
+        public int GetCurentEndDate ()
         {
-            return enddate;
+            if ((curentenddate < latestenddate) && (curentenddate <= deaddate)) {
+                DeleteDownloadedFiles (false);
+            }
+            return curentenddate;
+        }
+
+        @Override  // DownloadCheckBox
+        public int GetLatestEndDate ()
+        {
+            return latestenddate;
         }
 
         @Override  // DownloadCheckBox
@@ -1372,46 +1378,11 @@ public class MaintView
         }
 
         @Override  // DownloadCheckBox
-        public void DeleteDownloadedFiles (boolean all)
+        public synchronized void DeleteDownloadedFiles (boolean all)
         {
-            int latestexdate = 0;
-            String latestdbname = "";
-
-            String[] dbnames = SQLiteDBs.Enumerate ();
-
-            // if deleting all but latest, get name of latest obstruction file
-            if (!all) {
-                for (String dbname : dbnames) {
-                    if (dbname.startsWith ("nobudb/obstructions_") && dbname.endsWith (".db")) {
-                        int i = Integer.parseInt (dbname.substring (20, dbname.length () - 3));
-                        if (latestexdate < i) {
-                            latestexdate = i;
-                            latestdbname = dbname;
-                        }
-                    }
-                }
-            }
-
-            // delete all versions except possibly the latest version
-            for (String dbname : dbnames) {
-                if (dbname.startsWith ("nobudb/obstructions_") && !dbname.equals (latestdbname)) {
-                    SQLiteDBs sqldb = SQLiteDBs.open (dbname);
-                    if (sqldb != null) sqldb.markForDelete ();
-                }
-            }
-
-            // delete any partial downloads
-            if (all) {
-                File[] files = new File (WairToNow.dbdir, "nobudb").listFiles ();
-                if (files != null) for (File file : files) {
-                    if (file.getName ().startsWith ("obstructions_")) {
-                        Lib.Ignored (file.delete ());
-                    }
-                }
-            }
-
-            // if deleted everything, say we ain't got nothing
-            if (all) enddate = 0;
+            int[] last2 = PurgeDownloadedDatabases (all, "nobudb/obstructions_");
+            curentenddate = last2[0];
+            latestenddate = last2[1];
         }
 
         /**
@@ -1452,14 +1423,14 @@ public class MaintView
         @Override  // DownloadCheckBox
         public void RemovedDownloadedChart ()
         {
-            enddate = 0;
+            latestenddate = 0;
         }
 
         @Override  // DownloadCheckBox
         public void UncheckBox ()
         {
             super.UncheckBox ();
-            enddate = GetObstructionExpDate ();
+            DeleteDownloadedFiles (false);
             wairToNow.waypointView1.waypointsWithin.clear ();
             wairToNow.waypointView2.waypointsWithin.clear ();
         }
@@ -1504,90 +1475,208 @@ public class MaintView
      * Get name of current valid obstruction files (56-day cycle).
      * @return 0: no such files; else: expiration date of files
      */
-    public static int GetObstructionExpDate ()
+    public int GetCurentObstructionExpDate ()
     {
-        int enddate_database = 0;
+        return obstructionsCheckBox.GetCurentEndDate ();
+    }
 
+    /**
+     * Purge downloaded database files.
+     * @param all = true: delete them all
+     *             false: keep latest two
+     * @param prefix = start of file name (ends with ".db")
+     * @return [0] = expdate of next to latest (or same as ret[1] if none)
+     *         [1] = expdate of very latest (or 0 if none)
+     */
+    private static int[] PurgeDownloadedDatabases (boolean all, String prefix)
+    {
         String[] dbnames = SQLiteDBs.Enumerate ();
+
+        // if deleting all, delete all and return 0's saying there are no files
+        if (all) {
+            for (String dbname : dbnames) {
+                if (dbname.startsWith (prefix) && dbname.endsWith (".db")) {
+                    SQLiteDBs sqldb = SQLiteDBs.open (dbname);
+                    if (sqldb != null) sqldb.markForDelete ();
+                }
+            }
+            return new int[2];
+        }
+
+        // if deleting all but latest two, get all expiration dates
+        // and save which is the latest
+        int latest = 0;
+        int[] expdates = new int[dbnames.length];
+        int nexpdates = 0;
         for (String dbname : dbnames) {
-            if (dbname.startsWith ("nobudb/obstructions_") && dbname.endsWith (".db")) {
-                int i = Integer.parseInt (dbname.substring (20, dbname.length () - 3));
-                if (enddate_database < i) {
-                    enddate_database = i;
+            if (dbname.startsWith (prefix) && dbname.endsWith (".db")) {
+                int i = Integer.parseInt (dbname.substring (prefix.length (), dbname.length () - 3));
+                expdates[nexpdates++] = i;
+                if (latest < i) latest = i;
+            }
+        }
+
+        // always keep the latest, expired or not
+        // then delete all earlier ones that are expired
+        int curent = latest;
+        for (int i = 0; i < nexpdates; i ++) {
+            int expdate = expdates[i];
+            if (expdate < latest) {
+                if (expdate <= deaddate) {
+                    String dbname = prefix + expdate + ".db";
+                    SQLiteDBs sqldb = SQLiteDBs.open (dbname);
+                    if (sqldb != null) sqldb.markForDelete ();
+                    expdates[i] = 0;
+                } else if (curent > expdate) {
+                    curent = expdate;
                 }
             }
         }
 
-        return enddate_database;
+        // set up current and latest expiration dates
+        //  ret[1] = very latest
+        //  ret[0] = earliest that is after today
+        return new int[] { curent, latest };
     }
 
     /**
      * This is the checkbox for downloading an aeronautical chart.
      */
     private class ChartCheckBox extends DownloadCheckBox {
-        public final AirChart airChart;
+        public final AirChart curentAirChart;
+        public final AirChart latestAirChart;
 
-        public ChartCheckBox (AirChart ac)
+        public ChartCheckBox (AirChart cac, AirChart lac)
         {
-            airChart = ac;
+            curentAirChart = cac;
+            latestAirChart = lac;
+            DeleteDownloadedFiles (false);
         }
 
         @Override  // DownloadCheckBox
-        public int GetEndDate ()
+        public int GetCurentEndDate ()
         {
-            return airChart.enddate;
+            if ((curentAirChart.enddate < latestAirChart.enddate) && (curentAirChart.enddate <= deaddate)) {
+                DeleteDownloadedFiles (false);
+            }
+            return curentAirChart.enddate;
+        }
+
+        @Override  // DownloadCheckBox
+        public int GetLatestEndDate ()
+        {
+            return latestAirChart.enddate;
         }
 
         @Override  // DownloadCheckBox
         public String GetSpaceNameNoRev ()
         {
-            return airChart.spacenamenr;
+            return latestAirChart.spacenamenr;
         }
 
         /**
          * Delete all files for this chart.
          */
         @Override  // DownloadCheckBox
-        public void DeleteDownloadedFiles (boolean all)
+        public synchronized void DeleteDownloadedFiles (boolean all)
         {
-            int latestrevno = 0;
-            String latestfname = "";
-
             File[] files = new File (WairToNow.dbdir + "/charts/").listFiles ();
-            String undername = airChart.spacenamenr.replace (' ', '_') + "_";
+            if (files == null) {
+                RemovedDownloadedChart ();
+                return;
+            }
 
-            // if deleting all but latest, get name of latest chart .wtn.zip file
-            if (!all) {
-                if (files != null) for (File file : files) {
+            // eg, "Chicago_TAC_"
+            String undername = GetSpaceNameNoRev ().replace (' ', '_') + "_";
+
+            // maybe delete all revisions
+            if (all) {
+                for (File file : files) {
                     String name = file.getName ();
-                    if (name.startsWith (undername) && name.endsWith (".wtn.zip")) {
-                        int revno = Integer.parseInt (name.substring (undername.length (), name.length () - 8));
+                    if (name.startsWith (undername)) {
+                        Lib.RecursiveDelete (file);
+                    }
+                }
+                RemovedDownloadedChart ();
+                return;
+            }
+
+            // see what the highest revision number downloaded is and its begin and end dates
+            NNHashMap<Integer,Integer> enddates = new NNHashMap<> ();
+            int latestbegdate = 0;
+            int latestrevno = 0;
+            for (File file : files) {
+                String name = file.getName ();
+                if (name.startsWith (undername) && name.endsWith (".wtn.zip")) {
+                    int revno = Integer.parseInt (name.substring (undername.length (), name.length () - 8));
+                    try {
+                        ZipFile zf = new ZipFile (file);
+                        ZipEntry ze = zf.getEntry (undername + revno + ".csv");
+                        InputStream zi = zf.getInputStream (ze);
+                        BufferedReader zr = new BufferedReader (new InputStreamReader (zi));
+                        String zl = zr.readLine ();
+                        String[] parts = Lib.QuotedCSVSplit (zl);
+                        int begdate = Integer.parseInt (parts[parts.length-3]);
+                        int expdate = Integer.parseInt (parts[parts.length-2]);
+                        enddates.put (revno, expdate);
                         if (latestrevno < revno) {
                             latestrevno = revno;
-                            latestfname = undername + revno;  // eg, "New_York_SEC_96"
+                            latestbegdate = begdate;
                         }
+                    } catch (Exception e) {
+                        Log.w (TAG, "error reading " + name, e);
                     }
                 }
             }
 
-            // delete all .wtn.zip files for this chart except possibly the latest
-            // there might also be a directory of that name with tiles we generated
-            // also delete any partial downloads
-            if (files != null) for (File file : files) {
-                String name = file.getName ();
-                if (name.startsWith (undername) &&                  // eg, "New_York_SEC_"
-                        !name.equals (latestfname) &&               // eg, "New_York_SEC_96"
-                        !name.equals (latestfname + ".wtn.zip")) {  // eg, "New_York_SEC_96.wtn.zip"
-                    Lib.RecursiveDelete (file);
+            // get the next highest revision number and end date
+            // ...that has not expired
+            // defaults to the highest if no earlier unexpired one found
+            int curentenddate = 0;
+            int curentrevno = latestrevno;
+            for (Integer revno : enddates.keySet ()) {
+                if (revno < latestrevno) {
+                    int enddate = enddates.nnget (revno);
+
+                    // the latest chart's beg date may have modified the next-to-latest chart's end date
+                    // eg, Chicago_TAC_100 ends on 20201007 but Chicago_TAC_101 begins on 20200910
+                    // so here we pretend that Chicago_TAC_100 ends on 20200910
+                    if (enddate > latestbegdate) {
+                        enddate = latestbegdate;
+                    }
+
+                    // if this chart isn't expired but is the latest other than the very latest, save it
+                    if ((enddate > deaddate) && (curentenddate < enddate)) {
+                        curentenddate = enddate;
+                        curentrevno = revno;
+                    }
                 }
             }
+
+            // delete all revisions earlier than those two
+            for (File file : files) {
+                String name = file.getName ();
+                if (name.startsWith (undername) && name.endsWith (".wtn.zip")) {
+                    int revno = Integer.parseInt (name.substring (undername.length (), name.length () - 8));
+                    if (revno < curentrevno) Lib.Ignored (file.delete ());
+                } else if (name.startsWith (undername)) {
+                    try {
+                        int revno = Integer.parseInt (name.substring (undername.length ()));
+                        if (revno < curentrevno)  Lib.RecursiveDelete (file);
+                    } catch (Exception ignored) { }
+                }
+            }
+
+            // update files being used for tiles etc
+            curentAirChart.StartUsingDownloadedRevision (curentrevno);
+            latestAirChart.StartUsingDownloadedRevision (latestrevno);
         }
 
         /**
          * Get corresponding air chart, if any.
          */
         @Override  // DownloadCheckBox
-        public AirChart GetAirChart () { return airChart; }
+        public AirChart GetCurentAirChart () { return curentAirChart; }
 
         /**
          * Download the latest chartname_expdate.zip file from the server.
@@ -1597,7 +1686,7 @@ public class MaintView
             /*
              * Get name of latest chart zip file.
              */
-            String undername = airChart.spacenamenr.replace (' ', '_');
+            String undername = latestAirChart.spacenamenr.replace (' ', '_');
             String servername = ReadSingleLine ("filelist.php?undername=" + undername);
             if (!servername.startsWith ("charts/" + undername + "_") || !servername.endsWith (".wtn.zip")) {
                 throw new IOException ("bad chart filename " + servername);
@@ -1618,7 +1707,7 @@ public class MaintView
         public void DownloadFileComplete ()
         {
             // close any old bitmaps and parse csv line from latest .wtn.zip file
-            airChart.StartUsingLatestDownloadedRevision ();
+            DeleteDownloadedFiles (false);
         }
 
         @Override  // DownloadCheckBox
@@ -1631,8 +1720,12 @@ public class MaintView
         @Override  // DownloadCheckBox
         public void RemovedDownloadedChart ()
         {
-            airChart.StartUsingLatestDownloadedRevision ();
-            if (wairToNow.chartView.selectedChart == airChart) {
+            curentAirChart.StartUsingDownloadedRevision (0);
+            latestAirChart.StartUsingDownloadedRevision (0);
+            if (wairToNow.chartView.selectedChart == curentAirChart) {
+                wairToNow.chartView.SelectChart (null);
+            }
+            if (wairToNow.chartView.selectedChart == latestAirChart) {
                 wairToNow.chartView.SelectChart (null);
             }
         }
@@ -1641,11 +1734,11 @@ public class MaintView
     /**
      * Iterate through air charts, downloaded or not.
      */
-    public Iterator<AirChart> GetAirChartIterator ()
+    public Iterator<AirChart> GetCurentAirChartIterator ()
     {
-        return new AirChartIterator ();
+        return new CurentAirChartIterator ();
     }
-    private class AirChartIterator implements Iterator<AirChart>
+    private class CurentAirChartIterator implements Iterator<AirChart>
     {
         private AirChart nextOne = null;
         private Iterator<Downloadable> pcit = allDownloadables.iterator ();
@@ -1670,12 +1763,28 @@ public class MaintView
             while (pcit.hasNext ()) {
                 Downloadable d = pcit.next ();
                 if (d instanceof ChartCheckBox) {
-                    nextOne = ((ChartCheckBox) d).airChart;
+                    nextOne = ((ChartCheckBox) d).curentAirChart;
                     return true;
                 }
             }
             return false;
         }
+    }
+
+    // return latest version of the given air chart that we have downloaded
+    // might very well be the same one
+    public AirChart GetLatestAirChart (AirChart ac)
+    {
+        if (getChartNamesBusy) return ac;
+        for (Downloadable d : allDownloadables) {
+            if (d instanceof ChartCheckBox) {
+                AirChart latest = ((ChartCheckBox) d).latestAirChart;
+                if (latest.spacenamenr.equals (ac.spacenamenr)) {
+                    return latest;
+                }
+            }
+        }
+        return ac;
     }
 
     /**
@@ -1751,10 +1860,11 @@ public class MaintView
         public String ss;  // two-letter state code (capital letters)
         public String fullname;  // full name string
 
-        private ZipFile stateZipFile;
+        private ZipFile curentZipFile;
 
         private CheckBox cb;
-        private int enddate;
+        private int curentenddate;
+        private int latestenddate;
         private LinkedList<Runnable> whenDoneRun = new LinkedList<> ();
         private TextView lb;
 
@@ -1767,7 +1877,7 @@ public class MaintView
 
             allDownloadables.addLast (this);
 
-            enddate = GetPlatesExpDate (ss);
+            DeleteDownloadedFiles (false);
 
             cb = new CheckBox (wairToNow);
             cb.setOnCheckedChangeListener (MaintView.this);
@@ -1796,19 +1906,17 @@ public class MaintView
             downloadButton.onClick (null);
         }
 
-        public ZipFile getStateZipFile ()
+        public ZipFile getCurentStateZipFile ()
                 throws IOException
         {
-            synchronized (this) {
-                if (stateZipFile == null) {
-                    enddate = GetPlatesExpDate (ss);
-                    if (enddate > 0) {
-                        String zn = WairToNow.dbdir + "/datums/statezips_" + enddate + "/" + ss + ".zip";
-                        stateZipFile = new ZipFile (zn);
-                    }
+            int ced = GetCurentEndDate ();
+            if (curentZipFile == null) {
+                if (ced > 0) {
+                    String zn = WairToNow.dbdir + "/datums/statezips_" + ced + "/" + ss + ".zip";
+                    curentZipFile = new ZipFile (zn);
                 }
-                return stateZipFile;
             }
+            return curentZipFile;
         }
 
         // Downloadable implementation
@@ -1818,13 +1926,27 @@ public class MaintView
         {
             cb.setChecked (true);
         }
-        public AirChart GetAirChart () { return null; }
+        public AirChart GetCurentAirChart () { return null; }
         public void UncheckBox ()
         {
             cb.setChecked (false);
-            enddate = GetPlatesExpDate (ss);
+            DeleteDownloadedFiles (false);
         }
-        public int GetEndDate () { return enddate; }
+        public int GetCurentEndDate ()
+        {
+            if ((curentenddate < latestenddate) && (curentenddate <= deaddate)) {
+                if (curentZipFile != null) {
+                    try { curentZipFile.close (); } catch (IOException ignored) { }
+                    curentZipFile = null;
+                }
+                DeleteDownloadedFiles (false);
+            }
+            return curentenddate;
+        }
+        public int GetLatestEndDate ()
+        {
+            return latestenddate;
+        }
 
         /**
          * Download the per-state zip file from the server.
@@ -1921,87 +2043,100 @@ public class MaintView
         }
 
         @Override  // DownloadCheckBox
-        public void DeleteDownloadedFiles (boolean all)
+        public synchronized void DeleteDownloadedFiles (boolean all)
         {
-            int latestrevno = 0;
-            String latestfname = "";
+            curentenddate = 0;
+            latestenddate = 0;
 
-            String zipname = ss + ".zip";
             File[] files = new File (WairToNow.dbdir + "/datums/").listFiles ();
+            if (files == null) return;
 
-            // if deleting all but latest, get name of latest statezips_expdate/ss.zip file
-            if (!all) {
-                if (files != null) for (File file : files) {
+            if (all) {
+                for (File file : files) {
                     String name = file.getName ();
                     if (name.startsWith ("statezips_")) {
-                        File zipfile = new File (file, zipname);
-                        if (zipfile.exists ()) {
-                            int revno = Integer.parseInt (name.substring (10));
-                            if (latestrevno < revno) {
-                                latestrevno = revno;
-                                latestfname = name;
-                            }
-                        }
+                        int expdate = Integer.parseInt (name.substring (10));
+                        DeleteStateZip (expdate);
                     }
                 }
             }
 
-            // delete all versions of ss.zip except possibly the latest one
-            // delete the corresponding statezips_expdate directory iff it is now empty
-            // also delete any partial download
-            if (files != null) for (File file : files) {
+            int[] expdates = new int[files.length];
+            int nexpdates = 0;
+            int latest = 0;
+            for (File file : files) {
                 String name = file.getName ();
-                if (name.startsWith ("statezips_") && !name.equals (latestfname)) {
-                    File[] fs = file.listFiles ();
-                    if (fs != null) for (File f : fs) {
-                        if (f.getName ().startsWith (zipname)) {
-                            Lib.Ignored (f.delete ());
-                        }
+                if (name.startsWith ("statezips_")) {
+                    File child = new File (file, ss + ".zip");
+                    if (child.exists ()) {
+                        int expdate = Integer.parseInt (name.substring (10));
+                        expdates[nexpdates++] = expdate;
+                        if (latest < expdate) latest = expdate;
                     }
                 }
-                Lib.Ignored (file.delete ());
             }
+
+            int curent = latest;
+            for (int i = 0; i < nexpdates; i ++) {
+                int expdate = expdates[i];
+                if (expdate < latest) {
+                    if (expdate > deaddate) {
+                        if (curent > expdate) curent = expdate;
+                    } else {
+                        DeleteStateZip (expdate);
+                    }
+                }
+            }
+
+            curentenddate = curent;
+            latestenddate = latest;
+        }
+
+        // delete the state's zip file and corresponding database entries
+        //  input:
+        //   expdate = expiration date
+        private void DeleteStateZip (int expdate)
+        {
+            // delete zip file
+            // delete parent directory if it is empty
+            File parent = new File (WairToNow.dbdir, "datums/statezips_" + expdate);
+            File zipfile = new File (parent, ss + ".zip");
+            Lib.Ignored (zipfile.delete ());
+            Lib.Ignored (parent.delete ());
 
             // remove the corresponding records from the SQLite database
             // if SQLite database is empty, delete it
-            String latestplates = "nobudb/plates_" + latestrevno + ".db";
-            String[] dbnames = SQLiteDBs.Enumerate ();
-            for (String dbname : dbnames) {
-                if (dbname.startsWith ("nobudb/plates_") && !dbname.equals (latestplates)) {
-                    SQLiteDBs sqldb = SQLiteDBs.open (dbname);
-                    if (sqldb == null) continue;
-                    boolean dbempty = true;
-                    if (sqldb.tableExists ("iapgeorefs2")) {
-                        sqldb.execSQL ("DELETE FROM iapgeorefs2 WHERE gr_state='" + ss + "'");
-                        if (sqldb.tableEmpty ("iapgeorefs2")) sqldb.execSQL ("DROP TABLE iapgeorefs2");
-                        else dbempty = false;
-                    }
-                    if (sqldb.tableExists ("iapcifps")) {
-                        sqldb.execSQL ("DELETE FROM iapcifps WHERE cp_state='" + ss + "'");
-                        if (sqldb.tableEmpty ("iapcifps")) sqldb.execSQL ("DROP TABLE iapcifps");
-                        else dbempty = false;
-                    }
-                    if (sqldb.tableExists ("apdgeorefs")) {
-                        sqldb.execSQL ("DELETE FROM apdgeorefs WHERE gr_state='" + ss + "'");
-                        if (sqldb.tableEmpty ("apdgeorefs")) sqldb.execSQL ("DROP TABLE apdgeorefs");
-                        else dbempty = false;
-                    }
-                    if (sqldb.tableExists ("plates")) {
-                        sqldb.execSQL ("DELETE FROM plates WHERE pl_state='" + ss + "'");
-                        if (sqldb.tableEmpty ("plates")) sqldb.execSQL ("DROP TABLE plates");
-                        else dbempty = false;
-                    }
-                    if (sqldb.tableExists ("rwypreloads")) {
-                        sqldb.execSQL ("DELETE FROM rwypreloads WHERE rp_state='" + ss + "'");
-                        if (sqldb.tableEmpty ("rwypreloads")) sqldb.execSQL ("DROP TABLE rwypreloads");
-                        else dbempty = false;
-                    }
-                    if (dbempty) sqldb.markForDelete ();
+            String dbname = "nobudb/plates_" + expdate + ".db";
+            SQLiteDBs sqldb = SQLiteDBs.open (dbname);
+            if (sqldb != null) {
+                boolean dbempty = true;
+                if (sqldb.tableExists ("iapgeorefs2")) {
+                    sqldb.execSQL ("DELETE FROM iapgeorefs2 WHERE gr_state='" + ss + "'");
+                    if (sqldb.tableEmpty ("iapgeorefs2")) sqldb.execSQL ("DROP TABLE iapgeorefs2");
+                    else dbempty = false;
                 }
+                if (sqldb.tableExists ("iapcifps")) {
+                    sqldb.execSQL ("DELETE FROM iapcifps WHERE cp_state='" + ss + "'");
+                    if (sqldb.tableEmpty ("iapcifps")) sqldb.execSQL ("DROP TABLE iapcifps");
+                    else dbempty = false;
+                }
+                if (sqldb.tableExists ("apdgeorefs")) {
+                    sqldb.execSQL ("DELETE FROM apdgeorefs WHERE gr_state='" + ss + "'");
+                    if (sqldb.tableEmpty ("apdgeorefs")) sqldb.execSQL ("DROP TABLE apdgeorefs");
+                    else dbempty = false;
+                }
+                if (sqldb.tableExists ("plates")) {
+                    sqldb.execSQL ("DELETE FROM plates WHERE pl_state='" + ss + "'");
+                    if (sqldb.tableEmpty ("plates")) sqldb.execSQL ("DROP TABLE plates");
+                    else dbempty = false;
+                }
+                if (sqldb.tableExists ("rwypreloads")) {
+                    sqldb.execSQL ("DELETE FROM rwypreloads WHERE rp_state='" + ss + "'");
+                    if (sqldb.tableEmpty ("rwypreloads")) sqldb.execSQL ("DROP TABLE rwypreloads");
+                    else dbempty = false;
+                }
+                if (dbempty) sqldb.markForDelete ();
             }
-
-            // if deleted everything, say we ain't got nothing
-            if (all) enddate = 0;
         }
 
         /**
@@ -2011,7 +2146,8 @@ public class MaintView
         public void RemovedDownloadedChart ()
         {
             // nothing downloaded any more
-            enddate = 0;
+            curentenddate = 0;
+            latestenddate = 0;
         }
 
         @SuppressLint("SetTextI18n")
@@ -2054,8 +2190,7 @@ public class MaintView
                 int numAdded = 0;
 
                 // get list of all airports in the state and request OpenStreetMap tiles for runway diagrams
-                int waypointexpdate = GetWaypointExpDate ();
-                SQLiteDBs wpdb = SQLiteDBs.open ("nobudb/waypoints_" + waypointexpdate + ".db");
+                SQLiteDBs wpdb = SQLiteDBs.open ("nobudb/waypoints_" + expdate + ".db");
                 if (wpdb != null) {
                     Cursor result = wpdb.query (
                             true, "airports", columns_apt_faaid_faciluse,
@@ -2279,41 +2414,29 @@ public class MaintView
     }
 
     /**
-     * Get expiration date of the airport plates for the airports of a given state (28-day cycle).
+     * Get expiration date of the current airport plates for the airports of a given state (28-day cycle).
      * @return 0 if state not downloaded, else expiration date yyyymmdd
      */
-    public static int GetPlatesExpDate (String ss)
+    public int GetCurrentPlatesExpDate (String ss)
     {
-        int latestexpdate = 0;
-        File[] files = new File (WairToNow.dbdir + "/datums").listFiles ();
-        if (files == null) return 0;
-        for (File file : files) {
-            String name = file.getName ();
-            if (name.startsWith ("statezips_")) {
-                int expdate = Integer.parseInt (name.substring (10));
-                if (latestexpdate < expdate) {
-                    if (new File (file, ss + ".zip").exists ()) {
-                        latestexpdate = expdate;
-                    }
-                }
-            }
-        }
-        return latestexpdate;
+        return stateMapView.stateCheckBoxes.nnget (ss).curentenddate;
+    }
+    public int GetLatestPlatesExpDate (String ss)
+    {
+        return stateMapView.stateCheckBoxes.nnget (ss).latestenddate;
     }
 
     /**
      * This gets the expiration date of the latest 28-day cycle file.
      * @return expiration date (or 0 if no file present)
      */
-    public static int GetPlatesExpDate ()
+    public static int GetLatestPlatesExpDate ()
     {
         int latestexpdate = 0;
-        File[] files = new File (WairToNow.dbdir + "/datums").listFiles ();
-        if (files == null) return 0;
-        for (File file : files) {
-            String name = file.getName ();
-            if (name.startsWith ("statezips_")) {
-                int expdate = Integer.parseInt (name.substring (10));
+        String[] dbnames = SQLiteDBs.Enumerate ();
+        for (String dbname : dbnames) {
+            if (dbname.startsWith ("nobudb/plates_") && dbname.endsWith (".db")) {
+                int expdate = Integer.parseInt (dbname.substring (14, dbname.length () - 3));
                 if (latestexpdate < expdate) {
                     latestexpdate = expdate;
                 }
@@ -2368,7 +2491,7 @@ public class MaintView
 
                 // if we don't have any waypoint database,
                 // force downloading it along with whatever user wants
-                if (GetWaypointExpDate () == 0) {
+                if (waypointsCheckBox.GetCurentEndDate () == 0) {
                     waypointsCheckBox.checkBox.setChecked (true);
                 }
 
@@ -2404,7 +2527,7 @@ public class MaintView
         /**
          * Set enabled state of button based on whether or not anything
          * has been selected for download.  It is also disabled if we
-         * are already in the middle of a {down,up}load.
+         * are already in the middle of a {down,un}load.
          */
         public void UpdateEnabled ()
         {
@@ -2532,6 +2655,7 @@ public class MaintView
         public String msg;
     }
 
+    // N,S,E,W lat/lon limits displayed by the charts
     private void DownloadChartedLimsCSV () throws IOException
     {
         Log.i (TAG, "downloading chartedlims.csv");
@@ -2539,6 +2663,7 @@ public class MaintView
         DownloadFile ("chartedlims.csv", csvname);
     }
 
+    // aggregate of all the latest .csv files (lat/lon<->pixel mapping)
     private void DownloadChartLimitsCSV () throws IOException
     {
         Log.i (TAG, "downloading chartlimits.csv");
@@ -2546,6 +2671,7 @@ public class MaintView
         DownloadFile ("chartlimits.php", csvname);
     }
 
+    // pixel outlines of mapped enroute charts
     private void DownloadOutlinesTXT () throws IOException
     {
         Log.i (TAG, "downloading outlines.txt");
@@ -2649,7 +2775,7 @@ public class MaintView
                     httpCon.connect ();
                     int rc = httpCon.getResponseCode ();
                     if (rc != HttpURLConnection.HTTP_OK) {
-                        throw new IOException ("http response code " + rc + " on " + servername);
+                        throw new IOException ("http response code " + rc);
                     }
                     InputStream inputStream = httpCon.getInputStream ();
 
@@ -2827,7 +2953,7 @@ public class MaintView
                         httpCon.connect ();
                         int rc = httpCon.getResponseCode ();
                         if (rc != HttpURLConnection.HTTP_OK) {
-                            throw new IOException ("http response code " + rc + " on " + servername);
+                            throw new IOException ("http response code " + rc);
                         }
                         inputStream = httpCon.getInputStream ();
                         numBytesTotal = httpCon.getContentLength ();

@@ -472,7 +472,7 @@ public abstract class Waypoint {
             /*
              * Otherwise, just get the waypoint as named.
              */
-            SQLiteDBs sqldb = openWayptDB ();
+            SQLiteDBs sqldb = openWayptDB (wairToNow);
             if (sqldb != null) {
                 try {
 
@@ -515,7 +515,7 @@ public abstract class Waypoint {
      */
     public static Airport GetAirportByIdent (String ident, WairToNow wtn)
     {
-        SQLiteDBs sqldb = openWayptDB ();
+        SQLiteDBs sqldb = openWayptDB (wtn);
         if (sqldb != null) {
             try {
                 Cursor result = sqldb.query (
@@ -576,7 +576,7 @@ public abstract class Waypoint {
         /*
          * Scan database for match on first keyword in given string.
          */
-        SQLiteDBs sqldb = openWayptDB ();
+        SQLiteDBs sqldb = openWayptDB (wtn);
         if (sqldb != null) {
             try {
                 String kw = keys[0];
@@ -884,7 +884,7 @@ public abstract class Waypoint {
                 leftLon = lLon;
                 riteLon = rLon;
 
-                SQLiteDBs sqldb = openWayptDB ();
+                SQLiteDBs sqldb = openWayptDB (wairToNow);
                 if (sqldb != null) {
                     try {
                         for (Class<? extends Waypoint> wpclass : Waypoint.wpclasses) {
@@ -958,7 +958,7 @@ public abstract class Waypoint {
 
         public static Airport GetByFaaID (String faaid, WairToNow wtn)
         {
-            SQLiteDBs sql56db = openWayptDB ();
+            SQLiteDBs sql56db = openWayptDB (wtn);
             if (sql56db == null) return null;
             Cursor resultapt = sql56db.query (
                     "airports", Waypoint.Airport.dbcols,
@@ -1107,7 +1107,7 @@ public abstract class Waypoint {
         public InputStream HasInfo ()
         {
             try {
-                ZipFile zf = wairToNow.maintView.getStateZipFile (state);
+                ZipFile zf = wairToNow.maintView.getCurentStateZipFile (state);
                 if (zf == null) return null;
                 return zf.getInputStream (zf.getEntry (faaident + ".html"));
             } catch (IOException ioe) {
@@ -1123,7 +1123,7 @@ public abstract class Waypoint {
             int nowdate = nowcal.get (Calendar.YEAR) * 10000 +
                           nowcal.get (Calendar.MONTH) * 10 +
                           nowcal.get (Calendar.DAY_OF_MONTH);
-            int enddate = MaintView.GetPlatesExpDate (state);
+            int enddate = wairToNow.maintView.GetLatestPlatesExpDate (state);
             return enddate <= nowdate;
         }
 
@@ -1143,7 +1143,7 @@ public abstract class Waypoint {
                  * Read list of runways into airport waypoint list.
                  */
                 runways = new NNHashMap<> ();
-                SQLiteDBs sqldb = openWayptDB ();
+                SQLiteDBs sqldb = openWayptDB (wairToNow);
                 if (sqldb != null) {
                     try {
                         Cursor result = sqldb.query (
@@ -1244,7 +1244,7 @@ public abstract class Waypoint {
         public String GetArptDetails ()
         {
             if (details == null) {
-                SQLiteDBs sqldb = openWayptDB ();
+                SQLiteDBs sqldb = openWayptDB (wairToNow);
                 if (sqldb == null) return "<missing>";
                 Cursor result = sqldb.query (
                         "airports", columns_apt_desc,
@@ -1893,7 +1893,7 @@ public abstract class Waypoint {
         {
             Airway awy = new Airway ();
             awy.ident = ident + " " + region;
-            SQLiteDBs sqldb = openWayptDB ();
+            SQLiteDBs sqldb = openWayptDB (wairToNow);
             if (sqldb == null) return null;
             Cursor cursor = sqldb.query (
                     "airways", new String[] { "awy_wpident", "awy_wplat", "awy_wplon" },
@@ -1930,10 +1930,10 @@ public abstract class Waypoint {
         }
     }
 
-    // open latest version of waypoint database
-    public static SQLiteDBs openWayptDB ()
+    // open current version of waypoint database
+    public static SQLiteDBs openWayptDB (WairToNow wairToNow)
     {
-        int waypointexpdate = MaintView.GetWaypointExpDate ();
+        int waypointexpdate = wairToNow.maintView.GetCurentWaypointExpDate ();
         String dbname = "nobudb/waypoints_" + waypointexpdate + ".db";
         return SQLiteDBs.open (dbname);
     }

@@ -328,7 +328,7 @@ public class Chart2DView extends View
     @Override  // Backing
     public void recycle ()
     {
-        for (Iterator<AirChart> it = wairToNow.maintView.GetAirChartIterator (); it.hasNext ();) {
+        for (Iterator<AirChart> it = wairToNow.maintView.GetCurentAirChartIterator (); it.hasNext ();) {
             it.next ().CloseBitmaps ();
         }
     }

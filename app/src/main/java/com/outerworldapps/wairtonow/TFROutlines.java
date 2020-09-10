@@ -228,6 +228,15 @@ public class TFROutlines {
     }
 
     /**
+     * Trigger updating now.
+     */
+    public void updateNow ()
+    {
+        if (gameThread != null) gameThread.updateNow ();
+        if (pathThread != null) pathThread.updateNow ();
+    }
+
+    /**
      * Read web page file.
      */
     private static BufferedReader getHttpReader (String name)
@@ -1099,15 +1108,17 @@ public class TFROutlines {
         protected File permfile;
         protected final Object lockobj;
         protected Thread updater;
+        protected WakeableSleep sleeper;
 
         protected RangeThread ()
         {
             lockobj = new Object ();
             outlines = new LinkedList<> ();
+            sleeper = new WakeableSleep ();
         }
 
         // updater threads run continuously as long as tfr filter is not NONE
-        // they have a while(true) loop with a Thread.sleep() at the bottom
+        // they have a while(true) loop with a sleeper.sleep() at the bottom
         public void startStopUpdater ()
         {
             synchronized (lockobj) {
@@ -1125,11 +1136,17 @@ public class TFROutlines {
             }
         }
 
+        // trigger updating now by interrupting sleep
+        public void updateNow ()
+        {
+            sleeper.wake ();
+        }
+
         // create a new updater thread object
-        public abstract Thread newUpdater ();
+        protected abstract Thread newUpdater ();
 
         // read records on and nearby the canvas from the .db file into memory
-        public abstract Collection<OT> readDatabase (double gnlat, double gslat, double gelon, double gwlon);
+        protected abstract Collection<OT> readDatabase (double gnlat, double gslat, double gelon, double gwlon);
 
         // gather list of TFRs that are enabled for display and are on the canvas
         // gets path/game TFRs from outlines and puts them in dorlines/actlines
@@ -1262,7 +1279,7 @@ public class TFROutlines {
 
         // thread that reads from FAA and writes database
         @Override
-        public Thread newUpdater ()
+        protected Thread newUpdater ()
         {
             return new PupdThread ();
         }
@@ -1270,7 +1287,7 @@ public class TFROutlines {
         // read records on and nearby the canvas from the .db file into memory
         // should be just a few out of a hundred or so
         @Override
-        public Collection<PathOut> readDatabase (double gnlat, double gslat, double gelon, double gwlon)
+        protected Collection<PathOut> readDatabase (double gnlat, double gslat, double gelon, double gwlon)
         {
             long fetched = 0;
             long now = System.currentTimeMillis ();
@@ -1491,13 +1508,13 @@ public class TFROutlines {
                             setLimits (null, true);
 
                             // check FAA website again in 10 minutes
-                            try { Thread.sleep (600000); } catch (InterruptedException ignored) { }
+                            sleeper.sleep (600000);
                         } catch (Exception e) {
 
                             // maybe no internet
                             Log.w (TAG, "exception reading " + faaurl, e);
                             // try again in one minute
-                            try { Thread.sleep (60000); } catch (InterruptedException ignored) { }
+                            sleeper.sleep (60000);
                         }
                     }
                 } catch (Exception e) {
@@ -1616,7 +1633,7 @@ public class TFROutlines {
 
         // thread that reads from WTN and writes database
         @Override
-        public Thread newUpdater ()
+        protected Thread newUpdater ()
         {
             return new GupdThread ();
         }
@@ -1628,7 +1645,7 @@ public class TFROutlines {
         // if no unexpired games at 'Yankee Stadium' just return the stadium record
         //   without a joined gametfrs record so we get a dotted circle around stadium
         @Override
-        public Collection<GameOut> readDatabase (double gnlat, double gslat, double gelon, double gwlon)
+        protected Collection<GameOut> readDatabase (double gnlat, double gslat, double gelon, double gwlon)
         {
             HashMap<String,GameOut> gameouts = new HashMap<> ();
             synchronized (gamedblock) {
@@ -1766,7 +1783,7 @@ public class TFROutlines {
                     long now = System.currentTimeMillis ();
                     long del = nextrun - now % nextrun + now % 3600000;
                     Log.d (TAG, "gupdthread next update " + Lib.TimeStringUTC (now + del));
-                    try { Thread.sleep (del); } catch (InterruptedException ignored) { }
+                    sleeper.sleep (del);
                 }
             }
         }

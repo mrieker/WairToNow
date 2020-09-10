@@ -194,7 +194,7 @@ public abstract class PlateImage extends View {
             throws IOException
     {
         if (fn.startsWith ("gif_150/")) fn = fn.substring (8);
-        ZipFile zf = wairToNow.maintView.getStateZipFile (airport.state);
+        ZipFile zf = wairToNow.maintView.getCurentStateZipFile (airport.state);
         if (zf == null) {
             throw new FileNotFoundException ("state " + airport.state + " not downloaded");
         }
@@ -366,7 +366,7 @@ public abstract class PlateImage extends View {
      */
     protected void DrawExpiredHash (Canvas canvas, RectF outline)
     {
-        if (expdate < MaintView.deaddate) {
+        if (expdate <= MaintView.deaddate) {
             if (exppaint == null) {
                 exppaint = new Paint ();
                 exppaint.setColor (Color.RED);
