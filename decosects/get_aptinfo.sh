@@ -114,17 +114,30 @@ then
     getzip NAV
     getzip TWR
 
+    if [ ! -f datums/stations_$expdate.gz ]
+    then
+        rm -f stations.tmp stations.tmp.gz
+        wget -nv https://www.aviationweather.gov/docs/metar/stations.txt -O stations.tmp
+        if [ -s stations.tmp ]
+        then
+            gzip stations.tmp
+            mv stations.tmp.gz datums/stations_$expdate.gz
+        fi
+    fi
+
     #
     #  Generate airport and runway info
     #
+    rm -rf APT.txt AFF.txt AWOS.txt TWR.txt stations.txt aptinfo.tmp
     unzip datums/AFF_$expdate.zip
     unzip datums/APT_$expdate.zip
     unzip datums/AWOS_$expdate.zip
     unzip datums/TWR_$expdate.zip
+    gunzip -c datums/stations_$expdate.gz > stations.txt
     mkdir aptinfo.tmp
     # - APT.txt must be first
-    cat APT.txt AFF.txt AWOS.txt TWR.txt | mono --debug GetAirportIDs.exe airports.tmp runways.tmp aptinfo.tmp aptinfo.html
-    rm -f APT.txt AFF.txt AWOS.txt TWR.txt
+    cat APT.txt AFF.txt AWOS.txt TWR.txt | mono --debug GetAirportIDs.exe airports.tmp runways.tmp aptinfo.tmp aptinfo.html stations.txt
+    rm -f APT.txt AFF.txt AWOS.txt TWR.txt stations.txt
 
     #
     #  Generate airway info
@@ -176,6 +189,7 @@ then
     #
     mono --debug MakeWaypoints.exe $expdate
     mono --debug MakeWaypoints.exe $expdate 1
+    rm -f datums/waypoints_$expdate.db.gz datums/wayptabbs_$expdate.db.gz
     gzip datums/waypoints_$expdate.db
     gzip datums/wayptabbs_$expdate.db
 fi

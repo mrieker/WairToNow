@@ -111,7 +111,7 @@ public class APDPlateImage extends GRPlateImage {
          * Also draw runway centerlines on airport diagrams
          * so user can easily verify georeference info.
          */
-        if (DrawLocationArrow (canvas, true) && (SystemClock.uptimeMillis () - plateLoadedUptime < 10000)) {
+        if (DrawLocationArrow (canvas, true) && (SystemClock.uptimeMillis () - plateLoadedUptime < 2000)) {
             DrawRunwayCenterlines (canvas);
         }
 

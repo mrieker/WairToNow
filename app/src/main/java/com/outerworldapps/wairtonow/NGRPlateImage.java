@@ -73,6 +73,11 @@ public class NGRPlateImage extends PlateImage {
         bitmaps = new Bitmap[numPages];
     }
 
+    public int getNumPages ()
+    {
+        return numPages;
+    }
+
     /**
      * Close any open bitmaps so we don't take up too much memory.
      */

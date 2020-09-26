@@ -75,7 +75,8 @@ public class MakeWaypoints {
                 DoCommand (dbcon, "CREATE INDEX airports_lons  ON airports (apt_lon);");
             } else {
                 DoCommand (dbcon, "CREATE TABLE airports (apt_icaoid TEXT PRIMARY KEY, apt_faaid TEXT NOT NULL, apt_elev REAL NOT NULL, apt_name TEXT NOT NULL, " +
-                        "apt_lat REAL NOT NULL, apt_lon REAL NOT NULL, apt_desc TEXT NOT NULL, apt_state TEXT NOT NULL, apt_faciluse TEXT NOT NULL);");
+                        "apt_lat REAL NOT NULL, apt_lon REAL NOT NULL, apt_desc TEXT NOT NULL, apt_state TEXT NOT NULL, apt_faciluse TEXT NOT NULL, " +
+                        "apt_metaf TEXT NOT NULL, apt_tzname TEXT NOT NULL);");
                 DoCommand (dbcon, "CREATE TABLE aptkeys  (kw_key TEXT NOT NULL, kw_rowid INTEGER NOT NULL);");
                 DoCommand (dbcon, "CREATE INDEX airports_faaid ON airports (apt_faaid);");
                 DoCommand (dbcon, "CREATE INDEX airports_lats  ON airports (apt_lat);");
@@ -118,8 +119,8 @@ public class MakeWaypoints {
                         }
                         dbcmd1.Parameters.Add (new SqliteParameter ("@apt_desc2"   , sb.ToString ().Trim ()));
                     } else {
-                        dbcmd1.CommandText = "INSERT INTO airports (apt_icaoid,apt_faaid,apt_elev,apt_name,apt_lat,apt_lon,apt_desc,apt_state,apt_faciluse) " +
-                                "VALUES (@apt_icaoid,@apt_faaid,@apt_elev,@apt_name,@apt_lat,@apt_lon,@apt_desc,@apt_state,@apt_faciluse); " +
+                        dbcmd1.CommandText = "INSERT INTO airports (apt_icaoid,apt_faaid,apt_elev,apt_name,apt_lat,apt_lon,apt_desc,apt_state,apt_faciluse,apt_metaf,apt_tzname) " +
+                                "VALUES (@apt_icaoid,@apt_faaid,@apt_elev,@apt_name,@apt_lat,@apt_lon,@apt_desc,@apt_state,@apt_faciluse,@apt_metaf,@apt_tzname); " +
                                 "SELECT last_insert_rowid ()";
                         dbcmd1.Parameters.Add (new SqliteParameter ("@apt_icaoid"  , cols[0]));
                         dbcmd1.Parameters.Add (new SqliteParameter ("@apt_faaid"   , cols[1]));
@@ -130,6 +131,8 @@ public class MakeWaypoints {
                         dbcmd1.Parameters.Add (new SqliteParameter ("@apt_desc"    , cols[7]));
                         dbcmd1.Parameters.Add (new SqliteParameter ("@apt_state"   , cols[8]));
                         dbcmd1.Parameters.Add (new SqliteParameter ("@apt_faciluse", cols[9]));
+                        dbcmd1.Parameters.Add (new SqliteParameter ("@apt_metaf"   , cols[10]));
+                        dbcmd1.Parameters.Add (new SqliteParameter ("@apt_tzname"  , cols[11]));
                     }
                     rowid = (long) dbcmd1.ExecuteScalar ();
                 } finally {

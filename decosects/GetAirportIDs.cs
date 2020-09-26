@@ -23,7 +23,7 @@
  *        and per-airport information files.
  *
  * mcs -debug -out:GetAirportIDs.exe GetAirportIDs.cs
- * cat APT.txt TWR.txt | mono --debug GetAirportIDs.exe airports.csv runways.csv aptinfo aptinfo.html
+ * cat APT.txt TWR.txt | mono --debug GetAirportIDs.exe airports.csv runways.csv aptinfo aptinfo.html stations.txt
  */
 
 // https://nfdc.faa.gov/xwiki -> automatic redirect
@@ -38,6 +38,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Text;
 
@@ -56,6 +57,9 @@ public class GetAirportIDs {
         public string awos;
         public string ctrfreq;
         public string ctrname;
+        public bool hasmet;
+        public bool hastaf;
+        public string tzname;   // eg, "America/New_York"
 
         // shown when Info button clicked
         public Dictionary<String,String>  nvp  = new Dictionary<String,String>  ();
@@ -93,6 +97,7 @@ public class GetAirportIDs {
 
     public static Dictionary<String,Airport> aptsbyfaaid = new Dictionary<String,Airport> ();
     public static Dictionary<String,Airport> aptsbykeyid = new Dictionary<String,Airport> ();
+    public static Dictionary<String,Airport> aptsbyicao  = new Dictionary<String,Airport> ();
     public static Dictionary<String,String>  centers     = new Dictionary<String,String>  ();
 
     public static void Main (string[] args)
@@ -120,6 +125,7 @@ public class GetAirportIDs {
                 if (apt.icaoid == "") apt.icaoid = apt.faaid;
 
                 aptsbyfaaid[apt.faaid] = apt;
+                aptsbyicao[apt.icaoid] = apt;
 
                 apt.state   = line.Substring ( 48, 2).Trim ();
                 apt.aptname = line.Substring (133, 50).Trim ();
@@ -127,6 +133,7 @@ public class GetAirportIDs {
                 apt.aptlon  = ParseLon (line.Substring (565, 12));
                 apt.variatn = ParseVar (line.Substring (586, 3));   // bvy is '16W'
                 apt.elevatn = line.Substring (578, 7).Trim ();
+                apt.tzname  = GetTZForLL (apt.aptlat, apt.aptlon);
 
                 string distfromcity = line.Substring (627, 2).Trim ();
                 while ((distfromcity.Length > 1) && (distfromcity[0] == '0')) distfromcity = distfromcity.Substring (1);
@@ -179,6 +186,7 @@ public class GetAirportIDs {
                 apt.nvp["ctaf"]          = line.Substring ( 988,  7).Trim ();
                 apt.nvp["landfeenoncom"] = line.Substring (1002,  1).Trim ();   // Y, N
                 apt.nvp["icaoid"]        = line.Substring (1210,  7).Trim ();
+                apt.nvp["tzname"]        = apt.tzname;
             }
 
             // center names
@@ -364,6 +372,27 @@ public class GetAirportIDs {
             }
         }
 
+        StreamReader stationsfile = new StreamReader (args[4]);
+        int icaopos  = -1;
+        int metarpos = -1;
+        int tafpos   = -1;
+        while ((line = stationsfile.ReadLine ()) != null) {
+            if (line.Contains (" ICAO ") && line.Contains ("  M  ") && line.Contains ("  V  ")) {
+                icaopos  = line.IndexOf (" ICAO ") + 1;
+                metarpos = line.IndexOf ("  M  ") + 2;
+                tafpos   = line.IndexOf ("  V  ") + 2;
+            }
+            if ((icaopos >= 0) && (line.Length >= icaopos + 4) && (line.Length >= metarpos + 1) && (line.Length >= tafpos + 1)) {
+                Airport apt;
+                string icaoid = line.Substring (icaopos, 4).Trim ();
+                if (aptsbyicao.TryGetValue (icaoid, out apt)) {
+                    apt.hasmet = (line[metarpos] == 'X');
+                    apt.hastaf = (line[tafpos] == 'T') || (line[tafpos] == 'U');
+                }
+            }
+        }
+        stationsfile.Close ();
+
         string htmlfile = File.ReadAllText (args[3]);
         string htmlbeg  = htmlfile.Substring (0, htmlfile.IndexOf ("%%%%"));
         string htmlend  = htmlfile.Substring (htmlfile.IndexOf ("%%%%") + 4);
@@ -382,9 +411,13 @@ public class GetAirportIDs {
             // the info string is displayed on the FAAWP page itself
             string csvstate = apt.state;
             if ((csvstate == "") || (csvstate == "GU")) csvstate = "XX";
+            string metafs = "";
+            if (apt.hasmet) metafs += "M";
+            if (apt.hastaf) metafs += "T";
             airports.WriteLine (apt.icaoid + "," + apt.faaid + "," + apt.elevatn + "," +
                     QuotedString (apt.aptname, '"') + "," + apt.aptlat + "," + apt.aptlon + "," +
-                    apt.variatn + "," + QuotedString (apt.info, '"') + "," + csvstate + "," + apt.nvp["faciluse"]);
+                    apt.variatn + "," + QuotedString (apt.info, '"') + "," + csvstate + "," +
+                    apt.nvp["faciluse"] + "," + metafs + "," + apt.tzname);
 
             // this goes into the aptinfo_<expdate>/f/aaid.html.gz file and is displayed when the Info button is clicked
             StreamWriter infofile = new StreamWriter (args[2] + "/" + apt.faaid + ".html");
@@ -507,5 +540,17 @@ public class GetAirportIDs {
         }
         sb.Append (quote);
         return sb.ToString ();
+    }
+
+    public static string GetTZForLL (string slat, string slon)
+    {
+        ProcessStartInfo psi = new ProcessStartInfo ("php", "gettzforllcsharp.php '" + slat + "' '" + slon + "'");
+        psi.RedirectStandardOutput = true;
+        psi.UseShellExecute = false;
+        psi.CreateNoWindow = true;
+        Process p = new Process ();
+        p.StartInfo = psi;
+        p.Start ();
+        return p.StandardOutput.ReadToEnd ().Trim ();
     }
 }

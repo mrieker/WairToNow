@@ -70,23 +70,32 @@ public abstract class PlateImage extends View {
      * @param pid = "APD-..." "IAP-..." etc
      * @param exp = plate expiration date yyyymmdd
      * @param fnm = plate image filename
+     * @param ful = plate takes up fill page
      * @return view of the plate image
      */
     public static PlateImage Create (WairToNow wtn, Waypoint.Airport apt, String pid, int exp, String fnm, boolean ful)
     {
-        if (pid.startsWith ("APD-")) {
-            return new APDPlateImage (wtn, apt, pid, exp, fnm, ful);
-        }
         if (pid.startsWith (IAPSynthPlateImage.prefix)) {
             return new IAPSynthPlateImage (wtn, apt, pid, exp, ful);
-        }
-        if (pid.startsWith ("IAP-")) {
-            return new IAPRealPlateImage (wtn, apt, pid, exp, fnm, ful);
         }
         if (pid.startsWith ("RWY-")) {
             return new RWYPlateImage (wtn, apt, pid, exp);
         }
-        return new NGRPlateImage (wtn, apt, pid, exp, fnm);
+
+        // some IAPs are multi-page texts (KSFO IAP-PRM AAUP)
+        // so assume they have no georef if more than 1 page
+        NGRPlateImage ngrpi = new NGRPlateImage (wtn, apt, pid, exp, fnm);
+        if (ngrpi.getNumPages () == 1) {
+            // just 1 page, check various georefd types
+            if (pid.startsWith ("APD-")) {
+                return new APDPlateImage (wtn, apt, pid, exp, fnm, ful);
+            }
+            if (pid.startsWith ("IAP-")) {
+                return new IAPRealPlateImage (wtn, apt, pid, exp, fnm, ful);
+            }
+        }
+        // not georefd
+        return ngrpi;
     }
 
     protected PlateImage (WairToNow wtn, Waypoint.Airport apt, String pid, int exp)

@@ -332,24 +332,26 @@ public class AdsbGpsRThread extends Thread implements Reporter {
             final double speed)
     {
         ReportAdsbGpsOwnship r = reportAdsbGpsOwnship;
-        if (r.bussy) return;
-
-        // pass GPS sample on to GUI thread
-        r.bussy = true;
-        r.time = time;
-        r.taltitude = taltitude;
-        r.heading = heading;
-        r.latitude = latitude;
-        r.longitude = longitude;
-        r.speed = speed;
-        WairToNow.wtnHandler.runDelayed (0, r);
+        //noinspection SynchronizationOnLocalVariableOrMethodParameter
+        synchronized (r) {
+            // pass GPS sample on to GUI thread
+            r.time = time;
+            r.taltitude = taltitude;
+            r.heading = heading;
+            r.latitude = latitude;
+            r.longitude = longitude;
+            r.speed = speed;
+            if (!r.bussy) {
+                r.bussy = true;
+                wairToNow.runOnUiThread (r);
+            }
+        }
     }
 
     private final ReportAdsbGpsOwnship reportAdsbGpsOwnship = new ReportAdsbGpsOwnship ();
 
     private class ReportAdsbGpsOwnship implements Runnable {
-        public volatile boolean bussy;
-
+        public boolean bussy;
         public long time;
         public double taltitude;
         public double heading;
@@ -358,15 +360,29 @@ public class AdsbGpsRThread extends Thread implements Reporter {
         public double speed;
 
         @Override
-        public void run () {
-            wairToNow.LocationReceived (
-                    speed / Lib.KtPerMPS,
-                    taltitude / Lib.FtPerM,
-                    heading,
-                    latitude,
-                    longitude,
-                    time);
-            bussy = false;
+        public void run ()
+        {
+            while (true) {
+                double alt, hdg, lat, lon, spd;
+                long t;
+                synchronized (this) {
+                    t = time;
+                    if (t == 0) {
+                        bussy = false;
+                        break;
+                    }
+                    time = 0;
+                    alt = taltitude;
+                    hdg = heading;
+                    lat = latitude;
+                    lon = longitude;
+                    spd = speed;
+                }
+                wairToNow.LocationReceived (
+                        spd / Lib.KtPerMPS,
+                        alt / Lib.FtPerM,
+                        hdg, lat, lon, t);
+            }
         }
     }
 
@@ -376,14 +392,39 @@ public class AdsbGpsRThread extends Thread implements Reporter {
     @Override
     public void adsbGpsSatellites (Collection<MyGpsSatellite> satellites)
     {
-        final LinkedList<MyGpsSatellite> sats = new LinkedList<> (satellites);
-        WairToNow.wtnHandler.runDelayed (0, new Runnable () {
-            @Override
-            public void run ()
-            {
-                wairToNow.sensorsView.gpsStatusView.SetGPSStatus (sats);
+        ReportGpsSatellites r = reportGpsSatellites;
+        //noinspection SynchronizationOnLocalVariableOrMethodParameter
+        synchronized (r) {
+            r.sats = new LinkedList<> (satellites);
+            if (! r.bussy) {
+                r.bussy = true;
+                wairToNow.runOnUiThread (r);
             }
-        });
+        }
+    }
+
+    private final ReportGpsSatellites reportGpsSatellites = new ReportGpsSatellites ();
+
+    private class ReportGpsSatellites implements Runnable {
+        public boolean bussy;
+        public LinkedList<MyGpsSatellite> sats;
+
+        @Override
+        public void run ()
+        {
+            while (true) {
+                LinkedList<MyGpsSatellite> ll;
+                synchronized (this) {
+                    ll = sats;
+                    if (ll == null) {
+                        bussy = false;
+                        break;
+                    }
+                    sats = null;
+                }
+                wairToNow.sensorsView.gpsStatusView.SetGPSStatus (ll);
+            }
+        }
     }
 
     /**
@@ -410,8 +451,8 @@ public class AdsbGpsRThread extends Thread implements Reporter {
             String callsign)
     {
         Log.d (TAG, "adsbGpsTraffic: " + Lib.TimeStringUTC (time) + " lat=" + latitude +
-                " lon=" + longitude + " alt=" + taltitude + " adr=" + Integer.toHexString (address) +
-                " ident=" + callsign);
+                " lon=" + longitude + " alt=" + Math.round (taltitude) +
+                " adr=" + Integer.toHexString (address) + " ident=" + callsign);
         Traffic traffic   = new Traffic ();
         traffic.time      = time;
         traffic.taltitude = taltitude / Lib.FtPerM;

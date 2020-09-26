@@ -1422,6 +1422,20 @@ public class Lib {
         return lcltz;
     }
 
+    // simplified time zone name
+    public static String simpTZName (String tzname)
+    {
+        switch (tzname) {
+            case "America/New_York": return "Eastern";
+            case "America/Chicago": return "Central";
+            case "America/Denver": return "Mountain";
+            case "America/Los_Angeles": return "Pacific";
+        }
+        if (tzname.startsWith ("America/")) return tzname.substring (8);
+        if (tzname.startsWith ("Pacific/")) return tzname.substring (8);
+        return tzname;
+    }
+
     /**
      * Various compiler warnings.
      */

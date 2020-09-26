@@ -20,6 +20,8 @@
 
 package com.outerworldapps.wairtonow;
 
+import android.util.Log;
+
 import java.util.Calendar;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
@@ -30,14 +32,16 @@ import java.util.TreeMap;
  * Holds the current ADS-B derived Metars etc for an airport from all sources.
  */
 public class MetarRepo {
+    public final static String TAG = "WairToNow";
     private final static int MAXMETARS = 20;
 
     private double altSetting;
     public  double latitude;
     public  double longitude;
+    public  float visibsm;   // visibility SM or NaN if unknown
     public  int ceilingft;   // feet or -1 if unknown
     private int lastSeqno = Integer.MIN_VALUE;
-    public  long ceilingms;  // timestamp (ms) or 0 if unknown
+    public  long ceilvisms;  // timestamp (ms) or 0 if unknown
     private NNTreeMap<Integer,Metar> metarAges = new NNTreeMap<> ();
     public  NNTreeMap<String,TreeMap<Long,Metar>> metarTypes = new NNTreeMap<> ();
 
@@ -46,6 +50,7 @@ public class MetarRepo {
         ceilingft = -1;
         latitude  = lat;
         longitude = lon;
+        visibsm   = Float.NaN;
     }
 
     /**
@@ -76,12 +81,20 @@ public class MetarRepo {
 
         // if it contains altimeter setting, save it
         // likewise for ceiling
-        if (newmet.type.equals ("METAR") || newmet.type.equals ("SPECI")) {
+        if (newmet.type.equals ("METAR") || newmet.type.equals ("SPECI") || newmet.type.equals ("TAF")) {
+            float newvisibsm = Float.MAX_VALUE;
+            int lowestceilft = Integer.MAX_VALUE;
             long whents = 0;
-            String[] parts = newmet.data.split (" ");
-            for (String part : parts) {
+            String[] parts = newmet.data.split ("\\s+");
+            int nparts = parts.length;
+            for (int ipart = 0; ipart < nparts; ipart ++) {
+                String part = parts[ipart];
+                // don't try to decode remarks
                 if (part.equals ("RMK")) break;
+                // TAFs begin with a METAR up to the first 'FROM' block
+                if ((part.length () == 8) && part.startsWith ("FM")) break;
 
+                // decode date/time of METAR observation
                 if ((part.length () == 7) && part.endsWith ("Z")) {
                     try {
                         int ddhhmm = Integer.parseInt (part.substring (0, 6));
@@ -89,21 +102,17 @@ public class MetarRepo {
                         int methr  = (ddhhmm / 100) % 100;
                         int metmin = ddhhmm % 100;
                         GregorianCalendar gc = new GregorianCalendar (TimeZone.getTimeZone ("GMT"));
-                        int metyear = gc.get (Calendar.YEAR);
-                        int metmon  = gc.get (Calendar.MONTH);
-                        int nowday  = gc.get (Calendar.DAY_OF_MONTH);
-                        if (metday > nowday) {
-                            if (-- metmon < Calendar.JANUARY) {
-                                gc.set (Calendar.YEAR, -- metyear);
-                                metmon = Calendar.DECEMBER;
-                            }
-                            gc.set (Calendar.MONTH, metmon);
+                        int nowday = gc.get (Calendar.DAY_OF_MONTH);
+                        if ((metday > 20) && (nowday < 10)) {
+                            gc.add (Calendar.MONTH, -1);
                         }
                         gc.set (Calendar.DAY_OF_MONTH, metday);
-                        gc.set (Calendar.HOUR, methr);
+                        gc.set (Calendar.HOUR_OF_DAY, methr);
                         gc.set (Calendar.MINUTE, metmin);
                         gc.set (Calendar.SECOND, 0);
-                        whents = gc.getTimeInMillis () / 1000 * 1000;
+                        gc.set (Calendar.MILLISECOND, 0);
+                        whents = gc.getTimeInMillis ();
+                        continue;
                     } catch (NumberFormatException nfe) {
                         Lib.Ignored ();
                     }
@@ -115,21 +124,62 @@ public class MetarRepo {
                         int setting = Integer.parseInt (part.substring (1));
                         if ((setting > 2500) && (setting < 3500)) {
                             altSetting = setting / 100.0;
+                            continue;
                         }
+                    } catch (NumberFormatException nfe) {
+                        Lib.Ignored ();
+                    }
+                    continue;
+                }
+
+                // ceiling
+                if (part.startsWith ("BKN") || part.startsWith ("OVC")) {
+                    try {
+                        int ceilft = Integer.parseInt (part.substring (3)) * 100;
+                        if (lowestceilft > ceilft) lowestceilft = ceilft;
+                        continue;
+                    } catch (NumberFormatException nfe) {
+                        Lib.Ignored ();
+                    }
+                }
+                if (part.startsWith ("VV")) {
+                    try {
+                        int ceilft = Integer.parseInt (part.substring (2)) * 100;
+                        if (lowestceilft > ceilft) lowestceilft = ceilft;
+                        continue;
                     } catch (NumberFormatException nfe) {
                         Lib.Ignored ();
                     }
                 }
 
-                // ceiling
-                if ((part.length () == 6) && (part.startsWith ("BKN") || part.startsWith ("OVC"))) {
+                // visibility  P6SM  10SM  1 1/2SM  1/4SM
+                // 'M' on the front means less than, eg, M1/4SM
+                if ((part.length () > 2) && part.endsWith ("SM")) {
+                    String number = part.substring (0, part.length () - 2);
+                    if (number.startsWith ("M")) number = number.substring (1);
+                    if (number.startsWith ("P")) number = number.substring (1);
+                    int i = number.indexOf ('/');
+                    float val = Float.NaN;
                     try {
-                        ceilingft = Integer.parseInt (part.substring (3)) * 100;
-                        ceilingms = whents;
-                    } catch (NumberFormatException nfe) {
-                        Lib.Ignored ();
+                        if (i < 0) val = Float.parseFloat (number);
+                        else {
+                            val = Float.parseFloat (number.substring (0, i)) / Float.parseFloat (number.substring (i + 1));
+                            if (ipart > 0) {
+                                int whole = Integer.parseInt (parts[ipart-1]);
+                                if ((whole > 0) && (whole < 9)) val += whole;
+                            }
+                        }
+                    } catch (NumberFormatException ignored) {
                     }
+                    if (! Float.isNaN (val)) newvisibsm = val;
                 }
+            }
+            Log.d (TAG, "MetarRepo: when=" + Lib.TimeStringUTC (whents) + " ceil=" + lowestceilft + " visib=" + newvisibsm + " data=" + newmet.data);
+
+            if (ceilvisms < whents) {
+                ceilvisms = whents;
+                ceilingft = lowestceilft;
+                visibsm   = newvisibsm;
             }
         }
     }

@@ -197,7 +197,7 @@ public class StateView extends View {
                     showCenterInfo ^= (now - downOnCenterInfo < 500);
                     downOnCenterInfo = 0;
                     invalidate ();  // redraw button vs text cloud
-                    chartView.backing.invalidate ();  // redraw with or without cross at center
+                    chartView.backing.postInvalidate ();  // redraw with or without cross at center
                     return true;
                 }
 
@@ -205,13 +205,13 @@ public class StateView extends View {
                     showCourseInfo ^= (now - downOnCourseInfo < 500);
                     downOnCourseInfo = 0;
                     invalidate ();
-                    chartView.backing.invalidate ();
+                    chartView.backing.postInvalidate ();
                     return true;
                 }
 
                 if (wairToNow.currentCloud.MouseUp (x, y, now)) {
                     invalidate ();
-                    chartView.backing.invalidate ();
+                    chartView.backing.postInvalidate ();
                     return true;
                 }
 

@@ -350,7 +350,7 @@ public class IAPRealPlateImage extends IAPPlateImage {
         /*
          * Draw runways if FAA-provided georef present.
          */
-        if ((lccmap != null) && (SystemClock.uptimeMillis () - plateLoadedUptime < 10000)) {
+        if ((lccmap != null) && (SystemClock.uptimeMillis () - plateLoadedUptime < 2000)) {
             DrawRunwayCenterlines (canvas);
         }
 

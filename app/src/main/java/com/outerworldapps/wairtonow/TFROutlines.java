@@ -266,7 +266,7 @@ public class TFROutlines {
         String[] strs = str.split ("[-T:]");
         if (strs.length != 6) throw new ParseException ("bad time string " + str, -1);
         int[] nums = new int[6];
-        for (int i = 0; i < 6; i ++) nums[i] = Integer.parseInt (strs[i], 10);
+        for (int i = 0; i < 6; i ++) nums[i] = Integer.parseInt (strs[i]);
         return Date.UTC (nums[0] - 1900, nums[1] - 1, nums[2], nums[3], nums[4], nums[5]);
     }
 
@@ -283,7 +283,7 @@ public class TFROutlines {
 
     // if no timezone given for tfr, try to get one
     // returns string like "America/New_York"
-    private static String getTimezoneAtLatLon (double lat, double lon)
+    public static String getTimezoneAtLatLon (double lat, double lon)
     {
         try {
             BufferedReader br = getHttpReader (MaintView.dldir + "/tzforlatlon.php?lat=" + lat + "&lon=" + lon);
@@ -453,7 +453,7 @@ public class TFROutlines {
                     tv.append ("\n           ");
                     tv.append (lclefftime);
                     tv.append (" ");
-                    tv.append (getTZName ());
+                    tv.append (Lib.simpTZName (tzname));
                 }
             }
 
@@ -469,23 +469,9 @@ public class TFROutlines {
                     tv.append ("\n           ");
                     tv.append (lclexptime);
                     tv.append (" ");
-                    tv.append (getTZName ());
+                    tv.append (Lib.simpTZName (tzname));
                 }
             }
-        }
-
-        // get timezone name displayed in the info alert box
-        private String getTZName ()
-        {
-            switch (tzname) {
-                case "America/New_York": return "Eastern";
-                case "America/Chicago": return "Central";
-                case "America/Denver": return "Mountain";
-                case "America/Los_Angeles": return "Pacific";
-            }
-            if (tzname.startsWith ("America/")) return tzname.substring (8);
-            if (tzname.startsWith ("Pacific/")) return tzname.substring (8);
-            return tzname;
         }
 
         // sort by ascending effective time for touched() method

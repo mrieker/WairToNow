@@ -593,6 +593,11 @@ public class OpenStreetMap {
         {
             setName ("OpenStreetMap runway prefetch");
 
+            // crude but effective during startup
+            while (wairToNow.maintView == null) {
+                try { Thread.sleep (100); } catch (InterruptedException ignored) { }
+            }
+
             try {
 
                 /*

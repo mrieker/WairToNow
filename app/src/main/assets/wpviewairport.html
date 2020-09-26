@@ -1,0 +1,434 @@
+<HTML>
+    <HEAD>
+        <SCRIPT LANGUAGE=JAVASCRIPT>
+            var metopens;
+
+            /*
+            var aptjso = {
+                getDetail: function () {
+                    return "airport detail text line 1\n" +
+                        "airport detail line 2\n";
+                },
+                getMetars: function () {
+                    return "" +
+                        "TMETAR\n" +
+                        "X1600000000000\n" +
+                        "D123456Z metar 1 text line 1\n" +
+                        "Dmetar 1 text line 2\n" +
+                        "X1600100000000\n" +
+                        "Dmetar 2 text line 1\n" +
+                        "Dmetar 2 text line 2\n" +
+                        "TTAF\n" +
+                        "X1601000000000\n" +
+                        "Dtaf 1 text line 1\n" +
+                        "Dtaf 1 text line 2\n";
+                },
+                getPlates: function () {
+                    return "" +
+                        "APD-airport diagram\n" +
+                        "IAP-ILS RWY 12\n" +
+                        "IAP-ILS RWY 20\n" +
+                        "IAP-RNAV RWY 12\n" +
+                        "RWY-runway diagram\n";
+                },
+                getMetarUrl: function () {
+                    return "http://localhost:12346/KBVY";
+                },
+                getAptLclTime: function (ddhhmmz) {
+                     return ddhhmmz + " UTC'";
+                },
+                plateClicked: function (pid) {
+                    window.alert (pid);
+                }
+            };
+            */
+
+            // page just loaded
+            function pageLoaded ()
+            {
+                // fill in metar box with recent metars
+                metopens = { };
+                fillMetars ();
+
+                // format airport detail triangle and corresponding hidden text
+                var dethtml = formatDetail ();
+
+                // get plate ids for this airport
+                var plates = aptjso.getPlates ();
+                var plateids = plates.split ('\n');
+
+                // one triangle for APD and RWY plates
+                var apdhtml = makePlateSection ("Airport/Runway Diagrams", plateids,
+                        function (plateid)
+                        {
+                            return plateid.startsWith ('APD-') || plateid.startsWith ('RWY-');
+                        }
+                );
+
+                // airport details and diagrams in same outline box
+                var html = '<DIV CLASS="outlinebox">' + dethtml + apdhtml + '</DIV>';
+
+                // add code for the approaches
+                // includes its own outline box if there are any approaches
+                html += formatApproaches (plateids);
+
+                // triangle for all MIN, DP, STAR plates
+                var mdshtml = makePlateSection ("Minimums", plateids,
+                        function (plateid)
+                        {
+                            return plateid.startsWith ('MIN-');
+                        }
+                );
+
+                // triangle for all DP plates
+                mdshtml += makePlateSection ("Departures", plateids,
+                        function (plateid)
+                        {
+                            return plateid.startsWith ('DP-');
+                        }
+                );
+
+                // triangle for all STAR plates
+                mdshtml += makePlateSection ("Arrivals", plateids,
+                        function (plateid)
+                        {
+                            return plateid.startsWith ('STAR-');
+                        }
+                );
+
+                if (mdshtml != '') html += '<DIV CLASS="outlinebox">' + mdshtml + '</DIV>';
+
+                // anything else
+                var othhtml = makePlateSection ("Other", plateids,
+                        function (plateid)
+                        {
+                            return true;
+                        }
+                );
+                if (othhtml != '') html += '<DIV CLASS="outlinebox">' + othhtml + '</DIV>';
+
+                // display html for all that
+                var plaspan = document.getElementById ('plates');
+                plaspan.innerHTML = html;
+
+                // make sure we have latest METAR/TAF from Internet if possible
+                // re-fills metar box if/when we get an update
+                // mostly do this if looking at an airport that isn't on current chart screen
+                // ...cuz we probably won't have any METAR/TAF data for it
+                var meturl = aptjso.getMetarUrl ();
+                if (meturl != '') doAjaxGet (meturl, gotWebMetar);
+            }
+
+            // format html for airport detail triangle and hidden text
+            function formatDetail ()
+            {
+                var detail = aptjso.getDetail ();
+                var detlines = detail.split ('\n');
+                var dethtml = '<A HREF="javascript:openPlateSec(\'aptdetail\')"><SPAN ID="tri-aptdetail">&#9654;</SPAN> ' +
+                        detlines[0] + '</A><TABLE HIDDEN ID="txt-aptdetail"><TR><TD>&nbsp;</TD></TR>';
+                var nlines = detlines.length;
+                for (var i = 0; ++ i < nlines;) {
+                    var detline = detlines[i];
+                    var j = detline.indexOf (':');
+                    if (j < 0) {
+                        dethtml += '<TR><TD></TD>';
+                    } else {
+                        var label = htmlspecialchars (detline.substring (0, j));
+                        dethtml += '<TR><TD ALIGN=RIGHT VALIGN=TOP>' + repall (label, ' ', '&nbsp;') + ':</TD>';
+                        detline = detline.substring (++ j);
+                    }
+                    dethtml += '<TD VALIGN=TOP>' + htmlspecialchars (detline) + '</TD></TR>';
+                }
+                dethtml += '<TR><TD>&nbsp;</TD></TR></TABLE>';
+                return dethtml;
+            }
+
+            // format html for all the approach plates
+            // sets up a separate triangle for each runway that has approaches
+            function formatApproaches (plateids)
+            {
+                var html = '';
+                var iaprwys = [ ];
+                var nplateids = plateids.length;
+                for (var i = 0; i < nplateids; i ++) {
+                    var plateline = plateids[i];
+                    if (plateline.startsWith ('IAP-')) {
+                        var platewords = plateline.split (' ');
+                        var nwords = platewords.length;
+                        for (var j = 0; j + 1 < nwords; j ++) {
+                            if (platewords[j] == 'RWY') {
+                                var rwy = platewords[++j];
+                                for (var k = iaprwys.length; -- k >= 0;) {
+                                    var iaprwy = iaprwys[k];
+                                    if (iaprwy.rwyno == rwy) break;
+                                }
+                                if (k < 0) {
+                                    var iaprwy = { rwyno: rwy, lines: [ ] };
+                                    iaprwys[iaprwys.length] = iaprwy;
+                                }
+                                iaprwy.lines[iaprwy.lines.length] = plateline;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (iaprwys.length > 0) {
+                    iaprwys.sort (function (a, b)
+                    {
+                        if (a.rwyno < b.rwyno) return -1;
+                        if (a.rwyno > b.rwyno) return  1;
+                        return 0;
+                    });
+                    html += '<DIV CLASS="outlinebox">';
+                    for (var i = 0; i < iaprwys.length; i ++) {
+                        var iaprwy = iaprwys[i];
+                        var appobjs = { };
+                        for (var j = 0; j < iaprwy.lines.length; j ++) {
+                            var line = iaprwy.lines[j].substring (4);
+                            if (line.indexOf (' VISUAL ') >= 0) {
+                                appobjs.VISUAL = true;
+                                continue;
+                            }
+                            if (line.startsWith ('RNAV (')) {
+                                var k = line.indexOf (')');
+                                appobjs[line.substring(6,k)] = true;
+                                continue;
+                            }
+                            var k = line.indexOf (' ');
+                            if (k >= 0) line = line.substring (0, k);
+                            var k = line.indexOf ('/');
+                            if (k >= 0) line = line.substring (0, k);
+                            appobjs[line] = true;
+                        }
+                        var title = 'App Rwy ' + iaprwy.rwyno;
+                        var first = true;
+                        for (var type in appobjs) {
+                            title += first ? ' (' : ', ';
+                            title += type;
+                            first = false;
+                        }
+                        if (! first) title += ')';
+                        html += makePlateSection (title, plateids,
+                                function (plateid)
+                                {
+                                    for (var j = 0; j < iaprwy.lines.length; j ++) {
+                                        if (iaprwy.lines[j] == plateid) return true;
+                                    }
+                                    return false;
+                                }
+                        );
+                    }
+                    html += makePlateSection ("Approaches Other", plateids,
+                            function (plateid)
+                            {
+                                return plateid.startsWith ("IAP-");
+                            }
+                    );
+                    html += '</DIV>';
+                }
+                return html;
+            }
+
+            // fill the metar division with metar text
+            function fillMetars ()
+            {
+                // get most recent metar text and parse
+                var mettypes = [ ];
+                var metars = aptjso.getMetars ();
+                if (metars != '') {
+                    var metlines = metars.split ('\n');
+                    var nmetlines = metlines.length;
+                    for (var i = 0; i < nmetlines; i ++) {
+                        var metline = metlines[i];
+                        if (metline == '') continue;
+                        if (metline.charAt (0) == 'T') {
+                            var mettype = { };
+                            mettype.type = metline.substring (1);
+                            mettype.objs = [ ];
+                            mettypes[mettypes.length] = mettype;
+                            continue;
+                        }
+                        if (metline.charAt (0) == 'X') {
+                            var metobj = { };
+                            metobj.time = metline.substring (1);
+                            metobj.data = '';
+                            mettype.objs[mettype.objs.length] = metobj;
+                            continue;
+                        }
+                        if (metline.charAt (0) == 'D') {
+                            metline = metline.substring (1).trim ();
+                            var j = metline.indexOf (' ');
+                            if (j >= 0) {
+                                var firstword = metline.substring (0, j);
+                                if ((firstword.length == 7) && (firstword.charAt (6) == 'Z')) {
+                                    metobj.data += '<TR><TD ALIGN=RIGHT><FONT COLOR=YELLOW>AsOf ' + decodeTime (firstword.substring (0, 6)) + '</FONT></TD><TD>' + metline.substring (j) + '</TD></TR>';
+                                    continue;
+                                }
+                                if ((firstword.length == 8) && (firstword.substring (0, 2) == 'FM')) {
+                                    metobj.data += '<TR><TD ALIGN=RIGHT><FONT COLOR=YELLOW>From ' + decodeTime (firstword.substring (2)) + '</FONT></TD><TD>' + metline.substring (j) + '</TD></TR>';
+                                    continue;
+                                }
+                            }
+                            metobj.data += '<TR><TD></TD><TD>' + metline + '</TD></TR>';
+                        }
+                    }
+                }
+
+                // format html
+                var html = '';
+                var ntypes = mettypes.length;
+                for (var i = 0; i < ntypes; i ++) {
+                    var mettype = mettypes[i];
+                    var type = mettype.type;
+                    if ((type in metopens) && metopens[type]) {
+                        html += '<A HREF="javascript:openMetar(\'' + type + '\')">&#9660; ' + type + '</A>';
+                        var metobjs = mettype.objs;
+                        var nobjs = metobjs.length;
+                        for (var j = 0; j < nobjs; j ++) {
+                            var metobj = metobjs[j];
+                            html += '<TABLE>' + metobj.data + '</TABLE>';
+                        }
+                    } else {
+                        html += '<A HREF="javascript:openMetar(\'' + type + '\')">&#9654; ' + type + '</A><BR>';
+                    }
+                }
+                var metspan = document.getElementById ('metars');
+                metspan.hidden = (ntypes == 0);
+                metspan.innerHTML = html;
+            }
+
+            // toggle the given metar/taf open/closed
+            function openMetar (type)
+            {
+                metopens[type] = ! metopens[type];
+                fillMetars ();
+            }
+
+            // got latest METAR/TAF from Internet stuffed into wtn's metar repo
+            // rebuild on-screen text from latest in wtn's metar repo
+            function gotWebMetar (req)
+            {
+                if (req.status == 200) {
+                    fillMetars ();
+                }
+            }
+
+            // make a ddhhmm (zulu) string nice
+            function decodeTime (ddhhmm)
+            {
+                var ztime = ddhhmm.substring (0, 2) + '&nbsp;' +
+                            ddhhmm.substring (2, 4) + ':' +
+                            ddhhmm.substring (4, 6) + 'z';
+                var ltime = aptjso.getAptLclTime (ddhhmm).replace (/ /g, '&nbsp;');
+                if (ltime.substring (0, 13) != ztime.substring (0, 13)) {
+                    ztime += ' (' + ltime + ')';
+                }
+                return ztime;
+            }
+
+            // make a section for plates
+            //  input:
+            //   title = title string for the triangle open/close line
+            //   plateids = array of all plate id strings
+            //   include = function to select which plates to include in section
+            //  output:
+            //   plateids = modified to have selected lines changed to ''
+            //   returns html code for the section '<A ...> ... </A>'
+            function makePlateSection (title, plateids, include)
+            {
+                var nplateids = plateids.length;
+                var html = '';
+                for (var i = 0; i < nplateids; i ++) {
+                    var plateid = plateids[i];
+                    if (plateid == '') continue;
+                    if (include (plateid)) {
+                        plateids[i] = '';
+                        if (html == '') {
+                            html += '<DIV><A HREF="javascript:openPlateSec(\'' + title + '\')">';
+                            html += '<SPAN ID="tri-' + title + '">&#9654;</SPAN> ';
+                            html += htmlspecialchars (title) + '</A><SPAN HIDDEN ID="txt-' + title + '">';
+                        }
+                        html += '<UL><LI><A CLASS="aplate" HREF="javascript:aptjso.plateClicked(\'' + plateid + '\')">' +
+                                htmlspecialchars (plateid) + '</A></UL>';
+                    }
+                }
+                if (html != '') html += '</SPAN></DIV>';
+                return html;
+            }
+
+            // toggle plate section open/closed
+            function openPlateSec (title)
+            {
+                var txt = document.getElementById ('txt-' + title);
+                txt.hidden = ! txt.hidden;
+                var tri = document.getElementById ('tri-' + title);
+                tri.innerHTML = txt.hidden ? '&#9654;' : '&#9660;';
+            }
+
+            // replace all special html char in the string
+            function htmlspecialchars (str)
+            {
+                str = repall (str, '&', '&amp;');
+                str = repall (str, '>', '&gt;');
+                str = repall (str, '<', '&lt;');
+                return repall (str, '"', '&quot;');
+            }
+
+            // replace all occurences of 'old' in 'str' with 'rep'
+            function repall (str, old, rep)
+            {
+                var out = '';
+                var j = 0;
+                var i;
+                while ((i = str.indexOf (old, j)) >= 0) {
+                    out += str.substring (j, i) + rep;
+                    j = i + old.length;
+                }
+                return out + str.substring (j);
+            }
+
+            // do an asynchronous ajax get request
+            //  input:
+            //   url = url to call to get data
+            //   done = function called when response received
+            //  callback:
+            //   done (req) : req.status = http status (200: OK)
+            //          req.responseText = response text
+            function doAjaxGet (url, done)
+            {
+                var httprequest = new XMLHttpRequest ();
+                httprequest.onreadystatechange = function () {
+                    if (this.readyState == 4) {
+                        done (this);
+                    }
+                };
+                httprequest.open ('GET', url, true);
+                httprequest.send ();
+            }
+        </SCRIPT>
+        <STYLE>
+            body {
+                background-color: black;
+                color: white;
+            }
+            a {
+                text-decoration-line: none;
+                color: cyan;
+            }
+            .aplate {
+                text-decoration-line: none;
+                color: white;
+            }
+            .outlinebox {
+                border: 1px solid white;
+                border-radius: 8px;
+                margin: auto;
+                padding: 10px 10px 10px 10px;
+            }
+        </STYLE>
+    </HEAD>
+    <BODY ONLOAD="pageLoaded()">
+        <DIV CLASS="outlinebox" ID="metars">metar span</DIV>
+        <DIV ID="plates">plates span</DIV>
+    </BODY>
+</HTML>

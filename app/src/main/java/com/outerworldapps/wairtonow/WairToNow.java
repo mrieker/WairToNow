@@ -142,6 +142,7 @@ public class WairToNow extends Activity {
     public  VirtNavView virtNav1View, virtNav2View;
     public  WaypointView waypointView1, waypointView2;
     private Waypoint pendingCourseSetWP;
+    public  WebMetarThread webMetarThread;
 
     /** Called when the activity is first created. */
     @Override
@@ -915,6 +916,9 @@ public class WairToNow extends Activity {
         hasAgreed = true;
         agreeButton.setVisibility (View.GONE);
         sensorsView.startGPSReceiver ();
+
+        webMetarThread = new WebMetarThread (this);
+        webMetarThread.start ();
 
         if (!atAMinimumShown && (maintView.GetCurentWaypointExpDate () <= 0)) {
             atAMinimumShown = true;

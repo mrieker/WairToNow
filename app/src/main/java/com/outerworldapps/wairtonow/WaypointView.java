@@ -24,8 +24,7 @@ import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
-import android.content.Intent;
-import android.net.Uri;
+import android.graphics.Color;
 import android.text.Editable;
 import android.text.InputType;
 import android.text.TextWatcher;
@@ -34,21 +33,21 @@ import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
+import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
-import android.widget.ScrollView;
 import android.widget.TextView;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
@@ -67,14 +66,13 @@ public class WaypointView extends LinearLayout
         "https://www.aviationweather.gov/taf/data?format=decoded&metars=on&date=&submit=Get+TAF+data&ids=";
 
     private DestinationButton destinationButton;
+    private DetailButton detailButton;
     private DownloadButton downloadButton;
     private File oldSearchFile;
     private FindButton findButton;
     private InfoButton infoButton;
     private LinearLayout oldSearchRow;
-    private LinearLayout waypointLinear;
     private LocationButton locationButton;
-    private MetarButton metarButton;
     private OldSearchButtonListener oldSearchLis;
     public  PlateView selectedPlateView;
     private RNavOffsetButton rnavOffsetButton;
@@ -83,7 +81,10 @@ public class WaypointView extends LinearLayout
     public  WairToNow wairToNow;
     public  Waypoint selectedWaypoint;
     public  Waypoint.Within waypointsWithin;
+    private WebView waypointWebView;
+    private WebWxButton webWxButton;
 
+    @SuppressLint("SetJavaScriptEnabled")
     public WaypointView (WairToNow ctx, String tn)
     {
         super (ctx);
@@ -152,17 +153,31 @@ public class WaypointView extends LinearLayout
         rnavOffsetButton = new RNavOffsetButton ();
         ll1.addView (rnavOffsetButton);
 
+        TextView sp1 = new TextView (ctx);
+        sp1.setText (" \u25C6 ");
+        ll1.addView (sp1);
+
+        /*
+         * This button shows the data and plate selection list page.
+         */
+        infoButton = new InfoButton (ctx);
+        ll1.addView (infoButton);
+
         /*
          * This button can be clicked to get the waypoint's METAR.
          */
-        metarButton = new MetarButton (ctx);
-        ll1.addView (metarButton);
+        webWxButton = new WebWxButton (ctx);
+        ll1.addView (webWxButton);
 
         /*
          * This button can be clicked to display the waypoint's information.
          */
-        infoButton = new InfoButton (ctx);
-        ll1.addView (infoButton);
+        detailButton = new DetailButton (ctx);
+        ll1.addView (detailButton);
+
+        TextView sp2 = new TextView (ctx);
+        sp2.setText (" \u25C6 ");
+        ll1.addView (sp2);
 
         /*
          * This button can be clicked to download the airport's information.
@@ -178,11 +193,15 @@ public class WaypointView extends LinearLayout
         /*
          * This box is used to describe the waypoint.
          */
-        waypointLinear = new LinearLayout (ctx);
-        waypointLinear.setOrientation (LinearLayout.VERTICAL);
-        ScrollView sv1 = new ScrollView (ctx);
-        sv1.addView (waypointLinear);
-        addView (sv1);
+        waypointWebView = new WebView (ctx);
+        addView (waypointWebView);
+        WebSettings settings = waypointWebView.getSettings ();
+        settings.setBuiltInZoomControls (true);
+        settings.setDomStorageEnabled (true);
+        settings.setJavaScriptEnabled (true);
+        settings.setDefaultFontSize (Math.round (wairToNow.textSize / 2.0F));
+        settings.setDefaultFixedFontSize (Math.round (wairToNow.textSize / 2.0F));
+        settings.setSupportZoom (true);
 
         /*
          * Reset waypoint area search database.
@@ -395,8 +414,9 @@ public class WaypointView extends LinearLayout
     public void OpenWaypointAtLatLon (final double lat, final double lon, double radiusnm)
     {
         // get all waypoints within box from given lat/lon
-        double del = radiusnm / Lib.NMPerDeg;
-        Collection<Waypoint> wpcollection = new Waypoint.Within (wairToNow).Get (lat - del, lat + del, lon - del, lon + del);
+        double delat = radiusnm / Lib.NMPerDeg;
+        double delon = delat / Math.cos (Math.toRadians (lat));
+        Collection<Waypoint> wpcollection = new Waypoint.Within (wairToNow).Get (lat - delat, lat + delat, lon - delon, lon + delon);
 
         // remove all waypoints greater than radius from the collection
         for (Iterator<Waypoint> it = wpcollection.iterator (); it.hasNext ();) {
@@ -493,24 +513,31 @@ public class WaypointView extends LinearLayout
         selectedWaypoint = wp;
         if (wp == null) {
             searchTextView.setText ("");
-            waypointLinear.removeAllViews ();
+            waypointWebView.loadUrl ("file:///android_asset/wpviewblank.html");
             findButton.setEnabled (false);
             destinationButton.setEnabled (false);
             locationButton.setEnabled (false);
             rnavOffsetButton.setEnabled (false);
-            metarButton.setEnabled (false);
             infoButton.setEnabled (false);
+            webWxButton.setEnabled (false);
+            detailButton.setEnabled (false);
             downloadButton.setEnabled (false);
+            infoButton.setTextColor (Color.BLACK);
+            webWxButton.setTextColor (Color.BLACK);
+            detailButton.setTextColor (Color.BLACK);
         } else {
             searchTextView.setText (wp.ident);
-            waypointLinear.removeAllViews ();
-            wp.GetDetailViews (this, waypointLinear);
+            wp.GetDetailViews (this, waypointWebView);
             destinationButton.setEnabled (true);
             locationButton.setEnabled (true);
             rnavOffsetButton.setEnabled (true);
-            metarButton.setEnabled (wp.HasMetar ());
-            infoButton.setEnabled (wp.HasInfo () != null);
+            infoButton.setEnabled (wp.HasMetar () || (wp.HasInfo () != null));
+            webWxButton.setEnabled (wp.HasMetar ());
+            detailButton.setEnabled (wp.HasInfo () != null);
             downloadButton.setEnabled (wp.NeedsDwnld ());
+            infoButton.setTextColor (infoButton.isEnabled () ? Color.RED : Color.BLACK);
+            webWxButton.setTextColor (Color.BLACK);
+            detailButton.setTextColor (Color.BLACK);
         }
         wairToNow.SetCurrentTab (this);
     }
@@ -577,9 +604,13 @@ public class WaypointView extends LinearLayout
             destinationButton.setEnabled (false);
             locationButton.setEnabled (false);
             rnavOffsetButton.setEnabled (false);
-            metarButton.setEnabled (false);
             infoButton.setEnabled (false);
+            webWxButton.setEnabled (false);
+            detailButton.setEnabled (false);
             downloadButton.setEnabled (false);
+            infoButton.setTextColor (Color.BLACK);
+            webWxButton.setTextColor (Color.BLACK);
+            detailButton.setTextColor (Color.BLACK);
             setEnabled (false);
 
             // get what user typed in to search for
@@ -607,11 +638,11 @@ public class WaypointView extends LinearLayout
 
             // let user select from the matches, if any
             if (matches.size () == 0) {
-                TextView dt = new TextView (wairToNow);
-                wairToNow.SetTextSize (dt);
-                dt.setText ("waypoint " + key + " not found in database");
-                waypointLinear.removeAllViews ();
-                waypointLinear.addView (dt);
+                AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
+                adb.setMessage ("waypoint " + key + " not found in database");
+                adb.setPositiveButton ("OK", null);
+                adb.show ();
+                waypointWebView.loadUrl ("file:///android_asset/wpviewblank.html");
             } else {
                 AddOldSearchButton (key, true);
                 OpenWaypointFromList (matches);
@@ -797,13 +828,13 @@ public class WaypointView extends LinearLayout
     }
 
     /**
-     * Button used to get the Internet derived METAR and TAF information for the current waypoint.
+     * Button used to show the basic information for the current waypoint.
      */
-    private class MetarButton extends Button implements OnClickListener {
-        public MetarButton (Context ctx)
+    private class InfoButton extends Button implements OnClickListener {
+        public InfoButton (Context ctx)
         {
             super (ctx);
-            setText ("WebMETAR");
+            setText ("Info");
             wairToNow.SetTextSize (this);
             setEnabled (false);
             setOnClickListener (this);
@@ -812,28 +843,45 @@ public class WaypointView extends LinearLayout
         @Override
         public void onClick (View v)
         {
-            try {
-                Intent intent = new Intent (Intent.ACTION_VIEW);
-                intent.setData (Uri.parse (metarurl + selectedWaypoint.ident));
-                wairToNow.startActivity (intent);
-            } catch (Throwable e) {
-                AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
-                adb.setTitle ("Error fetching METAR web page");
-                adb.setMessage (e.getMessage ());
-                adb.create ().show ();
-            }
+            setTextColor (Color.RED);
+            webWxButton.setTextColor (Color.BLACK);
+            detailButton.setTextColor (Color.BLACK);
+            selectedWaypoint.GetDetailViews (WaypointView.this, waypointWebView);
+        }
+    }
+
+    /**
+     * Button used to get the Internet derived METAR and TAF information for the current waypoint.
+     */
+    private class WebWxButton extends Button implements OnClickListener {
+        public WebWxButton (Context ctx)
+        {
+            super (ctx);
+            setText ("WebWx");
+            wairToNow.SetTextSize (this);
+            setEnabled (false);
+            setOnClickListener (this);
+        }
+
+        @Override
+        public void onClick (View v)
+        {
+            setTextColor (Color.RED);
+            infoButton.setTextColor (Color.BLACK);
+            detailButton.setTextColor (Color.BLACK);
+            waypointWebView.loadUrl (metarurl + selectedWaypoint.ident);
         }
     }
 
     /**
      * Button used to display the information file for the current waypoint.
      */
-    private class InfoButton extends Button implements OnClickListener {
+    private class DetailButton extends Button implements OnClickListener {
 
-        public InfoButton (Context ctx)
+        public DetailButton (Context ctx)
         {
             super (ctx);
-            setText ("Info");
+            setText ("Details");
             wairToNow.SetTextSize (this);
             setEnabled (false);
             setOnClickListener (this);
@@ -849,16 +897,19 @@ public class WaypointView extends LinearLayout
                     /*
                      * Display using a WebView.
                      */
-                    InputStreamReader isr = new InputStreamReader (zis);
-                    StringBuilder sb = new StringBuilder ();
-                    char[] buf = new char[4096];
-                    int len;
-                    while ((len = isr.read (buf)) > 0) {
-                        sb.append (buf, 0, len);
+                    String tempname = WairToNow.dbdir + "/" + tabName + ".tmp.html";
+                    FileOutputStream fos = new FileOutputStream (tempname);
+                    try {
+                        byte[] buf = new byte[4096];
+                        for (int len; (len = zis.read (buf)) > 0;) fos.write (buf, 0, len);
+                    } finally {
+                        fos.close ();
                     }
-                    isr.close ();
-                    MyWebView webView = new MyWebView (sb.toString ());
-                    wairToNow.SetCurrentTab (webView);
+
+                    setTextColor (Color.RED);
+                    webWxButton.setTextColor (Color.BLACK);
+                    infoButton.setTextColor (Color.BLACK);
+                    waypointWebView.loadUrl ("file://" + tempname);
                 } catch (Throwable e) {
                     AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
                     adb.setTitle ("Error fetching info web page");
@@ -867,51 +918,10 @@ public class WaypointView extends LinearLayout
                     adb.setMessage (msg);
                     adb.setPositiveButton ("OK", null);
                     adb.create ().show ();
+                } finally {
+                    try { zis.close (); } catch (IOException ignored) { }
                 }
             }
-        }
-    }
-
-    private class MyWebView extends WebView implements WairToNow.CanBeMainView {
-        @SuppressLint("SetJavaScriptEnabled")
-        public MyWebView (String content)
-        {
-            super (wairToNow);
-
-            getSettings ().setBuiltInZoomControls (true);
-            getSettings ().setDefaultFontSize (Math.round (wairToNow.textSize / 2.0F));
-            getSettings ().setDefaultFixedFontSize (Math.round (wairToNow.textSize / 2.0F));
-            getSettings ().setJavaScriptEnabled (true);
-
-            loadData (content, "text/html", null);
-        }
-
-        // CanBeMainView implementation
-        public void OpenDisplay () { }
-        public void CloseDisplay () { }
-
-        // say which tab button is active
-        public String GetTabName ()
-        {
-            return WaypointView.this.GetTabName ();
-        }
-
-        @Override  // CanBeMainView
-        public boolean IsPowerLocked ()
-        {
-            return WaypointView.this.IsPowerLocked ();
-        }
-
-        // if back button clicked, show the waypoint search page
-        public View GetBackPage ()
-        {
-            return WaypointView.this;
-        }
-
-        // if page button (at bottom of screen) clicked, show waypoint search page
-        public void ReClicked ()
-        {
-            wairToNow.SetCurrentTab (WaypointView.this);
         }
     }
 

@@ -25,7 +25,6 @@ import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.database.Cursor;
-import android.graphics.Color;
 import android.text.Editable;
 import android.text.InputType;
 import android.text.TextWatcher;
@@ -33,6 +32,8 @@ import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
+import android.webkit.JavascriptInterface;
+import android.webkit.WebView;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -41,6 +42,8 @@ import android.widget.TextView;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Constructor;
+import java.net.URLEncoder;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
@@ -49,6 +52,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Locale;
+import java.util.TimeZone;
 import java.util.TreeMap;
 import java.util.zip.ZipFile;
 
@@ -724,7 +728,6 @@ public abstract class Waypoint {
     @Override
     public boolean equals (Object o)
     {
-        if (o == null) return false;
         if (!(o instanceof Waypoint)) return false;
         Waypoint w = (Waypoint) o;
         return w.ident.equals (ident) && (w.lat == lat) && (w.lon == lon);
@@ -747,12 +750,10 @@ public abstract class Waypoint {
     }
 
     // full-page description
-    public void GetDetailViews (WaypointView wpv, LinearLayout ll)
+    public void GetDetailViews (WaypointView wayview, WebView webview)
     {
-        TextView dt = new TextView (wpv.wairToNow);
-        wpv.wairToNow.SetTextSize (dt);
-        dt.setText (GetDetailText ());
-        ll.addView (dt);
+        String dt = GetDetailText ();
+        webview.loadUrl ("file:///android_asset/wpviewsimple.html?detail=" + URLEncoder.encode (dt));
     }
 
     // full-page description
@@ -833,7 +834,7 @@ public abstract class Waypoint {
      * Get waypoints within a lat/lon area.
      */
     public static class Within {
-        private double leftLon, riteLon, topLat, botLat;
+        private double westLon, eastLon, northLat, southLat;
         private HashMap<String,Waypoint> found = new HashMap<> ();
         private WairToNow wairToNow;
 
@@ -849,60 +850,90 @@ public abstract class Waypoint {
         public void clear ()
         {
             found.clear ();
-            botLat  =  1000.0;
-            topLat  = -1000.0;
-            leftLon =  1000.0;
-            riteLon = -1000.0;
+            southLat =  1000.0;
+            northLat = -1000.0;
+            westLon  =  1000.0;
+            eastLon  = -1000.0;
         }
 
         /**
          * Return list of all waypoints within the given latitude & longitude.
          * May include waypoints outside that range as well.
          */
-        public Collection<Waypoint> Get (double bLat, double tLat, double lLon, double rLon)
+        public Collection<Waypoint> Get (double sLat, double nLat, double wLon, double eLon)
         {
+            wLon = Lib.NormalLon (wLon);
+            eLon = Lib.NormalLon (eLon);
+
             // if new box is completely separate from old box, wipe out everything and start over
-            if ((bLat > topLat) || (tLat < botLat) || (lLon > riteLon) || (rLon < leftLon)) {
+            boolean alloutside = (sLat > northLat) || (nLat < southLat);
+            if (! alloutside) {
+                boolean oldlonwraps = westLon > eastLon;
+                boolean newlonwraps = wLon > eLon;
+                if (! oldlonwraps && ! newlonwraps) {
+                    alloutside = (wLon > eastLon) || (eLon < westLon);
+                } else if (! oldlonwraps || ! newlonwraps) {
+                    alloutside = (westLon > eLon) && (eastLon < wLon);
+                }
+            }
+            if (alloutside) {
                 clear ();
             }
 
             // if new box goes outside old box, re-scan database
-            if ((botLat > bLat) || (topLat < tLat) || (leftLon > lLon) || (riteLon < rLon)) {
+            boolean goesoutside = alloutside || (sLat < southLat) || (nLat > northLat);
+            if (! goesoutside) {
+                boolean oldlonwraps = westLon > eastLon;
+                boolean newlonwraps = wLon > eLon;
+                if (oldlonwraps == newlonwraps) {
+                    goesoutside = (wLon < westLon) || (eLon > eastLon);
+                } else if (newlonwraps) {
+                    // oldlonwraps = false; newlonwraps = true
+                    goesoutside = true;
+                } else {
+                    // oldlonwraps = true; newlonwraps = false
+                    goesoutside = (eLon > eastLon) && (wLon < westLon);
+                }
+            }
+            if (goesoutside) {
 
                 // expand borders a little so we don't read each time for small changes
-                bLat -= 3.0 / 64.0;
-                tLat += 3.0 / 64.0;
-                lLon -= 3.0 / 64.0;
-                rLon += 3.0 / 64.0;
+                sLat -= 3.0 / 64.0;
+                nLat += 3.0 / 64.0;
+                wLon = Lib.NormalLon (wLon - 3.0 / 64.0);
+                eLon = Lib.NormalLon (eLon + 3.0 / 64.0);
 
                 // re-scanning database, get rid of all previous points
                 found.clear ();
 
                 // save exact limits of what we are scanning for
-                botLat  = bLat;
-                topLat  = tLat;
-                leftLon = lLon;
-                riteLon = rLon;
+                southLat = sLat;
+                northLat = nLat;
+                westLon  = wLon;
+                eastLon  = eLon;
 
                 SQLiteDBs sqldb = openWayptDB (wairToNow);
                 if (sqldb != null) {
                     try {
                         for (Class<? extends Waypoint> wpclass : Waypoint.wpclasses) {
                             String dbtable = (String) wpclass.getField ("dbtable").get (null);
-                            String keyid = ((String) wpclass.getField ("dbkeyid").get (null));
+                            String keyid = (String) wpclass.getField ("dbkeyid").get (null);
                             String[] dbcols = (String[]) wpclass.getField ("dbcols").get (null);
+                            Constructor<? extends Waypoint> ctor = wpclass.getConstructor (Cursor.class, WairToNow.class);
 
                             assert keyid != null;
                             String prefix = keyid.substring (0, 4);
 
+                            String where =
+                                    prefix + "lat>=" + sLat + " AND " +
+                                    prefix + "lat<=" + nLat + " AND (" +
+                                    prefix + "lon>=" + wLon +
+                                    ((wLon < eLon) ? " AND " : " OR ") +
+                                    prefix + "lon<=" + eLon + ')';
+
                             Cursor result = sqldb.query (
-                                    dbtable, dbcols,
-                                    "(" + prefix + "lat BETWEEN ? AND ?) AND (" +
-                                            prefix + "lon BETWEEN ? AND ?)",
-                                    new String[] { Double.toString (bLat), Double.toString (tLat),
-                                            Double.toString (lLon), Double.toString (rLon) },
-                                    null, null, null, null);
-                            Constructor<? extends Waypoint> ctor = wpclass.getConstructor (Cursor.class, WairToNow.class);
+                                    dbtable, dbcols, where,
+                                    null, null, null, null, null);
                             try {
                                 if (result.moveToFirst ()) do {
                                     Waypoint wp = ctor.newInstance (result, wairToNow);
@@ -928,14 +959,17 @@ public abstract class Waypoint {
         public final static String  dbkeyid = "apt_icaoid";
         @SuppressWarnings ("unused")  // reflection
         public final static String  dbkytbl = "aptkeys";
-        public final static String[] dbcols = new String[] { "apt_icaoid", "apt_faaid", "apt_elev", "apt_name", "apt_lat", "apt_lon", "apt_desc", "apt_state" };
-
-        private final static char metarsHidden = '\u25B6';  // right-pointing triangle when closed
-        private final static char metarsShown  = '\u25BC';  // down-pointing triangle when open
+        // WebMetarThread assumes dbcols[0].equals("apt_icaoid")
+        public final static String[] dbcols = new String[] { "apt_icaoid", "apt_faaid", "apt_elev",
+                "apt_name", "apt_lat", "apt_lon", "apt_desc", "apt_state", "apt_metaf", "apt_tzname" };
 
         public  final String name;       // eg, "BEVERLY MUNI"
         public  final String faaident;   // non-ICAO ident
         public  final String state;      // eg, "MA"
+        public  final String tzname;     // eg, "America/New_York"
+
+        public boolean hasmet;      // METARs can be retrieved from aviationweather.gov
+        public boolean hastaf;      // TAFs can be retrieved from aviationweather.gov
 
         private LinkedList<Runway> runwayPairs;
         private NNHashMap<String,Runway> runways;
@@ -952,6 +986,10 @@ public abstract class Waypoint {
             lat      = result.getDouble (4);
             lon      = result.getDouble (5);
             state    = result.getString (7);  // two letters
+            String metaf = result.getString (8);
+            hasmet   = metaf.contains ("M");
+            hastaf   = metaf.contains ("T");
+            tzname   = result.getString (9);
 
             wairToNow = wtn;
         }
@@ -989,42 +1027,78 @@ public abstract class Waypoint {
          * It consists of the detail text
          * followed by a list of buttons, one button per approach plate
          */
-        @SuppressLint("SetTextI18n")
+        @SuppressLint({ "SetTextI18n", "AddJavascriptInterface" })
         @Override
-        public void GetDetailViews (WaypointView wpv, LinearLayout ll)
+        public void GetDetailViews (WaypointView wayview, WebView webview)
         {
-            // start with ADS-B derived metars etc at the top
-            // just present a button for each type we currently have if any
-            // the user must click the button to see the info
-            synchronized (wpv.wairToNow.metarRepos) {
-                MetarRepo repo = wpv.wairToNow.metarRepos.get (ident);
+            waypointView = wayview;
+            webview.addJavascriptInterface (this, "aptjso");
+            webview.loadUrl ("file:///android_asset/wpviewairport.html");
+        }
+
+        // get metars and tafs for the airport
+        // the source is WebMetarThread and any received from ADS-B
+        //   T<type>   METAR, TAF, etc
+        //   X<unixtime>
+        //   D<line>
+        @SuppressWarnings ("unused")
+        @JavascriptInterface
+        public String getMetars ()
+        {
+            StringBuilder sb = new StringBuilder ();
+            synchronized (wairToNow.metarRepos) {
+                MetarRepo repo = wairToNow.metarRepos.get (ident);
                 if (repo != null) {
-                    for (Iterator<String> it = repo.metarTypes.keySet ().iterator (); it.hasNext ();) {
+                    for (Iterator<String> it = repo.metarTypes.keySet ().iterator (); it.hasNext (); ) {
                         String type = it.next ();
                         TreeMap<Long,Metar> metars = repo.metarTypes.nnget (type);
                         if (metars.isEmpty ()) {
                             it.remove ();
                         } else {
-                            TextView tv = new TextView (wpv.wairToNow);
-                            tv.setOnClickListener (showHideAdsbMetars);
-                            tv.setTag (type);
-                            tv.setTextColor (Color.CYAN);
-                            wpv.wairToNow.SetTextSize (tv);
-                            tv.setText (metarsHidden + " " + type);
-                            ll.addView (tv);
+                            sb.append ('T');
+                            sb.append (type);
+                            sb.append ('\n');
+                            for (Metar metar : metars.values ()) {
+                                sb.append ('X');
+                                sb.append (metar.time);
+                                sb.append ('\n');
+                                String[] lines = metar.data.split ("\n");
+                                for (String line : lines) {
+                                    sb.append ('D');
+                                    sb.append (line);
+                                    sb.append ('\n');
+                                }
+                            }
                         }
                     }
                 }
             }
+            return sb.toString ();
+        }
 
-            // next comes standard detail text
-            super.GetDetailViews (wpv, ll);
+        // get airport detail text (runways, frequencies)
+        @SuppressWarnings ("unused")
+        @JavascriptInterface
+        public String getDetail ()
+        {
+            return GetDetailText ();
+        }
 
+        private NNHashMap<String,Integer> latestexpdates;
+        private TreeMap<String,String> latestplates;
+        private WaypointView waypointView;
+
+        // get plate list, one plate per line
+        // lines are like APD-AIRPORT DIAGRAM, IAP-ILS RWY 07, DP-BEVERLY ONE, ...
+        @SuppressWarnings ("unused")
+        @JavascriptInterface
+        public String getPlates ()
+        {
             // get list of plates from database and the corresponding .gif file name
             String[] dbnames = SQLiteDBs.Enumerate ();
             int latestexpdate = 0;
-            TreeMap<String,String> latestplates = new TreeMap<> ();
-            NNHashMap<String,Integer> latestexpdates = new NNHashMap<> ();
+            latestplates = new TreeMap<> ();
+            latestexpdates = new NNHashMap<> ();
 
             for (String dbname : dbnames) {
                 if (dbname.startsWith ("nobudb/plates_") && dbname.endsWith (".db")) {
@@ -1069,14 +1143,70 @@ public abstract class Waypoint {
                 }
             }
 
-            // make a button for each plate (apt diagram, iap, sid, star, etc)
-            // and display them below the detail text
+            // make a line for each plate (apt diagram, iap, sid, star, etc)
+            StringBuilder sb = new StringBuilder ();
             for (String descrip : latestplates.keySet ()) {
-                String filename = latestplates.get (descrip);
-                int expdate = latestexpdates.nnget (descrip);
-                PlateButton pb = new PlateButton (wpv, descrip, filename, expdate, this);
-                ll.addView (pb);
+                sb.append (descrip);
+                sb.append ('\n');
             }
+            return sb.toString ();
+        }
+
+        // get url that when fetched, will fetch latest METARs and TAFs from FAA into
+        // wairToNow.metarRepo for this airport.  then use getMetars() to fetch from repo.
+        // returns "" if airport does not do metars and/or tafs
+        @SuppressWarnings ("unused")
+        @JavascriptInterface
+        public String getMetarUrl ()
+        {
+            if (! hasmet && ! hastaf) return "";
+            return wairToNow.webMetarThread.getWebMetarProxyURL (ident);
+        }
+
+        // plate link clicked, display corresponding page
+        @SuppressWarnings ("unused")
+        @JavascriptInterface
+        public void plateClicked (final String descrip)
+        {
+            wairToNow.runOnUiThread (new Runnable () {
+                @Override
+                public void run ()
+                {
+                    String filename = latestplates.get (descrip);
+                    int expdate = latestexpdates.nnget (descrip);
+                    PlateView pv = new PlateView (waypointView, filename, Airport.this, descrip, expdate, true);
+                    waypointView.selectedPlateView = pv;
+                    wairToNow.SetCurrentTab (pv);
+                }
+            });
+        }
+
+        // convert zulu time to airport local time
+        //  input:
+        //   ddhhmmz = time in 'ddhhmm' format
+        //  output:
+        //   returns local time formatted string
+        @SuppressWarnings ("unused")
+        @JavascriptInterface
+        public String getAptLclTime (String ddhhmmz)
+        {
+            int dd = Integer.parseInt (ddhhmmz.substring (0, 2));
+            int hh = Integer.parseInt (ddhhmmz.substring (2, 4));
+            int mm = Integer.parseInt (ddhhmmz.substring (4, 6));
+            GregorianCalendar gc = new GregorianCalendar ();
+            gc.setTimeZone (TimeZone.getTimeZone ("UTC"));
+            int nowdd = gc.get (GregorianCalendar.DAY_OF_MONTH);
+            if ((nowdd > 20) && (dd < 10)) gc.add (GregorianCalendar.MONTH,  1);
+            if ((nowdd < 10) && (dd > 20)) gc.add (GregorianCalendar.MONTH, -1);
+            gc.set (GregorianCalendar.DAY_OF_MONTH, dd);
+            gc.set (GregorianCalendar.HOUR_OF_DAY, hh);
+            gc.set (GregorianCalendar.MINUTE, mm);
+            gc.set (GregorianCalendar.SECOND, 0);
+            gc.set (GregorianCalendar.MILLISECOND, 0);
+            TimeZone tz = TimeZone.getTimeZone (tzname.equals ("") ? "UTC" : tzname);
+            SimpleDateFormat sdf = new SimpleDateFormat ("dd HH:mm", Locale.US);
+            sdf.setTimeZone (tz);
+            return sdf.format (gc.getTime ()) + " " + Lib.simpTZName (tz.getID ());
         }
 
         @Override
@@ -1100,7 +1230,7 @@ public abstract class Waypoint {
         @Override
         public boolean HasMetar ()
         {
-            return true;
+            return hasmet | hastaf;
         }
 
         @Override
@@ -1263,77 +1393,6 @@ public abstract class Waypoint {
         // Get associated airport
         @Override  // Waypoint
         public Airport GetAirport () { return this; }
-
-        /**
-         * These buttons are used to display a plate (apt diagram, iap, sid, star, etc).
-         */
-        @SuppressLint("ViewConstructor")
-        private static class PlateButton extends Button implements View.OnClickListener {
-            private Airport aw;  // eg, "KBVY"
-            private int ex;      // eg, 20150527
-            private String fn;   // eg, "gif_150/050/39l16.gif"
-            private String pd;   // eg, "IAP-LOC RWY 16", "APD-AIRPORT DIAGRAM", etc
-            private WaypointView wpv;
-
-            public PlateButton (WaypointView waypointView, String descrip, String filename, int expdate, Airport airport)
-            {
-                super (waypointView.wairToNow);
-                setText (descrip);
-                waypointView.wairToNow.SetTextSize (this);
-                setOnClickListener (this);
-                fn  = filename;
-                ex  = expdate;
-                aw  = airport;
-                pd  = descrip;
-                wpv = waypointView;
-            }
-
-            @Override  // OnClickListener
-            public void onClick (View button)
-            {
-                PlateView pv = new PlateView (wpv, fn, aw, pd, ex, true);
-                wpv.selectedPlateView = pv;
-                wpv.wairToNow.SetCurrentTab (pv);
-            }
-        }
-
-        /**
-         * Show/Hide ADS-B derived Metars, etc.
-         * Each type is given a TextView that can be clicked on to open it up.
-         * The first character of the text view is an arrow char, either metarsHidden
-         * or metarsShown that indicates the state of the text view.
-         */
-        private final View.OnClickListener showHideAdsbMetars = new View.OnClickListener () {
-            @SuppressLint("SetTextI18n")
-            @Override
-            public void onClick (View view)
-            {
-                String nowstr   = Lib.TimeStringUTC (System.currentTimeMillis ());
-                String nowyear_ = nowstr.substring (0, 5);
-                TextView tv = (TextView) view;
-                WairToNow wtn = (WairToNow) tv.getContext ();
-                String type = (String) tv.getTag ();
-                if (tv.getText ().charAt (0) == metarsHidden) {
-                    synchronized (wtn.metarRepos) {
-                        MetarRepo repo = wtn.metarRepos.get (ident);
-                        if (repo == null) return;
-                        TreeMap<Long,Metar> metars = repo.metarTypes.get (type);
-                        if (metars == null) return;
-                        if (metars.isEmpty ()) return;
-                        tv.setText (metarsShown + " " + type);
-                        for (Metar met : metars.values ()) {
-                            String timestr = Lib.TimeStringUTC (met.time);
-                            timestr = timestr.replace (nowyear_, "");
-                            timestr = timestr.replace (":00.000 UTC'", "z");
-                            timestr = timestr.replace (".000 UTC'", "z");
-                            tv.append ("\n" + timestr + " " + met.type + " " + met.data);
-                        }
-                    }
-                } else {
-                    tv.setText (metarsHidden + " " + type);
-                }
-            }
-        };
     }
 
     public static class SelfLL extends Waypoint {
@@ -1838,8 +1897,8 @@ public abstract class Waypoint {
         public Intersection (Cursor result, WairToNow wtn)
         {
             this.ident = result.getString (0);
-            this.lat   = result.getDouble  (1);
-            this.lon   = result.getDouble  (2);
+            this.lat   = result.getDouble (1);
+            this.lon   = result.getDouble (2);
             this.type  = result.getString (3);
         }
 
@@ -1935,6 +1994,23 @@ public abstract class Waypoint {
     {
         int waypointexpdate = wairToNow.maintView.GetCurentWaypointExpDate ();
         String dbname = "nobudb/waypoints_" + waypointexpdate + ".db";
-        return SQLiteDBs.open (dbname);
+        SQLiteDBs sqldb = SQLiteDBs.open (dbname);
+        if ((sqldb != null) && !sqldb.columnExists ("airports", "apt_metaf")) {
+            sqldb.execSQL ("ALTER TABLE airports ADD COLUMN apt_metaf TEXT NOT NULL DEFAULT ''");
+            sqldb.execSQL ("BEGIN");
+            Cursor result = sqldb.query (true, "runways", new String[] { "rwy_faaid" }, "rwy_length>=1500", null, null, null, null, null);
+            try {
+                if (result.moveToFirst ()) do {
+                    sqldb.execSQL ("UPDATE airports SET apt_metaf='?' WHERE apt_faaid='" + result.getString (0) + "'");
+                } while (result.moveToNext ());
+            } finally {
+                result.close ();
+            }
+            sqldb.execSQL ("COMMIT");
+        }
+        if ((sqldb != null) && !sqldb.columnExists ("airports", "apt_tzname")) {
+            sqldb.execSQL ("ALTER TABLE airports ADD COLUMN apt_tzname TEXT NOT NULL DEFAULT ''");
+        }
+        return sqldb;
     }
 }

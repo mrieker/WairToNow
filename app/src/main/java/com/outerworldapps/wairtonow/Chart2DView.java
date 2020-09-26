@@ -59,6 +59,7 @@ public class Chart2DView extends View
         implements ChartView.Backing, DisplayableChart.Invalidatable, ExactMapper {
     public final static String TAG = "WairToNow";
 
+    private final static long WXSUMDOTAGE = 90 * 60 * 1000;
     private final static double nearbynm = 5.0;
     private final static int waypointopentime = 1000;
     private final static double rotatestep = Math.toRadians (5.0);  // manual rotation stepping
@@ -72,12 +73,14 @@ public class Chart2DView extends View
     private final static boolean blinknexrad = false;
 
     private static final double scalebase  = 500000;    // chart scale factor (when scaling=1.0, using 500000
-                                                       // makes sectionals appear actual size theoretically)
+                                                        // makes sectionals appear actual size theoretically)
 
     private static final int capGridColor = Color.DKGRAY;
     private static final int centerColor  = Color.BLUE;
     public  static final int courseColor  = Color.rgb (170, 0, 170);
     private static final int currentColor = Color.RED;
+
+    private final static String[] singledigits = new String[] { "0", "1", "2", "3", "4", "5", "6", "7", "8", "9" };
 
     private static class Pointer {
         public int id;        // event pointer id
@@ -123,6 +126,7 @@ public class Chart2DView extends View
     private Paint trailPaint        = new Paint ();
     private Paint wayptBGPaint      = new Paint ();
     private Paint wsdPaint          = new Paint ();
+    private Paint wsrPaint          = new Paint ();
     private Paint[] faaWPPaints     = new Paint[] { new Paint (), new Paint () };
     private Paint[] userWPPaints    = new Paint[] { new Paint (), new Paint () };
     private Path trailPath          = new Path ();
@@ -138,6 +142,7 @@ public class Chart2DView extends View
     private Pointer secondPointer;
     private Pointer transPointer    = new Pointer ();
     private PointD drawCourseFilletCp = new PointD ();
+    private Rect wsrBounds = new Rect ();
     private RectF drawCourseFilletOval = new RectF ();
     public  WairToNow wairToNow;
     private Waypoint.Within waypointsWithin;
@@ -201,8 +206,14 @@ public class Chart2DView extends View
         wayptBGPaint.setTextSize (ts);
         wayptBGPaint.setTextAlign (Paint.Align.LEFT);
 
-        wsdPaint.setStrokeWidth (wairToNow.thickLine * 2);
+        wsdPaint.setStrokeWidth (wairToNow.thinLine);
         wsdPaint.setStyle (Paint.Style.FILL_AND_STROKE);
+        wsrPaint.setColor (Color.WHITE);
+        wsrPaint.setStrokeWidth (1.0F);
+        wsrPaint.setStyle (Paint.Style.FILL_AND_STROKE);
+        wsrPaint.setTextAlign (Paint.Align.CENTER);
+        wsrPaint.setTextSize (wairToNow.textSize);
+        wsrPaint.getTextBounds ("0", 0, 1, wsrBounds);
 
         for (Paint p : faaWPPaints) {
             p.setStyle (Paint.Style.FILL);
@@ -582,6 +593,9 @@ public class Chart2DView extends View
             if (chartView.scaling < scalesteps[0]) chartView.scaling = scalesteps[0];
             if (chartView.scaling > scalesteps[m]) chartView.scaling = scalesteps[m];
         }
+
+        // get metars & tafs for newly displayed airports
+        wairToNow.webMetarThread.sleeper.wake ();
     }
 
     /**
@@ -1420,23 +1434,41 @@ public class Chart2DView extends View
             for (String icaoid : wairToNow.metarRepos.keySet ()) {
                 MetarRepo repo = wairToNow.metarRepos.nnget (icaoid);
 
-                // only bother with reports less than 3 hours old
-                if (nowms - repo.ceilingms < 3 * 3600 * 1000) {
+                // only bother with reports less than 90 mins old
+                if (nowms - repo.ceilvisms < WXSUMDOTAGE) {
                     int cigft = repo.ceilingft;
                     if (cigft >= 0) {
 
                         // get airport centerpoint on canvas
-                        LatLon2CanPixExact (repo.latitude, repo.longitude, canpix1);
+                        if (LatLon2CanPixExact (repo.latitude, repo.longitude, canpix1)) {
+                            float cx = (float) canpix1.x;
+                            float cy = (float) canpix1.y;
 
-                        // get what color to make the dot
-                        wsdPaint.setColor (
-                                cigft >= 3000 ? Color.WHITE :
-                                cigft >= 1500 ? Color.GREEN :
-                                cigft >=  700 ? Color.BLUE :
-                                        Color.RED);
+                            // get what color to make the dot
+                            float visibsm = repo.visibsm;
+                            int color = (cigft < 500 || visibsm < 1.0F) ? Color.MAGENTA :
+                                    (cigft < 1000 || visibsm < 3.0F) ? Color.RED :
+                                            (cigft < 3000 || visibsm < 5.0F) ? Color.GRAY :
+                                                    (cigft < 10000) ? Color.GREEN :
+                                                            Color.CYAN;
+                            wsdPaint.setColor (color & 0xAAFFFFFF);
 
-                        // draw dot
-                        canvas.drawCircle ((float) canpix1.x, (float) canpix1.y, wairToNow.thickLine * 2.0F, wsdPaint);
+                            // draw dot
+                            float r = wairToNow.textSize * 0.5F;
+                            canvas.drawCircle (cx, cy, r, wsdPaint);
+
+                            // draw digits
+                            if (cigft < 10000) {
+                                String thousands = singledigits[cigft/1000];
+                                String hundreds = singledigits[cigft/100%10];
+                                wsrPaint.setTextSize (wairToNow.textSize * 0.75F);
+                                wsrPaint.setTextAlign (Paint.Align.LEFT);
+                                canvas.drawText (hundreds, cx, cy + wsrBounds.height () / 4.0F, wsrPaint);
+                                wsrPaint.setTextSize (wairToNow.textSize);
+                                wsrPaint.setTextAlign (Paint.Align.RIGHT);
+                                canvas.drawText (thousands, cx, cy + wsrBounds.height () / 2.0F, wsrPaint);
+                            }
+                        }
                     }
                 }
             }
@@ -1591,6 +1623,11 @@ public class Chart2DView extends View
          * Set up mapping.
          */
         chartView.pmap.setup (cw, ch, tlLat, tlLon, trLat, trLon, blLat, blLon, brLat, brLon);
+
+        /*
+         * Get METARs and TAFs for new airports.
+         */
+        wairToNow.webMetarThread.sleeper.wake ();
     }
 
     /**

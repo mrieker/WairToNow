@@ -38,11 +38,12 @@
         $row = $sqldb->querySingle ("SELECT tzname FROM timezones WHERE lat=$ilat AND lon=$ilon");
 
         if (!$row) {
+            sleep (3);
             $user = trim (file_get_contents ("$dbdir/geonames_username.txt"));
             $repl = file_get_contents ("http://api.geonames.org/timezoneJSON?lat=$lat&lng=$lon&username=$user");
             if (!$repl) exit;
             $json = json_decode ($repl);
-            $tzname = addslashes (trim ($json->timezoneId));
+            $tzname = isset ($json->timezoneId) ? addslashes (trim ($json->timezoneId)) : "";
             if ($tzname == "") $tzname = "-";
             $sqldb->exec ("INSERT INTO timezones (lat,lon,tzname) VALUES ($ilat,$ilon,'$tzname')");
         } else {

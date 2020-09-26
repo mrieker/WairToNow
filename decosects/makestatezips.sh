@@ -32,7 +32,7 @@ function processastate
 
         # add airport info to zip file
         # they go in as compressed faaid.html
-        grep ",$state,P[RU]$" $datums/airports_$cycles28.csv | addaptinfo | zip -q -@ $ziptemp
+        grep ",$state,P[RU]," $datums/airports_$cycles28.csv | addaptinfo | zip -q -@ $ziptemp
 
         # add plates to zip file
         # they go in as uncompressed name.gif.pn

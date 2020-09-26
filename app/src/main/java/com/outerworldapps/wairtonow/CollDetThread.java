@@ -120,10 +120,7 @@ public class CollDetThread extends Thread {
 
                     // likewise for waypoints
                     if (wptsqldb == null) {
-                        int expdate = wairToNow.maintView.GetCurentWaypointExpDate ();
-                        if (expdate > 0) {
-                            wptsqldb = SQLiteDBs.open ("nobudb/waypoints_" + expdate + ".db");
-                        }
+                        wptsqldb = Waypoint.openWayptDB (wairToNow);
                     }
 
                     if (! nearbyairport (curlat, curlon)) {

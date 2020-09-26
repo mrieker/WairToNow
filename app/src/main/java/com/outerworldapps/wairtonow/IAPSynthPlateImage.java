@@ -40,7 +40,7 @@ import java.util.Locale;
  */
 @SuppressLint("ViewConstructor")
 public class IAPSynthPlateImage extends IAPPlateImage implements DisplayableChart.Invalidatable {
-    public final static String prefix = "IAP-Synth ILS/DME ";
+    public final static String prefix = "IAP-Synth ILS/DME RWY ";
 
     // pixel size of real plate files
     private final static int platewidth  = 1614;

@@ -32,16 +32,21 @@ static char const *const months[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", 
 int main (int argc, char **argv)
 {
     char const *env, *fmt;
-    int cyclemonth, cyclen, cycleyear, exp, i, next28, nextyear;
+    int cyclemonth, cyclen, cycleyear, dayoff, exp, i, next28, nextyear;
     struct tm efftm, thentm;
     time_t cycletime, effbin, effday, nexttime, nowbin, nowcyc, nowday, thenbin, thenday;
 
     cyclen = 56;
+    dayoff = 0;
     exp = 0;
     fmt = "yyyy-mm-dd";
     for (i = 0; ++ i < argc;) {
         if (strcasecmp (argv[i], "-28") == 0) cyclen = 28;
         if (strcasecmp (argv[i], "-x")  == 0) exp = 1;
+        if (strcasecmp (argv[i], "-do") == 0) {
+            dayoff = atoi (argv[++i]);
+            continue;
+        }
         if (argv[i][0] != '-') fmt = argv[i];
     }
 
@@ -57,7 +62,8 @@ int main (int argc, char **argv)
         abort ();
     }
 
-    nowbin = time (NULL);
+    nowbin  = time (NULL);
+    nowbin += dayoff * 60*60*24;
     if (next28) nowbin += 60*60*24*28;
 
     setenv ("TZ", "", 1);

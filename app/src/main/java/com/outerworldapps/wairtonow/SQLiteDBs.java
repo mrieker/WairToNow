@@ -38,7 +38,6 @@ public class SQLiteDBs {
     private final static String TAG = "WairToNow";
 
     private final static String[] columns_name = new String[] { "name" };
-    private final static String[] columns_sql  = new String[] { "sql"  };
 
     // one pointer per thread accessing this database
     private NNThreadLocal<SQLiteDatabase> tlsqldb = new NNThreadLocal<> ();
@@ -239,27 +238,20 @@ public class SQLiteDBs {
     /**
      * See if the given column exists within the given table of the database.
      */
-    @SuppressWarnings("SameParameterValue")
+    @SuppressWarnings({ "SameParameterValue", "BooleanMethodIsAlwaysInverted" })
     public boolean columnExists (String table, String column)
     {
         dblock.lock ();
         try {
-            Cursor result = tlsqldb.nnget ().query (
-                    "sqlite_master", columns_sql,
-                    "type='table' AND name=?", new String[] { table },
-                    null, null, null, null);
+            Cursor result = tlsqldb.nnget ().rawQuery (
+                    "PRAGMA TABLE_INFO('" + table + "')", null);
             try {
-                // CREATE TABLE intersections (int_num INTEGER PRIMARY KEY, int_lat REAL NOT NULL,
-                //   int_lon REAL NOT NULL, int_type TEXT NOT NULL)
                 if (!result.moveToFirst ()) {
                     throw new InvalidParameterException ("table not found " + table);
                 }
-                String cretab = result.getString (0);
-                String[] words = cretab.split (" ");
-                String pcolumn = "(" + column;
-                for (String word : words) {
-                    if (word.equals (pcolumn) || word.equals (column)) return true;
-                }
+                do {
+                    if (result.getString (1).equals (column)) return true;
+                } while (result.moveToNext ());
                 return false;
             } finally {
                 result.close ();
