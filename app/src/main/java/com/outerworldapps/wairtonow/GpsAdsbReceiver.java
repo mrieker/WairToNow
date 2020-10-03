@@ -36,7 +36,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.text.SimpleDateFormat;
 import java.util.Locale;
-import java.util.TimeZone;
 
 /**
  * GPS/ADS-B receiver devices (internal or external).
@@ -127,7 +126,7 @@ public abstract class GpsAdsbReceiver {
 
             // make log file name based on date/time
             SimpleDateFormat sdf = new SimpleDateFormat ("yyyyMMdd-HHmmss", Locale.US);
-            sdf.setTimeZone (TimeZone.getTimeZone ("UTC"));
+            sdf.setTimeZone (Lib.tzUtc);
             final String logname = sdf.format (System.currentTimeMillis ()) + "." + getPrefKey ();
             wairToNow.runOnUiThread (new Runnable () {
                 @Override

@@ -45,7 +45,7 @@ fi
 if [ ProcessPlates.jar -ot ProcessPlates.java ]
 then
     rm -f *.class
-    javac ProcessPlates.java
+    javac ProcessPlates.java Lib.java
     jar cf ProcessPlates.jar *.class
     rm -f *.class
 fi

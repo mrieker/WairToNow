@@ -16,7 +16,7 @@
                         "D123456Z metar 1 text line 1\n" +
                         "Dmetar 1 text line 2\n" +
                         "X1600100000000\n" +
-                        "Dmetar 2 text line 1\n" +
+                        "D101112Z metar 2 text line 1\n" +
                         "Dmetar 2 text line 2\n" +
                         "TTAF\n" +
                         "X1601000000000\n" +
@@ -241,6 +241,9 @@
                     for (var i = 0; i < nmetlines; i ++) {
                         var metline = metlines[i];
                         if (metline == '') continue;
+
+                        // TMETAR, TPIREP, TTAF ...
+                        // create a mettype object
                         if (metline.charAt (0) == 'T') {
                             var mettype = { };
                             mettype.type = metline.substring (1);
@@ -248,13 +251,19 @@
                             mettypes[mettypes.length] = mettype;
                             continue;
                         }
+
+                        // Xtimeissued (might be more than one per mettype)
+                        // create a metobj object and add to mettype
                         if (metline.charAt (0) == 'X') {
-                            var metobj = { };
+                            var metobj  = { };
                             metobj.time = metline.substring (1);
                             metobj.data = '';
                             mettype.objs[mettype.objs.length] = metobj;
                             continue;
                         }
+
+                        // Dtext
+                        // append <TR>...</TR> row to metobj.data
                         if (metline.charAt (0) == 'D') {
                             metline = metline.substring (1).trim ();
                             var j = metline.indexOf (' ');
@@ -274,24 +283,28 @@
                     }
                 }
 
-                // format html
+                // format HTML
+                // one triangle button and table per mettype object
                 var html = '';
                 var ntypes = mettypes.length;
                 for (var i = 0; i < ntypes; i ++) {
                     var mettype = mettypes[i];
                     var type = mettype.type;
                     if ((type in metopens) && metopens[type]) {
-                        html += '<A HREF="javascript:openMetar(\'' + type + '\')">&#9660; ' + type + '</A>';
+                        html += '<A HREF="javascript:openMetar(\'' + type + '\')">&#9660; ' + type + '</A><TABLE>';
                         var metobjs = mettype.objs;
                         var nobjs = metobjs.length;
                         for (var j = 0; j < nobjs; j ++) {
                             var metobj = metobjs[j];
-                            html += '<TABLE>' + metobj.data + '</TABLE>';
+                            html += metobj.data;
                         }
+                        html += '</TABLE>';
                     } else {
                         html += '<A HREF="javascript:openMetar(\'' + type + '\')">&#9654; ' + type + '</A><BR>';
                     }
                 }
+
+                // display the HTML
                 var metspan = document.getElementById ('metars');
                 metspan.hidden = (ntypes == 0);
                 metspan.innerHTML = html;

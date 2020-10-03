@@ -19,7 +19,7 @@
 //    http://www.gnu.org/licenses/gpl-2.0.html
 
 // rm -f *.class
-// javac ProcessPlates.java
+// javac ProcessPlates.java Lib.java
 // jar cf ProcessPlates.jar *.class
 // rm -rf aptplates.tmp
 // mkdir aptplates.tmp
@@ -106,10 +106,11 @@ public class ProcessPlates {
         // than those in the .xml file (eg, PGRO)
         BufferedReader br = new BufferedReader (new FileReader (args[2]));
         for (String line; (line = br.readLine ()) != null;) {
-            String[] parts = line.split (",");
+            String[] parts = Lib.QuotedCSVSplit (line);
             String icaoid = parts[0];
-            String statid = parts[parts.length-2];
+            String statid = parts[8];
             statecodes.put (icaoid, statid);
+            //System.out.println (icaoid + " > " + statid);
         }
         br.close ();
 

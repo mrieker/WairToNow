@@ -49,6 +49,8 @@ public class Lib {
     public static final double SMPerNM   = 1.15078;
     public static final int    MPerNM    = 1852;    // metres per naut mile
 
+    public static final TimeZone tzUtc = TimeZone.getTimeZone ("UTC");
+
     private static ThreadLocal<SimpleDateFormat> utcfmt = new ThreadLocal<> ();
     private static Rect drawBoundedStringBounds = new Rect ();
 
@@ -1288,7 +1290,7 @@ public class Lib {
         SimpleDateFormat sdf = utcfmt.get ();
         if (sdf == null) {
             sdf = new SimpleDateFormat ("yyyy-MM-dd HH:mm:ss.SSS 'UTC'''", Locale.US);
-            sdf.setTimeZone (TimeZone.getTimeZone ("UTC"));
+            sdf.setTimeZone (Lib.tzUtc);
             utcfmt.set (sdf);
         }
         return sdf.format (timems);

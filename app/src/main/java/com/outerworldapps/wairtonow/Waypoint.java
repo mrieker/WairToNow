@@ -1193,8 +1193,7 @@ public abstract class Waypoint {
             int dd = Integer.parseInt (ddhhmmz.substring (0, 2));
             int hh = Integer.parseInt (ddhhmmz.substring (2, 4));
             int mm = Integer.parseInt (ddhhmmz.substring (4, 6));
-            GregorianCalendar gc = new GregorianCalendar ();
-            gc.setTimeZone (TimeZone.getTimeZone ("UTC"));
+            GregorianCalendar gc = new GregorianCalendar (Lib.tzUtc, Locale.US);
             int nowdd = gc.get (GregorianCalendar.DAY_OF_MONTH);
             if ((nowdd > 20) && (dd < 10)) gc.add (GregorianCalendar.MONTH,  1);
             if ((nowdd < 10) && (dd > 20)) gc.add (GregorianCalendar.MONTH, -1);
@@ -1203,7 +1202,7 @@ public abstract class Waypoint {
             gc.set (GregorianCalendar.MINUTE, mm);
             gc.set (GregorianCalendar.SECOND, 0);
             gc.set (GregorianCalendar.MILLISECOND, 0);
-            TimeZone tz = TimeZone.getTimeZone (tzname.equals ("") ? "UTC" : tzname);
+            TimeZone tz = tzname.equals ("") ? Lib.tzUtc : TimeZone.getTimeZone (tzname);
             SimpleDateFormat sdf = new SimpleDateFormat ("dd HH:mm", Locale.US);
             sdf.setTimeZone (tz);
             return sdf.format (gc.getTime ()) + " " + Lib.simpTZName (tz.getID ());
@@ -1249,7 +1248,8 @@ public abstract class Waypoint {
         // maybe there is something that needs downloading
         public boolean NeedsDwnld ()
         {
-            Calendar nowcal = new GregorianCalendar ();
+            Calendar nowcal = new GregorianCalendar (Lib.tzUtc, Locale.US);
+            nowcal.add (Calendar.MINUTE, -MaintView.DAYBEGINS);  // day starts at 0901z
             int nowdate = nowcal.get (Calendar.YEAR) * 10000 +
                           nowcal.get (Calendar.MONTH) * 10 +
                           nowcal.get (Calendar.DAY_OF_MONTH);

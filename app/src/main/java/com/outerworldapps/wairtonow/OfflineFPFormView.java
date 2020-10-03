@@ -41,7 +41,6 @@ import java.util.Collection;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.Locale;
-import java.util.TimeZone;
 import java.util.TreeMap;
 
 import static com.outerworldapps.wairtonow.Waypoint.*;
@@ -79,7 +78,7 @@ public class OfflineFPFormView extends WebView implements WairToNow.CanBeMainVie
     public String getUTCNow ()
     {
         SimpleDateFormat sdf = new SimpleDateFormat ("yyyy-MM-dd HH:mm", Locale.US);
-        sdf.setTimeZone (TimeZone.getTimeZone ("UTC"));
+        sdf.setTimeZone (Lib.tzUtc);
         return sdf.format (new Date ());
     }
 

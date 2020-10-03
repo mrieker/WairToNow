@@ -72,7 +72,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Locale;
-import java.util.TimeZone;
 import java.util.TreeMap;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipEntry;
@@ -505,7 +504,7 @@ public class MaintView
                                 }
                             }
                             if (msg != null) {
-                                GregorianCalendar now = new GregorianCalendar ();
+                                GregorianCalendar now = new GregorianCalendar (Locale.US);
                                 final int today = now.get (Calendar.YEAR) * 10000 +
                                         (now.get (Calendar.MONTH) - Calendar.JANUARY + 1) * 100 +
                                         now.get (Calendar.DAY_OF_MONTH);
@@ -573,7 +572,7 @@ public class MaintView
         // get dates to check chart expiration dates against
         //  boolean chart_is_expired = (chart_enddate <= deaddate)
         //  boolean chart_warning    = (chart_enddate <= warndate)
-        GregorianCalendar now = new GregorianCalendar (TimeZone.getTimeZone ("UTC"), Locale.US);
+        GregorianCalendar now = new GregorianCalendar (Lib.tzUtc, Locale.US);
         now.add (Calendar.MINUTE, -DAYBEGINS);  // day starts at 0901z
         deaddate = now.get (Calendar.YEAR) * 10000 + (now.get (Calendar.MONTH) -
                 Calendar.JANUARY + 1) * 100 + now.get (Calendar.DAY_OF_MONTH);

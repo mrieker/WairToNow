@@ -34,7 +34,7 @@ import java.net.Socket;
 import java.net.URL;
 import java.util.GregorianCalendar;
 import java.util.Iterator;
-import java.util.TimeZone;
+import java.util.Locale;
 import java.util.TreeMap;
 
 /**
@@ -259,25 +259,26 @@ public class WebMetarThread extends Thread {
         synchronized (lastfetcheds) {
             lastfetcheds.put (apt.ident, nowtime);
         }
-        Metar metar = new Metar ();
+        long time;
+        String type;
         try {
-            metar.time = parseMetarTime (words[i+1]);
+            time = parseMetarTime (words[i+1]);
         } catch (NumberFormatException nfe) {
             // this happens when we get an error message saying no metar/taf report for this airport
             return;
         }
-        metar.type = "METAR";
+        type = "METAR";
         StringBuilder sb = new StringBuilder ();
         while (++ i < j) {
             String word = words[i];
             if ((word.length () == 8) && word.startsWith ("FM")) {
-                metar.type = "TAF";
+                type = "TAF";
                 sb.append ('\n');
             }
             if (sb.length () > 0) sb.append (' ');
             sb.append (word);
         }
-        metar.data = sb.toString ();
+        Metar metar = new Metar (time, type, sb.toString ());
         synchronized (wairToNow.metarRepos) {
             MetarRepo repo = wairToNow.metarRepos.get (apt.ident);
             if (repo == null) {
@@ -297,7 +298,7 @@ public class WebMetarThread extends Thread {
     //   returns millisecond time
     private static long parseMetarTime (String ddhhmmz)
     {
-        GregorianCalendar gcal = new GregorianCalendar (TimeZone.getTimeZone ("UTC"));
+        GregorianCalendar gcal = new GregorianCalendar (Lib.tzUtc, Locale.US);
         int dd = Integer.parseInt (ddhhmmz.substring (0, 2));
         int hh = Integer.parseInt (ddhhmmz.substring (2, 4));
         int mm = Integer.parseInt (ddhhmmz.substring (4, 6));

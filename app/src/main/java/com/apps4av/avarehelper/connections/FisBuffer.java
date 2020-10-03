@@ -11,9 +11,11 @@ Redistribution and use in source and binary forms, with or without modification,
 */
 package com.apps4av.avarehelper.connections;
 
+import com.outerworldapps.wairtonow.Lib;
+
 import java.util.Calendar;
 import java.util.GregorianCalendar;
-import java.util.TimeZone;
+import java.util.Locale;
 
 /**
  * 
@@ -32,8 +34,6 @@ public class FisBuffer {
     private final static int PRODUCT_TYPE_NEXRAD_REGION = 63;
     private final static int PRODUCT_TYPE_NEXRAD_CONUS = 64;
     private final static int PRODUCT_TYPE_TEXT = 413;
-
-    private final static TimeZone tzUtc = TimeZone.getTimeZone ("UTC");
     
     /**
      * Parse products out of the Fis
@@ -79,11 +79,8 @@ public class FisBuffer {
         // get current time (what we think time is)
         // chop off milliseconds cuz we only get seconds from message
         // so we shouldn't put in arbitrary milliseconds
-        long nowBin = System.currentTimeMillis () / 1000 * 1000;
-
-        Calendar time = new GregorianCalendar ();
-        time.setTimeZone (tzUtc);
-        time.setTimeInMillis (nowBin);
+        Calendar time = new GregorianCalendar (Lib.tzUtc, Locale.US);
+        time.set (Calendar.MILLISECOND, 0);
 
         BitInputStream s = new BitInputStream (fisBuffer, fisOffset, fisLength);
 

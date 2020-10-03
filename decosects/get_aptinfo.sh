@@ -58,7 +58,7 @@ fi
 
 if [ GetAirportIDs.exe -ot GetAirportIDs.cs ]
 then
-    mcs -debug -out:GetAirportIDs.exe GetAirportIDs.cs
+    mcs -debug -out:GetAirportIDs.exe GetAirportIDs.cs -reference:System.Data.dll -reference:Mono.Data.Sqlite.dll
 fi
 
 if [ GetFixes.exe -ot GetFixes.cs ]

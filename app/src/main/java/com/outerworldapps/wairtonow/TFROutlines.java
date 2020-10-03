@@ -85,7 +85,6 @@ public class TFROutlines {
     private final static String[] pathtfrcols = new String[] {
             "p_id", "p_area", "p_eff", "p_exp", "p_tz", "p_bot", "p_top", "p_fet", "p_lls",
             "p_northlat", "p_southlat", "p_eastlon", "p_westlon" };
-    private final static TimeZone utctz = TimeZone.getTimeZone ("UTC");
 
     private final static String faaurl = "https://tfr.faa.gov";
     private final static String faapfx = "save_pages/detail_";
@@ -315,7 +314,7 @@ public class TFROutlines {
                 if (ifmodsince > 0) {
                     // Thu, 02 May 2013 23:03:06 GMT
                     SimpleDateFormat lmsdf = new SimpleDateFormat ("EEE, dd MMM yyyy HH:mm:ss 'GMT'", Locale.US);
-                    lmsdf.setTimeZone (utctz);
+                    lmsdf.setTimeZone (Lib.tzUtc);
                     String lmstr = lmsdf.format (ifmodsince);
                     httpCon.setRequestProperty ("if-modified-since", lmstr);
                 }
@@ -437,7 +436,7 @@ public class TFROutlines {
                 tv.append ("\nACTIVE NOW");
             }
 
-            sdfout.setTimeZone (utctz);
+            sdfout.setTimeZone (Lib.tzUtc);
             String utcefftime = sdfout.format (efftime);
             tv.append ("\nEffective: ");
             tv.append (utcefftime);
@@ -460,7 +459,7 @@ public class TFROutlines {
             tv.append ("\nExpires: ");
             if (exptime >= 0xFFFFFFFFL * 1000) tv.append ("indefinite");
             else {
-                sdfout.setTimeZone (utctz);
+                sdfout.setTimeZone (Lib.tzUtc);
                 tv.append (sdfout.format (exptime));
                 tv.append (" UTC");
                 if (lcltz != null) {
@@ -1317,7 +1316,7 @@ public class TFROutlines {
                 SimpleDateFormat sdfout = new SimpleDateFormat (
                         (now - fetched < 12*60*60*1000) ? "HH:mm" : "yyyy-MM-dd@HH:mm",
                         Locale.US);
-                sdfout.setTimeZone (utctz);
+                sdfout.setTimeZone (Lib.tzUtc);
                 statusline = "TFRs as of " + sdfout.format (fetched) + "z";
             } else {
                 statusline = null;
@@ -1376,7 +1375,7 @@ public class TFROutlines {
 
                     // Thu, 02 May 2013 23:03:06 GMT
                     SimpleDateFormat lmsdf = new SimpleDateFormat ("EEE, dd MMM yyyy HH:mm:ss 'GMT'", Locale.US);
-                    lmsdf.setTimeZone (utctz);
+                    lmsdf.setTimeZone (Lib.tzUtc);
 
                     long listmod = 0;
 

@@ -22,28 +22,21 @@ package com.outerworldapps.wairtonow;
 
 import android.util.Log;
 
-import java.util.Calendar;
-import java.util.GregorianCalendar;
 import java.util.HashMap;
-import java.util.TimeZone;
-import java.util.TreeMap;
 
 /**
- * Holds the current ADS-B derived Metars etc for an airport from all sources.
+ * Holds the current ADS-B or Web derived Metars etc for an airport.
  */
 public class MetarRepo {
     public final static String TAG = "WairToNow";
-    private final static int MAXMETARS = 20;
 
     private double altSetting;
     public  double latitude;
     public  double longitude;
-    public  float visibsm;   // visibility SM or NaN if unknown
-    public  int ceilingft;   // feet or -1 if unknown
-    private int lastSeqno = Integer.MIN_VALUE;
-    public  long ceilvisms;  // timestamp (ms) or 0 if unknown
-    private NNTreeMap<Integer,Metar> metarAges = new NNTreeMap<> ();
-    public  NNTreeMap<String,TreeMap<Long,Metar>> metarTypes = new NNTreeMap<> ();
+    public  float  visibsm;     // visibility SM or NaN if unknown
+    public  int    ceilingft;   // feet or -1 if unknown
+    public  long   ceilvisms;   // timestamp (ms) or 0 if unknown
+    public  NNTreeMap<String,NNTreeMap<Long,Metar>> metarTypes = new NNTreeMap<> ();
 
     public MetarRepo (double lat, double lon)
     {
@@ -59,69 +52,57 @@ public class MetarRepo {
      */
     public void insertNewMetar (Metar newmet)
     {
-        newmet.seqno = ++ lastSeqno;
+        // treat SPECIs just like METARs so they get sorted with each other
+        String type = newmet.type;
+        if (type.equals ("SPECI")) type = "METAR";
 
         // insert on lists
-        TreeMap<Long,Metar> types = metarTypes.get (newmet.type);
+        NNTreeMap<Long,Metar> types = metarTypes.get (type);
         if (types == null) {
-            types = new TreeMap<> ();
-            metarTypes.put (newmet.type, types);
+            types = new NNTreeMap<> ();
+            metarTypes.put (type, types);
         }
-        Metar oldmet = types.remove (newmet.time);
-        if (oldmet != null) metarAges.remove (oldmet.seqno);
         types.put (newmet.time, newmet);
-        metarAges.put (newmet.seqno, newmet);
 
-        // delete oldest metar overall to make room if we now have too many
-        while (metarAges.size () > MAXMETARS) {
-            int oldseqno = metarAges.keySet ().iterator ().next ();
-            oldmet = metarAges.nnremove (oldseqno);
-            metarTypes.nnget (oldmet.type).remove (oldmet.time);
+        switch (type) {
+
+            // allow only 3 METARs
+            case "METAR": {
+                while (types.size () > 3) {
+                    Long oldtime = types.keySet ().iterator ().next ();
+                    types.remove (oldtime);
+                }
+                break;
+            }
+
+            // allow only 1 TAF
+            case "TAF": {
+                while (types.size () > 1) {
+                    Long oldtime = types.keySet ().iterator ().next ();
+                    types.remove (oldtime);
+                }
+                break;
+            }
         }
 
         // if it contains altimeter setting, save it
-        // likewise for ceiling
-        if (newmet.type.equals ("METAR") || newmet.type.equals ("SPECI") || newmet.type.equals ("TAF")) {
+        // likewise for ceiling and visibility
+        if ((ceilvisms < newmet.time) && (type.equals ("METAR") || type.equals ("TAF"))) {
             float newvisibsm = Float.MAX_VALUE;
-            int lowestceilft = Integer.MAX_VALUE;
-            long whents = 0;
-            String[] parts = newmet.data.split ("\\s+");
-            int nparts = parts.length;
-            for (int ipart = 0; ipart < nparts; ipart ++) {
-                String part = parts[ipart];
+            int newceilft = Integer.MAX_VALUE;
+            String[] words = newmet.words;
+            int nwords = words.length;
+            for (int iword = 0; iword < nwords; iword ++) {
+                String word = words[iword];
                 // don't try to decode remarks
-                if (part.equals ("RMK")) break;
+                if (word.equals ("RMK")) break;
                 // TAFs begin with a METAR up to the first 'FROM' block
-                if ((part.length () == 8) && part.startsWith ("FM")) break;
-
-                // decode date/time of METAR observation
-                if ((part.length () == 7) && part.endsWith ("Z")) {
-                    try {
-                        int ddhhmm = Integer.parseInt (part.substring (0, 6));
-                        int metday = ddhhmm / 10000;
-                        int methr  = (ddhhmm / 100) % 100;
-                        int metmin = ddhhmm % 100;
-                        GregorianCalendar gc = new GregorianCalendar (TimeZone.getTimeZone ("GMT"));
-                        int nowday = gc.get (Calendar.DAY_OF_MONTH);
-                        if ((metday > 20) && (nowday < 10)) {
-                            gc.add (Calendar.MONTH, -1);
-                        }
-                        gc.set (Calendar.DAY_OF_MONTH, metday);
-                        gc.set (Calendar.HOUR_OF_DAY, methr);
-                        gc.set (Calendar.MINUTE, metmin);
-                        gc.set (Calendar.SECOND, 0);
-                        gc.set (Calendar.MILLISECOND, 0);
-                        whents = gc.getTimeInMillis ();
-                        continue;
-                    } catch (NumberFormatException nfe) {
-                        Lib.Ignored ();
-                    }
-                }
+                if ((word.length () == 8) && word.startsWith ("FM")) break;
 
                 // altimeter setting
-                if ((part.length () == 5) && (part.charAt (0) == 'A')) {
+                if ((word.length () == 5) && (word.charAt (0) == 'A')) {
                     try {
-                        int setting = Integer.parseInt (part.substring (1));
+                        int setting = Integer.parseInt (word.substring (1));
                         if ((setting > 2500) && (setting < 3500)) {
                             altSetting = setting / 100.0;
                             continue;
@@ -133,19 +114,19 @@ public class MetarRepo {
                 }
 
                 // ceiling
-                if (part.startsWith ("BKN") || part.startsWith ("OVC")) {
+                if (word.startsWith ("BKN") || word.startsWith ("OVC")) {
                     try {
-                        int ceilft = Integer.parseInt (part.substring (3)) * 100;
-                        if (lowestceilft > ceilft) lowestceilft = ceilft;
+                        int ceilft = Integer.parseInt (word.substring (3)) * 100;
+                        if (newceilft > ceilft) newceilft = ceilft;
                         continue;
                     } catch (NumberFormatException nfe) {
                         Lib.Ignored ();
                     }
                 }
-                if (part.startsWith ("VV")) {
+                if (word.startsWith ("VV")) {
                     try {
-                        int ceilft = Integer.parseInt (part.substring (2)) * 100;
-                        if (lowestceilft > ceilft) lowestceilft = ceilft;
+                        int ceilft = Integer.parseInt (word.substring (2)) * 100;
+                        if (newceilft > ceilft) newceilft = ceilft;
                         continue;
                     } catch (NumberFormatException nfe) {
                         Lib.Ignored ();
@@ -154,8 +135,8 @@ public class MetarRepo {
 
                 // visibility  P6SM  10SM  1 1/2SM  1/4SM
                 // 'M' on the front means less than, eg, M1/4SM
-                if ((part.length () > 2) && part.endsWith ("SM")) {
-                    String number = part.substring (0, part.length () - 2);
+                if ((word.length () > 2) && word.endsWith ("SM")) {
+                    String number = word.substring (0, word.length () - 2);
                     if (number.startsWith ("M")) number = number.substring (1);
                     if (number.startsWith ("P")) number = number.substring (1);
                     int i = number.indexOf ('/');
@@ -164,8 +145,8 @@ public class MetarRepo {
                         if (i < 0) val = Float.parseFloat (number);
                         else {
                             val = Float.parseFloat (number.substring (0, i)) / Float.parseFloat (number.substring (i + 1));
-                            if (ipart > 0) {
-                                int whole = Integer.parseInt (parts[ipart-1]);
+                            if (iword > 0) {
+                                int whole = Integer.parseInt (words[iword-1]);
                                 if ((whole > 0) && (whole < 9)) val += whole;
                             }
                         }
@@ -174,13 +155,11 @@ public class MetarRepo {
                     if (! Float.isNaN (val)) newvisibsm = val;
                 }
             }
-            Log.d (TAG, "MetarRepo: when=" + Lib.TimeStringUTC (whents) + " ceil=" + lowestceilft + " visib=" + newvisibsm + " data=" + newmet.data);
 
-            if (ceilvisms < whents) {
-                ceilvisms = whents;
-                ceilingft = lowestceilft;
-                visibsm   = newvisibsm;
-            }
+            Log.d (TAG, "MetarRepo: when=" + Lib.TimeStringUTC (newmet.time) + " ceil=" + newceilft + " visib=" + newvisibsm + " data=" + newmet.data);
+            ceilvisms = newmet.time;
+            ceilingft = newceilft;
+            visibsm   = newvisibsm;
         }
     }
 
@@ -193,20 +172,22 @@ public class MetarRepo {
      */
     public static double getAltSetting (HashMap<String,MetarRepo> metarRepos, double lat, double lon)
     {
-        double closestdistance = 100.0;
-        double closestsetting  = 0.0;
+        double total = 0.0;
+        double setting  = 0.0;
         //noinspection SynchronizationOnLocalVariableOrMethodParameter
         synchronized (metarRepos) {
             for (MetarRepo repo : metarRepos.values ()) {
                 if (repo.altSetting > 0.0) {
                     double dist = Lib.LatLonDist (repo.latitude, repo.longitude, lat, lon);
-                    if (closestdistance > dist) {
-                        closestdistance = dist;
-                        closestsetting  = repo.altSetting;
+                    if (dist <= 0.5) return repo.altSetting;
+                    if (dist <= 100.0) {
+                        total += 1.0 / dist;
+                        setting += repo.altSetting / dist;
                     }
                 }
             }
         }
-        return closestsetting;
+        if (setting == 0.0) return 0.0;
+        return setting / total;
     }
 }

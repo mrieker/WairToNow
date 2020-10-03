@@ -244,10 +244,7 @@ public class AdsbGpsRThread extends Thread implements Reporter {
         Waypoint apt = Waypoint.GetAirportByIdent (location, wairToNow);
         if (apt != null) {
             String icaoid = apt.ident;
-            Metar metar = new Metar ();
-            metar.time = time;
-            metar.type = type;
-            metar.data = data;
+            Metar metar = new Metar (time, type, data);
             synchronized (wairToNow.metarRepos) {
                 MetarRepo repo = wairToNow.metarRepos.get (icaoid);
                 if (repo == null) {

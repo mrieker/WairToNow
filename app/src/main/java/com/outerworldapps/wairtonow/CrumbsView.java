@@ -58,7 +58,6 @@ import java.util.GregorianCalendar;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Locale;
-import java.util.TimeZone;
 import java.util.TreeMap;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
@@ -87,9 +86,8 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
     {
         super (wtn);
         wairToNow = wtn;
-        TimeZone tzutc = TimeZone.getTimeZone ("UTC");
-        gpxdatefmtms.setTimeZone (tzutc);
-        gpxdatefmtsec.setTimeZone (tzutc);
+        gpxdatefmtms.setTimeZone (Lib.tzUtc);
+        gpxdatefmtsec.setTimeZone (Lib.tzUtc);
     }
 
     @Override  // CanBeMainView
@@ -610,7 +608,7 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
             final EditText nameView = new EditText (wairToNow);
             nameView.setInputType (InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
             nameView.setSingleLine ();
-            GregorianCalendar nowCal = new GregorianCalendar ();
+            GregorianCalendar nowCal = new GregorianCalendar (Locale.US);
             String nowStr = String.format (Locale.US, "%04d-%02d%02d-%02d%02d",
                     nowCal.get (Calendar.YEAR),
                     nowCal.get (Calendar.MONTH) + 1,
