@@ -55,11 +55,8 @@ import java.util.zip.GZIPOutputStream;
 // https://github.com/ACRA/acra/wiki/AdvancedUsage#reports-content
 @ReportsCrashes (
         reportSenderFactoryClasses = { AcraApplication.YourOwnSenderFactory.class },
-        mode = ReportingInteractionMode.DIALOG,
-        resDialogCommentPrompt = R.string.crash_dialog_comment_prompt,
-        resDialogEmailPrompt = R.string.crash_dialog_email_prompt,
-        resDialogText = R.string.crash_dialog_text,
-        resDialogTitle = R.string.crash_dialog_title
+        mode = ReportingInteractionMode.TOAST,
+        resToastText = R.string.crash_toast_text
 )
 public class AcraApplication extends Application {
     @Override
@@ -117,13 +114,13 @@ public class AcraApplication extends Application {
                             throw new IOException ("http response code " + rc);
                         }
                         Log.i ("WairToNow", "sent ACRA report " + file.getPath ());
+                        Lib.Ignored (file.delete ());
                     } finally {
                         httpCon.disconnect ();
                     }
                 } catch (Exception e) {
                     Log.e ("WairToNow", "exception sending ACRA report " + file.getPath (), e);
                 }
-                Lib.Ignored (file.delete ());
             }
         }
     }

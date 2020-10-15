@@ -264,6 +264,7 @@ public class NavDialView extends View {
      */
     public void setDistance (double d, String i, boolean s)
     {
+        if (d < 0.0) throw new IllegalArgumentException ("d lt 0: " + d);
         distance = d;
         dmeIdent = i;
         dmeSlant = s;

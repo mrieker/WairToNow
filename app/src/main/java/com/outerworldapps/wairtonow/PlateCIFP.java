@@ -4947,7 +4947,7 @@ public class PlateCIFP {
 
                 // set DME distance and identifier
                 double dist = Math.hypot (acraftbmx - endptbmx, acraftbmy - endptbmy);
-                navDial.setDistance (behind ? -1.0 : (dist / bmpixpernm), "radar", false);
+                navDial.setDistance (behind ? NavDialView.NODISTANCE : (dist / bmpixpernm), "radar", false);
             }
 
             // calculate where current radar vector intersects final approach course

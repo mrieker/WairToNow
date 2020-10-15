@@ -94,7 +94,7 @@ public class FilesView
     public void OpenDisplay()
     {
         if (filePageStack.isEmpty ()) {
-            filePageStack.push (new DirFilePage (new File (WairToNow.dbdir)));
+            filePageStack.push (new TopFilePage ());
         }
         ReshowPage ();
     }
@@ -113,8 +113,7 @@ public class FilesView
     public void ReClicked ()
     {
         filePageStack.clear ();
-        DirFilePage toppage = new DirFilePage (new File (WairToNow.dbdir));
-        filePageStack.push (toppage);
+        filePageStack.push (new TopFilePage ());
         ReshowPage ();
     }
 
@@ -162,6 +161,57 @@ public class FilesView
         public abstract String getPath ();
         public abstract void showPage ()
                 throws IOException;
+    }
+
+    /**
+     * Display buttons to select internal or external files.
+     */
+    private class TopFilePage extends FilePage {
+        public String getPath ()
+        {
+            return "choose root";
+        }
+
+        public void showPage ()
+        {
+            ScrollView sv1 = new ScrollView (wairToNow);
+            LinearLayout ll1 = new LinearLayout (wairToNow);
+            ll1.setOrientation (VERTICAL);
+            TopFilePage.FileButton xfb = new TopFilePage.FileButton ("external", wairToNow.getExternalFilesDir (null));
+            ll1.addView (xfb);
+            TopFilePage.FileButton ifb = new TopFilePage.FileButton ("internal", wairToNow.getFilesDir ());
+            ll1.addView (ifb);
+            sv1.addView (ll1);
+            addView (sv1);
+        }
+
+        /**
+         * One of these buttons per file listed in the directory.
+         */
+        private class FileButton extends Button implements OnClickListener {
+            public File file;
+            public String name;
+
+            public FileButton (String name, File file)
+            {
+                super (wairToNow);
+                this.file = file;
+                this.name = name;
+                setText (name);
+                wairToNow.SetTextSize (this);
+                setOnClickListener (this);
+            }
+
+            @Override  // OnClickListner
+            public void onClick (View v)
+            {
+                if (file != null) {
+                    FilePage fp = new DirFilePage (file.getParentFile ());
+                    filePageStack.push (fp);
+                    ReshowPage ();
+                }
+            }
+        }
     }
 
     /*
