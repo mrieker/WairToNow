@@ -159,6 +159,7 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
         if (!holdPosition) {
             centerLat = wairToNow.currentGPSLat;
             centerLon = wairToNow.currentGPSLon;
+            chartSelectDialog.Update ();
         }
 
         // tell other things to update what they are displaying
@@ -291,6 +292,7 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
      */
     private class ChartSelectDialog implements ListAdapter,
             DialogInterface.OnClickListener {
+        private AlertDialog openDialog;
         private NNTreeMap<String,DisplayableChart> displayableCharts;
         private View[] chartViews;
 
@@ -309,20 +311,20 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
              * Find charts that cover each of the corners and edges.
              * Street chart coverts the whole world so it is always downloaded.
              */
-            displayableCharts = new NNTreeMap<> ();
-            displayableCharts.put (streetChart.GetSpacenameSansRev (), streetChart);
+            NNTreeMap<String,DisplayableChart> chartlist = new NNTreeMap<> ();
+            chartlist.put (streetChart.GetSpacenameSansRev (), streetChart);
 
             boolean[] autoAirChartHits = new boolean[autoAirCharts.length];
             for (Iterator<AirChart> it = wairToNow.maintView.GetCurentAirChartIterator (); it.hasNext ();) {
                 AirChart ac = it.next ();
                 if (ac.ContributesToCanvas (pmap)) {
                     String spn = ac.GetSpacenameSansRev ();
-                    displayableCharts.put (spn, ac);
+                    chartlist.put (spn, ac);
 
                     for (int i = 0; i < autoAirCharts.length; i ++) {
                         AutoAirChart aac = autoAirCharts[i];
                         if (!autoAirChartHits[i] && aac.Matches (spn)) {
-                            displayableCharts.put (aac.GetSpacenameSansRev (), aac);
+                            chartlist.put (aac.GetSpacenameSansRev (), aac);
                             autoAirChartHits[i] = true;
                         }
                     }
@@ -330,10 +332,26 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
             }
 
             /*
+             * If menu already open showing the same charts, don't do anything.
+             */
+            int ncharts = chartlist.size ();
+            if (openDialog != null) {
+                if (displayableCharts.size () == ncharts) {
+                    boolean allthere = true;
+                    for (String spn : displayableCharts.keySet ()) {
+                        allthere &= chartlist.containsKey (spn);
+                    }
+                    if (allthere) return;
+                }
+                openDialog.dismiss ();
+                openDialog = null;
+            }
+            displayableCharts = chartlist;
+
+            /*
              * Make a button for each chart found.
              * List them in alphabetical order.
              */
-            int ncharts = displayableCharts.size ();
             int nviews = ncharts;
             TextView awaitgps = null;
             if ((ncharts < 2) && ! wairToNow.gpsAvailable) {
@@ -353,8 +371,8 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
             chartViews = new View[nviews];
             int i = 0;
             if (awaitgps != null) chartViews[i++] = awaitgps;
-            for (String spacename : displayableCharts.keySet ()) {
-                DisplayableChart dc = displayableCharts.nnget (spacename);
+            for (String spacename : chartlist.keySet ()) {
+                DisplayableChart dc = chartlist.nnget (spacename);
 
                 View v = dc.GetMenuSelector (ChartView.this);
                 v.setBackgroundColor ((dc == selectedChart) ? Color.DKGRAY : Color.BLACK);
@@ -373,6 +391,7 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
                 @Override
                 public void onClick (DialogInterface dialogInterface, int i)
                 {
+                    openDialog = null;
                     selectedChart = null;
                     backing.ChartSelected ();
                 }
@@ -381,6 +400,7 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
                 @Override
                 public void onClick (DialogInterface dialogInterface, int i)
                 {
+                    openDialog = null;
                     use3DChart = !use3DChart;
                     if (use3DChart && (MaintView.GetCurentTopographyExpDate () == 0)) {
                         AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
@@ -399,8 +419,27 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
                     BackingChartSelected ();
                 }
             });
-            adb.setNegativeButton ("Cancel", null);
-            adb.show ();
+            adb.setNegativeButton ("Cancel", new DialogInterface.OnClickListener () {
+                @Override
+                public void onClick (DialogInterface dialogInterface, int i)
+                {
+                    openDialog = null;
+                }
+            });
+            openDialog = adb.show ();
+            openDialog.setOnDismissListener (new DialogInterface.OnDismissListener () {
+                @Override
+                public void onDismiss (DialogInterface dialogInterface)
+                {
+                    openDialog = null;
+                }
+            });
+        }
+
+        // new GPS position received, update menu of available charts
+        public void Update ()
+        {
+            if (openDialog != null) Show ();
         }
 
         /********************************\
@@ -482,6 +521,7 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
         @Override
         public void onClick (DialogInterface dialog, int which)
         {
+            openDialog = null;
             View tv = chartViews[which];
             String spacename = (String) tv.getTag ();
             if (spacename != null) {
