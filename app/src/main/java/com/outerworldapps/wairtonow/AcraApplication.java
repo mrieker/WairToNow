@@ -31,6 +31,7 @@ import org.acra.ReportingInteractionMode;
 import org.acra.annotation.ReportsCrashes;
 import org.acra.collector.CrashReportData;
 import org.acra.config.ACRAConfiguration;
+import org.acra.config.ConfigurationBuilder;
 import org.acra.sender.ReportSender;
 import org.acra.sender.ReportSenderException;
 import org.acra.sender.ReportSenderFactory;
@@ -65,7 +66,7 @@ public class AcraApplication extends Application {
         super.attachBaseContext(base);
 
         // The following line triggers the initialization of ACRA
-        ACRA.init (this);
+        ACRA.init (this, new ConfigurationBuilder (this).build (), false);
     }
 
     /**
