@@ -45,7 +45,7 @@ import java.util.TreeMap;
 public class WebMetarThread extends Thread {
     public final static int INTERVALMS = 987654;    // refetch for same airport after this time
     public final static int MINSLEEPMS = 5432;      // always sleep at least this much
-    public final static int RETRYMS    = 65432;     // retry for no internet connection
+    public final static int RETRYMS    = 32716;     // retry for no internet connection
     public final static int WEBDELAYMS = 123;       // this much time between individual web requests
     public final static String BASEURL = "https://aviationweather.gov/taf/data?format=raw&metars=on&layout=off&ids=";
     public final static String TAG = "WairToNow";
@@ -122,6 +122,10 @@ public class WebMetarThread extends Thread {
                         result.close ();
                     }
 
+                    fetchedtime = nowtime;
+
+                    // read metars from web
+                    // but stop if screen moved far
                     for (Waypoint.Airport apt : apts.values ()) {
                         movedfar = movedFar ();
                         if (movedfar) break;
@@ -143,6 +147,7 @@ public class WebMetarThread extends Thread {
             try { Thread.sleep (MINSLEEPMS); } catch (InterruptedException ignored) { }
             sleeptime -= MINSLEEPMS;
             if (sleeptime > 0) {
+                Log.d (TAG, "webmetarthread sleeping for " + sleeptime);
                 sleeper.sleep (sleeptime);
             }
         }
@@ -174,7 +179,6 @@ public class WebMetarThread extends Thread {
             fetchedwestlon = showingwestlon - showingwidth / 2.0;
             fetchedcenterlat = (fetchednorthlat + fetchedsouthlat) / 2.0;
             fetchedcenterlon = (fetchedeastlon + fetchedwestlon) / 2.0;
-            fetchedtime = nowtime;
             return true;
         }
         return false;

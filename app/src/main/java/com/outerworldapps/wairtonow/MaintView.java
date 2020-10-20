@@ -1275,7 +1275,9 @@ public class MaintView
          */
         @Override  // DownloadCheckBox
         public void DownloadFileComplete ()
-        { }
+        {
+            wairToNow.webMetarThread.sleeper.wake ();
+        }
 
         @Override  // DownloadCheckBox
         public void DownloadThreadExited ()

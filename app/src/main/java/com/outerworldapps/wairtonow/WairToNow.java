@@ -325,6 +325,12 @@ public class WairToNow extends Activity {
         collPaint.setStyle (Paint.Style.FILL_AND_STROKE);
 
         /*
+         * Fetch nearby METARs in a background thread.
+         */
+        webMetarThread = new WebMetarThread (this);
+        webMetarThread.start ();
+
+        /*
          * License agreement.
          */
         AgreeView agreeView = new AgreeView (this);
@@ -916,9 +922,6 @@ public class WairToNow extends Activity {
         hasAgreed = true;
         agreeButton.setVisibility (View.GONE);
         sensorsView.startGPSReceiver ();
-
-        webMetarThread = new WebMetarThread (this);
-        webMetarThread.start ();
 
         if (!atAMinimumShown && (maintView.GetCurentWaypointExpDate () <= 0)) {
             atAMinimumShown = true;
