@@ -115,6 +115,11 @@ function purgedatum
             rm -rf "$file"
             continue
         fi
+        if [ "${file:0:16}" == "datums/stations_" ]
+        then
+            mv "$file" "purged-$file"
+            continue
+        fi
         if [ "${file:0:16}" == "datums/waypoints" ]
         then
             rm -rf "$file"

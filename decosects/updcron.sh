@@ -10,7 +10,7 @@
 cd `dirname $0`
 set -e -x
 export next28=0
-oldcyc=`./cureffdate -28 -x -do 0 yyyy-mm-dd`
+oldcyc=`./cureffdate -28 -x -do 2 yyyy-mm-dd`
 newcyc=`./cureffdate -28 -x -do 8 yyyy-mm-dd`
 if [ "$oldcyc" != "$newcyc" ]
 then

@@ -50,8 +50,6 @@ public class WebMetarThread extends Thread {
     public final static String BASEURL = "https://aviationweather.gov/taf/data?format=raw&metars=on&layout=off&ids=";
     public final static String TAG = "WairToNow";
 
-    private double fetchedcenterlat;
-    private double fetchedcenterlon;
     private double fetchednorthlat;
     private double fetchedsouthlat;
     private double fetchedeastlon;
@@ -102,6 +100,8 @@ public class WebMetarThread extends Thread {
                             ") AND (apt_lon BETWEEN " + fetchedwestlon + " AND " + fetchedeastlon +
                             ") AND (apt_metaf<>'')";
 
+                    double centerlat = (fetchednorthlat + fetchedsouthlat) / 2.0;
+                    double centerlon = (fetchedeastlon + fetchedwestlon) / 2.0;
                     TreeMap<Double,Waypoint.Airport> apts = new TreeMap<> ();
                     SQLiteDBs sqldb = Waypoint.openWayptDB (wairToNow);
                     Cursor result = sqldb.query ("airports",
@@ -112,7 +112,7 @@ public class WebMetarThread extends Thread {
                                 // assumes Waypoint.Airport.dbcols[0].equals("apt_icaoid")
                                 if (! lastfetcheds.containsKey (result.getString (0))) {
                                     Waypoint.Airport apt = new Waypoint.Airport (result, wairToNow);
-                                    double distnm = Lib.LatLonDist (apt.lat, apt.lon, fetchedcenterlat, fetchedcenterlon);
+                                    double distnm = Lib.LatLonDist (apt.lat, apt.lon, centerlat, centerlon);
                                     while (apts.containsKey (distnm)) distnm += 0.000001;
                                     apts.put (distnm, apt);
                                 }
@@ -121,8 +121,6 @@ public class WebMetarThread extends Thread {
                     } finally {
                         result.close ();
                     }
-
-                    fetchedtime = nowtime;
 
                     // read metars from web
                     // but stop if screen moved far
@@ -138,6 +136,7 @@ public class WebMetarThread extends Thread {
             } catch (Exception e) {
                 Log.w (TAG, "exception processing metars from web", e);
                 // probably no internet, try again in a minute
+                fetchedtime = 0;
                 sleeptime = RETRYMS;
             }
 
@@ -177,8 +176,7 @@ public class WebMetarThread extends Thread {
             fetchedsouthlat = showingsouthlat - showingheight / 2.0;
             fetchedeastlon = showingeastlon + showingwidth / 2.0;
             fetchedwestlon = showingwestlon - showingwidth / 2.0;
-            fetchedcenterlat = (fetchednorthlat + fetchedsouthlat) / 2.0;
-            fetchedcenterlon = (fetchedeastlon + fetchedwestlon) / 2.0;
+            fetchedtime = nowtime;
             return true;
         }
         return false;

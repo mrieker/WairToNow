@@ -752,8 +752,10 @@ public abstract class Waypoint {
     // full-page description
     public void GetDetailViews (WaypointView wayview, WebView webview)
     {
-        String dt = GetDetailText ();
-        webview.loadUrl ("file:///android_asset/wpviewsimple.html?detail=" + URLEncoder.encode (dt));
+        String dt = URLEncoder.encode (GetDetailText ());
+        String el = (elev ==  ELEV_UNKNOWN) ? "" : Double.toString  (elev);
+        String mv = (magvar == VAR_UNKNOWN) ? "" : Integer.toString (magvar);
+        webview.loadUrl ("file:///android_asset/wpviewsimple.html?detail=" + dt + "&elev=" + el + "&magvar=" + mv);
     }
 
     // full-page description
@@ -1034,6 +1036,15 @@ public abstract class Waypoint {
             waypointView = wayview;
             webview.addJavascriptInterface (this, "aptjso");
             webview.loadUrl ("file:///android_asset/wpviewairport.html");
+        }
+
+        // script debugging
+        //   aptjso.showLogcat ('pageLoaded*:A');
+        @SuppressWarnings ("unused")
+        @JavascriptInterface
+        public void showLogcat (String s)
+        {
+            Log.d (TAG, "aptjso: " + s);
         }
 
         // get metars and tafs for the airport

@@ -603,7 +603,7 @@
                     $loc = self::$propernames[$nospaces];
                 } else {
                     $i = strpos ($this->location, ",");
-                    $loc = ($i === FALSE) ? $this->location : substr ($this->location, 0, $i);
+                    $loc = trim (($i === FALSE) ? $this->location : substr ($this->location, 0, $i));
                 }
 
                 writeGameTFR ($this->startime, 4*3600, $loc, "$this->awayteam vs $this->hometeam");

@@ -400,7 +400,9 @@ public class WaypointView extends LinearLayout
     }
     @Override
     public void ReClicked ()
-    { }
+    {
+        infoButton.onClick (null);
+    }
 
     @Override  // CanBeMainView
     public boolean IsPowerLocked ()

@@ -58,6 +58,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
+import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -450,7 +451,7 @@ public class TFROutlines {
                     lcltz = null;
                 } else {
                     tv.append ("\n           ");
-                    tv.append (lclefftime);
+                    tv.append (localTimeString (efftime, lcltz));
                     tv.append (" ");
                     tv.append (Lib.simpTZName (tzname));
                 }
@@ -463,10 +464,8 @@ public class TFROutlines {
                 tv.append (sdfout.format (exptime));
                 tv.append (" UTC");
                 if (lcltz != null) {
-                    sdfout.setTimeZone (lcltz);
-                    String lclexptime = sdfout.format (exptime);
                     tv.append ("\n           ");
-                    tv.append (lclexptime);
+                    tv.append (localTimeString (exptime, lcltz));
                     tv.append (" ");
                     tv.append (Lib.simpTZName (tzname));
                 }
@@ -484,6 +483,58 @@ public class TFROutlines {
             if (exptime > o.exptime) return  1;
             return 0;
         }
+    }
+
+    /**
+     * Convert millisecond time to string in given time zone
+     * @param timms = millisecond time
+     * @param lcltz = time zone
+     * @return yyyy-mm-dd@hh:mm time string
+     *   returns Today, Tommorrow, dayname for yyyy-mm-dd if within next couple days
+     */
+    private String localTimeString (long timms, TimeZone lcltz)
+    {
+        // convert to yyyy-mm-dd@hh:mm string in given time zone
+        GregorianCalendar timgc = new GregorianCalendar (lcltz);
+        timgc.setTimeInMillis (timms);
+        int timday = timgc.get (GregorianCalendar.YEAR) * 512 +
+                timgc.get (GregorianCalendar.MONTH) * 32 +
+                timgc.get (GregorianCalendar.DAY_OF_MONTH);
+        sdfout.setTimeZone (lcltz);
+        String timstr = sdfout.format (timms);
+
+        // get current date/time in given time zone
+        GregorianCalendar nowgc = new GregorianCalendar (lcltz);
+        for (int n = 0; n < 4; n ++) {
+            // see if event is on same day as current day
+            int nowday = nowgc.get (GregorianCalendar.YEAR) * 512 +
+                    nowgc.get (GregorianCalendar.MONTH) * 32 +
+                    nowgc.get (GregorianCalendar.DAY_OF_MONTH);
+            if (timday == nowday) {
+                // if so, substitute day name in for yyyy-mm-dd part
+                String daystr;
+                switch (n) {
+                    case 0: {
+                        daystr = "Today";
+                        break;
+                    }
+                    case 1: {
+                        daystr = "Tomorrow";
+                        break;
+                    }
+                    default: {
+                        daystr = nowgc.getDisplayName (GregorianCalendar.DAY_OF_WEEK, GregorianCalendar.LONG, Locale.US);
+                        break;
+                    }
+                }
+                int i = timstr.indexOf ('@');
+                return daystr + timstr.substring (i);
+            }
+            // didn't match that day, try to match next few days
+            nowgc.add (GregorianCalendar.DAY_OF_MONTH, 1);
+        }
+
+        return timstr;
     }
 
     /**

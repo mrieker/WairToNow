@@ -61,7 +61,7 @@
                 var apdhtml = makePlateSection ("Airport/Runway Diagrams", plateids,
                         function (plateid)
                         {
-                            return plateid.startsWith ('APD-') || plateid.startsWith ('RWY-');
+                            return startsWith (plateid, 'APD-') || startsWith (plateid, 'RWY-');
                         }
                 );
 
@@ -76,7 +76,7 @@
                 var mdshtml = makePlateSection ("Minimums", plateids,
                         function (plateid)
                         {
-                            return plateid.startsWith ('MIN-');
+                            return startsWith (plateid, 'MIN-');
                         }
                 );
 
@@ -84,7 +84,7 @@
                 mdshtml += makePlateSection ("Departures", plateids,
                         function (plateid)
                         {
-                            return plateid.startsWith ('DP-');
+                            return startsWith (plateid, 'DP-');
                         }
                 );
 
@@ -92,7 +92,7 @@
                 mdshtml += makePlateSection ("Arrivals", plateids,
                         function (plateid)
                         {
-                            return plateid.startsWith ('STAR-');
+                            return startsWith (plateid, 'STAR-');
                         }
                 );
 
@@ -152,7 +152,7 @@
                 var nplateids = plateids.length;
                 for (var i = 0; i < nplateids; i ++) {
                     var plateline = plateids[i];
-                    if (plateline.startsWith ('IAP-')) {
+                    if (startsWith (plateline, 'IAP-')) {
                         var platewords = plateline.split (' ');
                         var nwords = platewords.length;
                         for (var j = 0; j + 1 < nwords; j ++) {
@@ -189,7 +189,7 @@
                                 appobjs.VISUAL = true;
                                 continue;
                             }
-                            if (line.startsWith ('RNAV (')) {
+                            if (startsWith (line, 'RNAV (')) {
                                 var k = line.indexOf (')');
                                 appobjs[line.substring(6,k)] = true;
                                 continue;
@@ -218,10 +218,10 @@
                                 }
                         );
                     }
-                    html += makePlateSection ("Approaches Other", plateids,
+                    html += makePlateSection ('Approaches Other', plateids,
                             function (plateid)
                             {
-                                return plateid.startsWith ("IAP-");
+                                return startsWith (plateid, 'IAP-');
                             }
                     );
                     html += '</DIV>';
@@ -417,6 +417,12 @@
                 };
                 httprequest.open ('GET', url, true);
                 httprequest.send ();
+            }
+
+            // some javascript doesn't have String.startsWith()
+            function startsWith (haystack, needle)
+            {
+                return haystack.indexOf (needle) == 0;
             }
         </SCRIPT>
         <STYLE>
