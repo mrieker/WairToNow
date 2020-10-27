@@ -42,7 +42,6 @@ import android.widget.TextView;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Constructor;
-import java.net.URLEncoder;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -750,12 +749,23 @@ public abstract class Waypoint {
     }
 
     // full-page description
+    @SuppressLint("AddJavascriptInterface")
     public void GetDetailViews (WaypointView wayview, WebView webview)
     {
-        String dt = URLEncoder.encode (GetDetailText ());
-        String el = (elev ==  ELEV_UNKNOWN) ? "" : Double.toString  (elev);
-        String mv = (magvar == VAR_UNKNOWN) ? "" : Integer.toString (magvar);
-        webview.loadUrl ("file:///android_asset/wpviewsimple.html?detail=" + dt + "&elev=" + el + "&magvar=" + mv);
+        webview.addJavascriptInterface (this, "simjso");
+        webview.loadUrl ("file:///android_asset/wpviewsimple.html");
+    }
+
+    @SuppressWarnings("unused")
+    @JavascriptInterface
+    public String getURLParam (String name)
+    {
+        switch (name) {
+            case "detail": return GetDetailText ();
+            case "elev": return (elev ==  ELEV_UNKNOWN) ? "" : Double.toString  (elev);
+            case "magvar": return (magvar == VAR_UNKNOWN) ? "" : Integer.toString (magvar);
+            default: return "";
+        }
     }
 
     // full-page description

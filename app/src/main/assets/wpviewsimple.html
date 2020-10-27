@@ -19,9 +19,9 @@
     <BODY ONLOAD="pageLoaded()">
         <DIV CLASS="outlinebox">
             <SCRIPT LANGUAGE=JAVASCRIPT>
-                document.write (getURLParam ('detail'));
-                var elev   = getURLParam ('elev');
-                var magvar = getURLParam ('magvar');
+                document.write (simjso.getURLParam ('detail'));
+                var elev   = simjso.getURLParam ('elev');
+                var magvar = simjso.getURLParam ('magvar');
                 if ('/' + elev + magvar != '/') {
                     document.write ('<TABLE>');
                     if (elev != '') document.write ('<TR><TD ALIGN=RIGHT>Elev:</TD><TD>' + elev + ' ft.</TD></TR>');
@@ -36,18 +36,6 @@
                         document.write ('<TR><TD ALIGN=RIGHT>MagVar:</TD><TD>' + magvar + '</TD></TR>');
                     }
                     document.write ('</TABLE>');
-                }
-
-                function getURLParam (name)
-                {
-                    var querystring = window.location.search;
-                    var searchfor = name + '=';
-                    var i = querystring.indexOf (searchfor);
-                    if (i < 0) return '';
-                    i += searchfor.length;
-                    var j = querystring.indexOf ('&', i);
-                    if (j < 0) j = querystring.length;
-                    return decodeURIComponent (querystring.substring (i, j).replace (/[+]/g, ' '));
                 }
             </SCRIPT>
         </DIV>

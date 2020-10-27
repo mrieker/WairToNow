@@ -125,7 +125,7 @@
                 var detail = aptjso.getDetail ();
                 var detlines = detail.split ('\n');
                 var dethtml = '<A HREF="javascript:openPlateSec(\'aptdetail\')"><SPAN ID="tri-aptdetail">&#9654;</SPAN> ' +
-                        detlines[0] + '</A><TABLE HIDDEN ID="txt-aptdetail"><TR><TD>&nbsp;</TD></TR>';
+                        detlines[0] + '</A><SPAN HIDDEN ID="txt-aptdetail"><TABLE><TR><TD>&nbsp;</TD></TR>';
                 var nlines = detlines.length;
                 for (var i = 0; ++ i < nlines;) {
                     var detline = detlines[i];
@@ -134,12 +134,12 @@
                         dethtml += '<TR><TD></TD>';
                     } else {
                         var label = htmlspecialchars (detline.substring (0, j));
-                        dethtml += '<TR><TD ALIGN=RIGHT VALIGN=TOP>' + repall (label, ' ', '&nbsp;') + ':</TD>';
+                        dethtml += '<TR><TD ALIGN=RIGHT VALIGN=TOP><FONT COLOR=YELLOW>' + repall (label, ' ', '&nbsp;') + ':</FONT></TD>';
                         detline = detline.substring (++ j);
                     }
                     dethtml += '<TD VALIGN=TOP>' + htmlspecialchars (detline) + '</TD></TR>';
                 }
-                dethtml += '<TR><TD>&nbsp;</TD></TR></TABLE>';
+                dethtml += '</TABLE><P></P></SPAN>';
                 return dethtml;
             }
 
@@ -433,6 +433,9 @@
             a {
                 text-decoration-line: none;
                 color: cyan;
+            }
+            tr:nth-child(even) {
+                background-color: #002200;
             }
             .aplate {
                 text-decoration-line: none;
