@@ -841,10 +841,13 @@ public class WaypointView extends LinearLayout
         @Override
         public void onClick (View v)
         {
-            setTextColor (Color.RED);
-            webWxButton.setTextColor (Color.BLACK);
-            detailButton.setTextColor (Color.BLACK);
-            selectedWaypoint.GetDetailViews (WaypointView.this, waypointWebView);
+            // in case came from ReClicked() without any waypoint selected
+            if (selectedWaypoint != null) {
+                setTextColor (Color.RED);
+                webWxButton.setTextColor (Color.BLACK);
+                detailButton.setTextColor (Color.BLACK);
+                selectedWaypoint.GetDetailViews (WaypointView.this, waypointWebView);
+            }
         }
     }
 
