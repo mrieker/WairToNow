@@ -514,6 +514,40 @@ public abstract class Waypoint {
     }
 
     /**
+     * Get list of all airports in a state.
+     * Input:
+     *  state = 2-letter state code (upper case)
+     * Output:
+     *  returns list of airports, sorted by airport icao-id
+     */
+    public static TreeMap<String,Airport> GetAptsInState (String state, WairToNow wairToNow)
+    {
+        TreeMap<String,Airport> wplist = new TreeMap<> ();
+        SQLiteDBs sqldb = openWayptDB (wairToNow);
+        if (sqldb != null) {
+            try {
+                Cursor result = sqldb.query (
+                        Airport.dbtable, Airport.dbcols,
+                        "apt_state=?", new String[] { state },
+                        null, null, null, null);
+                try {
+                    if (result.moveToFirst ()) {
+                        do {
+                            Airport apt = new Airport (result, wairToNow);
+                            wplist.put (apt.ident, apt);
+                        } while (result.moveToNext ());
+                    }
+                } finally {
+                    result.close ();
+                }
+            } catch (Exception e) {
+                Log.e (TAG, "error reading " + sqldb.mydbname, e);
+            }
+        }
+        return wplist;
+    }
+
+    /**
      * Find airport by identifier (icaoid or faaid).
      */
     public static Airport GetAirportByIdent (String ident, WairToNow wtn)

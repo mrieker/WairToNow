@@ -515,18 +515,7 @@ public class WaypointView extends LinearLayout
         selectedWaypoint = wp;
         if (wp == null) {
             searchTextView.setText ("");
-            waypointWebView.loadUrl ("file:///android_asset/wpviewblank.html");
-            findButton.setEnabled (false);
-            destinationButton.setEnabled (false);
-            locationButton.setEnabled (false);
-            rnavOffsetButton.setEnabled (false);
-            infoButton.setEnabled (false);
-            webWxButton.setEnabled (false);
-            detailButton.setEnabled (false);
-            downloadButton.setEnabled (false);
-            infoButton.setTextColor (Color.BLACK);
-            webWxButton.setTextColor (Color.BLACK);
-            detailButton.setTextColor (Color.BLACK);
+            noWayptSelected ();
         } else {
             searchTextView.setText (wp.ident);
             wp.GetDetailViews (this, waypointWebView);
@@ -603,17 +592,7 @@ public class WaypointView extends LinearLayout
         public void onClick (View v)
         {
             selectedWaypoint = null;
-            destinationButton.setEnabled (false);
-            locationButton.setEnabled (false);
-            rnavOffsetButton.setEnabled (false);
-            infoButton.setEnabled (false);
-            webWxButton.setEnabled (false);
-            detailButton.setEnabled (false);
-            downloadButton.setEnabled (false);
-            infoButton.setTextColor (Color.BLACK);
-            webWxButton.setTextColor (Color.BLACK);
-            detailButton.setTextColor (Color.BLACK);
-            setEnabled (false);
+            noWayptSelected ();
 
             // get what user typed in to search for
             String key = searchTextView.getText ().toString ();
@@ -650,6 +629,23 @@ public class WaypointView extends LinearLayout
                 OpenWaypointFromList (matches);
             }
         }
+    }
+
+    // no waypoint selected, disable a bunch of buttons etc.
+    private void noWayptSelected ()
+    {
+        waypointWebView.loadUrl ("file:///android_asset/wpviewblank.html");
+        findButton.setEnabled (false);
+        destinationButton.setEnabled (false);
+        locationButton.setEnabled (false);
+        rnavOffsetButton.setEnabled (false);
+        infoButton.setEnabled (false);
+        webWxButton.setEnabled (false);
+        detailButton.setEnabled (false);
+        downloadButton.setEnabled (false);
+        infoButton.setTextColor (Color.BLACK);
+        webWxButton.setTextColor (Color.BLACK);
+        detailButton.setTextColor (Color.BLACK);
     }
 
     /**

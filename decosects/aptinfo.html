@@ -46,6 +46,8 @@
 
             if (apt['towered'] != 'Y') apt['hourslocal'] = '(none)';
 
+            if (apt['statelong'] == '') apt['statelong'] = apt['county'];
+
             apt.trafpatline = (apt.trafpatagl == '') ? '' : ('<TR><TD VALIGN=TOP>Traffic pattern AGL:</TD><TD VALIGN=TOP>' + apt.trafpatagl + '</TD></TR>');
 
             subs (apt, '  \
@@ -60,7 +62,7 @@
                     <TR><TD VALIGN=TOP>Longitude:</TD><TD VALIGN=TOP>$longitude</TD></TR>  \
                     <TR><TD VALIGN=TOP>Elevation:</TD><TD VALIGN=TOP>$elevation ft.</TD></TR>  \
                     <TR><TD VALIGN=TOP>Variation:</TD><TD VALIGN=TOP>$magvar $magvaryear</TD></TR>  \
-                    <TR><TD VALIGN=TOP>From city:</TD><TD VALIGN=TOP>$nmfromcity nm $dirfromcity of $city, $state2let</TD></TR>  \
+                    <TR><TD VALIGN=TOP>From city:</TD><TD VALIGN=TOP>$nmfromcity nm $dirfromcity of $city, $statelong</TD></TR>  \
                     <TR><TD VALIGN=TOP>Sectional chart:</TD><TD VALIGN=TOP>$secchart</TD></TR>  \
                     <TR><TD VALIGN=TOP>Tower hours:</TD><TD VALIGN=TOP>$hourslocal</TD></TR>  \
                     <TR><TD VALIGN=TOP>Time zone:</TD><TD VALIGN=TOP>$tzname</TD></TR>  \

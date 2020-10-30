@@ -140,16 +140,6 @@ public class GetAirportIDs {
                 string distfromcity = line.Substring (627, 2).Trim ();
                 while ((distfromcity.Length > 1) && (distfromcity[0] == '0')) distfromcity = distfromcity.Substring (1);
 
-                apt.info = distfromcity + " " + line.Substring (629, 3).Trim () + " of " +
-                        line.Substring (93, 40).Trim () + ", " + apt.state;
-                if (apt.elevatn != "") apt.info += "\nElev: " + apt.elevatn + " ft.";
-
-                string unicom = TrimTrailingZeroes (line.Substring (981, 7).Trim ());
-                if (unicom != "") apt.info += "\nUNICOM: " + unicom;
-
-                string ctaf = TrimTrailingZeroes (line.Substring (988, 7).Trim ());
-                if (ctaf != "") apt.info += "\nCTAF: " + ctaf;
-
                 apt.nvp["faciltype"]     = line.Substring (  14, 13).Trim ();   // AIRPORT, BALLOONPORT, ...
                 apt.nvp["faaid"]         = line.Substring (  27,  4).Trim ();
                 apt.nvp["effdate"]       = line.Substring (  31, 10).Trim ();
@@ -189,6 +179,16 @@ public class GetAirportIDs {
                 apt.nvp["landfeenoncom"] = line.Substring (1002,  1).Trim ();   // Y, N
                 apt.nvp["icaoid"]        = line.Substring (1210,  7).Trim ();
                 apt.nvp["tzname"]        = apt.tzname;
+
+                apt.info = distfromcity + " " + apt.nvp["dirfromcity"] + " of " +
+                        apt.nvp["city"] + ", " + ((apt.nvp["statelong"] == "") ? apt.nvp["county"] : apt.nvp["statelong"]);
+                if (apt.elevatn != "") apt.info += "\nElev: " + apt.elevatn + " ft.";
+
+                string unicom = TrimTrailingZeroes (line.Substring (981, 7).Trim ());
+                if (unicom != "") apt.info += "\nUNICOM: " + unicom;
+
+                string ctaf = TrimTrailingZeroes (line.Substring (988, 7).Trim ());
+                if (ctaf != "") apt.info += "\nCTAF: " + ctaf;
             }
 
             // center names

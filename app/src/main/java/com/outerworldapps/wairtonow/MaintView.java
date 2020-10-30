@@ -124,6 +124,7 @@ public class MaintView
     private String postDLProcText;
     private String updateDLProgTitle;
     private TextView runwayDiagramDownloadStatus;
+    private Thread aptsinstatethread;
     private Thread guiThread;
     private UnloadButton unloadButton;
     private UnloadThread unloadThread;
@@ -1857,16 +1858,17 @@ public class MaintView
      * One of these per state to enable downloading plates for that state.
      * Consists of a checkbox and overlaying text giving the state name.
      */
-    private class StateCheckBox extends FrameLayout implements Downloadable {
+    @SuppressLint("SetTextI18n")
+    private class StateCheckBox extends FrameLayout implements Downloadable, OnClickListener {
         public String ss;  // two-letter state code (capital letters)
         public String fullname;  // full name string
 
-        private ZipFile curentZipFile;
-
+        private AlertDialog aptsinstatedialog;
         private CheckBox cb;
         private int curentenddate;
         private int latestenddate;
         private LinkedList<Runnable> whenDoneRun = new LinkedList<> ();
+        private TextView aptsbut;
         private TextView lb;
 
         public StateCheckBox (String s, String f)
@@ -1883,6 +1885,12 @@ public class MaintView
             cb = new CheckBox (wairToNow);
             cb.setOnCheckedChangeListener (MaintView.this);
 
+            aptsbut = new TextView (wairToNow);
+            wairToNow.SetTextSize (aptsbut);
+            aptsbut.setText (" " + ss);
+            aptsbut.setTextColor (Color.CYAN);
+            aptsbut.setOnClickListener (this);
+
             lb = new TextView (wairToNow);
             wairToNow.SetTextSize (lb);
 
@@ -1890,10 +1898,86 @@ public class MaintView
             ll.setOrientation (LinearLayout.HORIZONTAL);
 
             ll.addView (cb);
+            ll.addView (aptsbut);
             ll.addView (lb);
 
             addView (ll);
         }
+
+        // 'apts' clicked, list airports
+        public void onClick (View v)
+        {
+            if (aptsinstatethread == null) {
+                aptsbut.setTextColor (Color.BLACK);
+                aptsbut.setBackgroundColor (Color.CYAN);
+                aptsinstatethread = new Thread () {
+                    @Override
+                    public void run ()
+                    {
+                        setName ("AirportsFor" + ss);
+
+                        // get airports from database, sorted by ICAO id
+                        TreeMap<String,Waypoint.Airport> apts = Waypoint.GetAptsInState (ss, wairToNow);
+
+                        // make list of airports in scrollable list
+                        LinearLayout ll = new LinearLayout (wairToNow);
+                        ll.setOrientation (LinearLayout.VERTICAL);
+                        for (Waypoint.Airport apt : apts.values ()) {
+                            TextView tv = new TextView (wairToNow);
+                            wairToNow.SetTextSize (tv);
+                            String detail = apt.GetArptDetails ();
+                            String[] dets = detail.split ("\n");
+                            tv.setText (apt.ident + ": " + apt.GetName () + "\n" + dets[0]);
+                            tv.setTag (apt);
+                            tv.setOnClickListener (openapt);
+                            ll.addView (tv);
+                        }
+                        final ScrollView sv = new ScrollView (wairToNow);
+                        sv.addView (ll);
+
+                        wairToNow.runOnUiThread (new Runnable () {
+                            @Override
+                            public void run ()
+                            {
+                                // set up and display an alert dialog box to display list
+                                AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
+                                adb.setTitle ("Airports in " + fullname);
+                                adb.setView (sv);
+                                adb.setNegativeButton ("Close", null);
+
+                                aptsinstatedialog = adb.show ();
+                                aptsinstatedialog.setOnDismissListener (new DialogInterface.OnDismissListener () {
+                                    @Override
+                                    public void onDismiss (DialogInterface dialogInterface)
+                                    {
+                                        aptsinstatedialog = null;
+                                        aptsinstatethread = null;
+                                        aptsbut.setTextColor (Color.CYAN);
+                                        aptsbut.setBackgroundColor (Color.TRANSPARENT);
+                                    }
+                                });
+                            }
+                        });
+
+                        SQLiteDBs.CloseAll ();
+                    }
+                };
+                aptsinstatethread.start ();
+            }
+        }
+
+        private final OnClickListener openapt = new OnClickListener () {
+            @Override
+            public void onClick (View view)
+            {
+                aptsinstatedialog.dismiss ();
+                aptsinstatedialog = null;
+                aptsinstatethread = null;
+                aptsbut.setTextColor (Color.CYAN);
+                aptsbut.setBackgroundColor (Color.TRANSPARENT);
+                wairToNow.waypointView1.WaypointSelected ((Waypoint) view.getTag ());
+            }
+        };
 
         /**
          * Force downloading this state's info asap.
@@ -1911,13 +1995,9 @@ public class MaintView
                 throws IOException
         {
             int ced = GetCurentEndDate ();
-            if (curentZipFile == null) {
-                if (ced > 0) {
-                    String zn = WairToNow.dbdir + "/datums/statezips_" + ced + "/" + ss + ".zip";
-                    curentZipFile = new ZipFile (zn);
-                }
-            }
-            return curentZipFile;
+            if (ced <= 0) return null;
+            String zn = WairToNow.dbdir + "/datums/statezips_" + ced + "/" + ss + ".zip";
+            return new ZipFile (zn);
         }
 
         // Downloadable implementation
@@ -1936,10 +2016,6 @@ public class MaintView
         public int GetCurentEndDate ()
         {
             if ((curentenddate < latestenddate) && (curentenddate <= deaddate)) {
-                if (curentZipFile != null) {
-                    try { curentZipFile.close (); } catch (IOException ignored) { }
-                    curentZipFile = null;
-                }
                 DeleteDownloadedFiles (false);
             }
             return curentenddate;
@@ -2155,7 +2231,7 @@ public class MaintView
         public void UpdateSingleLinkText (int c, String t)
         {
             lb.setTextColor (c);
-            lb.setText (ss + " " + fullname + ": " + t);
+            lb.setText (" " + fullname + ": " + t);
         }
 
         /**
