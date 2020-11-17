@@ -213,6 +213,8 @@ public class AltimeterView extends View implements WairToNow.CanBeMainView {
         };
         sensorManager.registerListener (sensorEventListener, pressureSensor, SensorManager.SENSOR_DELAY_UI);
     }
+    @Override  // CanBeMainView
+    public void OrientationChanged () { }
     public void CloseDisplay ()
     {
         sensorManager.unregisterListener (sensorEventListener);

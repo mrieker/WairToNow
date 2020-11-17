@@ -114,6 +114,10 @@ public class AgreeView extends ScrollView implements WairToNow.CanBeMainView {
         addView (llv);
     }
 
+    @Override  // CanBeMainView
+    public void OrientationChanged ()
+    { }
+
     public void CloseDisplay ()
     {
         removeAllViews ();

@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<HTML>
+    <HEAD>
+        <SCRIPT LANGUAGE=JAVASCRIPT>
+            /*
+            var advjso = {
+                showLogcat: function (s) {
+                    window.alert (s);
+                },
+                getAFDData: function () {
+                    return "" +
+"apt = [];\n" +
+"apt['faciltype'] = 'AIRPORT';\n" +
+"apt['faaid'] = 'BVY';\n" +
+"apt['effdate'] = '11/05/2020';\n" +
+"apt['region'] = 'ANE';\n" +
+"apt['state2let'] = 'MA';\n" +
+"apt['statelong'] = 'MASSACHUSETTS';\n" +
+"apt['county'] = 'ESSEX';\n" +
+"apt['city'] = 'BEVERLY';\n" +
+"apt['facilname'] = 'BEVERLY RGNL';\n" +
+"apt['faciluse'] = 'PU';\n" +
+"apt['ownername'] = 'CITY OF BEVERLY';\n" +
+"apt['owneraddr'] = 'CITY HALL, CABOT ST';\n" +
+"apt['ownercityetc'] = 'BEVERLY, MA 01915';\n" +
+"apt['ownerphone'] = '978-921-6000';\n" +
+"apt['mangrname'] = 'GLORIA BOUILLON';\n" +
+"apt['mangraddr'] = '50 L.P. HENDERSON ROAD';\n" +
+"apt['mangrcityetc'] = 'BEVERLY, MA 01915';\n" +
+"apt['mangrphone'] = '978-921-6072';\n" +
+"apt['latitude'] = '42-35-02.9000N';\n" +
+"apt['longitude'] = '070-54-58.1000W';\n" +
+"apt['elevation'] = '107.3';\n" +
+"apt['magvar'] = '16W';\n" +
+"apt['magvaryear'] = '1985';\n" +
+"apt['trafpatagl'] = '';\n" +
+"apt['secchart'] = 'NEW YORK';\n" +
+"apt['nmfromcity'] = '03';\n" +
+"apt['dirfromcity'] = 'NW';\n" +
+"apt['activdate'] = '04/1940';\n" +
+"apt['status'] = 'O';\n" +
+"apt['aptofentry'] = 'N';\n" +
+"apt['landrights'] = 'Y';\n" +
+"apt['aptlights'] = 'SEE RMK';\n" +
+"apt['beaconlits'] = 'SS-SR';\n" +
+"apt['towered'] = 'Y';\n" +
+"apt['unicom'] = '122.950';\n" +
+"apt['ctaf'] = '125.200';\n" +
+"apt['landfeenoncom'] = '';\n" +
+"apt['icaoid'] = 'KBVY';\n" +
+"apt['tzname'] = 'America/New_York';\n" +
+"apt['RMK-A110-16'] = 'PRKG - WEST SIDE TSNT RAMP AT FBO.';\n" +
+"apt['RMK-A110-17'] = 'ALL ARR/DEP ACFT FLW MANUFACTURER\'S RCMDD PROCS FOR QUIET OPNS & MNM NOISE.';\n" +
+"apt['RMK-A110-2'] = 'BIRDS FQTLY ON OR INVOF ARPT; OCNL DEER OR COYOTE ON RWY.';\n" +
+"apt['RMK-A110-20'] = 'TSNT ACFT MUST USE ANTI-THEFT DEVICE WHEN ACFT UNATDD.';\n" +
+"apt['RMK-A110-21'] = 'NOISE SENSITIVE ARPT - VOLUNTARY COMPLIANCE REQD OF ALL ACFT EXCEEDING 75DB TO NOT LND/DEPART ARPT 2300-0700.';\n" +
+"apt['RMK-A110-22'] = 'NO TIEDOWNS ROPES ON PUBLIC TSNT PRKG.';\n" +
+"apt['RMK-A110-25'] = 'NOISE SENSITIVE AREA OFF THE DER 27 TO THE WEST, SW, AND SOUTH AND OFF THE DER 34 TO THE NW.';\n" +
+"apt['RMK-A110-28'] = 'EAST RAMP TSNT SPACES: SPACES NO. 15, 16, 17 ONLY.';\n" +
+"apt['RMK-A110-29'] = 'FUEL, PRKG CTC FBO 129.725 OR 978-774-2070.';\n" +
+"apt['RMK-A110-3'] = 'WHEN TWR NOT OPN CLOSE FP WITH BOS APCH - 121.6.';\n" +
+"apt['RMK-A110-31'] = 'RWY 16 IS THE PREF CALM WIND RWY.';\n" +
+"apt['RMK-A110-32'] = 'RWY 09/27 AND RWY 16/34: DUE TO HUMP AT MIDPT, OPPOSITE ENDS OF THE  RWY NOT VSB AT GROUND LEVEL.';\n" +
+"apt['RMK-A110-33'] = 'LDG FEES FOR TSNT ACFT.';\n" +
+"apt['RMK-A110-34'] = 'FLD COND NOT MNT 0200-1200Z++ 15 MAY-31 OCT; 0100-1200Z++ 01 NOV-14 MAY';\n" +
+"apt['RMK-A110-35'] = 'NO ULTRALIGHT OR BANNER TOWING ALLOWED.';\n" +
+"apt['RMK-A110-36'] = 'FUEL SVC 1030-2330Z++, AFTER HRS REQ ONLY ON 978-774-2070.';\n" +
+"apt['RMK-A110-4'] = 'OVNGT PRKG FEE.';\n" +
+"apt['RMK-A110-6'] = 'NOISE ABATEMENT PROCS IN EFCT CTC AMGR 978-921-6072.';\n" +
+"apt['RMK-A49-16'] = 'RWY 16 NON-STD MALS - 800 FT.';\n" +
+"apt['RMK-A57-16'] = 'RWY 16 30:1 TO DSPLCD THR.';\n" +
+"apt['RMK-A57-27'] = 'RWY 27 50:1 TO DSPLCD THR.';\n" +
+"apt['RMK-A70'] = 'FUEL SVC 1030-2330Z++; AFT HRS REQ ONLY CALL 978-774-2070.';\n" +
+"apt['RMK-A81-APT'] = 'WHEN TWR CLSD ACTVT MALS RWY 16; REIL RWY 34; PAPI RWY 16, 09, & 27; MIRL RWY 09/27 & 16/34 - CTAF.';\n" +
+"apt['RMK-E111'] = 'FILED FOR RECORD PURPOSES ONLY.';\n" +
+"apt['awos'] = '119.2 978-921-5042';\n" +
+"apt['towertype'] = 'ATCT';\n" +
+"apt['numhours'] = '13';\n" +
+"apt['hourdays'] = 'SEA';\n" +
+"apt['twrname'] = 'BEVERLY';\n" +
+"apt['appname'] = 'BOSTON';\n" +
+"apt['depname'] = 'BOSTON';\n" +
+"apt['hourslocal'] = '0700-2100 15 MAY-31 OCT; 0700-2000 01 NOV-14 MAY';\n" +
+"apt['FREQ-ATIS'] = '119.2';\n" +
+"apt['FREQ-GND/P'] = '121.6';\n" +
+"apt['FREQ-TWR/P'] = '125.2';\n" +
+"apt['FREQ-APCH/P DEP/P'] = '124.4 / 279.6';\n" +
+"rwps = [];\n" +
+"rwps['09/27'] = [];\n" +
+"rwps['09/27']['rwidpair'] = '09/27';\n" +
+"rwps['09/27']['rwlen'] = '4755';\n" +
+"rwps['09/27']['width'] = '100';\n" +
+"rwps['09/27']['surftype'] = 'ASPH-E';\n" +
+"rwps['09/27']['edgelights'] = 'MED';\n" +
+"rwps['09/27']['base_id'] = '09';\n" +
+"rwps['09/27']['base_trualn'] = '074';\n" +
+"rwps['09/27']['base_ils'] = '';\n" +
+"rwps['09/27']['base_ritraf'] = 'N';\n" +
+"rwps['09/27']['base_markng'] = 'NPI';\n" +
+"rwps['09/27']['base_marcnd'] = 'G';\n" +
+"rwps['09/27']['base_lat'] = '42-34-47.0784N';\n" +
+"rwps['09/27']['base_lon'] = '070-55-29.1191W';\n" +
+"rwps['09/27']['base_elevat'] = '71.6';\n" +
+"rwps['09/27']['base_gpangl'] = '3.00';\n" +
+"rwps['09/27']['base_vasi'] = 'P4L';\n" +
+"rwps['09/27']['base_applt'] = '';\n" +
+"rwps['09/27']['base_reil'] = '';\n" +
+"rwps['09/27']['base_clinelt'] = '';\n" +
+"rwps['09/27']['base_tdlite'] = '';\n" +
+"rwps['09/27']['recip_id'] = '27';\n" +
+"rwps['09/27']['recip_trualn'] = '254';\n" +
+"rwps['09/27']['recip_ils'] = '';\n" +
+"rwps['09/27']['recip_ritraf'] = 'N';\n" +
+"rwps['09/27']['recip_markng'] = 'NPI';\n" +
+"rwps['09/27']['recip_marcnd'] = 'G';\n" +
+"rwps['09/27']['recip_lat'] = '42-34-59.8069N';\n" +
+"rwps['09/27']['recip_lon'] = '070-54-27.9431W';\n" +
+"rwps['09/27']['recip_elevat'] = '91.3';\n" +
+"rwps['09/27']['recip_gpangl'] = '3.22';\n" +
+"rwps['09/27']['recip_vasi'] = 'P4L';\n" +
+"rwps['09/27']['recip_applt'] = '';\n" +
+"rwps['09/27']['recip_reil'] = '';\n" +
+"rwps['09/27']['recip_clinelt'] = '';\n" +
+"rwps['09/27']['recip_tdlite'] = '';\n" +
+"rwps['16/34'] = [];\n" +
+"rwps['16/34']['rwidpair'] = '16/34';\n" +
+"rwps['16/34']['rwlen'] = '5001';\n" +
+"rwps['16/34']['width'] = '100';\n" +
+"rwps['16/34']['surftype'] = 'ASPH-E';\n" +
+"rwps['16/34']['edgelights'] = 'MED';\n" +
+"rwps['16/34']['base_id'] = '16';\n" +
+"rwps['16/34']['base_trualn'] = '141';\n" +
+"rwps['16/34']['base_ils'] = 'LOC/DME';\n" +
+"rwps['16/34']['base_ritraf'] = 'N';\n" +
+"rwps['16/34']['base_markng'] = 'NPI';\n" +
+"rwps['16/34']['base_marcnd'] = 'G';\n" +
+"rwps['16/34']['base_lat'] = '42-35-31.0040N';\n" +
+"rwps['16/34']['base_lon'] = '070-55-18.9310W';\n" +
+"rwps['16/34']['base_elevat'] = '107.2';\n" +
+"rwps['16/34']['base_gpangl'] = '3.50';\n" +
+"rwps['16/34']['base_vasi'] = 'P4L';\n" +
+"rwps['16/34']['base_applt'] = 'MALS';\n" +
+"rwps['16/34']['base_reil'] = '';\n" +
+"rwps['16/34']['base_clinelt'] = '';\n" +
+"rwps['16/34']['base_tdlite'] = '';\n" +
+"rwps['16/34']['recip_id'] = '34';\n" +
+"rwps['16/34']['recip_trualn'] = '321';\n" +
+"rwps['16/34']['recip_ils'] = '';\n" +
+"rwps['16/34']['recip_ritraf'] = 'N';\n" +
+"rwps['16/34']['recip_markng'] = 'NPI';\n" +
+"rwps['16/34']['recip_marcnd'] = 'G';\n" +
+"rwps['16/34']['recip_lat'] = '42-34-52.8130N';\n" +
+"rwps['16/34']['recip_lon'] = '070-54-36.5338W';\n" +
+"rwps['16/34']['recip_elevat'] = '82.1';\n" +
+"rwps['16/34']['recip_gpangl'] = '';\n" +
+"rwps['16/34']['recip_vasi'] = '';\n" +
+"rwps['16/34']['recip_applt'] = '';\n" +
+"rwps['16/34']['recip_reil'] = 'Y';\n" +
+"rwps['16/34']['recip_clinelt'] = '';\n" +
+"rwps['16/34']['recip_tdlite'] = '';\n";
+                },
+                getAptTime: function (tzname) {
+                    return 'Today Now';
+                }
+            };
+            */
+
+            function showdetails (afddata)
+            {
+                var afdlines = afddata.split ('\n');
+                var n = afdlines.length;
+                var apt  = [];
+                var rwps = [];
+                for (var i = 0; i < n; i ++) {
+                    var line = afdlines[i];
+                    if (line.length < 6) continue;
+                    if (line.substring (0, 5) == "apt['") {
+                        var j = line.indexOf ("'] = '");
+                        var k = line.lastIndexOf ("';");
+                        if ((j > 0) && (k > 0)) {
+                            var key = line.substring (5, j);
+                            apt[key] = line.substring (j + 6, k);
+                        }
+                    }
+                    if (line.substring (0, 6) == "rwps['") {
+                        var j = line.indexOf ("'] = [];");
+                        if (j > 0) {
+                            var key = line.substring (6, j);
+                            rwps[key] = [];
+                        } else {
+                            j = line.indexOf ("']['");
+                            var k = line.indexOf ("'] = '");
+                            var l = line.lastIndexOf ("';");
+                            if ((j > 0) && (k > 0) && (l > 0)) {
+                                var key1 = line.substring (6, j);
+                                var key2 = line.substring (j + 4, k);
+                                rwps[key1][key2] = line.substring (k + 6, l);
+                            }
+                        }
+                    }
+                }
+
+                status = apt['status'];
+                if (status == 'CI') status = 'Closed indefinitely';
+                if (status == 'CP') status = 'Closed permanently';
+                if (status == 'O')  status = 'Operational';
+                apt['status'] = status;
+
+                if (apt['faciluse'] == 'PR') apt['faciluse'] = 'Private';
+                if (apt['faciluse'] == 'PU') apt['faciluse'] = 'Public';
+
+                effdate = new Date (apt['effdate']);
+                expdate = new Date (effdate.getTime () + 1000*60*60*24*57);
+                apt['effdate'] = (effdate.getMonth () + 1) + '/' + effdate.getDate () + '/' + (effdate.getYear () + 1900);
+                apt['expdate'] = (expdate.getMonth () + 1) + '/' + expdate.getDate () + '/' + (expdate.getYear () + 1900);
+
+                if (apt['towered'] != 'Y') apt['hourslocal'] = '(none)';
+
+                if (apt['statelong'] == '') apt['statelong'] = apt['county'];
+
+                var aptime = advjso.getAptTime (apt.tzname);
+                if (aptime != '') aptime = '(' + aptime + ')';
+                apt['aptime'] = aptime;
+
+                apt.trafpatline = (apt.trafpatagl == '') ? '' : ('<TR><TD VALIGN=TOP>Traffic pattern AGL:</TD><TD VALIGN=TOP>' + apt.trafpatagl + '</TD></TR>');
+
+                subs (apt, '  \
+                    <TITLE>$facilname</TITLE></HEAD>  \
+                    <H2>$faaid ($icaoid) $facilname</H2>  \
+                    <P>$city, $statelong</P>  \
+                    <HR>  \
+                    <TABLE>  \
+                        <TR><TD VALIGN=TOP>Data is effective:</TD><TD VALIGN=TOP>$effdate - $expdate</TD></TR>  \
+                        <TR><TD VALIGN=TOP>Status:</TD><TD VALIGN=TOP>$status $faciluse</TD></TR>  \
+                        <TR><TD VALIGN=TOP>Latitude:</TD><TD VALIGN=TOP>$latitude</TD></TR>  \
+                        <TR><TD VALIGN=TOP>Longitude:</TD><TD VALIGN=TOP>$longitude</TD></TR>  \
+                        <TR><TD VALIGN=TOP>Elevation:</TD><TD VALIGN=TOP>$elevation ft.</TD></TR>  \
+                        <TR><TD VALIGN=TOP>Variation:</TD><TD VALIGN=TOP>$magvar $magvaryear</TD></TR>  \
+                        <TR><TD VALIGN=TOP>From city:</TD><TD VALIGN=TOP>$nmfromcity nm $dirfromcity of $city, $statelong</TD></TR>  \
+                        <TR><TD VALIGN=TOP>Sectional chart:</TD><TD VALIGN=TOP>$secchart</TD></TR>  \
+                        <TR><TD VALIGN=TOP>Tower hours:</TD><TD VALIGN=TOP>$hourslocal</TD></TR>  \
+                        <TR><TD VALIGN=TOP>Time zone:</TD><TD VALIGN=TOP>$tzname $aptime</TD></TR>  \
+                        $trafpatline  \
+                    </TABLE>  \
+                    <P></P>  \
+                    <B>Communications</B>  \
+                    <TABLE>  \
+                        <TR><TD>Unicom:</TD><TD>$unicom</TD></TR>  \
+                        <TR><TD>CTAF:</TD><TD>$ctaf</TD></TR>  \
+                ');
+
+                // get tower and approach/departure names (eg, BEVERLY, BOSTON)
+                var twrname = ('twrname' in apt) ? apt.twrname : '';
+                var appname = ('appname' in apt) ? apt.appname.replace (' ARTCC', ' CENTER') : '';
+                var depname = ('depname' in apt) ? apt.depname.replace (' ARTCC', ' CENTER') : '';
+                var twrused = false;
+                var appused = false;
+                var depused = false;
+
+                // list out the frequencies
+                // splice in tower, approach, departure names where applicable
+                for (var name in apt) {
+                    if (name.substring (0, 5) == 'FREQ-') {
+                        var type = name.substring (5);
+                        var freq = apt[name];
+                        if (type.indexOf ('TWR/') >= 0) {
+                            freq += ' ' + twrname;
+                            twrused = true;
+                        }
+                        if (type.indexOf ('APCH/') >= 0) {
+                            freq += ' ' + appname;
+                            appused = true;
+                        }
+                        if (type.indexOf ('DEP/') >= 0) {
+                            if ((type.indexOf ('APCH/') < 0) || (depname != appname)) {
+                                freq += ' ' + depname;
+                            }
+                            depused = true;
+                        }
+                        document.write ('<TR><TD VALIGN=TOP>' + type + ':</TD><TD>' + freq + '</TD></TR>');
+                    }
+                }
+
+                // awos frequency is listed separately where present
+                if (('awos' in apt) && (apt.awos != '')) document.write ('<TR><TD VALIGN=TOP>AWOS:</TD><TD>' + apt.awos + '</TD></TR>');
+
+                // list any as-of-yet unshown tower, approach, departure names
+                if (! twrused && (twrname != '')) document.write ('<TR><TD VALIGN=TOP>Tower:</TD><TD><I>'     + twrname + '</I></TD></TR>');
+                if (! appused && (appname != '')) document.write ('<TR><TD VALIGN=TOP>Approach:</TD><TD><I>'  + appname + '</I></TD></TR>');
+                if (! depused && (depname != '')) document.write ('<TR><TD VALIGN=TOP>Departure:</TD><TD><I>' + depname + '</I></TD></TR>');
+
+                document.write ('</TABLE>');
+
+                document.write ('<P></P><B>Remarks</B><TABLE>');
+                for (var name in apt) {
+                    if (name.substring (0, 4) == 'RMK-') {
+                        document.write ('<TR><TD NOWRAP VALIGN=TOP>' + name.substring (4) + ':</TD><TD>' + apt[name] + '</TD></TR>');
+                    }
+                    if (name.substring (0, 6) == 'TWRMK-') {
+                        document.write ('<TR><TD NOWRAP VALIGN=TOP>' + name + ':</TD><TD>' + apt[name] + '</TD></TR>');
+                    }
+                }
+                document.write ('</TABLE>');
+
+                for (var name in rwps) {
+                    var rwp = rwps[name];
+                    rwp['base_trafpat']  = (rwp['base_ritraf']  == 'Y') ? 'Right' : 'Left';
+                    rwp['recip_trafpat'] = (rwp['recip_ritraf'] == 'Y') ? 'Right' : 'Left';
+                    rwp['base_reil']     = (rwp['base_reil']    == 'Y') ? 'Yes'   : 'No';
+                    rwp['recip_reil']    = (rwp['recip_reil']   == 'Y') ? 'Yes'   : 'No';
+
+                    var surftype = rwp['surftype'];
+                    var surfcond = '';
+                    if (surftype.indexOf ('-E') >= 0) { surftype = surftype.replace ('-E', ''); surfcond = 'Excellent'; }
+                    if (surftype.indexOf ('-G') >= 0) { surftype = surftype.replace ('-G', ''); surfcond = 'Good'; }
+                    if (surftype.indexOf ('-F') >= 0) { surftype = surftype.replace ('-F', ''); surfcond = 'Fair'; }
+                    if (surftype.indexOf ('-P') >= 0) { surftype = surftype.replace ('-P', ''); surfcond = 'Poor'; }
+                    if (surftype.indexOf ('-L') >= 0) { surftype = surftype.replace ('-L', ''); surfcond = 'Failed'; }
+                    rwp['surftype'] = surftype;
+                    rwp['surfcond'] = surfcond;
+
+                    subs (rwp, '  \
+                        <HR>  \
+                        <H3>Runway $rwidpair</H3>  \
+                        <TABLE>  \
+                            <TR><TD>Dimensions:</TD><TD>$rwlen ft. x $width ft.</TD></TR>  \
+                            <TR><TD>Surface Type:</TD><TD>$surftype</TD></TR>  \
+                            <TR><TD>Surface Condition:</TD><TD>$surfcond</TD></TR>  \
+                            <TR><TD>Runway Edge Lights:</TD><TD>$edgelights</TD></TR>  \
+                        </TABLE>  \
+                        <TABLE>  \
+                            <TR><TD></TD><TH ALIGN=LEFT>Runway $base_id</TH><TH ALIGN=LEFT>Runway $recip_id</TH></TR>  \
+                            <TR><TD>True Alignment:</TD><TD>$base_trualn\u00B0</TD><TD>$recip_trualn\u00B0</TD></TR>  \
+                            <TR><TD>Traffic Pattern:</TD><TD>$base_trafpat</TD><TD>$recip_trafpat</TD></TR>  \
+                            <TR><TD>Markings:</TD><TD>$base_markng</TD><TD>$recip_markng</TD></TR>  \
+                            <TR><TD>Markings Condition:</TD><TD>$base_marcnd</TD><TD>$recip_marcnd</TD></TR>  \
+                            <TR><TD>Latitude:</TD><TD>$base_lat</TD><TD>$recip_lat</TD></TR>  \
+                            <TR><TD>Longitude:</TD><TD>$base_lon</TD><TD>$recip_lon</TD></TR>  \
+                            <TR><TD>Elevation:</TD><TD>$base_elevat</TD><TD>$recip_elevat</TD></TR>  \
+                            <TR><TD>Runway End Identifier Lights:</TD><TD>$base_reil</TD><TD>$recip_reil</TD></TR>  \
+                        </TABLE>  \
+                    ');
+                }
+
+                subs (apt, '  \
+                    <HR>  \
+                    <TABLE>  \
+                        <TR><TH ALIGN=LEFT>Owner</TH><TH ALIGN=LEFT>Manager</TH></TR>  \
+                        <TR><TD>$ownername</TD><TD>$mangrname</TD></TR>  \
+                        <TR><TD>$owneraddr</TD><TD>$mangraddr</TD></TR>  \
+                        <TR><TD>$ownercityetc</TD><TD>$mangrcityetc</TD></TR>  \
+                        <TR><TD>Phone: $ownerphone</TD><TD>Phone: $mangrphone</TD></TR>  \
+                    </TABLE>  \
+                ');
+            }
+
+            function subs (nvps, template)
+            {
+                var c, i, j, len, name;
+
+                len = template.length;
+                for (i = 0; (j = template.indexOf ('$', i)) >= 0; i = j) {
+                    document.write (template.substring (i, j));
+                    c = template.charAt (++ j);
+                    if (c == '$') {
+                        document.write ('$');
+                        j ++;
+                    } else {
+                        name = '';
+                        while ('abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_'.indexOf (c) >= 0) {
+                            name += c;
+                            c = template.charAt (++ j);
+                        }
+                        document.write (nvps[name]);
+                    }
+                }
+                document.write (template.substring (i));
+            }
+        </SCRIPT>
+    </HEAD>
+    <BODY>
+        <SCRIPT LANGUAGE=JAVASCRIPT>
+            var afddata  = advjso.getAFDData ();
+            if (afddata == '') {
+                document.write ('State data download required');
+            } else {
+                showdetails (afddata);
+            }
+        </SCRIPT>
+    </BODY>
+</HTML>

@@ -39,12 +39,9 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.lang.reflect.Constructor;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.Collection;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
@@ -53,7 +50,6 @@ import java.util.LinkedList;
 import java.util.Locale;
 import java.util.TimeZone;
 import java.util.TreeMap;
-import java.util.zip.ZipFile;
 
 /**
  * Each individual waypoint in the database (airport, localizer, navaid, fix)
@@ -815,30 +811,6 @@ public abstract class Waypoint {
         return GetDetailText ().toUpperCase (Locale.US).contains (key);
     }
 
-    // maybe there is an info page available
-    public InputStream HasInfo ()
-    {
-        return null;
-    }
-
-    // maybe there is a METAR available
-    public boolean HasMetar ()
-    {
-        return false;
-    }
-
-    // maybe there is something that needs downloading
-    public boolean NeedsDwnld ()
-    {
-        return false;
-    }
-
-    // start downloading it
-    public void StartDwnld (WairToNow wtn, Runnable done)
-    {
-        done.run ();
-    }
-
     // get magnetic variation
     //  input:
     //   altmsl = altitude (feet MSL)
@@ -1078,6 +1050,7 @@ public abstract class Waypoint {
         public void GetDetailViews (WaypointView wayview, WebView webview)
         {
             waypointView = wayview;
+            interwebView = webview;
             webview.addJavascriptInterface (this, "aptjso");
             webview.loadUrl ("file:///android_asset/wpviewairport.html");
         }
@@ -1091,18 +1064,25 @@ public abstract class Waypoint {
             Log.d (TAG, "aptjso: " + s);
         }
 
-        // get metars and tafs for the airport
+        @SuppressWarnings ("unused")
+        @JavascriptInterface
+        public String getICAOID ()
+        {
+            return ident;
+        }
+
+        // get metars and tafs for the given airport
         // the source is WebMetarThread and any received from ADS-B
         //   T<type>   METAR, TAF, etc
         //   X<unixtime>
         //   D<line>
         @SuppressWarnings ("unused")
         @JavascriptInterface
-        public String getMetars ()
+        public String getMetars (String icaoid)
         {
             StringBuilder sb = new StringBuilder ();
             synchronized (wairToNow.metarRepos) {
-                MetarRepo repo = wairToNow.metarRepos.get (ident);
+                MetarRepo repo = wairToNow.metarRepos.get (icaoid);
                 if (repo != null) {
                     for (Iterator<String> it = repo.metarTypes.keySet ().iterator (); it.hasNext (); ) {
                         String type = it.next ();
@@ -1142,6 +1122,7 @@ public abstract class Waypoint {
         private NNHashMap<String,Integer> latestexpdates;
         private TreeMap<String,String> latestplates;
         private WaypointView waypointView;
+        private WebView interwebView;
 
         // get plate list, one plate per line
         // lines are like APD-AIRPORT DIAGRAM, IAP-ILS RWY 07, DP-BEVERLY ONE, ...
@@ -1209,13 +1190,19 @@ public abstract class Waypoint {
 
         // get url that when fetched, will fetch latest METARs and TAFs from FAA into
         // wairToNow.metarRepo for this airport.  then use getMetars() to fetch from repo.
-        // returns "" if airport does not do metars and/or tafs
         @SuppressWarnings ("unused")
         @JavascriptInterface
-        public String getMetarUrl ()
+        public String getMetarUrl (String icaoid)
         {
-            if (! hasmet && ! hastaf) return "";
-            return wairToNow.webMetarThread.getWebMetarProxyURL (ident);
+            return wairToNow.webMetarThread.getWebMetarProxyURL (icaoid);
+        }
+
+        // get url that when fetched, returns a string 'true' or 'false' if internet is accessible
+        @SuppressWarnings ("unused")
+        @JavascriptInterface
+        public String getInetStatusUrl ()
+        {
+            return wairToNow.webMetarThread.getInetStatusURL ();
         }
 
         // plate link clicked, display corresponding page
@@ -1263,6 +1250,100 @@ public abstract class Waypoint {
             return sdf.format (gc.getTime ()) + " " + Lib.simpTZName (tz.getID ());
         }
 
+        // see if airport state's data is downloaded
+        @SuppressWarnings ("unused")
+        @JavascriptInterface
+        public int isDownloaded ()
+        {
+            return wairToNow.maintView.GetLatestPlatesExpDate (state);
+        }
+
+        // start downloading state zip file
+        // when download completes, re-display view page, hopefully with plates filled in
+        @SuppressWarnings ("unused")
+        @JavascriptInterface
+        public void dwnldState ()
+        {
+            wairToNow.runOnUiThread (new Runnable () {
+                @Override
+                public void run ()
+                {
+                    wairToNow.maintView.StateDwnld (state, new Runnable () {
+                        @Override
+                        public void run ()
+                        {
+                            interwebView.loadUrl ("file:///android_asset/wpviewairport.html");
+                        }
+                    });
+                }
+            });
+        }
+
+        // open airport details page as a new main page
+        @SuppressWarnings ("unused")
+        @JavascriptInterface
+        public void detailPage ()
+        {
+            wairToNow.runOnUiThread (new Runnable () {
+                @Override
+                public void run ()
+                {
+                    AptDetailsView adv = new AptDetailsView (wairToNow, Airport.this);
+                    wairToNow.SetCurrentTab (adv);
+                }
+            });
+        }
+
+        // search for nearest airport that has metar and taf
+        // might be this one, otherwise look within 100nm
+        // returns singleicaoid or metaricaoid,taficaoid
+        @SuppressWarnings ("unused")
+        @JavascriptInterface
+        public String getNearestMetafIDs ()
+        {
+            if (hasmet && hastaf) return ident;
+            SQLiteDBs sqldb = openWayptDB (wairToNow);
+            if (sqldb == null) return "";
+            double nmradius = 100.0;
+            double northlat = lat + nmradius / Lib.NMPerDeg;
+            double southlat = lat - nmradius / Lib.NMPerDeg;
+            double eastlon  = lon + nmradius / Lib.NMPerDeg / Mathf.cosdeg (lat);
+            double westlon  = lon - nmradius / Lib.NMPerDeg / Mathf.cosdeg (lat);
+            String where    = "(apt_lat<" + northlat + ") AND (apt_lat>" + southlat +
+                    ") AND (apt_lon<" + eastlon + ") AND (apt_lon>" + westlon +
+                    ") AND (apt_metaf>'')";
+            Cursor result = sqldb.query (
+                    "airports", new String[] { "apt_icaoid", "apt_lat", "apt_lon", "apt_metaf" },
+                    where, null, null, null, null, null);
+            double metdist = 999.0;
+            double tafdist = 999.0;
+            String meticao = "";
+            String taficao = "";
+            try {
+                if (result.moveToFirst ()) {
+                    do {
+                        String wpicao = result.getString (0);
+                        double wplat  = result.getDouble (1);
+                        double wplon  = result.getDouble (2);
+                        String metaf  = result.getString (3);
+                        double wpdist = Lib.LatLonDist (wplat, wplon, lat, lon);
+                        if (metaf.contains ("M") && (metdist > wpdist)) {
+                            metdist = wpdist;
+                            meticao = wpicao;
+                        }
+                        if (metaf.contains ("T") && (tafdist > wpdist)) {
+                            tafdist = wpdist;
+                            taficao = wpicao;
+                        }
+                    } while (result.moveToNext ());
+                }
+            } finally {
+                result.close ();
+            }
+            SQLiteDBs.CloseAll ();
+            return meticao.equals (taficao) ? meticao : (meticao + "," + taficao);
+        }
+
         @Override
         public String GetDetailText ()
         {
@@ -1279,43 +1360,6 @@ public abstract class Waypoint {
                 if (lines.length > 0) menuKey += " " + lines[0];
             }
             return menuKey;
-        }
-
-        @Override
-        public boolean HasMetar ()
-        {
-            return hasmet | hastaf;
-        }
-
-        @Override
-        public InputStream HasInfo ()
-        {
-            try {
-                ZipFile zf = wairToNow.maintView.getCurentStateZipFile (state);
-                if (zf == null) return null;
-                return zf.getInputStream (zf.getEntry (faaident + ".html"));
-            } catch (IOException ioe) {
-                Log.w (TAG, "error opening " + state + " zip file " + faaident + ".html", ioe);
-            }
-            return null;
-        }
-
-        // maybe there is something that needs downloading
-        public boolean NeedsDwnld ()
-        {
-            Calendar nowcal = new GregorianCalendar (Lib.tzUtc, Locale.US);
-            nowcal.add (Calendar.MINUTE, -MaintView.DAYBEGINS);  // day starts at 0901z
-            int nowdate = nowcal.get (Calendar.YEAR) * 10000 +
-                          nowcal.get (Calendar.MONTH) * 10 +
-                          nowcal.get (Calendar.DAY_OF_MONTH);
-            int enddate = wairToNow.maintView.GetLatestPlatesExpDate (state);
-            return enddate <= nowdate;
-        }
-
-        // start downloading it
-        public void StartDwnld (WairToNow wtn, Runnable done)
-        {
-            wtn.maintView.StateDwnld (state, done);
         }
 
         // get list of all runways for this airport
@@ -1525,9 +1569,11 @@ public abstract class Waypoint {
         @Override  // Waypoint
         public String GetDetailText ()
         {
+            String basedetail = basewp.GetDetailText ();
+            String[] basedetlines = basedetail.split ("\n");
             return "RNAV offset " + Lib.DoubleNTZ (rnavdist) + "nm on " + Lib.DoubleNTZ (rnavradl) +
                     (magnetic ? "\u00B0 magnetic from " : "\u00B0 true from ") +
-                    basewp.GetDetailText ();
+                    basedetlines[0].trim ();
         }
 
         @Override  // Waypoint

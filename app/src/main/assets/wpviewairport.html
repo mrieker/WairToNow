@@ -1,15 +1,20 @@
 <HTML>
     <HEAD>
         <SCRIPT LANGUAGE=JAVASCRIPT>
+            var metafsidstr;   // eg "KBVY,KBOS"
+            var metafsidarr;   // eg [0]="KBVY", [1]="KBOS"
             var metopens;
+            var numwebmetars;
+            var inetstatus = '';
 
             /*
             var aptjso = {
+                getICAOID: function () { return "KBVY"; },
                 getDetail: function () {
                     return "airport detail text line 1\n" +
                         "airport detail line 2\n";
                 },
-                getMetars: function () {
+                getMetars: function (icaoid) {
                     return "" +
                         "TMETAR\n" +
                         "X1600000000000\n" +
@@ -31,14 +36,26 @@
                         "IAP-RNAV RWY 12\n" +
                         "RWY-runway diagram\n";
                 },
-                getMetarUrl: function () {
-                    return "http://localhost:12346/KBVY";
+                isDownloaded: function () {
+                    return false;
+                },
+                getMetarUrl: function (icaoid) {
+                    return "http://localhost:12346/" + icaoid;
+                },
+                getInetStatusUrl: function () {
+                    return "http://localhost:12346/inetstatus.txt";
                 },
                 getAptLclTime: function (ddhhmmz) {
                      return ddhhmmz + " UTC'";
                 },
                 plateClicked: function (pid) {
                     window.alert (pid);
+                },
+                detailPage: function () {
+                    window.alert ('show detail page');
+                },
+                getNearestMetafIDs: function () {
+                    return "KBVY,KBOS";
                 }
             };
             */
@@ -47,6 +64,8 @@
             function pageLoaded ()
             {
                 // fill in metar box with recent metars
+                metafsidstr = aptjso.getNearestMetafIDs ();
+                metafsidarr = metafsidstr.split (',');
                 metopens = { };
                 fillMetars ();
 
@@ -65,8 +84,11 @@
                         }
                 );
 
+                // one triangle for details, metar/taf, fuelprice page links
+                var infhtml = formatInfos ();
+
                 // airport details and diagrams in same outline box
-                var html = '<DIV CLASS="outlinebox">' + dethtml + apdhtml + '</DIV>';
+                var html = '<DIV CLASS="outlinebox">' + dethtml + apdhtml + infhtml + '</DIV>';
 
                 // add code for the approaches
                 // includes its own outline box if there are any approaches
@@ -115,8 +137,53 @@
                 // re-fills metar box if/when we get an update
                 // mostly do this if looking at an airport that isn't on current chart screen
                 // ...cuz we probably won't have any METAR/TAF data for it
-                var meturl = aptjso.getMetarUrl ();
-                if (meturl != '') doAjaxGet (meturl, gotWebMetar);
+                numwebmetars = 0;
+                for (var k = 0; k < metafsidarr.length; k ++) {
+                    var icaoid = metafsidarr[k];
+                    if (icaoid != '') {
+                        var meturl = aptjso.getMetarUrl (icaoid);
+                        if (meturl != '') {
+                            numwebmetars ++;
+                            doAjaxGet (meturl, gotWebMetar);
+                        }
+                    }
+                }
+
+                pollInetStatus ();
+            }
+
+            // called every 7 seconds to see if internet is accessible
+            // updates on-screen 'inetstatus' box
+            function pollInetStatus ()
+            {
+                var instbox = document.getElementById ('inetstatus');
+
+                // set status string to 'polling' if it takes more than 333ms to poll
+                inetstatus = '<FONT COLOR=#FFFF00>polling</FONT>';
+                setTimeout (function () { instbox.innerHTML = inetstatus; }, 333);
+
+                // poll webserver to see if we can access it
+                var inetstatusurl = aptjso.getInetStatusUrl ();
+                doAjaxGet (inetstatusurl, function (rep)
+                {
+                    // update status line global variable
+                    // if 333ms timer has yet to fire, it will just re-display this value
+                    if (rep.status != 200) {
+                        inetstatus = 'reply status ' + rep.status;
+                    } else if (rep.responseText.trim () == 'true') {
+                        inetstatus = '<FONT COLOR=#00FF00>online</FONT>';
+                    } else if (rep.responseText.trim () == 'false') {
+                        inetstatus = '<FONT COLOR=#FF0000>offline</FONT>';
+                    } else {
+                        inetstatus = 'reply text ' + rep.responseText;
+                    }
+
+                    // update on-screen status
+                    instbox.innerHTML = inetstatus;
+
+                    // re-check in a few seconds
+                    setTimeout (pollInetStatus, 7000);
+                });
             }
 
             // format html for airport detail triangle and hidden text
@@ -141,6 +208,43 @@
                 }
                 dethtml += '</TABLE><P></P></SPAN>';
                 return dethtml;
+            }
+
+            // Airport Information triangle button holding Details, METAR/TAF and Fuel Prices links
+            // If database is not downloaded, have section opened by default so user sees download link
+            function formatInfos ()
+            {
+                var isdownd = (aptjso.isDownloaded () > 0);
+                var infhtml = '<A HREF="javascript:openPlateSec(\'aptinfos\')"><SPAN ID="tri-aptinfos">';
+                infhtml += isdownd ? '&#9654;' : '&#9660;';
+                infhtml += '</SPAN> Supplemental Information</A><SPAN';
+                if (isdownd) infhtml += ' HIDDEN';
+                infhtml += ' ID="txt-aptinfos">';
+                if (isdownd) {
+                    infhtml += '<UL><LI><A CLASS="aplate" HREF="javascript:aptjso.detailPage()">Open Airport Details Page</A></UL>';
+                } else {
+                    infhtml += '<UL><LI><A CLASS="aplate" HREF="javascript:aptjso.dwnldState()"><B>Download Airport Details and Plates</B></A> <SUP><FONT COLOR=YELLOW>*</FONT></SUP></UL>';
+                }
+                infhtml += '<UL><LI><A CLASS="aplate" HREF="javascript:webWxPage()">Open METAR/TAF (' + metafsidstr + ') Page</A> <SUP><FONT COLOR=YELLOW>*</FONT></SUP></UL>';
+                infhtml += '<UL><LI><A CLASS="aplate" HREF="javascript:fuelPrices()">Open Nearby Fuel Prices Page</A> <SUP><FONT COLOR=YELLOW>*</FONT></SUP></UL>';
+                infhtml += '<P></P><P> &nbsp; &nbsp; &nbsp; <SUP><FONT COLOR=YELLOW>*</FONT></SUP> Internet access required [<SPAN ID=inetstatus></SPAN>]</P></SPAN>';
+                return infhtml;
+            }
+
+            // open adds' metar/taf page in web browser
+            function webWxPage ()
+            {
+                var webwxpage = document.forms.webwxpage;
+                webwxpage.ids.value = metafsidstr.replace (/,/g, ' ');
+                webwxpage.submit ();
+            }
+
+            // open airnav's fuel price page in web browser
+            function fuelPrices ()
+            {
+                var fuelprices = document.forms.fuelprices;
+                fuelprices.icaoid.value = aptjso.getICAOID ();
+                fuelprices.submit ();
             }
 
             // format html for all the approach plates
@@ -234,51 +338,55 @@
             {
                 // get most recent metar text and parse
                 var mettypes = [ ];
-                var metars = aptjso.getMetars ();
-                if (metars != '') {
-                    var metlines = metars.split ('\n');
-                    var nmetlines = metlines.length;
-                    for (var i = 0; i < nmetlines; i ++) {
-                        var metline = metlines[i];
-                        if (metline == '') continue;
+                for (var k = 0; k < metafsidarr.length; k ++) {
+                    var icaoid = metafsidarr[k];
+                    if (icaoid == '') continue;
+                    var metars = aptjso.getMetars (icaoid);
+                    if (metars != '') {
+                        var metlines = metars.split ('\n');
+                        var nmetlines = metlines.length;
+                        for (var i = 0; i < nmetlines; i ++) {
+                            var metline = metlines[i];
+                            if (metline == '') continue;
 
-                        // TMETAR, TPIREP, TTAF ...
-                        // create a mettype object
-                        if (metline.charAt (0) == 'T') {
-                            var mettype = { };
-                            mettype.type = metline.substring (1);
-                            mettype.objs = [ ];
-                            mettypes[mettypes.length] = mettype;
-                            continue;
-                        }
-
-                        // Xtimeissued (might be more than one per mettype)
-                        // create a metobj object and add to mettype
-                        if (metline.charAt (0) == 'X') {
-                            var metobj  = { };
-                            metobj.time = metline.substring (1);
-                            metobj.data = '';
-                            mettype.objs[mettype.objs.length] = metobj;
-                            continue;
-                        }
-
-                        // Dtext
-                        // append <TR>...</TR> row to metobj.data
-                        if (metline.charAt (0) == 'D') {
-                            metline = metline.substring (1).trim ();
-                            var j = metline.indexOf (' ');
-                            if (j >= 0) {
-                                var firstword = metline.substring (0, j);
-                                if ((firstword.length == 7) && (firstword.charAt (6) == 'Z')) {
-                                    metobj.data += '<TR><TD ALIGN=RIGHT><FONT COLOR=YELLOW>AsOf ' + decodeTime (firstword.substring (0, 6)) + '</FONT></TD><TD>' + metline.substring (j) + '</TD></TR>';
-                                    continue;
-                                }
-                                if ((firstword.length == 8) && (firstword.substring (0, 2) == 'FM')) {
-                                    metobj.data += '<TR><TD ALIGN=RIGHT><FONT COLOR=YELLOW>From ' + decodeTime (firstword.substring (2)) + '</FONT></TD><TD>' + metline.substring (j) + '</TD></TR>';
-                                    continue;
-                                }
+                            // TMETAR, TPIREP, TTAF ...
+                            // create a mettype object
+                            if (metline.charAt (0) == 'T') {
+                                var mettype = { };
+                                mettype.type = metline.substring (1) + ' (' + icaoid + ')';
+                                mettype.objs = [ ];
+                                mettypes[mettypes.length] = mettype;
+                                continue;
                             }
-                            metobj.data += '<TR><TD></TD><TD>' + metline + '</TD></TR>';
+
+                            // Xtimeissued (might be more than one per mettype)
+                            // create a metobj object and add to mettype
+                            if (metline.charAt (0) == 'X') {
+                                var metobj  = { };
+                                metobj.time = metline.substring (1);
+                                metobj.data = '';
+                                mettype.objs[mettype.objs.length] = metobj;
+                                continue;
+                            }
+
+                            // Dtext
+                            // append <TR>...</TR> row to metobj.data
+                            if (metline.charAt (0) == 'D') {
+                                metline = metline.substring (1).trim ();
+                                var j = metline.indexOf (' ');
+                                if (j >= 0) {
+                                    var firstword = metline.substring (0, j);
+                                    if ((firstword.length == 7) && (firstword.charAt (6) == 'Z')) {
+                                        metobj.data += '<TR><TD ALIGN=RIGHT><FONT COLOR=YELLOW>AsOf ' + decodeTime (firstword.substring (0, 6)) + '</FONT></TD><TD>' + metline.substring (j) + '</TD></TR>';
+                                        continue;
+                                    }
+                                    if ((firstword.length == 8) && (firstword.substring (0, 2) == 'FM')) {
+                                        metobj.data += '<TR><TD ALIGN=RIGHT><FONT COLOR=YELLOW>From ' + decodeTime (firstword.substring (2)) + '</FONT></TD><TD>' + metline.substring (j) + '</TD></TR>';
+                                        continue;
+                                    }
+                                }
+                                metobj.data += '<TR><TD></TD><TD>' + metline + '</TD></TR>';
+                            }
                         }
                     }
                 }
@@ -321,7 +429,7 @@
             // rebuild on-screen text from latest in wtn's metar repo
             function gotWebMetar (req)
             {
-                if (req.status == 200) {
+                if ((-- numwebmetars <= 0) && (req.status == 200)) {
                     fillMetars ();
                 }
             }
@@ -410,7 +518,8 @@
             function doAjaxGet (url, done)
             {
                 var httprequest = new XMLHttpRequest ();
-                httprequest.onreadystatechange = function () {
+                httprequest.onreadystatechange = function ()
+                {
                     if (this.readyState == 4) {
                         done (this);
                     }
@@ -435,7 +544,7 @@
                 color: cyan;
             }
             tr:nth-child(even) {
-                background-color: #002200;
+                background-color: #005500;
             }
             .aplate {
                 text-decoration-line: none;
@@ -452,5 +561,15 @@
     <BODY ONLOAD="pageLoaded()">
         <DIV CLASS="outlinebox" ID="metars">metar span</DIV>
         <DIV ID="plates">plates span</DIV>
+        <!-- GET opens in new full-screen window; POST opens in same sub-window -->
+        <FORM NAME=webwxpage ACTION="https://www.aviationweather.gov/taf/data" METHOD=GET>
+            <INPUT TYPE=HIDDEN NAME="format" VALUE="decoded">
+            <INPUT TYPE=HIDDEN NAME="metars" VALUE="on">
+            <INPUT TYPE=HIDDEN NAME="date"   VALUE="">
+            <INPUT TYPE=HIDDEN NAME="ids">
+        </FORM>
+        <FORM NAME=fuelprices ACTION="https://www.outerworldapps.com/WairToNow/airnavfuel.php" METHOD=GET>
+            <INPUT TYPE=HIDDEN NAME="icaoid">
+        </FORM>
     </BODY>
 </HTML>

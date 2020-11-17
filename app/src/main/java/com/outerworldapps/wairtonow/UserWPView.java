@@ -204,6 +204,9 @@ public class UserWPView extends LinearLayout
             wp.Reformat ();
         }
     }
+    @Override  // CanBeMainView
+    public void OrientationChanged ()
+    { }
     @Override
     public View GetBackPage ()
     {

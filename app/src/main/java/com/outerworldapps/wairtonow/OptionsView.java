@@ -477,6 +477,10 @@ public class OptionsView
     public void OpenDisplay ()
     { }
 
+    @Override  // CanBeMainView
+    public void OrientationChanged ()
+    { }
+
     /**
      * This screen is no longer current so close bitmaps to conserve memory.
      */

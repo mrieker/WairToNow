@@ -1286,6 +1286,11 @@ public class WairToNow extends Activity {
         dotsPerInchX  = metrics.xdpi;
         dotsPerInchY  = metrics.ydpi;
         dotsPerInch   = (float) Math.sqrt (dotsPerInchX * dotsPerInchY);
+
+        // maybe currently open display cares if screen was flipped
+        if (currentTabButton != null) {
+            ((CanBeMainView)currentTabButton.view).OrientationChanged ();
+        }
     }
 
     /**
@@ -1430,5 +1435,6 @@ public class WairToNow extends Activity {
         void CloseDisplay ();
         void ReClicked ();
         View GetBackPage ();
+        void OrientationChanged ();
     }
 }

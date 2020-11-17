@@ -185,6 +185,10 @@ public class GlassView
     public void OpenDisplay ()
     { }
 
+    @Override  // CanBeMainView
+    public void OrientationChanged ()
+    { }
+
     /**
      * This screen is no longer current.
      */

@@ -91,13 +91,17 @@ public class FilesView
     }
 
     @Override  // CanBeMainView
-    public void OpenDisplay()
+    public void OpenDisplay ()
     {
         if (filePageStack.isEmpty ()) {
             filePageStack.push (new TopFilePage ());
         }
         ReshowPage ();
     }
+
+    @Override  // CanBeMainView
+    public void OrientationChanged ()
+    { }
 
     @Override  // CanBeMainView
     public void CloseDisplay()

@@ -12,7 +12,7 @@
                 pollInetStatus ();
                 fillLinkButTable ();
 
-                var fuelurl = pvjso.getPref ('planview.fuelurl', 'https://www.airnav.com/airport/%%%%');
+                var fuelurl = pvjso.getPref ('planview.fuelurl', 'https://www.outerworldapps.com/WairToNow/airnavfuel.php?icaoid=%%%%');
                 document.forms.searchapts.fuelurl.value = fuelurl;
             }
 
@@ -268,8 +268,8 @@
                     </TD></TR>
                     <TR><TH ALIGN=RIGHT>from airport ICAO</TH><TD><INPUT NAME=apticao STYLE="width:4em"></TD></TR>
                     <TR><TH ALIGN=RIGHT>runway minimum length</TH><TD><INPUT NAME=minrwylen TYPE=NUMBER STYLE="width:4em"> feet</TD></TR>
-                    <TR><TH ALIGN=RIGHT>fuel lookup URL</TH><TD><INPUT NAME=fuelurl SIZE=40 ONCHANGE="fuelurlChanged()">
-                        <TT>%%%%</TT>&nbsp;for&nbsp;ICAO&nbsp;ID</TD></TR>
+                    <TR><TH ALIGN=RIGHT VALIGN=TOP>fuel lookup URL</TH><TD><INPUT NAME=fuelurl SIZE=64 ONCHANGE="fuelurlChanged()">
+                        <BR><TT>%%%%</TT>&nbsp;for&nbsp;ICAO&nbsp;ID</TD></TR>
                     <TR><TH></TH><TD><INPUT TYPE=BUTTON VALUE="Search" ONCLICK="searchAirports()">
                         <INPUT TYPE=BUTTON VALUE="Clear" ONCLICK="clearAirports()"></TD></TR>
                 </TABLE>

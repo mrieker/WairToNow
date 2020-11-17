@@ -86,6 +86,10 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
     public void OpenDisplay ()
     { }
 
+    @Override  // CanBeMainView
+    public void OrientationChanged ()
+    { }
+
     /**
      * If back arrow pressed when viewing a plate,
      * show the waypoint view page.

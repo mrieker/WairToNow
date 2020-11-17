@@ -868,6 +868,10 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
         if (trackingOn) UpdateTrackingDisplay ();
     }
 
+    @Override  // CanBeMainView
+    public void OrientationChanged ()
+    { }
+
     @Override  // WairToNow.CanBeMainView
     public void CloseDisplay ()
     {

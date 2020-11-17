@@ -143,6 +143,10 @@ public class CrumbsView extends ScrollView implements WairToNow.CanBeMainView {
     }
 
     @Override  // CanBeMainView
+    public void OrientationChanged ()
+    { }
+
+    @Override  // CanBeMainView
     public void CloseDisplay ()
     { }
 

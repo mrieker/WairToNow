@@ -95,6 +95,9 @@ public class OfflineFPFormView extends WebView implements WairToNow.CanBeMainVie
     @Override
     public void OpenDisplay () { }
 
+    @Override  // CanBeMainView
+    public void OrientationChanged () { }
+
     @Override
     public void CloseDisplay () { }
 

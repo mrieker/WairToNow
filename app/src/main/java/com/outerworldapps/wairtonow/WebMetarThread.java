@@ -327,6 +327,15 @@ public class WebMetarThread extends Thread {
         return "http://localhost:" + webMetarProxyServer.serverSocket.getLocalPort () + "/" + icaoid;
     }
 
+    public String getInetStatusURL ()
+    {
+        if (webMetarProxyServer == null) {
+            webMetarProxyServer = new WebMetarProxyServer ();
+        }
+        if (webMetarProxyServer.serverSocket == null) return "";
+        return "http://localhost:" + webMetarProxyServer.serverSocket.getLocalPort () + "/inetstatus.txt";
+    }
+
     private WebMetarProxyServer webMetarProxyServer;
 
     private class WebMetarProxyServer extends Thread {
@@ -357,14 +366,20 @@ public class WebMetarThread extends Thread {
                         if (!req.startsWith ("GET /") || !req.endsWith (" HTTP/1.1")) throw new Exception ("bad request " + req);
                         String icaoid = req.substring (5, req.length () - 9);
                         while (! (br.readLine ()).trim ().equals ("")) Lib.Ignored ();
-                        Waypoint.Airport apt = Waypoint.GetAirportByIdent (icaoid, wairToNow);
-                        if (apt == null) throw new Exception ("bad airport icaoid " + icaoid);
-                        fetchMetars (apt);
+                        String reply;
+                        if (icaoid.equals ("inetstatus.txt")) {
+                            reply = PlanView.getInetStatus () + "\n";
+                        } else {
+                            Waypoint.Airport apt = Waypoint.GetAirportByIdent (icaoid, wairToNow);
+                            if (apt == null) throw new Exception ("bad airport icaoid " + icaoid);
+                            fetchMetars (apt);
+                            reply = "OK\n";
+                        }
                         BufferedWriter bw = new BufferedWriter (new OutputStreamWriter (connectSocket.getOutputStream ()));
                         bw.write ("HTTP/1.1 200 OK\r\n");
                         bw.write ("Access-Control-Allow-Origin: *\r\n");
-                        bw.write ("Content-Length: 3\r\n\r\n");
-                        bw.write ("OK\n");
+                        bw.write ("Content-Length: " + reply.length () + "\r\n\r\n");
+                        bw.write (reply);
                         bw.flush ();
                     } finally {
                         connectSocket.close ();

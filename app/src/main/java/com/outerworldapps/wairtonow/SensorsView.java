@@ -218,6 +218,10 @@ public class SensorsView
         SetGPSLocation ();
     }
 
+    @Override  // CanBeMainView
+    public void OrientationChanged ()
+    { }
+
     /**
      * The sensors screen is no longer current.
      */

@@ -103,6 +103,9 @@ public class PlanView extends WebView
             ReClicked ();
         }
     }
+    @Override  // CanBeMainView
+    public void OrientationChanged ()
+    { }
     public void CloseDisplay ()
     { }
     public void ReClicked ()
@@ -523,7 +526,7 @@ public class PlanView extends WebView
      *  Poll Internet Status  *
     \**************************/
 
-    private boolean getInetStatus ()
+    public static boolean getInetStatus ()
     {
         try {
             URL url = new URL (MaintView.dldir);

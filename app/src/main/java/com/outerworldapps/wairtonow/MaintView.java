@@ -637,6 +637,10 @@ public class MaintView
         UpdateRunwayDiagramDownloadStatus ();
     }
 
+    @Override  // CanBeMainView
+    public void OrientationChanged ()
+    { }
+
     /**
      * This screen is no longer current so close bitmaps to conserve memory.
      */
@@ -3155,6 +3159,10 @@ public class MaintView
                 if (bitmap == null) bitmap = BitmapFactory.decodeResource (wairToNow.getResources (), resid);
                 if (bitmap == null) throw new RuntimeException ("bitmap create failed");
             }
+
+            @Override  // CanBeMainView
+            public void OrientationChanged ()
+            { }
 
             @Override  // CanBeMainView
             public void CloseDisplay()

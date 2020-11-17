@@ -61,6 +61,8 @@ public class HelpView extends WebView
         return "Help";
     }
     public void OpenDisplay () { }
+    @Override  // CanBeMainView
+    public void OrientationChanged () { }
     public void CloseDisplay () { }
     public void ReClicked ()
     {

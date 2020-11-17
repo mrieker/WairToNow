@@ -258,6 +258,10 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
     }
 
     @Override  // CanBeMainView
+    public void OrientationChanged ()
+    { }
+
+    @Override  // CanBeMainView
     public boolean IsPowerLocked ()
     {
         return wairToNow.optionsView.powerLockOption.checkBox.isChecked ();

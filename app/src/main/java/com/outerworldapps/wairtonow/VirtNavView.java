@@ -130,6 +130,10 @@ public class VirtNavView extends LinearLayout
         orientationChanged ();
     }
 
+    @Override  // CanBeMainView
+    public void OrientationChanged ()
+    { }
+
     public void CloseDisplay ()
     {
         open = false;
