@@ -110,7 +110,7 @@ public class StreetChart implements DisplayableChart {
     public void DrawOnCanvas (@NonNull PixelMapper pmap, @NonNull Canvas canvas, @NonNull Invalidatable inval, double canvasHdgRads)
     {
         osm = wairToNow.openStreetMap;
-        osm.Draw (canvas, pmap, inval, canvas.getHeight ());
+        osm.Draw (canvas, pmap, inval, canvas.getWidth (), canvas.getHeight ());
 
         /* TODO too cluttered
 

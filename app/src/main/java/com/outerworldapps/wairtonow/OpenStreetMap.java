@@ -80,9 +80,9 @@ public class OpenStreetMap {
      * @param inval = what to call in an arbitrary thread when a tile gets loaded
      * @param copyrty = where to put copyright message
      */
-    public void Draw (@NonNull Canvas canvas, @NonNull PixelMapper pmap, @NonNull DisplayableChart.Invalidatable inval, float copyrty)
+    public void Draw (@NonNull Canvas canvas, @NonNull PixelMapper pmap, @NonNull DisplayableChart.Invalidatable inval, float copyrtx, float copyrty)
     {
-        mainTileDrawer.Draw (canvas, pmap, inval, copyrty);
+        mainTileDrawer.Draw (canvas, pmap, inval, copyrtx, copyrty);
     }
 
     /**
@@ -118,11 +118,13 @@ public class OpenStreetMap {
             copyrtBGPaint.setStyle (Paint.Style.FILL_AND_STROKE);
             copyrtBGPaint.setTextSize (wairToNow.textSize * 3 / 4);
             copyrtBGPaint.setStrokeWidth (wairToNow.thickLine);
+            copyrtBGPaint.setTextAlign (Paint.Align.RIGHT);
             copyrtTxPaint.setColor (Color.BLACK);
             copyrtTxPaint.setTextSize (wairToNow.textSize * 3 / 4);
+            copyrtTxPaint.setTextAlign (Paint.Align.RIGHT);
         }
 
-        public void Draw (@NonNull Canvas canvas, @NonNull PixelMapper pmap, @NonNull DisplayableChart.Invalidatable inval, float copyrty)
+        public void Draw (@NonNull Canvas canvas, @NonNull PixelMapper pmap, @NonNull DisplayableChart.Invalidatable inval, float copyrtx, float copyrty)
         {
             redrawView = inval;
             this.canvas = canvas;
@@ -138,8 +140,8 @@ public class OpenStreetMap {
 
             if (DrawTiles (wairToNow, pmap)) {
                 String copyrtMessage = "[" + zoom + "]  Copyright OpenStreetMap contributors";
-                canvas.drawText (copyrtMessage, 5, copyrty - 5, copyrtBGPaint);
-                canvas.drawText (copyrtMessage, 5, copyrty - 5, copyrtTxPaint);
+                canvas.drawText (copyrtMessage, copyrtx - 5, copyrty - 5, copyrtBGPaint);
+                canvas.drawText (copyrtMessage, copyrtx - 5, copyrty - 5, copyrtTxPaint);
             }
 
             synchronized (openedBitmaps) {
@@ -244,10 +246,20 @@ public class OpenStreetMap {
                     canvasclip.lineTo ((float) southeastcanpix.x, (float) southeastcanpix.y);
                     canvasclip.lineTo ((float) southwestcanpix.x, (float) southwestcanpix.y);
                     canvasclip.lineTo ((float) northwestcanpix.x, (float) northwestcanpix.y);
+                    canvasclip.close ();
 
                     canvas.save ();
                     saved = true;
-                    canvas.clipPath (canvasclip);
+                    try {
+                        canvas.clipPath (canvasclip);
+                    } catch (UnsupportedOperationException uoe) {
+                        Log.e (TAG, "error setting osm tile clip", uoe);
+                        Log.e (TAG, "  northwestcanpix=" + northwestcanpix);
+                        Log.e (TAG, "  northeastcanpix=" + northeastcanpix);
+                        Log.e (TAG, "  southwestcanpix=" + southwestcanpix);
+                        Log.e (TAG, "  southwestcanpix=" + southwestcanpix);
+                        return false;
+                    }
                 }
 
                 /*

@@ -25,6 +25,8 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.Rect;
+import android.graphics.RectF;
+import android.graphics.Typeface;
 
 /**
  * Manage current position cloud shown in upper-left corner of some screens.
@@ -34,19 +36,21 @@ public class CurrentCloud {
 
     private boolean gpsInfoMphOpt;
     public  boolean showGPSInfo    = true;
-    private char[] gpsInfoMagHdgStr;
+    private char[] gpsInfoHdgStr;
     private char[] gpsInfoSecStr;
-    private char[] gpsinfoTrueHdgStr;
     private double gpsInfoAltitude = Double.NaN;
     private double gpsInfoSpeed    = Double.NaN;
     private int gpsInfoSecond;
     private long downOnGPSInfo    = 0;
+    private Paint cloudPaint      = new Paint ();
     private Paint currentBGPaint  = new Paint ();
-    private Paint currentTxPaint  = new Paint ();
+    private Paint currentTuPaint  = new Paint ();
+    private Paint currentTvPaint  = new Paint ();
+    private Path cloudPath;
     private Path gpsInfoPath;
     private Rect gpsInfoBounds    = new Rect ();
-    private String gpsInfoAltStr;
-    private String gpsInfoSpdStr;
+    private String gpsInfoAltStr  = "";
+    private String gpsInfoSpdStr  = "";
     private WairToNow wairToNow;
 
     public CurrentCloud (WairToNow wtn)
@@ -54,20 +58,26 @@ public class CurrentCloud {
         wairToNow = wtn;
         float ts = wairToNow.textSize;
 
-        currentBGPaint.setColor (Color.WHITE);
-        currentBGPaint.setStyle (Paint.Style.STROKE);
-        currentBGPaint.setStrokeWidth (wairToNow.thickLine);
-        currentBGPaint.setTextSize (ts);
-        currentBGPaint.setTextAlign (Paint.Align.CENTER);
-        currentTxPaint.setColor (CurrentCloud.currentColor);
-        currentTxPaint.setStyle (Paint.Style.FILL);
-        currentTxPaint.setStrokeWidth (2);
-        currentTxPaint.setTextSize (ts);
-        currentTxPaint.setTextAlign (Paint.Align.CENTER);
+        cloudPaint.setColor (Color.WHITE);
+        cloudPaint.setStyle (Paint.Style.FILL_AND_STROKE);
 
-        gpsInfoMagHdgStr = new char[] { 'x', 'x', 'x', 0xB0, ' ', 'M', 'a', 'g' };
-        gpsInfoSecStr = new char[] { 'h', 'h', ':', 'm', 'm', ':', 's', 's', 'z' };
-        gpsinfoTrueHdgStr = new char[] { 'x', 'x', 'x', 0xB0, ' ', 'T', 'r', 'u', 'e' };
+        currentBGPaint.setColor (Color.WHITE);
+        currentBGPaint.setStyle (Paint.Style.FILL_AND_STROKE);
+        currentBGPaint.setStrokeWidth (wairToNow.thickLine);
+        currentTuPaint.setColor (CurrentCloud.currentColor);
+        currentTuPaint.setStyle (Paint.Style.FILL);
+        currentTuPaint.setStrokeWidth (2);
+        currentTuPaint.setTextSize (ts);
+        currentTuPaint.setTextAlign (Paint.Align.LEFT);
+        currentTvPaint.setColor (CurrentCloud.currentColor);
+        currentTvPaint.setStyle (Paint.Style.FILL);
+        currentTvPaint.setStrokeWidth (2);
+        currentTvPaint.setTextSize (ts);
+        currentTvPaint.setTextAlign (Paint.Align.RIGHT);
+        currentTvPaint.setTypeface (Typeface.create (currentTvPaint.getTypeface (), Typeface.BOLD));
+
+        gpsInfoHdgStr = new char[] { 'x', 'x', 'x', 0xB0 };
+        gpsInfoSecStr = new char[] { 'h', 'h', ':', 'm',  'm', ':', 's', 's' };
     }
 
     /**
@@ -100,85 +110,109 @@ public class CurrentCloud {
     public void DrawIt (Canvas canvas)
     {
         if (!wairToNow.optionsView.typeBOption.checkBox.isChecked ()) {
-            DrawIt (canvas, currentBGPaint);
-            DrawIt (canvas, currentTxPaint);
+            if (showGPSInfo) {
+                DrawGPSInfo (canvas);
+            } else {
+                DrawTriangle (canvas, currentBGPaint);
+                DrawTriangle (canvas, currentTuPaint);
+            }
         }
     }
 
-    private void DrawIt (Canvas canvas, Paint paint)
+    private void DrawGPSInfo (Canvas canvas)
     {
-        if (showGPSInfo) {
-            double altitude = wairToNow.currentGPSAlt;
-            double heading  = wairToNow.currentGPSHdg;
-            double speed    = wairToNow.currentGPSSpd;
-            long   time     = wairToNow.currentGPSTime;
-            boolean mphOpt  = wairToNow.optionsView.ktsMphOption.getAlt ();
-            boolean trueOpt = wairToNow.optionsView.magTrueOption.getAlt ();
+        double altitude = wairToNow.currentGPSAlt;
+        double heading  = wairToNow.currentGPSHdg;
+        double speed    = wairToNow.currentGPSSpd;
+        long   time     = wairToNow.currentGPSTime;
+        boolean mphOpt  = wairToNow.optionsView.ktsMphOption.getAlt ();
+        boolean trueOpt = wairToNow.optionsView.magTrueOption.getAlt ();
 
-            int second = (int) ((time + 500) / 1000 % 86400);
-            if (gpsInfoSecond != second) {
-                gpsInfoSecond = second;
-                int hh = second / 3600;
-                int mm = second / 60 % 60;
-                int ss = second % 60;
-                gpsInfoSecStr[0] = (char) (hh / 10 + '0');
-                gpsInfoSecStr[1] = (char) (hh % 10 + '0');
-                gpsInfoSecStr[3] = (char) (mm / 10 + '0');
-                gpsInfoSecStr[4] = (char) (mm % 10 + '0');
-                gpsInfoSecStr[6] = (char) (ss / 10 + '0');
-                gpsInfoSecStr[7] = (char) (ss % 10 + '0');
-            }
-
-            if (trueOpt) {
-                int th = (int) Math.round (heading);
-                while (th <=  0) th += 360;
-                while (th > 360) th -= 360;
-                gpsinfoTrueHdgStr[0] = (char) (th / 100 + '0');
-                gpsinfoTrueHdgStr[1] = (char) (th / 10 % 10 + '0');
-                gpsinfoTrueHdgStr[2] = (char) (th % 10 + '0');
-            } else {
-                int mh = (int) Math.round (heading + wairToNow.currentMagVar);
-                while (mh <=  0) mh += 360;
-                while (mh > 360) mh -= 360;
-                gpsInfoMagHdgStr[0] = (char) (mh / 100 + '0');
-                gpsInfoMagHdgStr[1] = (char) (mh / 10 % 10 + '0');
-                gpsInfoMagHdgStr[2] = (char) (mh % 10 + '0');
-            }
-
-            if (gpsInfoAltitude != altitude) {
-                gpsInfoAltitude = altitude;
-                gpsInfoAltStr   = Math.round (altitude * Lib.FtPerM) + " ft";
-            }
-
-            if ((gpsInfoMphOpt != mphOpt) || (gpsInfoSpeed != speed)) {
-                gpsInfoMphOpt = mphOpt;
-                gpsInfoSpeed  = speed;
-                gpsInfoSpdStr = Lib.SpeedString (speed * Lib.KtPerMPS, mphOpt);
-            }
-
-            int cx = (int)(paint.getTextSize () * 3.125);
-            int dy = (int)paint.getFontSpacing ();
-
-            gpsInfoBounds.setEmpty ();
-            Lib.DrawBoundedString (canvas, gpsInfoBounds, paint, cx, dy, gpsInfoSecStr);
-            Lib.DrawBoundedString (canvas, gpsInfoBounds, paint, cx, dy * 2, gpsInfoAltStr);
-            Lib.DrawBoundedString (canvas, gpsInfoBounds, paint, cx, dy * 3, trueOpt ? gpsinfoTrueHdgStr : gpsInfoMagHdgStr);
-            Lib.DrawBoundedString (canvas, gpsInfoBounds, paint, cx, dy * 4, gpsInfoSpdStr);
-        } else {
-            float ts = wairToNow.textSize;
-
-            gpsInfoBounds.left   = 0;
-            gpsInfoBounds.right  = Math.round (ts * 4);
-            gpsInfoBounds.top    = 0;
-            gpsInfoBounds.bottom = Math.round (ts * 4);
-
-            if (gpsInfoPath == null) {
-                gpsInfoPath = new Path ();
-                gpsInfoPath.moveTo (ts * 2, ts);
-                gpsInfoPath.lineTo (ts * 2, ts * 2);
-                gpsInfoPath.lineTo (ts, ts * 2);
-            }
-            canvas.drawPath (gpsInfoPath, paint);
+        int second = (int) ((time + 500) / 1000 % 86400);
+        if (gpsInfoSecond != second) {
+            gpsInfoSecond = second;
+            int hh = second / 3600;
+            int mm = second / 60 % 60;
+            int ss = second % 60;
+            gpsInfoSecStr[0] = (char) (hh / 10 + '0');
+            gpsInfoSecStr[1] = (char) (hh % 10 + '0');
+            gpsInfoSecStr[3] = (char) (mm / 10 + '0');
+            gpsInfoSecStr[4] = (char) (mm % 10 + '0');
+            gpsInfoSecStr[6] = (char) (ss / 10 + '0');
+            gpsInfoSecStr[7] = (char) (ss % 10 + '0');
         }
+
+        if (speed < WairToNow.gpsMinSpeedMPS) {
+            gpsInfoHdgStr[0] = '\u2012';
+            gpsInfoHdgStr[1] = '\u2012';
+            gpsInfoHdgStr[2] = '\u2012';
+        } else {
+            int hdg = (int) Math.round (trueOpt ? heading : (heading + wairToNow.currentMagVar));
+            while (hdg <=  0) hdg += 360;
+            while (hdg > 360) hdg -= 360;
+            gpsInfoHdgStr[0] = (char) (hdg / 100 + '0');
+            gpsInfoHdgStr[1] = (char) (hdg / 10 % 10 + '0');
+            gpsInfoHdgStr[2] = (char) (hdg % 10 + '0');
+        }
+
+        if (gpsInfoAltitude != altitude) {
+            gpsInfoAltitude = altitude;
+            gpsInfoAltStr   = Long.toString (Math.round (altitude * Lib.FtPerM));
+        }
+
+        if ((gpsInfoMphOpt != mphOpt) || (gpsInfoSpeed != speed)) {
+            gpsInfoMphOpt = mphOpt;
+            gpsInfoSpeed  = speed;
+            gpsInfoSpdStr = Lib.SpeedString (speed * Lib.KtPerMPS, mphOpt);
+        }
+
+        float dx = currentTuPaint.getTextSize ();
+        float dy = currentTuPaint.getFontSpacing ();
+
+        gpsInfoBounds.set (0, 0, Math.round (dx * 6), Math.round (dy * 4));
+
+        if (cloudPath == null) {
+            cloudPath = new Path ();
+            RectF oval = new RectF (0, 0, dx * 6, dy * 4);
+            cloudPath.addRect (oval, Path.Direction.CCW);
+            for (int iy = 0; iy < 4; iy ++) {
+                oval.set (dx * 5.5F, iy * dy, dx * 6.5F, iy * dy + dy);
+                cloudPath.addArc (oval, 90, -180);
+            }
+            for (int ix = 0; ix < 6; ix ++) {
+                oval.set (ix * dx, dy * 3.5F, ix * dx + dx, dy * 4.5F);
+                cloudPath.addArc (oval, 0, 180);
+            }
+            cloudPath.close ();
+        }
+        canvas.drawPath (cloudPath, cloudPaint);
+
+        canvas.drawText (gpsInfoSecStr, 0, 8,                       5.0F * dx, dy,     currentTvPaint);
+        canvas.drawText ("z",                                       5.0F * dx, dy,     currentTuPaint);
+        canvas.drawText (gpsInfoAltStr, 0, gpsInfoAltStr.length (), 3.5F * dx, dy * 2, currentTvPaint);
+        canvas.drawText (" ft",                                     3.5F * dx, dy * 2, currentTuPaint);
+        canvas.drawText (gpsInfoHdgStr, 0, 4,                       3.5F * dx, dy * 3, currentTvPaint);
+        canvas.drawText (trueOpt ? " true" : " mag",                3.5F * dx, dy * 3, currentTuPaint);
+        int i = gpsInfoSpdStr.indexOf (' ');
+        canvas.drawText (gpsInfoSpdStr, 0, i,                       3.5F * dx, dy * 4, currentTvPaint);
+        canvas.drawText (gpsInfoSpdStr, i, gpsInfoSpdStr.length (), 3.5F * dx, dy * 4, currentTuPaint);
+    }
+
+    private void DrawTriangle (Canvas canvas, Paint paint)
+    {
+        float ts = wairToNow.textSize;
+
+        gpsInfoBounds.left   = 0;
+        gpsInfoBounds.right  = Math.round (ts * 4);
+        gpsInfoBounds.top    = 0;
+        gpsInfoBounds.bottom = Math.round (ts * 4);
+
+        if (gpsInfoPath == null) {
+            gpsInfoPath = new Path ();
+            gpsInfoPath.moveTo (ts * 2, ts);
+            gpsInfoPath.lineTo (ts * 2, ts * 2);
+            gpsInfoPath.lineTo (ts, ts * 2);
+        }
+        canvas.drawPath (gpsInfoPath, paint);
     }
 }

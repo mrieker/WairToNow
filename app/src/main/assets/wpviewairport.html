@@ -157,6 +157,12 @@
             function pollInetStatus ()
             {
                 var instbox = document.getElementById ('inetstatus');
+                var txtaptinfos = document.getElementById ('txt-aptinfos');
+                if (txtaptinfos.hidden) {
+                    instbox.innerHTML = '';
+                    setTimeout (pollInetStatus, 2000);
+                    return;
+                }
 
                 // set status string to 'polling' if it takes more than 333ms to poll
                 inetstatus = '<FONT COLOR=#FFFF00>polling</FONT>';
@@ -210,7 +216,7 @@
                 return dethtml;
             }
 
-            // Airport Information triangle button holding Details, METAR/TAF and Fuel Prices links
+            // Supplemental Information triangle button holding Details, METAR/TAF and Fuel Prices links
             // If database is not downloaded, have section opened by default so user sees download link
             function formatInfos ()
             {

@@ -52,7 +52,6 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
         void recycle ();
         boolean LatLonAlt2CanPixExact (double lat, double lon, double alt, PointD pix);
         void drawOverlay (Canvas canvas);
-        void postInvalidate ();
     }
 
     private boolean forceRecen;
@@ -221,6 +220,8 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
         orgLon = Lib.NormalLon (oLon);
         clDest = dest;
 
+        stateView.showCourseInfo = true;
+        stateView.showCourseLine = true;
         stateView.invalidate ();
         if (backing != null) {
             backing.getView ().invalidate ();

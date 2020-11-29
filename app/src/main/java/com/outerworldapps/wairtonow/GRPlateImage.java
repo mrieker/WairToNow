@@ -91,7 +91,7 @@ public abstract class GRPlateImage extends PlateImage implements ExactMapper {
             double bitmapY = LatLon2BitmapY (wairToNow.currentGPSLat, wairToNow.currentGPSLon);
             canPoint.x = BitmapX2CanvasX (bitmapX);
             canPoint.y = BitmapY2CanvasY (bitmapY);
-            wairToNow.DrawLocationArrow (canvas, canPoint, 0.0);
+            wairToNow.DrawLocationArrow (canvas, canPoint, 0.0, 0.50F);
         }
         return true;
     }

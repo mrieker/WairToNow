@@ -290,7 +290,7 @@ public class WebMetarThread extends Thread {
             repo.insertNewMetar (metar);
             Log.d (TAG, "webmetar " + apt.ident + " cig=" + repo.ceilingft + " vis=" + repo.visibsm);
         }
-        wairToNow.chartView.backing.postInvalidate ();
+        wairToNow.chartView.backing.getView ().postInvalidate ();
     }
 
     // convert given ddhhmmZ string to millisecond time

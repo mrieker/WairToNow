@@ -175,6 +175,8 @@ public class WairToNow extends Activity {
             Log.d (TAG, "pref[" + entry.getKey () + "]=" + entry.getValue ().toString ());
         }
 
+        if (wtnHandler == null) wtnHandler = new WTNHandler ();
+
         checkStorageAccess ();
     }
 
@@ -188,6 +190,8 @@ public class WairToNow extends Activity {
         // use external storage cuz it can be very large
         if (dbdir == null) {
             File efd = getExternalFilesDir (null);
+            // try again for nexus 10 api 30 emulator
+            if (efd == null) efd = getExternalFilesDir (null);
             if ((efd != null) && tryToCreateNoMediaFile (efd)) {
                 SharedPreferences.Editor editr = prefs.edit ();
                 editr.putString ("storageLocation", efd.getAbsolutePath ());
@@ -226,15 +230,14 @@ public class WairToNow extends Activity {
                     }
                 });
             }
-            adb.setNegativeButton ("Close App", null);
-            AlertDialog ad = adb.show ();
-            ad.setOnDismissListener (new DialogInterface.OnDismissListener () {
+            adb.setNegativeButton ("Close App", new DialogInterface.OnClickListener () {
                 @Override
-                public void onDismiss (DialogInterface dialogInterface)
+                public void onClick (DialogInterface dialogInterface, int i)
                 {
                     finish ();
                 }
             });
+            adb.show ();
             return;
         }
 
@@ -256,8 +259,6 @@ public class WairToNow extends Activity {
                 Log.w (TAG, "error creating " + nmf.getAbsolutePath (), ioe);
             }
         }
-
-        if (wtnHandler == null) wtnHandler = new WTNHandler ();
 
         ctvllp.weight = 1;
 
@@ -1103,7 +1104,7 @@ public class WairToNow extends Activity {
      *   lastGPSTimestamp = time of previous gps sample
      *   lastGPSHeading = true heading for the arrow symbol (previous gps sample)
      */
-    public void DrawLocationArrow (Canvas canvas, PointD pt, double canHdgRads)
+    public void DrawLocationArrow (Canvas canvas, PointD pt, double canHdgRads, float scale)
     {
         /*
          * If not receiving GPS signal, blink the icon.
@@ -1115,7 +1116,7 @@ public class WairToNow extends Activity {
          */
         if (currentGPSSpd < gpsMinSpeedMPS) {
             airplanePaint.setStyle (Paint.Style.STROKE);
-            canvas.drawCircle ((float) pt.x, (float) pt.y, textSize * 0.5F, airplanePaint);
+            canvas.drawCircle ((float) pt.x, (float) pt.y, textSize * scale, airplanePaint);
             return;
         }
 
@@ -1128,10 +1129,10 @@ public class WairToNow extends Activity {
          * Draw the icon.
          */
         canvas.save ();
-        canvas.translate ((float) pt.x, (float) pt.y);  // anything drawn below will be translated this much
-        canvas.rotate ((float) hdg);                    // anything drawn below will be rotated this much
-        DrawAirplaneSymbol (canvas, textSize * 1.5);    // draw the airplane with vectors and filling
-        canvas.restore ();                              // remove translation/scaling/rotation
+        canvas.translate ((float) pt.x, (float) pt.y);      // anything drawn below will be translated this much
+        canvas.rotate ((float) hdg);                        // anything drawn below will be rotated this much
+        DrawAirplaneSymbol (canvas, textSize * scale * 3);  // draw the airplane with vectors and filling
+        canvas.restore ();                                  // remove translation/scaling/rotation
     }
 
     public void DrawAirplaneSymbol (Canvas canvas, double pixels)

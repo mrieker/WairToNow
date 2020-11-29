@@ -1375,7 +1375,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
             double nm = Lib.LatLonDist (lastlat, lastlon, wp.lat, wp.lon);
             totnm += nm;
             String hdgstr = wairToNow.optionsView.HdgString (tc, wairToNow.currentMagVar);
-            sb.append (hdgstr.replace (" ", "").replace ("Mag", "M").replace ("True", "T"));
+            sb.append (hdgstr.replace (" ", "").replace ("mag", "M").replace ("true", "T"));
             sb.append (' ');
             sb.append (Lib.DistString (nm, mphOption).replace (" ", ""));
             sb.append ('\u25B6');

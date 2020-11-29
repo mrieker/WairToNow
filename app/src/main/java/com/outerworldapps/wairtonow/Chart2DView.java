@@ -742,7 +742,7 @@ public class Chart2DView extends View
              */
             canvas.save ();
             canvas.translate (cw / 2.0F, ch / 2.0F);    // anything drawn below will be translated this much
-            wairToNow.DrawAirplaneSymbol (canvas, wairToNow.textSize * 1.5);  // draw airplane symbol unrotated
+            wairToNow.DrawAirplaneSymbol (canvas, wairToNow.textSize * 2.25);  // draw airplane symbol unrotated
             canvas.restore ();                          // remove translation/scaling/rotation
 
             /*
@@ -893,7 +893,7 @@ public class Chart2DView extends View
         /*
          * Draw course line if defined and enabled.
          */
-        if ((chartView.clDest != null) && wairToNow.chartView.stateView.showCourseInfo) {
+        if ((chartView.clDest != null) && wairToNow.chartView.stateView.showCourseLine) {
             DrawCourseLine (canvas);
         }
 
@@ -907,7 +907,7 @@ public class Chart2DView extends View
          */
         if (!wairToNow.optionsView.typeBOption.checkBox.isChecked () &&
                 LatLon2CanPixExact (wairToNow.currentGPSLat, wairToNow.currentGPSLon, pt)) {
-            wairToNow.DrawLocationArrow (canvas, pt, GetCanvasHdgRads ());
+            wairToNow.DrawLocationArrow (canvas, pt, GetCanvasHdgRads (), 0.75F);
         }
     }
 

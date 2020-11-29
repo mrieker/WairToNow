@@ -38,6 +38,6 @@ android {
 
 dependencies {
     implementation 'com.android.support:support-annotations:28.0.0'
-    implementation 'ch.acra:acra:4.8.5'
+    implementation 'ch.acra:acra:4.9.0'
     implementation 'org.opensky-network:libadsb:2.1'
 }

@@ -31,6 +31,7 @@ import org.acra.ReportingInteractionMode;
 import org.acra.annotation.ReportsCrashes;
 import org.acra.collector.CrashReportData;
 import org.acra.config.ACRAConfiguration;
+import org.acra.config.ACRAConfigurationException;
 import org.acra.config.ConfigurationBuilder;
 import org.acra.sender.ReportSender;
 import org.acra.sender.ReportSenderException;
@@ -60,13 +61,19 @@ import java.util.zip.GZIPOutputStream;
         resToastText = R.string.crash_toast_text
 )
 public class AcraApplication extends Application {
+    public final static String TAG = "WairToNow";
+
     @Override
     protected void attachBaseContext(Context base)
     {
         super.attachBaseContext(base);
 
         // The following line triggers the initialization of ACRA
-        ACRA.init (this, new ConfigurationBuilder (this).build (), false);
+        try {
+            ACRA.init (this, new ConfigurationBuilder (this).build (), false);
+        } catch (ACRAConfigurationException ace) {
+            Log.e (TAG, "exception initializing ACRA", ace);
+        }
     }
 
     /**

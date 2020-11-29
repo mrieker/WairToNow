@@ -252,12 +252,13 @@ public class OptionsView
      */
     public String HdgString (double hdg, double magvar)
     {
-        String suffix = (char)0xB0 + " True";
+        String suffix = (char)0xB0 + " true";
         if (!magTrueOption.getAlt ()) {
             hdg += magvar;
-            suffix = (char)0xB0 + " Mag";
+            suffix = (char)0xB0 + " mag";
         }
-        int ihdg = (int)(hdg + 1439.5) % 360 + 1;
+        while (hdg < 0.0) hdg += 360.0;
+        int ihdg = (int) Math.round (hdg + 359) % 360 + 1;
         return Integer.toString (ihdg + 1000).substring (1) + suffix;
     }
 
@@ -404,7 +405,7 @@ public class OptionsView
             gpsUpdateOption.setKeyNoWrite       (gpsUpdateOption.keys[0]);
             circCatOption.setKeyNoWrite         (circCatOption.keys[0]);
             fontSizeOption.setKeyNoWrite        (fontSizeDefault);
-            tfrFilterOption.setKeyNoWrite       ("TFR: ALL");
+            tfrFilterOption.setKeyNoWrite       ("TFR: 3DAYS");
             tfrPDOverOption.setCheckedNoWrite   (PDOVERLAYWORKS);
         } catch (Exception e) {
             Log.w (TAG, "error reading options.csv", e);

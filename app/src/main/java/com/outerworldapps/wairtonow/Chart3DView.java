@@ -257,7 +257,7 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
         // - draw airplane showing what direction we are flying to
         canvas.save ();
         canvas.translate (centerx + xdispdegs * scalewidth / 90.0F, y + textsize / 2.0F);
-        wairToNow.DrawAirplaneSymbol (canvas, textsize * 1.5F);
+        wairToNow.DrawAirplaneSymbol (canvas, textsize * 2.25);
         canvas.restore ();
 
         /*

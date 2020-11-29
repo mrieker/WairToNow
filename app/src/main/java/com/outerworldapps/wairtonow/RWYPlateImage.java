@@ -251,7 +251,7 @@ public class RWYPlateImage extends GRPlateImage implements DisplayableChart.Inva
             canvas.translate ((canwidth - diswidth) / 2.0F, (canheight - disheight) / 2.0F);
 
             // draw tiles and copyright message
-            wairToNow.openStreetMap.Draw (canvas, pmap, this, (canheight + disheight) / 2.0F);
+            wairToNow.openStreetMap.Draw (canvas, pmap, this, (canwidth + diswidth) / 2.0F, (canheight + disheight) / 2.0F);
 
             /*
              * Show debugging lines through airport reference point.
