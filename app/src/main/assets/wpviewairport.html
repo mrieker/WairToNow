@@ -77,7 +77,7 @@
                 var plateids = plates.split ('\n');
 
                 // one triangle for APD and RWY plates
-                var apdhtml = makePlateSection ("Airport/Runway Diagrams", plateids,
+                var apdhtml = makePlateSection ('', 'Airport/Runway Diagrams', plateids,
                         function (plateid)
                         {
                             return startsWith (plateid, 'APD-') || startsWith (plateid, 'RWY-');
@@ -88,14 +88,16 @@
                 var infhtml = formatInfos ();
 
                 // airport details and diagrams in same outline box
-                var html = '<DIV CLASS="outlinebox">' + dethtml + apdhtml + infhtml + '</DIV>';
+                var html = '<DIV CLASS=outlinebox>' + dethtml +
+                        '<DIV CLASS=spacediv></DIV>' + apdhtml +
+                        '<DIV CLASS=spacediv></DIV>' + infhtml + '</DIV>';
 
                 // add code for the approaches
                 // includes its own outline box if there are any approaches
                 html += formatApproaches (plateids);
 
-                // triangle for all MIN, DP, STAR plates
-                var mdshtml = makePlateSection ("Minimums", plateids,
+                // triangle for all MIN plates
+                var mdshtml = makePlateSection ('', 'Minimums', plateids,
                         function (plateid)
                         {
                             return startsWith (plateid, 'MIN-');
@@ -103,7 +105,7 @@
                 );
 
                 // triangle for all DP plates
-                mdshtml += makePlateSection ("Departures", plateids,
+                mdshtml = makePlateSection (mdshtml, 'Departures', plateids,
                         function (plateid)
                         {
                             return startsWith (plateid, 'DP-');
@@ -111,23 +113,23 @@
                 );
 
                 // triangle for all STAR plates
-                mdshtml += makePlateSection ("Arrivals", plateids,
+                mdshtml = makePlateSection (mdshtml, 'Arrivals', plateids,
                         function (plateid)
                         {
                             return startsWith (plateid, 'STAR-');
                         }
                 );
 
-                if (mdshtml != '') html += '<DIV CLASS="outlinebox">' + mdshtml + '</DIV>';
+                if (mdshtml != '') html += '<DIV CLASS=outlinebox>' + mdshtml + '</DIV>';
 
                 // anything else
-                var othhtml = makePlateSection ("Other", plateids,
+                var othhtml = makePlateSection ('', 'Other', plateids,
                         function (plateid)
                         {
                             return true;
                         }
                 );
-                if (othhtml != '') html += '<DIV CLASS="outlinebox">' + othhtml + '</DIV>';
+                if (othhtml != '') html += '<DIV CLASS=outlinebox>' + othhtml + '</DIV>';
 
                 // display html for all that
                 var plaspan = document.getElementById ('plates');
@@ -227,12 +229,12 @@
                 if (isdownd) infhtml += ' HIDDEN';
                 infhtml += ' ID="txt-aptinfos">';
                 if (isdownd) {
-                    infhtml += '<UL><LI><A CLASS="aplate" HREF="javascript:aptjso.detailPage()">Open Airport Details Page</A></UL>';
+                    infhtml += '<UL><LI><A CLASS=aplate HREF="javascript:aptjso.detailPage()">Open Airport Details Page</A></UL>';
                 } else {
-                    infhtml += '<UL><LI><A CLASS="aplate" HREF="javascript:aptjso.dwnldState()"><B>Download Airport Details and Plates</B></A> <SUP><FONT COLOR=YELLOW>*</FONT></SUP></UL>';
+                    infhtml += '<UL><LI><A CLASS=aplate HREF="javascript:aptjso.dwnldState()"><B>Download Airport Details and Plates</B></A> <SUP><FONT COLOR=YELLOW>*</FONT></SUP></UL>';
                 }
-                infhtml += '<UL><LI><A CLASS="aplate" HREF="javascript:webWxPage()">Open METAR/TAF (' + metafsidstr + ') Page</A> <SUP><FONT COLOR=YELLOW>*</FONT></SUP></UL>';
-                infhtml += '<UL><LI><A CLASS="aplate" HREF="javascript:fuelPrices()">Open Nearby Fuel Prices Page</A> <SUP><FONT COLOR=YELLOW>*</FONT></SUP></UL>';
+                infhtml += '<UL><LI><A CLASS=aplate HREF="javascript:webWxPage()">Open METAR/TAF (' + metafsidstr + ') Page</A> <SUP><FONT COLOR=YELLOW>*</FONT></SUP></UL>';
+                infhtml += '<UL><LI><A CLASS=aplate HREF="javascript:fuelPrices()">Open Nearby Fuel Prices Page</A> <SUP><FONT COLOR=YELLOW>*</FONT></SUP></UL>';
                 infhtml += '<P></P><P> &nbsp; &nbsp; &nbsp; <SUP><FONT COLOR=YELLOW>*</FONT></SUP> Internet access required [<SPAN ID=inetstatus></SPAN>]</P></SPAN>';
                 return infhtml;
             }
@@ -257,7 +259,6 @@
             // sets up a separate triangle for each runway that has approaches
             function formatApproaches (plateids)
             {
-                var html = '';
                 var iaprwys = [ ];
                 var nplateids = plateids.length;
                 for (var i = 0; i < nplateids; i ++) {
@@ -282,61 +283,60 @@
                         }
                     }
                 }
-                if (iaprwys.length > 0) {
-                    iaprwys.sort (function (a, b)
-                    {
-                        if (a.rwyno < b.rwyno) return -1;
-                        if (a.rwyno > b.rwyno) return  1;
-                        return 0;
-                    });
-                    html += '<DIV CLASS="outlinebox">';
-                    for (var i = 0; i < iaprwys.length; i ++) {
-                        var iaprwy = iaprwys[i];
-                        var appobjs = { };
-                        for (var j = 0; j < iaprwy.lines.length; j ++) {
-                            var line = iaprwy.lines[j].substring (4);
-                            if (line.indexOf (' VISUAL ') >= 0) {
-                                appobjs.VISUAL = true;
-                                continue;
-                            }
-                            if (startsWith (line, 'RNAV (')) {
-                                var k = line.indexOf (')');
-                                appobjs[line.substring(6,k)] = true;
-                                continue;
-                            }
-                            var k = line.indexOf (' ');
-                            if (k >= 0) line = line.substring (0, k);
-                            var k = line.indexOf ('/');
-                            if (k >= 0) line = line.substring (0, k);
-                            appobjs[line] = true;
+                if (iaprwys.length == 0) return '';
+
+                var html = '';
+                iaprwys.sort (function (a, b)
+                {
+                    if (a.rwyno < b.rwyno) return -1;
+                    if (a.rwyno > b.rwyno) return  1;
+                    return 0;
+                });
+                for (var i = 0; i < iaprwys.length; i ++) {
+                    var iaprwy = iaprwys[i];
+                    var appobjs = { };
+                    for (var j = 0; j < iaprwy.lines.length; j ++) {
+                        var line = iaprwy.lines[j].substring (4);
+                        if (line.indexOf (' VISUAL ') >= 0) {
+                            appobjs.VISUAL = true;
+                            continue;
                         }
-                        var title = 'App Rwy ' + iaprwy.rwyno;
-                        var first = true;
-                        for (var type in appobjs) {
-                            title += first ? ' (' : ', ';
-                            title += type;
-                            first = false;
+                        if (startsWith (line, 'RNAV (')) {
+                            var k = line.indexOf (')');
+                            appobjs[line.substring(6,k)] = true;
+                            continue;
                         }
-                        if (! first) title += ')';
-                        html += makePlateSection (title, plateids,
-                                function (plateid)
-                                {
-                                    for (var j = 0; j < iaprwy.lines.length; j ++) {
-                                        if (iaprwy.lines[j] == plateid) return true;
-                                    }
-                                    return false;
-                                }
-                        );
+                        var k = line.indexOf (' ');
+                        if (k >= 0) line = line.substring (0, k);
+                        var k = line.indexOf ('/');
+                        if (k >= 0) line = line.substring (0, k);
+                        appobjs[line] = true;
                     }
-                    html += makePlateSection ('Approaches Other', plateids,
+                    var title = 'App Rwy ' + iaprwy.rwyno;
+                    var first = true;
+                    for (var type in appobjs) {
+                        title += first ? ' (' : ', ';
+                        title += type;
+                        first = false;
+                    }
+                    if (! first) title += ')';
+                    html = makePlateSection (html, title, plateids,
                             function (plateid)
                             {
-                                return startsWith (plateid, 'IAP-');
+                                for (var j = 0; j < iaprwy.lines.length; j ++) {
+                                    if (iaprwy.lines[j] == plateid) return true;
+                                }
+                                return false;
                             }
                     );
-                    html += '</DIV>';
                 }
-                return html;
+                html = makePlateSection (html, 'Approaches Other', plateids,
+                        function (plateid)
+                        {
+                            return startsWith (plateid, 'IAP-');
+                        }
+                );
+                return '<DIV CLASS=outlinebox>' + html + '</DIV>';
             }
 
             // fill the metar division with metar text
@@ -402,6 +402,7 @@
                 var html = '';
                 var ntypes = mettypes.length;
                 for (var i = 0; i < ntypes; i ++) {
+                    if (html != '') html += '<DIV CLASS=spacediv></DIV>';
                     var mettype = mettypes[i];
                     var type = mettype.type;
                     if ((type in metopens) && metopens[type]) {
@@ -453,33 +454,36 @@
                 return ztime;
             }
 
-            // make a section for plates
+            // make a section (single triangle and associated plates) for plates
             //  input:
+            //   html = html for previous sections (triangles) in the round box
             //   title = title string for the triangle open/close line
             //   plateids = array of all plate id strings
             //   include = function to select which plates to include in section
             //  output:
             //   plateids = modified to have selected lines changed to ''
             //   returns html code for the section '<A ...> ... </A>'
-            function makePlateSection (title, plateids, include)
+            function makePlateSection (html, title, plateids, include)
             {
                 var nplateids = plateids.length;
-                var html = '';
+                var first = true;
                 for (var i = 0; i < nplateids; i ++) {
                     var plateid = plateids[i];
                     if (plateid == '') continue;
                     if (include (plateid)) {
                         plateids[i] = '';
-                        if (html == '') {
+                        if (first) {
+                            if (html != '') html += '<DIV CLASS=spacediv></DIV>';
                             html += '<DIV><A HREF="javascript:openPlateSec(\'' + title + '\')">';
                             html += '<SPAN ID="tri-' + title + '">&#9654;</SPAN> ';
                             html += htmlspecialchars (title) + '</A><SPAN HIDDEN ID="txt-' + title + '">';
+                            first = false;
                         }
-                        html += '<UL><LI><A CLASS="aplate" HREF="javascript:aptjso.plateClicked(\'' + plateid + '\')">' +
+                        html += '<UL><LI><A CLASS=aplate HREF="javascript:aptjso.plateClicked(\'' + plateid + '\')">' +
                                 htmlspecialchars (plateid) + '</A></UL>';
                     }
                 }
-                if (html != '') html += '</SPAN></DIV>';
+                if (! first) html += '</SPAN></DIV>';
                 return html;
             }
 
@@ -562,11 +566,15 @@
                 margin: auto;
                 padding: 10px 10px 10px 10px;
             }
+            .spacediv {
+                margin-top: 7px;
+                margin-bottom: 7px;
+            }
         </STYLE>
     </HEAD>
     <BODY ONLOAD="pageLoaded()">
-        <DIV CLASS="outlinebox" ID="metars">metar span</DIV>
-        <DIV ID="plates">plates span</DIV>
+        <DIV CLASS=outlinebox ID=metars>metar span</DIV>
+        <DIV ID=plates>plates span</DIV>
         <!-- GET opens in new full-screen window; POST opens in same sub-window -->
         <FORM NAME=webwxpage ACTION="https://www.aviationweather.gov/taf/data" METHOD=GET>
             <INPUT TYPE=HIDDEN NAME="format" VALUE="decoded">
