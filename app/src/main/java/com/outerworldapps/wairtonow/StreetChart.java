@@ -35,7 +35,6 @@ import android.widget.TextView;
  * for the whole world.
  */
 public class StreetChart implements DisplayableChart {
-
     private OpenStreetMap osm;
     private WairToNow wairToNow;
     //private Paint rwyPaint;
@@ -214,7 +213,7 @@ public class StreetChart implements DisplayableChart {
      * This should be called in a non-UI thread as it is synchronous.
      * @param slat = southern latitude
      * @param nlat = northern latitude
-     * @param wlon = western longiture
+     * @param wlon = western longitude
      * @param elon = eastern longitude
      * @return corresponding bitmap
      */

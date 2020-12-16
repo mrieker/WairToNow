@@ -3,17 +3,22 @@ Categories:
 License: GPL-2.0-only
 WebSite: https://www.outerworldapps.com
 SourceCode: https://github.com/mrieker/WairToNow
+IssueTracker: https://github.com/mrieker/WairToNow/issues
+AuthorName: Mike Rieker
 
 RepoType: git
 Repo: https://github.com/mrieker/WairToNow.git
 
 Builds:
-  - versionName: '4.10.1'
-    versionCode: 41001
-    commit: v4.10.1
+  - versionName: '4.11'
+    versionCode: 41100
+    commit: v4.11
     subdir: app
     gradle:
       - yes
 
 AutoUpdateMode: Version v%v
 UpdateCheckMode: Tags
+
+CurrentVersion: 4.11
+CurrentVersionCode: 41100

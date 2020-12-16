@@ -308,8 +308,7 @@ public class EarthSector {
                 if (ilon >= 180 * 60) ilon -= 360 * 60;
                 double lat = ilat / 60.0;
                 double lon = ilon / 60.0;
-                int alt = Topography.getElevMetres (lat, lon);
-                if (alt < 0) alt = 0;
+                int alt = Topography.getElevMetresZ (lat, lon);
 
                 // fill in x,y,z for the lat/lon
                 LatLonAlt2XYZ (lat, lon, alt, xyz);

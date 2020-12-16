@@ -62,6 +62,12 @@ public class Topography {
      * Data is 'grid registered', ie, value covers area centered on lat/lon minute,
      * so is valid when rounding the given lat/lon to nearest minute.
      */
+    public static short getElevMetresZ (double lat, double lon)
+    {
+        short elevm = getElevMetres (lat, lon);
+        if (elevm < 0) elevm = 0;  // includes INVALID_ELEV
+        return elevm;
+    }
     public static short getElevMetres (double lat, double lon)
     {
         /*

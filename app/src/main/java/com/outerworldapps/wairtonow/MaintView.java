@@ -104,6 +104,7 @@ public class MaintView
     private boolean getChartNamesBusy;
     private boolean updateDLProgSent;
     private Category enrCategory;
+    private Category flyCategory;
     private Category helCategory;
     private Category miscCategory;
     private Category otherCategory;
@@ -208,6 +209,7 @@ public class MaintView
         miscCategory  = new Category ("Misc");
         Category plateCategory = new Category ("Plates");
         enrCategory   = new Category ("ENR");
+        flyCategory   = new Category ("FLY");
         helCategory   = new Category ("HEL");
         secCategory   = new Category ("SEC");
         tacCategory   = new Category ("TAC");
@@ -221,6 +223,7 @@ public class MaintView
         ll1.addView (helCategory.selButton);
         ll1.addView (secCategory.selButton);
         ll1.addView (tacCategory.selButton);
+        ll1.addView (flyCategory.selButton);
         ll1.addView (otherCategory.selButton);
 
         DetentHorizontalScrollView hs1 = new DetentHorizontalScrollView (ctx);
@@ -303,6 +306,9 @@ public class MaintView
         BufferedReader limBufferedReader = new BufferedReader (limFileReader, 4096);
         String limLine;
         while ((limLine = limBufferedReader.readLine ()) != null) {
+            int i = limLine.indexOf ("//");
+            if (i >= 0) limLine = limLine.substring (0, i);
+            limLine = limLine.trim ();
             String[] limParts = Lib.QuotedCSVSplit (limLine);
             chartedLims.put (limParts[limParts.length-1], limParts);
         }
@@ -346,6 +352,8 @@ public class MaintView
                         tacCategory.addView (chartCheckBox);
                     } else if (airChart.spacenamenr.contains ("ENR")) {
                         enrCategory.addView (chartCheckBox);
+                    } else if (airChart.spacenamenr.contains ("FLY")) {
+                        flyCategory.addView (chartCheckBox);
                     } else if (airChart.spacenamenr.contains ("HEL")) {
                         helCategory.addView (chartCheckBox);
                     } else if (airChart.spacenamenr.contains ("SEC")) {

@@ -79,6 +79,7 @@ public class StateView extends View {
     private Paint centerBGPaint     = new Paint ();
     private Paint centerTuPaint     = new Paint ();
     private Paint centerTvPaint     = new Paint ();
+    private Paint centerTwPaint     = new Paint ();
     private Paint cloudPaint        = new Paint ();
     private Paint courseBGPaint     = new Paint ();
     private Paint courseTcPaint     = new Paint ();
@@ -86,8 +87,6 @@ public class StateView extends View {
     private Paint courseTvPaint     = new Paint ();
     private Paint trafficBGPaint    = new Paint ();
     private Paint trafficTxPaint    = new Paint ();
-    private Paint tfrInfoBGPaint    = new Paint ();
-    private Paint tfrInfoFGPaint    = new Paint ();
     private Path centerCloudPath;
     private Path centerInfoPath     = new Path ();
     private Path courseCloudPath;
@@ -126,6 +125,12 @@ public class StateView extends View {
         centerTvPaint.setTextSize (ts);
         centerTvPaint.setTextAlign (Paint.Align.RIGHT);
         centerTvPaint.setTypeface (Typeface.create (centerTvPaint.getTypeface (), Typeface.BOLD));
+        centerTwPaint.setColor (centerColor);
+        centerTwPaint.setStyle (Paint.Style.FILL);
+        centerTwPaint.setStrokeWidth (2);
+        centerTwPaint.setTextSize (ts);
+        centerTwPaint.setTextAlign (Paint.Align.LEFT);
+        centerTwPaint.setTypeface (Typeface.create (centerTvPaint.getTypeface (), Typeface.BOLD));
 
         courseBGPaint.setColor (Color.WHITE);
         courseBGPaint.setStyle (Paint.Style.FILL_AND_STROKE);
@@ -147,17 +152,6 @@ public class StateView extends View {
         courseTcPaint.setTextSize (ts);
         courseTcPaint.setTextAlign (Paint.Align.CENTER);
         courseTcPaint.setTypeface (Typeface.create (courseTcPaint.getTypeface (), Typeface.BOLD));
-
-        tfrInfoBGPaint.setColor (Color.WHITE);
-        tfrInfoBGPaint.setStyle (Paint.Style.STROKE);
-        tfrInfoBGPaint.setStrokeWidth (wairToNow.thickLine);
-        tfrInfoBGPaint.setTextAlign (Paint.Align.RIGHT);
-        tfrInfoBGPaint.setTextSize (ts);
-        tfrInfoFGPaint.setColor (TFROutlines.WNGCOLOR);
-        tfrInfoFGPaint.setStyle (Paint.Style.FILL);
-        tfrInfoFGPaint.setStrokeWidth (2);
-        tfrInfoFGPaint.setTextAlign (Paint.Align.RIGHT);
-        tfrInfoFGPaint.setTextSize (ts);
 
         trafficBGPaint.setColor (Color.BLACK);
         trafficBGPaint.setStyle (Paint.Style.STROKE);
@@ -333,12 +327,6 @@ public class StateView extends View {
         }
 
         /*
-         * Draw TFR status string.
-         */
-        DrawStatusLines (canvas, tfrInfoBGPaint);
-        DrawStatusLines (canvas, tfrInfoFGPaint);
-
-        /*
          * Chart{2D,3D}-specific info.
          */
         chartView.backing.drawOverlay (canvas);
@@ -446,8 +434,12 @@ public class StateView extends View {
                 centerInfoLatStr = wairToNow.optionsView.LatLonString (centerLat, 'N', 'S');
                 centerInfoLonStr = wairToNow.optionsView.LatLonString (centerLon, 'E', 'W');
             }
-            canvas.drawText (centerInfoLatStr, dx * 7.5F, by - dy * 3.5F, centerTvPaint);
-            canvas.drawText (centerInfoLonStr, dx * 7.5F, by - dy * 2.5F, centerTvPaint);
+            i = llCenter (centerInfoLatStr);
+            j = llCenter (centerInfoLonStr);
+            canvas.drawText (centerInfoLatStr.substring (0, i), dx * 2.5F, by - dy * 3.5F, centerTvPaint);
+            canvas.drawText (centerInfoLonStr.substring (0, j), dx * 2.5F, by - dy * 2.5F, centerTvPaint);
+            canvas.drawText (centerInfoLatStr.substring (i),    dx * 2.5F, by - dy * 3.5F, centerTwPaint);
+            canvas.drawText (centerInfoLonStr.substring (j),    dx * 2.5F, by - dy * 2.5F, centerTwPaint);
         }
 
         // always display scaling and rotation
@@ -472,6 +464,15 @@ public class StateView extends View {
         canvas.drawText (centerInfoRotStr, i, j, dx * 3.5F, by, centerTuPaint);
     }
 
+    private static int llCenter (String llstr)
+    {
+        int i = llstr.indexOf ('\u00B0') + 1;
+        int j = llstr.indexOf ('.');
+        if (i <= 0) i = llstr.length ();
+        if (j <  0) j = llstr.length ();
+        return Math.min (i, j);
+    }
+
     // user doesn't want any info shown, draw a little button instead
     private void DrawCenterTriangle (Canvas canvas, Paint paint)
     {
@@ -491,19 +492,6 @@ public class StateView extends View {
         }
         canvas.drawPath (centerInfoPath, paint);
 
-    }
-
-    /**
-     * Misc status lines in lower right corner of screen.
-     */
-    private void DrawStatusLines (Canvas canvas, Paint paint)
-    {
-        float x = canvasWidth - paint.getFontSpacing () / 2.0F;
-        float y = canvasHeight - paint.getFontSpacing ();
-        String sl;
-        if ((chartView.tfrOutlines != null) && ((sl = chartView.tfrOutlines.statusline) != null)) {
-            canvas.drawText (sl, x, y, paint);
-        }
     }
 
     /**
@@ -657,7 +645,7 @@ public class StateView extends View {
                 // make sure it is a minimum AGL so we don't get a bunch
                 // of airplanes sitting on the ground (eg, as at KBOS)
                 if (!Double.isNaN (trafmsl)) {
-                    double trafagl = trafmsl - Topography.getElevMetres (traffic.latitude, traffic.longitude);
+                    double trafagl = trafmsl - Topography.getElevMetresZ (traffic.latitude, traffic.longitude);
                     if (trafagl < Traffic.MINTRAFAGLM) continue;
                 }
 

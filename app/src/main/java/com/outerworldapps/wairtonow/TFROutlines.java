@@ -100,12 +100,13 @@ public class TFROutlines {
     private Paint blpaint;
     private Paint fgpaint;
     private Paint hipaint;
+    private Paint statusBGPaint;
+    private Paint statusFGPaint;
     private PathThread pathThread;          // path TFR database
     private PorterDuffXfermode pdxmover;
     private SimpleDateFormat sdfout;
+    private String statusline;
     private View chartview;
-
-    public String statusline;
 
     /**
      * Chart page being opened, start reading TFRs from database.
@@ -138,6 +139,20 @@ public class TFROutlines {
             hipaint = new Paint ();
             hipaint.setStrokeWidth (20);
             hipaint.setStyle (Paint.Style.STROKE);
+
+            statusBGPaint = new Paint ();
+            statusBGPaint.setColor (Color.WHITE);
+            statusBGPaint.setStyle (Paint.Style.STROKE);
+            statusBGPaint.setStrokeWidth (wtn.thickLine);
+            statusBGPaint.setTextAlign (Paint.Align.RIGHT);
+            statusBGPaint.setTextSize (wtn.textSize);
+
+            statusFGPaint = new Paint ();
+            statusFGPaint.setColor (WNGCOLOR);
+            statusFGPaint.setStyle (Paint.Style.FILL);
+            statusFGPaint.setStrokeWidth (2);
+            statusFGPaint.setTextAlign (Paint.Align.RIGHT);
+            statusFGPaint.setTextSize (wtn.textSize);
 
             gameThread = new GameThread ();
             pathThread = new PathThread ();
@@ -191,6 +206,14 @@ public class TFROutlines {
             hipaint.setColor (ACTCOLOR);
             for (Outline outline : actlines) {
                 outline.draw (canvas, outline.highlight ? hipaint : fgpaint);
+            }
+
+            // tell user last time we scanned for TFRs
+            if (statusline != null) {
+                float x = canvas.getWidth ()  - statusBGPaint.getFontSpacing () / 2.0F;
+                float y = canvas.getHeight () - statusBGPaint.getFontSpacing ();
+                canvas.drawText (statusline, x, y, statusBGPaint);
+                canvas.drawText (statusline, x, y, statusFGPaint);
             }
 
             // see if we need to re-scan TFRs cuz chart has moved too far

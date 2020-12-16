@@ -233,8 +233,11 @@
                 } else {
                     infhtml += '<UL><LI><A CLASS=aplate HREF="javascript:aptjso.dwnldState()"><B>Download Airport Details and Plates</B></A> <SUP><FONT COLOR=YELLOW>*</FONT></SUP></UL>';
                 }
-                infhtml += '<UL><LI><A CLASS=aplate HREF="javascript:webWxPage()">Open METAR/TAF (' + metafsidstr + ') Page</A> <SUP><FONT COLOR=YELLOW>*</FONT></SUP></UL>';
-                infhtml += '<UL><LI><A CLASS=aplate HREF="javascript:fuelPrices()">Open Nearby Fuel Prices Page</A> <SUP><FONT COLOR=YELLOW>*</FONT></SUP></UL>';
+                if (metafsidstr != '') {
+                    infhtml += '<UL><LI><A CLASS=aplate HREF="javascript:webWxPage()">Open METAR/TAF (' + metafsidstr + ') Page</A> <SUP><FONT COLOR=YELLOW>*</FONT></SUP></UL>';
+                }
+                infhtml += '<UL><LI><A CLASS=aplate HREF="javascript:svAptInfo()">Open skyvector.com Airport Info Page</A> <SUP><FONT COLOR=YELLOW>*</FONT></SUP></UL>';
+                infhtml += '<UL><LI><A CLASS=aplate HREF="javascript:fuelPrices()">Open airnav.com Nearby Fuel Prices Page</A> <SUP><FONT COLOR=YELLOW>*</FONT></SUP></UL>';
                 infhtml += '<P></P><P> &nbsp; &nbsp; &nbsp; <SUP><FONT COLOR=YELLOW>*</FONT></SUP> Internet access required [<SPAN ID=inetstatus></SPAN>]</P></SPAN>';
                 return infhtml;
             }
@@ -245,6 +248,14 @@
                 var webwxpage = document.forms.webwxpage;
                 webwxpage.ids.value = metafsidstr.replace (/,/g, ' ');
                 webwxpage.submit ();
+            }
+
+            // open skyvector's fuel price page in web browser
+            function svAptInfo ()
+            {
+                var svaptinfo = document.forms.svaptinfo;
+                svaptinfo.action = 'https://skyvector.com/airport/' + aptjso.getICAOID ();
+                svaptinfo.submit ();
             }
 
             // open airnav's fuel price page in web browser
@@ -584,6 +595,8 @@
         </FORM>
         <FORM NAME=fuelprices ACTION="https://www.outerworldapps.com/WairToNow/airnavfuel.php" METHOD=GET>
             <INPUT TYPE=HIDDEN NAME="icaoid">
+        </FORM>
+        <FORM NAME=svaptinfo METHOD=GET>
         </FORM>
     </BODY>
 </HTML>

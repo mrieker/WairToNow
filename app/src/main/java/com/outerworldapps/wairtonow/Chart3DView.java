@@ -487,6 +487,8 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
             }
             closeSectors = null;
             rebuildObjects = true;
+
+            // trigger onDrawFrame() to be called soon
             requestRender ();
         }
 
@@ -510,6 +512,7 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
             maPositionHandle = 0;
             maTextureHandle = 0;
 
+            EarthSector.ClearLoader ();
             Topography.purge ();
         }
 
@@ -543,10 +546,10 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
                     int nlatmin = slatmin + 1;
                     int wlonmin = (int) Math.floor (lon * 60.0);
                     int elonmin = (wlonmin + 1 + 180 * 60) % (360 * 60) - 180 * 60;
-                    int swelev = Topography.getElevMetres (slatmin / 60.0, wlonmin / 60.0);
-                    int nwelev = Topography.getElevMetres (nlatmin / 60.0, wlonmin / 60.0);
-                    int seelev = Topography.getElevMetres (slatmin / 60.0, elonmin / 60.0);
-                    int neelev = Topography.getElevMetres (nlatmin / 60.0, elonmin / 60.0);
+                    int swelev = Topography.getElevMetresZ (slatmin / 60.0, wlonmin / 60.0);
+                    int nwelev = Topography.getElevMetresZ (nlatmin / 60.0, wlonmin / 60.0);
+                    int seelev = Topography.getElevMetresZ (slatmin / 60.0, elonmin / 60.0);
+                    int neelev = Topography.getElevMetresZ (nlatmin / 60.0, elonmin / 60.0);
                     double alt = wtn.currentGPSAlt;
                     if (alt < swelev + MINIMUMAGL) alt = swelev + MINIMUMAGL;
                     if (alt < nwelev + MINIMUMAGL) alt = nwelev + MINIMUMAGL;
@@ -633,6 +636,7 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
 
             // try to draw the scene now
             surfaceCreated = true;
+            // trigger onDrawFrame() to be called soon
             requestRender ();
         }
 
@@ -747,7 +751,7 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
                 }
                 if (++ nsectors >= MAXSECTORS) break;
             }
-            chartView.stateView.postInvalidate ();  // for undrawn
+            chartView.stateView.postInvalidate ();  // for undrawn in lower right corner
         }
 
         /**
@@ -954,6 +958,8 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
              * Generate EarthSector objects within sight of screen.
              */
             displayableChart.GetL2StepLimits (l2stepLimits);
+            if (l2stepLimits[0] < 0) l2stepLimits[0] = 0;
+            if (l2stepLimits[1] < l2stepLimits[0]) l2stepLimits[1] = l2stepLimits[0];
             int l2stepmin   = l2stepLimits[1];  // start with largest sectors
             int stepmin     = 1 << l2stepmin;   // size of a sector edge (in minutes)
             int slatMinStep = slatMin & -stepmin;
@@ -1100,7 +1106,7 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
          * @param ilatmin = south latitude (in minutes)
          * @param ilonmin = west longitude (in minutes)
          * @param l2stepmin = log2 sector size (in minutes)
-         * @return highest elevation (metres MSL)
+         * @return highest elevation (metres MSL), at least 0
          */
         private short GetHighestElev (int ilatmin, int ilonmin, int l2stepmin)
         {
@@ -1109,7 +1115,7 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
                 return knownHighestElevations.get (key);
             }
             int stepmin = 1 << l2stepmin;
-            short highest = Topography.INVALID_ELEV;
+            short highest = 0;
             for (int ilat = ilatmin; ilat < ilatmin + stepmin; ilat ++) {
                 for (int jlon = ilonmin; jlon <= ilonmin + stepmin; jlon ++) {
                     int ilon = jlon;
@@ -1132,7 +1138,7 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
         @SuppressWarnings("UnusedReturnValue")
         private boolean LatLon2PixelXY (double lat, double lon, PointD xy)
         {
-            int alt = Topography.getElevMetres (lat, lon);
+            int alt = Topography.getElevMetresZ (lat, lon);
             EarthSector.LatLonAlt2XYZ (lat, lon, alt, llvxyz);
             return WorldXYZ2PixelXY (llvxyz, xy);
         }

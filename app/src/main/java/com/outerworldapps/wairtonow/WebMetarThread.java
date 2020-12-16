@@ -47,7 +47,6 @@ public class WebMetarThread extends Thread {
     public final static int MINSLEEPMS = 5432;      // always sleep at least this much
     public final static int RETRYMS    = 32716;     // retry for no internet connection
     public final static int WEBDELAYMS = 123;       // this much time between individual web requests
-    public final static String BASEURL = "https://aviationweather.gov/taf/data?format=raw&metars=on&layout=off&ids=";
     public final static String TAG = "WairToNow";
 
     private double fetchednorthlat;
@@ -192,7 +191,7 @@ public class WebMetarThread extends Thread {
             throws Exception
     {
         // read METARs and TAFs from FAA
-        String uri = BASEURL + apt.ident;
+        String uri = MaintView.dldir + "/webmetaf.php?icaoids=" + apt.ident;
         Log.d (TAG, "fetching " + uri);
         try { Thread.sleep (WEBDELAYMS); } catch (InterruptedException ignored) { }
         URL url = new URL (uri);

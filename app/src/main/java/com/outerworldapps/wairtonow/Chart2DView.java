@@ -1246,89 +1246,26 @@ public class Chart2DView extends View
      */
     private void DrawCourseLine (Canvas canvas, double srcLat, double srcLon, double dstLat, double dstLon, boolean solid)
     {
-        double scaling = chartView.scaling;  // current map display scale factor
-        PixelMapper pmap = chartView.pmap;  // current lat/lon => screen pixel mapper
         PointD pt = onDrawPt;
 
-        /*
-         * See if primarily east/west or north/south route.
-         */
-        double tcquad = Lib.LatLonTC_rad (srcLat, srcLon, dstLat, dstLon);
-        tcquad = Math.abs (tcquad);
-        if (tcquad > Math.PI / 2.0) tcquad = Math.PI - tcquad;
-        if (tcquad > Math.PI / 4.0) {
-            // primarily east/west
+        double heading  = Lib.LatLonTC (srcLat, srcLon, dstLat, dstLon);
+        double distance = Lib.LatLonDist (srcLat, srcLon, dstLat, dstLon);
+        double lenstep  = wairToNow.textSize / CanPixPerNMAprox ();  // text-sized line segments
+        int nsteps = (int) Math.round (distance / lenstep) | 1;  // odd number for dashed lines
+        lenstep = distance / nsteps;                             // actual len per seg for nsteps
 
-            /*
-             * Find east/west limits of course.  Wrap east to be .ge. west if necessary.
-             */
-            double courseWestLon = Lib.Westmost (srcLon, dstLon);
-            double courseEastLon = Lib.Eastmost (srcLon, dstLon);
-            if (courseEastLon < courseWestLon) courseEastLon += 360.0;
-
-            /*
-             * If canvas is completely west of course, try wrapping canvas eastbound.
-             * Eg, course KLAX->PGUM and canvas at lon=-170
-             * So courseEastLon=145, courseWestLon=-118+360=242
-             *    and canvasEastLon=-171, canvasWestLon=-169
-             * but we want
-             *    canvasEastLon=-171+360=189, canvasWestLon=-169+360=191
-             *    ...so the canvas numbers end up between the course numbers
-             */
-            double cwl = pmap.canvasWestLon;
-            double cel = pmap.canvasEastLon;
-            if (cel < courseWestLon) {
-                cwl += 360.0;
-                cel += 360.0;
+        double lastx = Double.NaN;
+        double lasty = Double.NaN;
+        for (int i = 0; i <= nsteps; i ++) {
+            double len = lenstep * i;
+            double lat = Lib.LatHdgDist2Lat (srcLat, heading, len);
+            double lon = Lib.LatLonHdgDist2Lon (srcLat, srcLon, heading, len);
+            LatLon2CanPixExact (lat, lon, pt);
+            if ((i > 0) && (solid || ((i & 1) != 0))) {
+                canvas.drawLine ((float) lastx, (float) lasty, (float) pt.x, (float) pt.y, courseLnPaint);
             }
-
-            /*
-             * Determine longitude limits of what to plot.
-             */
-            if (cwl < courseWestLon) cwl = courseWestLon;
-            if (cel > courseEastLon) cel = courseEastLon;
-
-            double lonstep = Math.sin (tcquad) / scaling / Lib.NMPerDeg / Math.cos (Math.toRadians (pmap.centerLat) / 2.0);
-
-            double lastx = 0.0;
-            double lasty = 0.0;
-            int nstep = 0;
-            for (double lon = cwl;; lon += lonstep) {
-                if (lon > cel) lon = cel;
-                double lat = Lib.GCLon2Lat (srcLat, srcLon, dstLat, dstLon, lon);
-                LatLon2CanPixExact (lat, lon, pt);
-                if ((nstep > 0) && (solid || ((nstep & 1) == 0))) {
-                    canvas.drawLine ((float) lastx, (float) lasty, (float) pt.x, (float) pt.y, courseLnPaint);
-                }
-                lastx = pt.x;
-                lasty = pt.y;
-                nstep ++;
-                if (lon >= cel) break;
-            }
-        } else {
-            // primarily north/south
-            double csl = Math.min (srcLat, dstLat);
-            double cnl = Math.max (srcLat, dstLat);
-            if (csl < pmap.canvasSouthLat) csl = pmap.canvasSouthLat;
-            if (cnl > pmap.canvasNorthLat) cnl = pmap.canvasNorthLat;
-
-            double latstep = Math.cos (tcquad) / scaling / Lib.NMPerDeg;
-
-            double lastx = 0.0;
-            double lasty = 0.0;
-            int nstep = 0;
-            for (double lat = csl;; lat += latstep) {
-                if (lat > cnl) lat = cnl;
-                double lon = Lib.GCLat2Lon (srcLat, srcLon, dstLat, dstLon, lat);
-                LatLon2CanPixExact (lat, lon, pt);
-                if ((nstep > 0) && (solid || ((nstep & 1) == 0))) {
-                    canvas.drawLine ((float) lastx, (float) lasty, (float) pt.x, (float) pt.y, courseLnPaint);
-                }
-                lastx = pt.x;
-                lasty = pt.y;
-                nstep ++;
-                if (lat >= cnl) break;
-            }
+            lastx = pt.x;
+            lasty = pt.y;
         }
     }
 

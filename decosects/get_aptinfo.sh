@@ -18,7 +18,7 @@
 #    datums/runways_$expdate.csv
 #    datums/waypoints_$expdate.db.gz
 #
-#  Takes about 3 mins to run.
+#  Takes about 4 mins to run.
 #
 
 function getzip
@@ -28,6 +28,16 @@ function getzip
         rm -f $1.zip
         wget -nv --no-check-certificate https://nfdc.faa.gov/webContent/28DaySub/$effdate/$1.zip
         mv -f $1.zip datums/$1_$expdate.zip
+    fi
+}
+
+function getoa
+{
+    if [ ! -f datums/oa_$expdate/$2.csv ]
+    then
+        rm -f datums/oa_$expdate/$2.csv.tmp
+        wget -nv --no-check-certificate https://ourairports.com/data/$1.csv -O datums/oa_$expdate/$2.csv.tmp
+        mv -f datums/oa_$expdate/$2.csv.tmp datums/oa_$expdate/$2.csv
     fi
 }
 
@@ -101,8 +111,8 @@ then
     #
     #  Fetch FAA data files
     #
-    rm -rf AFF.txt APT.txt AWOS.txt AWY.txt FIX.txt ILS.txt NAV.txt TWR.txt aptinfo.tmp
-    mkdir -p datums
+    rm -rf AFF.txt APT.txt AWOS.txt AWY.txt FIX.txt ILS.txt NAV.txt TWR.txt aptinfo.tmp datums/oa_$expdate/*.tmp
+    mkdir -p datums/oa_$expdate
 
     effdate=`./cureffdate -28`
     getzip AFF
@@ -124,6 +134,14 @@ then
             mv stations.tmp.gz datums/stations_$expdate.gz
         fi
     fi
+
+    #
+    #  Fetch ourairports.com info
+    #
+    getoa airports airports
+    getoa airport-frequencies aptfreqs
+    getoa navaids navaids
+    getoa runways runways
 
     #
     #  Generate airport and runway info
@@ -187,11 +205,15 @@ then
     #
     #  Generate SQLite databases for downloading
     #
-    mono --debug MakeWaypoints.exe $expdate
-    mono --debug MakeWaypoints.exe $expdate 1
-    rm -f datums/waypoints_$expdate.db.gz datums/wayptabbs_$expdate.db.gz
+    mono --debug MakeWaypoints.exe $expdate datums/waypoints_$expdate.db 0 0
+    mono --debug MakeWaypoints.exe $expdate datums/wayptabbs_$expdate.db 1 0
+    mono --debug MakeWaypoints.exe $expdate datums/waypointsoa_$expdate.db 0 1
+    mono --debug MakeWaypoints.exe $expdate datums/wayptabbsoa_$expdate.db 1 1
+    rm -f datums/wayp*_$expdate.db.gz
     gzip datums/waypoints_$expdate.db
     gzip datums/wayptabbs_$expdate.db
+    gzip datums/waypointsoa_$expdate.db
+    gzip datums/wayptabbsoa_$expdate.db
 fi
 
 #

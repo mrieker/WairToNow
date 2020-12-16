@@ -134,6 +134,7 @@ public abstract class AirChart implements DisplayableChart {
         AirChart instance;
         if (csvLine.startsWith (PSP.pfx)) instance = new PSP ();
         else if (csvLine.startsWith (Box.pfx)) instance = new Box ();
+        else if (csvLine.startsWith (Slp.pfx)) instance = new Slp ();
         else instance = new Lcc ();
         instance.Construct (maintView, csvLine);
         return instance;
@@ -530,7 +531,7 @@ public abstract class AirChart implements DisplayableChart {
      * This should be called in a non-UI thread as it is synchronous.
      * @param slat = southern latitude
      * @param nlat = northern latitude
-     * @param wlon = western longiture
+     * @param wlon = western longitude
      * @param elon = eastern longitude
      * @return corresponding bitmap
      */
@@ -1794,6 +1795,93 @@ public abstract class AirChart implements DisplayableChart {
         {
             ll.lat = y * (lats - latn) / chartheight + latn;
             ll.lon = x * (lone - lonw) / chartwidth  + lonw;
+        }
+    }
+
+    /**
+     * Slippy Projection charts.
+     *
+     * CSV line fields:
+     *   0 : lowest X tile number (inclusive)
+     *   1 : highest X tile number (inclusive)
+     *   2 : lowest Y tile number (inclusive)
+     *   3 : highest Y tile number (inclusive)
+     *   4 : zoom level (eg 10)
+     *   5 : tile size (256 or 512)
+     *   6 : effective date yyyymmdd
+     *   7 : expiration date yyyymmdd
+     *   8 : chart space name including revision number
+     *
+     * Example for OpenFlightMap Switzerland chart:
+     *   slp:527,541,356,366,10,256,20201203,20201231,OFM Switzerland 20201203
+     * using tiles clip/aero/256/latest/10/527..541/356..366.png
+     *   ...reformatted to our standard wtn zip file format
+     */
+    private static class Slp extends AirChart {
+        public final static String pfx = "slp:";
+
+        private double factor;
+        private double leftedgepix;
+        private double topedgepix;
+
+        @Override  // AirChart
+        protected String ParseParams (String csvLine)
+        {
+            String[] values = csvLine.substring (pfx.length ()).split (",", 7);
+
+            int locol = Integer.parseInt (values[0]);
+            int hicol = Integer.parseInt (values[1]);
+            int lorow = Integer.parseInt (values[2]);
+            int hirow = Integer.parseInt (values[3]);
+            int zoom  = Integer.parseInt (values[4]);
+            int size  = Integer.parseInt (values[5]);
+
+            factor = size << zoom;
+
+            topedgepix  = lorow * size;
+            leftedgepix = locol * size;
+
+            int chartwidth  = (hicol - locol + 1) * size;
+            int chartheight = (hirow - lorow + 1) * size;
+
+            return chartwidth + "," + chartheight + "," + values[6];
+        }
+
+        @Override  // AirChart
+        public boolean LatLon2ChartPixelExact (double lat, double lon, @NonNull PointD p)
+        {
+            p.x = lon2TileX (lon) - leftedgepix;
+            p.y = lat2TileY (lat) - topedgepix;
+            return (p.x >= 0) && (p.x < chartwidth) && (p.y >= 0) && (p.y < chartheight);
+        }
+
+        @Override  // AirChart
+        protected void ChartPixel2LatLonExact (double x, double y, @NonNull LatLon ll)
+        {
+            ll.lat = tileY2Lat (y + topedgepix);
+            ll.lon = tileX2Lon (x + leftedgepix);
+        }
+
+        /**
+         * Convert lat,lon to x,y tile numbers
+         * http://wiki.openstreetmap.org/wiki/Slippy_map_tilenames
+         */
+        private double lon2TileX (double lon)
+        {
+            return factor * (lon + 180.0) / 360.0;
+        }
+        private double lat2TileY (double lat)
+        {
+            double latrad = Math.toRadians (lat);
+            return factor * (1.0 - (Math.log (Math.tan (latrad) + 1.0 / Math.cos (latrad)) / Math.PI)) / 2.0;
+        }
+        private double tileX2Lon (double xTile)
+        {
+            return xTile * 360.0 / factor - 180.0;
+        }
+        private double tileY2Lat (double yTile)
+        {
+            return Math.toDegrees (Math.atan (Math.sinh (Math.PI * (1.0 - 2.0 * yTile / factor))));
         }
     }
 }
