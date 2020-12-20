@@ -31,6 +31,7 @@ import android.graphics.Color;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
+import android.widget.LinearLayout;
 import android.widget.ListAdapter;
 import android.widget.TextView;
 
@@ -379,11 +380,18 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
             for (String spacename : chartlist.keySet ()) {
                 DisplayableChart dc = chartlist.nnget (spacename);
 
-                View v = dc.GetMenuSelector (ChartView.this);
-                v.setBackgroundColor ((dc == selectedChart) ? Color.DKGRAY : Color.BLACK);
-                v.setTag (spacename);
+                View ms = dc.GetMenuSelector (ChartView.this);
 
-                chartViews[i++] = v;
+                View as = new AirplaneSymbol ();
+                as.setVisibility ((dc == selectedChart) ? VISIBLE : INVISIBLE);
+
+                LinearLayout ll = new LinearLayout (wairToNow);
+                ll.setTag (spacename);
+                ll.setOrientation (LinearLayout.HORIZONTAL);
+                ll.addView (as);
+                ll.addView (ms);
+
+                chartViews[i++] = ll;
             }
 
             /*
@@ -490,6 +498,8 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
         @Override
         public View getView (int position, View convertView, ViewGroup parent)
         {
+            // AlertController.RecycleListView
+            parent.setBackgroundColor (Color.BLACK);
             return chartViews[position];
         }
 
@@ -550,6 +560,52 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
                     adb.setNegativeButton ("Cancel", null);
                     adb.show ();
                 }
+            }
+        }
+    }
+
+    /**
+     * Draws little red airplane symbol indicating which chart is current.
+     * Set to INVISIBLE if the charts isn't selected so it takes up the space.
+     */
+    private class AirplaneSymbol extends View {
+        private int size;
+
+        public AirplaneSymbol ()
+        {
+            super (wairToNow);
+            size = Math.round (wairToNow.textSize) * 2;
+        }
+
+        @Override
+        protected final void onMeasure (int widthMeasureSpec, int heightMeasureSpec)
+        {
+            setMeasuredDimension (size, size);
+        }
+
+        @Override
+        protected int getSuggestedMinimumHeight ()
+        {
+            return size;
+        }
+
+        @Override
+        protected int getSuggestedMinimumWidth ()
+        {
+            return size;
+        }
+
+        @Override
+        public void onDraw (Canvas canvas)
+        {
+            canvas.save ();
+            try {
+                float hs = size / 2.0F;
+                canvas.translate (hs, hs);
+                canvas.rotate (90.0F);
+                wairToNow.DrawAirplaneSymbol (canvas, hs);
+            } finally {
+                canvas.restore ();
             }
         }
     }
