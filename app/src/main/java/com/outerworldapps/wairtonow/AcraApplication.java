@@ -46,6 +46,8 @@ import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.zip.GZIPOutputStream;
 
 /**
@@ -57,8 +59,13 @@ import java.util.zip.GZIPOutputStream;
 // https://github.com/ACRA/acra/wiki/AdvancedUsage#reports-content
 @ReportsCrashes (
         reportSenderFactoryClasses = { AcraApplication.YourOwnSenderFactory.class },
-        mode = ReportingInteractionMode.TOAST,
-        resToastText = R.string.crash_toast_text
+        mode = ReportingInteractionMode.DIALOG,
+        resDialogTitle = R.string.crash_title_text,
+        resDialogText = R.string.crash_dialog_text,
+        resDialogCommentPrompt = R.string.crash_comment_text,
+        resDialogEmailPrompt = R.string.crash_email_text,
+        resDialogPositiveButtonText = R.string.crash_pos_button,
+        resDialogNegativeButtonText = R.string.crash_neg_button
 )
 public class AcraApplication extends Application {
     public final static String TAG = "WairToNow";
@@ -147,7 +154,15 @@ public class AcraApplication extends Application {
                 PrintWriter pw = new PrintWriter (new GZIPOutputStream (new FileOutputStream (temp)));
                 try {
                     pw.println (nowms);
-                    for (ReportField reportField : report.keySet ()) {
+                    ReportField[] reportFields = report.keySet ().toArray (new ReportField[0]);
+                    Arrays.sort (reportFields, new Comparator<ReportField> () {
+                        @Override
+                        public int compare (ReportField a, ReportField b)
+                        {
+                            return a.toString ().compareTo (b.toString ());
+                        }
+                    });
+                    for (ReportField reportField : reportFields) {
                         String reportValue = report.get (reportField);
                         pw.println ("::" + reportField.toString () + "::" + reportValue);
                     }

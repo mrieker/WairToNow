@@ -11,14 +11,14 @@ RepoType: git
 Repo: https://github.com/mrieker/WairToNow.git
 
 Builds:
-  - versionName: '4.11.2'
-    versionCode: 41102
-    commit: v4.11.2
+  - versionName: '4.11.3'
+    versionCode: 41103
+    commit: v4.11.3
     subdir: app
     gradle:
       - yes
 
 AutoUpdateMode: Version v%v
 UpdateCheckMode: Tags
-CurrentVersion: '4.11.2'
-CurrentVersionCode: 41102
+CurrentVersion: '4.11.3'
+CurrentVersionCode: 41103

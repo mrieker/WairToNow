@@ -1,5 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 	<string name="app_name">WairToNow</string>
-	<string name="crash_toast_text">Sorry WairToNow is crashing.  Please restart it.</string>
+	<string name="crash_title_text">Aiee!</string>
+	<string name="crash_dialog_text">
+		Sorry, WairToNow is crashing.\n
+		* optionally fill in boxes\n
+		* click one of the buttons\n
+		* then restart app if desired
+	</string>
+	<string name="crash_comment_text">
+		Optional comment (what you just did, clicked on)
+	</string>
+	<string name="crash_email_text">
+		Optional email address (just for report, no spam)
+	</string>
+	<string name="crash_pos_button">
+		Send Report
+	</string>
+	<string name="crash_neg_button">
+		Send Nothing
+	</string>
 </resources>

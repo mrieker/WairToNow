@@ -236,7 +236,13 @@ public class BluetoothGpsAdsb extends GpsAdsbReceiver {
             populateBtDeviceArray ();
         }
 
-        errorMessage ("Cannot find device " + devident);
+        // can't access it, uncheck box, clear pref so we don't try again, and display message
+        btAdsbEnable.setChecked (false);
+        getButton ().setRingColor (Color.TRANSPARENT);
+        SharedPreferences.Editor editr = prefs.edit ();
+        editr.putBoolean ("selectedGPSReceiverKey_" + prefKey, false);
+        editr.apply ();
+        errorMessage ("Cannot find bluetooth device " + devident);
     }
 
     @Override  // GpsAdsbReceiver
