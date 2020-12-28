@@ -34,10 +34,5 @@ function processcsvfile
 
 cd `dirname $0`
 
-if [ DiffArptDgmCsvs.exe -ot DiffArptDgmCsvs.cs ]
-then
-    mcs -debug -out:DiffArptDgmCsvs.exe DiffArptDgmCsvs.cs
-fi
-
 ls -d datums/apdgeorefs_* | findrevisions
 

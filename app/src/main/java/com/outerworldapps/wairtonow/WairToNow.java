@@ -82,6 +82,7 @@ public class WairToNow extends Activity {
     private boolean atAMinimumShown;
     public  boolean gpsAvailable;
     private boolean hasAgreed;
+    private boolean haveSuggestedOFM;
     private boolean lastLocQueued;
     private boolean tabsVisible;
     public  ChartView chartView;
@@ -121,6 +122,8 @@ public class WairToNow extends Activity {
     public  OptionsView optionsView;
     private Paint airplanePaint = new Paint ();
     private Paint collPaint = new Paint ();
+    public  Paint copyrtBGPaint = new Paint ();
+    public  Paint copyrtTxPaint = new Paint ();
     private Paint gpsAvailablePaint;
     private Path airplanePath = new Path ();
     public  PlanView  planView;
@@ -132,6 +135,7 @@ public class WairToNow extends Activity {
     private TabButton crumbsButton;
     public  TabButton currentTabButton;
     private TabButton glassButton;
+    public  TabButton helpButton;
     public  TabButton maintButton;
     public  TabButton sensorsButton;
     private TabButton virtNav1Button;
@@ -174,6 +178,8 @@ public class WairToNow extends Activity {
         for (Map.Entry<String,?> entry : keys.entrySet ()) {
             Log.d (TAG, "pref[" + entry.getKey () + "]=" + entry.getValue ().toString ());
         }
+
+        haveSuggestedOFM = prefs.getBoolean ("haveSuggestedOFM", false);
 
         if (wtnHandler == null) wtnHandler = new WTNHandler ();
 
@@ -283,6 +289,18 @@ public class WairToNow extends Activity {
         displayHeight = metrics.heightPixels;
 
         /*
+         * Paint used to display copyright messages.
+         */
+        copyrtBGPaint.setColor (Color.WHITE);
+        copyrtBGPaint.setStyle (Paint.Style.FILL_AND_STROKE);
+        copyrtBGPaint.setTextSize (textSize * 3 / 4);
+        copyrtBGPaint.setStrokeWidth (thickLine);
+        copyrtBGPaint.setTextAlign (Paint.Align.RIGHT);
+        copyrtTxPaint.setColor (Color.BLACK);
+        copyrtTxPaint.setTextSize (textSize * 3 / 4);
+        copyrtTxPaint.setTextAlign (Paint.Align.RIGHT);
+
+        /*
          * Paint used to display GPS NOT AVAILABLE box.
          */
         gpsAvailablePaint = new Paint ();
@@ -327,9 +345,9 @@ public class WairToNow extends Activity {
 
         /*
          * Fetch nearby METARs in a background thread.
+         * Don't start it until at least chartView and maintView are set up.
          */
         webMetarThread = new WebMetarThread (this);
-        webMetarThread.start ();
 
         /*
          * License agreement.
@@ -409,8 +427,8 @@ public class WairToNow extends Activity {
         /*
          * Create two views that can select a waypoint based on its name.
          */
-        waypointView1 = new WaypointView (this, "FAAWP1");
-        waypointView2 = new WaypointView (this, "FAAWP2");
+        waypointView1 = new WaypointView (this, "Waypt1");
+        waypointView2 = new WaypointView (this, "Waypt2");
 
         /*
          * Record path (breadcrumbs).
@@ -461,7 +479,7 @@ public class WairToNow extends Activity {
         maintButton               = new TabButton (maintView);
         sensorsButton             = new TabButton (sensorsView);
         TabButton filesButton     = new TabButton (filesView);
-        TabButton helpButton      = new TabButton (helpView);
+        helpButton                = new TabButton (helpView);
         tabButtonLayout = new LinearLayout (this);
         tabButtonLayout.setOrientation (LinearLayout.HORIZONTAL);
         tabButtonLayout.addView (agreeButton);
@@ -880,6 +898,43 @@ public class WairToNow extends Activity {
             pendingCourseSetWP = null;
         }
 
+        if (! haveSuggestedOFM && (currentGPSLon > -15.0) && (currentGPSLon < 45.0) &&
+                (currentGPSLat > 30.0) && ! optionsView.dbOFMOption.checkBox.isChecked () &&
+                (currentTabButton == chartButton)) {
+            haveSuggestedOFM = true;
+            AlertDialog.Builder adb = new AlertDialog.Builder (this);
+            adb.setTitle ("European Coverage");
+            adb.setMessage ("If you are in Europe, " +
+                    "you may want to enable the OFM (openflightmaps.org) charts and databases, " +
+                    "which cover parts of Europe.");
+            adb.setPositiveButton ("Enable OFM", new DialogInterface.OnClickListener () {
+                @Override
+                public void onClick (DialogInterface dialogInterface, int i)
+                {
+                    SetCurrentTab (optionsView);
+                    optionsView.dbOFMOption.checkBox.setChecked (true);
+                    AlertDialog.Builder adb = new AlertDialog.Builder (WairToNow.this);
+                    adb.setTitle ("OFM database & charts enabled");
+                    adb.setMessage ("Read the displayed OFM descriptive text then double-click " +
+                            "Chart or click Maint\u2794OFM to select and download an European chart.");
+                    adb.setPositiveButton ("OK", null);
+                    adb.show ();
+                }
+            });
+            adb.setNeutralButton ("Not Now", null);
+            adb.setNegativeButton ("No Thanks", new DialogInterface.OnClickListener () {
+                @Override
+                public void onClick (DialogInterface dialogInterface, int i)
+                {
+                    SharedPreferences prefs = getPreferences (MODE_PRIVATE);
+                    SharedPreferences.Editor editr = prefs.edit ();
+                    editr.putBoolean ("haveSuggestedOFM", true);
+                    editr.apply ();
+                }
+            });
+            adb.show ();
+        }
+
         ////altimeterView.setGPSAltitude (currentGPSAlt);
         chartView.SetGPSLocation ();
         crumbsView.SetGPSLocation ();
@@ -924,28 +979,40 @@ public class WairToNow extends Activity {
         agreeButton.setVisibility (View.GONE);
         sensorsView.startGPSReceiver ();
 
-        if (!atAMinimumShown && (maintView.GetCurentWaypointExpDate () <= 0)) {
-            atAMinimumShown = true;
-            AlertDialog.Builder adb = new AlertDialog.Builder (this);
-            adb.setTitle ("Chart Maint");
-            adb.setMessage ("At a minimum you should download a nearby chart.");
-            adb.setPositiveButton ("OK", new DialogInterface.OnClickListener () {
-                @Override
-                public void onClick (DialogInterface dialogInterface, int i)
-                {
-                    chartButton.DisplayNewTab ();  // display chart page
-                    chartView.ReClicked ();        // display chart select menu
-                }
-            });
-            adb.setNegativeButton ("Not Now", null);
-            adb.show ();
+        if (! atAMinimumShown) {
+            boolean havewpdb = maintView.getWaypointDBs ().iterator ().hasNext ();
+            if (! havewpdb) {
+                atAMinimumShown = true;
+                AlertDialog.Builder adb = new AlertDialog.Builder (this);
+                adb.setTitle ("Chart Maint");
+                adb.setMessage ("At a minimum you should download a nearby chart.");
+                adb.setPositiveButton ("OK", new DialogInterface.OnClickListener () {
+                    @Override
+                    public void onClick (DialogInterface dialogInterface, int i)
+                    {
+                        chartButton.DisplayNewTab ();  // display chart page
+                        chartView.ReClicked ();        // display chart select menu
+                    }
+                });
+                adb.setNegativeButton ("Not Now", null);
+                adb.show ();
+            }
         }
 
         // maybe show alert box for expired charts
         maintView.ExpdateCheck ();
 
+        // start downloading nearby METARs and TAFs
+        if (! webMetarThread.started) {
+            webMetarThread.started = true;
+            webMetarThread.start ();
+        }
+
         // maybe update TFRs
         chartView.tfrOutlines.updateNow ();
+
+        // maybe topo zips to download
+        Topography.startup ();
     }
 
     /**

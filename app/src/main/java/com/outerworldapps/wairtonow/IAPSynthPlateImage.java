@@ -264,7 +264,7 @@ public class IAPSynthPlateImage extends IAPPlateImage implements DisplayableChar
         /*
          * Draw expiration date strings.
          */
-        wptexpdate = wairToNow.maintView.GetCurentWaypointExpDate ();
+        wptexpdate = wairToNow.maintView.GetCurentWaypointExpDate (airport.dbtagname);
         int wptexpmonidx = wptexpdate / 100 % 100 * 3;
         String wptexpmonth = "JANFEBMARAPRMAYJUNJULAUGSEPOCTNOVDEC".substring (wptexpmonidx - 3, wptexpmonidx);
         String expstr = "VALID to " + (wptexpdate % 100) + " " + wptexpmonth + " " + (wptexpdate / 10000);
@@ -804,7 +804,7 @@ public class IAPSynthPlateImage extends IAPPlateImage implements DisplayableChar
     public void CloseBitmaps ()
     {
         // re-center when opened again
-        // might be switching between FAAWP1,2 and
+        // might be switching between Waypt1,2 and
         // right side of VirtNav1,2 pages
         firstDraw = true;
     }

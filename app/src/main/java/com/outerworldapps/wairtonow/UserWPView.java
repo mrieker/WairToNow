@@ -676,12 +676,7 @@ public class UserWPView extends LinearLayout
         @Override  // Waypoint
         public String GetDetailText ()
         {
-            return descr;
-        }
-        @Override  // Waypoint
-        public String MenuKey ()
-        {
-            return "USER " + ident;
+            return "USER " + ident + ": " + descr;
         }
 
         /**

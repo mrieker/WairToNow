@@ -165,10 +165,10 @@ public class PlanView extends WebView
             });
         }
 
-        // open FAAWP2 page for the given airport
+        // open Waypt2 page for the given airport
         @SuppressWarnings ("unused")
         @JavascriptInterface
-        public void openFAAWP (final String icaoid)
+        public void openWaypt (final String icaoid)
         {
             WairToNow.wtnHandler.runDelayed (0, new Runnable () {
                 @Override
@@ -255,74 +255,103 @@ public class PlanView extends WebView
                 minhdg %= 360;
                 maxhdg %= 360;
                 if (maxhdg <= minhdg) maxhdg += 360;
+                boolean magnetic = hdgtype.equals ("M");
+
+                NNHashMap<DBase,Waypoint.Airport> fromapts = new NNHashMap<> ();
+                NNTreeMap<String,Waypoint.Airport> foundapts = new NNTreeMap<> ();
 
                 /*
                  * Open database.
                  */
-                SQLiteDBs sqldb = Waypoint.openWayptDB (wairToNow);
+                for (SQLiteDBs sqldb : wairToNow.maintView.getWaypointDBs ()) {
 
-                /*
-                 * Find starting point airport's lat/lon.
-                 */
-                Cursor result1 = sqldb.query (
-                        Waypoint.Airport.dbtable, Waypoint.Airport.dbcols,
-                        Waypoint.Airport.dbkeyid + "=?", new String[] { apticao },
-                        null, null, null, null);
-                double fromLat, fromLon;
-                Waypoint.Airport fromAptWp;
-                try {
-                    if (!result1.moveToFirst ()) {
-                        throw new Exception ("starting airport not defined");
+                    /*
+                     * Find starting point airport's lat/lon.
+                     */
+                    Cursor result1 = sqldb.query (
+                            Waypoint.Airport.dbtable, Waypoint.Airport.dbcols,
+                            Waypoint.Airport.dbkeyid + "=?", new String[] { apticao },
+                            null, null, null, null);
+                    double fromLat, fromLon;
+                    Waypoint.Airport fromAptWp;
+                    try {
+                        if (!result1.moveToFirst ()) continue;
+                        fromAptWp = new Waypoint.Airport (result1, (DBase) sqldb.dbaux, wairToNow);
+                        fromapts.put (fromAptWp.dbtagname, fromAptWp);
+                        fromLat = fromAptWp.lat;
+                        fromLon = fromAptWp.lon;
+                    } finally {
+                        result1.close ();
                     }
-                    fromAptWp = new Waypoint.Airport (result1, wairToNow);
-                    fromLat = fromAptWp.lat;
-                    fromLon = fromAptWp.lon;
-                } finally {
-                    result1.close ();
+
+                    /*
+                     * Read list of airports into waypoint list that are within the given distance range
+                     * and that are within the given heading range.
+                     */
+                    double magvar = magnetic ? fromAptWp.GetMagVar (0.0) : 0.0;
+                    double maxdistlat = maxdist / Lib.NMPerDeg;
+                    double maxdistlon = maxdistlat / Mathf.cosdeg (fromLat);
+                    String where = "apt_lat>" + (fromLat - maxdistlat) +
+                            " AND apt_lat<" + (fromLat + maxdistlat) +
+                            " AND apt_lon>" + (fromLon - maxdistlon) +
+                            " AND apt_lon<" + (fromLon + maxdistlon) +
+                            " AND rwy_icaoid=apt_icaoid AND rwy_length>=" + minrwylen;
+                    Cursor result2 = sqldb.query (
+                            "airports,runways", Waypoint.Airport.dbcols,
+                            where, null, null, null, null, null);
+                    try {
+                        if (result2.moveToFirst ()) do {
+                            Waypoint.Airport wp = new Waypoint.Airport (result2, (DBase) sqldb.dbaux, wairToNow);
+                            String key = wp.ident + " " + wp.dbtagname;
+                            if (foundapts.containsKey (key)) continue;
+                            double distNM = Lib.LatLonDist (fromLat, fromLon, wp.lat, wp.lon);
+                            double hdg = Lib.LatLonTC (fromLat, fromLon, wp.lat, wp.lon) + magvar;
+                            while (hdg < minhdg) hdg += 360.0;
+                            if ((distNM >= mindist) && (distNM <= maxdist) && (hdg <= maxhdg)) {
+                                foundapts.put (key, wp);
+                            }
+                        } while (result2.moveToNext ());
+                    } finally {
+                        result2.close ();
+                    }
                 }
 
                 /*
-                 * Read list of airports into waypoint list that are within the given distance range
-                 * and that are within the given heading range.
+                 * Generate resultant HTML table contents
                  */
-                boolean magnetic = hdgtype.equals ("M");
-                double magvar = magnetic ? Lib.MagVariation (fromLat, fromLon, fromAptWp.elev / Lib.FtPerM) : 0.0;
+                if (fromapts.isEmpty ()) {
+                    throw new Exception ("starting airport not defined");
+                }
+                if (foundapts.isEmpty ()) {
+                    throw new Exception ("no airports within range found");
+                }
                 StringBuilder sb = new StringBuilder ();
-                Cursor result2 = sqldb.query (
-                        "airports", Waypoint.Airport.dbcols,
-                        null, null, null, null, null, null);
-                try {
-                    if (result2.moveToFirst ()) do {
-                        Waypoint.Airport wp = new Waypoint.Airport (result2, wairToNow);
-                        double distNM = Lib.LatLonDist (fromLat, fromLon, wp.lat, wp.lon);
-                        double hdg = Lib.LatLonTC (fromLat, fromLon, wp.lat, wp.lon) + magvar;
-                        while (hdg < minhdg) hdg += 360.0;
-                        if ((distNM >= mindist) && (distNM <= maxdist) && (hdg <= maxhdg)) {
-                            for (Waypoint.Runway rwy : wp.GetRunways ().values ()) {
-                                if (rwy.getLengthFt () >= minrwylen) {
-                                    if (sb.length () == 0) {
-                                        sb.append ("<TR><TH>ICAO</TH><TH>Name</TH><TH>Hdg</TH><TH>Dist</TH></TR>");
-                                    }
-                                    sb.append ("<TR><TD>");
-                                    sb.append (wp.ident);
-                                    sb.append ("</TD><TD>");
-                                    sb.append (wp.GetName ());
-                                    sb.append ("</TD><TD ALIGN=RIGHT>");
-                                    sb.append (Long.toString ((Math.round (hdg) + 359) % 360 + 1001), 1, 4);
-                                    sb.append ("&#176;</TD><TD ALIGN=RIGHT>");
-                                    sb.append (Math.round (distNM));
-                                    sb.append ("</TD><TD><INPUT TYPE=BUTTON ONCLICK=\"infoClicked('");
-                                    sb.append (wp.ident);
-                                    sb.append ("')\" VALUE=\"info\"></TD><TD><INPUT TYPE=BUTTON ONCLICK=\"fuelClicked('");
-                                    sb.append (wp.ident);
-                                    sb.append ("')\" VALUE=\"fuel\"></TD></TR>");
-                                    break;
-                                }
-                            }
-                        }
-                    } while (result2.moveToNext ());
-                } finally {
-                    result2.close ();
+                for (String key : foundapts.keySet ()) {
+                    Waypoint.Airport wp = foundapts.nnget (key);
+
+                    Waypoint.Airport fromAptWp = fromapts.nnget (wp.dbtagname);
+                    double fromLat = fromAptWp.lat;
+                    double fromLon = fromAptWp.lon;
+                    double magvar  = magnetic ? fromAptWp.GetMagVar (0.0) : 0.0;
+
+                    double distNM = Lib.LatLonDist (fromLat, fromLon, wp.lat, wp.lon);
+                    double hdg = Lib.LatLonTC (fromLat, fromLon, wp.lat, wp.lon) + magvar;
+                    if (sb.length () == 0) {
+                        sb.append ("<TR><TH>ICAO</TH><TH>Name</TH><TH>Hdg</TH><TH>Dist</TH></TR>");
+                    }
+                    sb.append ("<TR><TD>");
+                    sb.append (wp.ident);
+                    sb.append ("</TD><TD>");
+                    sb.append (wp.GetName ());
+                    sb.append ("</TD><TD ALIGN=RIGHT>");
+                    sb.append (Long.toString ((Math.round (hdg) + 359) % 360 + 1001), 1, 4);
+                    sb.append ("&#176;</TD><TD ALIGN=RIGHT>");
+                    sb.append (Math.round (distNM));
+                    sb.append ("</TD><TD><INPUT TYPE=BUTTON ONCLICK=\"infoClicked('");
+                    sb.append (wp.ident);
+                    sb.append ("')\" VALUE=\"info\"></TD><TD><INPUT TYPE=BUTTON ONCLICK=\"fuelClicked('");
+                    sb.append (wp.ident);
+                    sb.append ("')\" VALUE=\"fuel\"></TD></TR>");
                 }
                 return sb.toString ();
             } catch (Exception e) {

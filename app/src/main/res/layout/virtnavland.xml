@@ -41,14 +41,14 @@
             <Button
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="FAAWP1"
-                android:id="@+id/use_faawp1land"/>
+                android:text="Waypt1"
+                android:id="@+id/use_waypt1land"/>
 
             <Button
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="FAAWP2"
-                android:id="@+id/use_faawp2land"/>
+                android:text="Waypt2"
+                android:id="@+id/use_waypt2land"/>
 
             <Button
                 android:layout_width="match_parent"

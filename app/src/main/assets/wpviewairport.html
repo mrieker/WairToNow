@@ -222,15 +222,15 @@
             // If database is not downloaded, have section opened by default so user sees download link
             function formatInfos ()
             {
-                var isdownd = (aptjso.isDownloaded () > 0);
+                var isdownd = aptjso.isDownloaded ();
                 var infhtml = '<A HREF="javascript:openPlateSec(\'aptinfos\')"><SPAN ID="tri-aptinfos">';
-                infhtml += isdownd ? '&#9654;' : '&#9660;';
+                infhtml += (isdownd > 0) ? '&#9654;' : '&#9660;';
                 infhtml += '</SPAN> Supplemental Information</A><SPAN';
-                if (isdownd) infhtml += ' HIDDEN';
+                if (isdownd > 0) infhtml += ' HIDDEN';
                 infhtml += ' ID="txt-aptinfos">';
-                if (isdownd) {
+                if (isdownd > 0) {
                     infhtml += '<UL><LI><A CLASS=aplate HREF="javascript:aptjso.detailPage()">Open Airport Details Page</A></UL>';
-                } else {
+                } else if (isdownd == 0) {
                     infhtml += '<UL><LI><A CLASS=aplate HREF="javascript:aptjso.dwnldState()"><B>Download Airport Details and Plates</B></A> <SUP><FONT COLOR=YELLOW>*</FONT></SUP></UL>';
                 }
                 if (metafsidstr != '') {
@@ -360,6 +360,7 @@
                     if (icaoid == '') continue;
                     var metars = aptjso.getMetars (icaoid);
                     if (metars != '') {
+                        asoflinetzname = '';
                         var metlines = metars.split ('\n');
                         var nmetlines = metlines.length;
                         for (var i = 0; i < nmetlines; i ++) {
@@ -390,19 +391,9 @@
                             // append <TR>...</TR> row to metobj.data
                             if (metline.charAt (0) == 'D') {
                                 metline = metline.substring (1).trim ();
-                                var j = metline.indexOf (' ');
-                                if (j >= 0) {
-                                    var firstword = metline.substring (0, j);
-                                    if ((firstword.length == 7) && (firstword.charAt (6) == 'Z')) {
-                                        metobj.data += '<TR><TD ALIGN=RIGHT><FONT COLOR=YELLOW>AsOf ' + decodeTime (firstword.substring (0, 6)) + '</FONT></TD><TD>' + metline.substring (j) + '</TD></TR>';
-                                        continue;
-                                    }
-                                    if ((firstword.length == 8) && (firstword.substring (0, 2) == 'FM')) {
-                                        metobj.data += '<TR><TD ALIGN=RIGHT><FONT COLOR=YELLOW>From ' + decodeTime (firstword.substring (2)) + '</FONT></TD><TD>' + metline.substring (j) + '</TD></TR>';
-                                        continue;
-                                    }
-                                }
-                                metobj.data += '<TR><TD></TD><TD>' + metline + '</TD></TR>';
+                                var decoded = decodeMetafLine (metline);
+                                if (decoded == '') decoded = '<TR><TD></TD><TD>' + metline + '</TD></TR>';
+                                metobj.data += decoded;
                             }
                         }
                     }
@@ -452,14 +443,60 @@
                 }
             }
 
+            var asoflinetzname = '';
+
+            // decode a METAR/TAF line
+            function decodeMetafLine (metline)
+            {
+                var j = metline.indexOf (' ');
+                if (j < 0) return '';
+                var firstword = metline.substring (0, j);
+                var restofline = metline.substring (++ j);
+
+                // METAR line:  ddhhmmZ ... => AsOf ddhhmm // ...
+                // also first line of TAF
+                if ((firstword.length == 7) && (firstword.charAt (6) == 'Z')) {
+                    var localtime = decodeTime (firstword.substring (0, 6));
+                    aptjso.showLogcat ('decodeMetafLine*:A asoflinetzname=<' + asoflinetzname + '>');
+                    return '<TR><TD ALIGN=RIGHT><FONT COLOR=YELLOW>AsOf ' + localtime +
+                            '</FONT></TD><TD>' + restofline + '</TD></TR>';
+                }
+
+                // TAF line: FMddhhmm ... => From ddhhmm // ...
+                if ((firstword.length == 8) && (firstword.substring (0, 2) == 'FM')) {
+                    return '<TR><TD ALIGN=RIGHT><FONT COLOR=YELLOW>From ' +
+                            decodeTime (firstword.substring (2)) + '</FONT></TD><TD>' +
+                            restofline + '</TD></TR>';
+                }
+
+                // TAF line: BECMG/TEMPO ddhh/ddhh ... => Becoming/Temporarily ddhh..ddhh // ...
+                if ((firstword != 'BECMG') && (firstword != 'TEMPO')) return '';
+                j = restofline.indexOf (' ');
+                if (j < 0) return '';
+                var secondword = restofline.substring (0, j);
+                restofline = restofline.substring (++ j);
+                var timerange = aptjso.getAptLclRange (secondword);
+                if (timerange == '') return '';
+                var k = timerange.length - asoflinetzname.length;
+                aptjso.showLogcat ('decodeMetafLine*:B asoflinetzname=<' + asoflinetzname + '> k=' + k + ' timerange=<' + timerange + '>');
+                if ((k > 0) && (timerange.substring (k) == asoflinetzname)) {
+                    timerange = timerange.substring (0, k);
+                }
+                return '<TR><TD ALIGN=RIGHT><FONT COLOR=YELLOW>' + firstword.toLowerCase () +
+                        ' ' + secondword + ' (' + timerange + ')' + '</TD><TD>' + restofline +
+                        '</TD></TR>';
+            }
+
             // make a ddhhmm (zulu) string nice
             function decodeTime (ddhhmm)
             {
                 var ztime = ddhhmm.substring (0, 2) + '&nbsp;' +
                             ddhhmm.substring (2, 4) + ':' +
                             ddhhmm.substring (4, 6) + 'z';
-                var ltime = aptjso.getAptLclTime (ddhhmm).replace (/ /g, '&nbsp;');
+                var ltimenr = aptjso.getAptLclTime (ddhhmm);
+                var ltime = ltimenr.replace (/ /g, '&nbsp;');
                 if (ltime.substring (0, 13) != ztime.substring (0, 13)) {
+                    asoflinetzname = ltimenr.substring (8);  // includes leading space
                     ztime += ' (' + ltime + ')';
                 }
                 return ztime;

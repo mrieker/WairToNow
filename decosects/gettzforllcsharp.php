@@ -21,8 +21,8 @@
 
     require_once '../webpages/gettzatll.php';
 
-    $lat = floatval ($argv[1]);
-    $lon = floatval ($argv[2]);
-    $tz  = getTZAtLL ($lat, $lon);
+    $i100lat = intval ($argv[1]);
+    $i100lon = intval ($argv[2]);
+    $tz = getTZAtI100LL ($i100lat, $i100lon);
     echo "$tz\n";
 ?>

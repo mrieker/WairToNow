@@ -100,9 +100,24 @@ function purgedatum
             rm -rf "$file"
             continue
         fi
+        if [ "${file:0:10}" == "datums/oa_" ]
+        then
+            mv "$file" "purged-$file"
+            continue
+        fi
         if [ "${file:0:20}" == "datums/obstructions_" ]
         then
             rm -rf "$file"
+            continue
+        fi
+        if [ "${file:0:17}" == "datums/ofmwaypts_" ]
+        then
+            mv "$file" "purged-$file"
+            continue
+        fi
+        if [ "${file:0:12}" == "datums/ofmx_" ]
+        then
+            mv "$file" "purged-$file"
             continue
         fi
         if [ "${file:0:14}" == "datums/runways" ]
@@ -177,11 +192,6 @@ function purgedatum
         fi
     done
 }
-
-if [ PurgeOldCharts.exe -ot PurgeOldCharts.cs ]
-then
-    mcs -debug -out:PurgeOldCharts.exe PurgeOldCharts.cs
-fi
 
 mkdir -p purged-charts
 mkdir -p purged-datums

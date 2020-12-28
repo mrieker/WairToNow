@@ -127,7 +127,7 @@ public class Chart2DView extends View
     private Paint wayptBGPaint      = new Paint ();
     private Paint wsdPaint          = new Paint ();
     private Paint wsrPaint          = new Paint ();
-    private Paint[] faaWPPaints     = new Paint[] { new Paint (), new Paint () };
+    private Paint[] wayptPaints     = new Paint[] { new Paint (), new Paint () };
     private Paint[] userWPPaints    = new Paint[] { new Paint (), new Paint () };
     private Path trailPath          = new Path ();
     private PointD onDrawPt         = new PointD ();
@@ -145,7 +145,7 @@ public class Chart2DView extends View
     private Rect wsrBounds = new Rect ();
     private RectF drawCourseFilletOval = new RectF ();
     public  WairToNow wairToNow;
-    private Waypoint.Within waypointsWithin;
+    private WaypointsWithin waypointsWithin;
 
     public Chart2DView (ChartView cv)
     {
@@ -153,7 +153,7 @@ public class Chart2DView extends View
 
         chartView = cv;
         wairToNow = cv.wairToNow;
-        waypointsWithin = new Waypoint.Within (wairToNow);
+        waypointsWithin = new WaypointsWithin (wairToNow);
         float ts = wairToNow.textSize;
 
         UnSetCanvasHdgRad ();
@@ -215,14 +215,14 @@ public class Chart2DView extends View
         wsrPaint.setTextSize (wairToNow.textSize);
         wsrPaint.getTextBounds ("0", 0, 1, wsrBounds);
 
-        for (Paint p : faaWPPaints) {
+        for (Paint p : wayptPaints) {
             p.setStyle (Paint.Style.FILL);
             p.setStrokeWidth (2);
             p.setTextSize (ts);
             p.setTextAlign (Paint.Align.LEFT);
         }
-        faaWPPaints[0].setColor (Color.YELLOW);
-        faaWPPaints[1].setColor (Color.argb (255, 250, 180, 0));
+        wayptPaints[0].setColor (Color.YELLOW);
+        wayptPaints[1].setColor (Color.argb (255, 250, 180, 0));
 
         for (Paint p : userWPPaints) {
             p.setStyle (Paint.Style.FILL);
@@ -367,7 +367,9 @@ public class Chart2DView extends View
 
         switch (event.getActionMasked ()) {
             case MotionEvent.ACTION_DOWN: {
-                MouseDown (event.getX (), event.getY ());
+                float x = event.getX ();
+                float y = event.getY ();
+                MouseDown (x, y);
                 // fall through
             }
             case MotionEvent.ACTION_POINTER_DOWN: {
@@ -759,6 +761,7 @@ public class Chart2DView extends View
         int dy = (int) paint.getFontSpacing ();
         int by = chartView.pmap.canvasHeight - 10;
 
+        canvas.drawText ("Options for font size", cx, by - dy * 3, paint);
         canvas.drawText ("Maint to download charts", cx, by - dy * 2, paint);
         canvas.drawText ("Chart to display chart", cx, by - dy, paint);
     }
@@ -853,15 +856,15 @@ public class Chart2DView extends View
         }
 
         /*
-         * Draw any visible FAA waypoints.
+         * Draw any visible database waypoints.
          */
         allDrawWaypoints.clear ();
-        if (wairToNow.optionsView.faaWPOption.checkBox.isChecked ()) {
-            for (Waypoint faaWP : waypointsWithin.Get (
+        if (wairToNow.optionsView.wayptOption.checkBox.isChecked ()) {
+            for (Waypoint waypt : waypointsWithin.Get (
                     chartView.pmap.canvasSouthLat, chartView.pmap.canvasNorthLat,
                     chartView.pmap.canvasWestLon, chartView.pmap.canvasEastLon)) {
-                if (LatLon2CanPixExact (faaWP.lat, faaWP.lon, pt)) {
-                    allDrawWaypoints.add (new DrawWaypoint (faaWP.ident, pt, faaWPPaints));
+                if (LatLon2CanPixExact (waypt.lat, waypt.lon, pt)) {
+                    allDrawWaypoints.add (new DrawWaypoint (waypt.ident, pt, wayptPaints));
                 }
             }
         }
@@ -912,14 +915,14 @@ public class Chart2DView extends View
     }
 
     /**
-     * An user or FAA waypoint to be drawn.
+     * An user or database waypoint to be drawn.
      */
     private class DrawWaypoint {
         public final static int STOFF = 5;
 
-        public int color;         // what color to draw it (index in faaWPPaints[] or userWPPaints[])
+        public int color;         // what color to draw it (index in wayptPaints[] or userWPPaints[])
         public int x, y;          // location dot in canvas pixels
-        public Paint[] fgPaints;  // either faaWPPaints[] or userWPPaints[]
+        public Paint[] fgPaints;  // either wayptPaints[] or userWPPaints[]
         public Rect dotBox;       // xy limits of where dot is drawn on canvas including background
                                   // - dotBox is never moved
         public Rect txtBox;       // xy limits of where text is drawn on canvas including background

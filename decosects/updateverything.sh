@@ -31,6 +31,8 @@
 #       Copyright: Copyright (C) 1999-2012 ImageMagick Studio LLC
 #       Features: OpenMP    
 #
+cd `dirname $0`
+make
 echo STARTING UPDATE ; date
 ./get_aptinfo.sh
 echo END GET_APTINFO.SH ; date
@@ -49,6 +51,8 @@ echo END IFR_CHARTS_DOWNLOAD.SH ; date
 echo END GENALLCHARTCSVS.SH ; date
 ./readalltiffs.sh
 echo END READALLTIFFS.SH ; date
+php downloadofmtiles.php
+echo END DOWNLOADOFMTILES.PHP ; date
 
 ./makedatumstopo.sh
 echo END MAKEDATUMSTOPO.SH ; date

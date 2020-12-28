@@ -1,0 +1,27 @@
+// OpenFlightMaps 4-letter region code
+//  for example:
+//   https://www.openflightmaps.org/eh-netherlands/?airac=2013&language=english
+//   look for line 'var regionCode = "EHAA";'
+//  maybe france (oct 8, 2020):
+//   https://twitter.com/openflightmaps/status/1314214494139162632/photo/1
+ebbu EB Belgium
+ed   ED Germany
+efin EF Finland
+ehaa EH Netherlands
+ekdk EK Denmark
+epww EP Poland
+esaa ES Sweden
+fa   FA South Africa
+fywh FY Namibia
+lbsr LB Bulgaria
+ldzo LD Croatia
+lggg LG Greece
+lhcc LH Hungary
+li   LI Italy
+ljla LJ Slovenia
+lkaa LK Czech Republic
+lmmm LM Malta
+lovv LO Austria
+lrbb LR Romania
+lsas LS Switzerland
+lzbb LZ Slovakia

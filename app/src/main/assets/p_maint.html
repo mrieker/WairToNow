@@ -2,22 +2,43 @@
     <BODY>
         <H2>Maint Pages</H2>
         <P>These pages are used to download charts and data.  There are several
-            pages to select data from.
+            pages to select data from.</P>
         <UL>
-            <LI><B>Misc</B> - has the <I>Waypoints</I> database checkbox.  This
-                database contains airport, fix, localizer and navaid location
-                information for the whole country.  This database is required
-                for operation and can not be unloaded.  Also contains the
-                <I>Obstructions</I> and <I>Topography</I> databases used for
-                <A HREF="p_options.html">obstacle/terrain collision</A> detection.
-            <LI><B>Plates</B> - has per-state airport detail information, including
-                AFD-like data, <A HREF="iap_plate.html">approach plates</A>,
+            <LI><B>Misc</B>
+                <UL>
+                    <LI><B>Waypoints FAA <FONT COLOR=RED><SUP>*</SUP></FONT></B> - airport, fix,
+                        localizer and navaid location information for the whole United States
+                        (official)
+                    <LI><B>Waypoints OA <FONT COLOR=GREEN><SUP>*</SUP></FONT></B> - airport and
+                        navaid location information covering the whole world (open source)
+                    <LI><B>Waypoints OFM <FONT COLOR=BLUE><SUP>*</SUP></FONT></B> - airport and
+                        navaid location information covering parts of Europe (open source)
+                    <LI><B>Obstructions FAA <FONT COLOR=RED><SUP>*</SUP></FONT></B> - obstruction
+                        information covering the whole United States (official)
+                    <LI><B>Topography</B> - elevation information for the whole world (sourced
+                        from <A HREF="https://www.ngdc.noaa.gov/">NOAA</A>)
+                </UL>
+            <LI><B>Plates <FONT COLOR=RED><SUP>*</SUP></FONT></B> - has per-state airport detail
+                information, including AFD-like data, <A HREF="iap_plate.html">approach plates</A>,
                 SIDs, STARs etc.  It fills in the information displayed on the
-                <B><A HREF="p_faawp.html">FAAWP</A></B> pages.
-            <LI><B>ENR</B> - IFR enroute charts
-            <LI><B>HEL</B> - helicopter charts
-            <LI><B>SEC</B> - sectional charts
-            <LI><B>TAC</B> - terminal area charts
+                <B><A HREF="p_waypt.html">Waypt</A></B> pages.
+            <LI><B>ENR <FONT COLOR=RED><SUP>*</SUP></FONT></B> - IFR enroute charts
+            <LI><B>FLY <FONT COLOR=RED><SUP>*</SUP></FONT></B> - VFR flyway planning charts
+            <LI><B>HEL <FONT COLOR=RED><SUP>*</SUP></FONT></B> - helicopter charts
+            <LI><B>SEC <FONT COLOR=RED><SUP>*</SUP></FONT></B> - sectional charts
+            <LI><B>TAC <FONT COLOR=RED><SUP>*</SUP></FONT></B> - terminal area charts
+            <LI><B>OFM <FONT COLOR=BLUE><SUP>*</SUP></FONT></B> - OpenFlightMaps charts
+        </UL>
+        <UL>
+            <LI><B><FONT COLOR=RED><SUP>*</SUP></FONT> Waypoints FAA, Obstructions FAA, Plates, ENR,
+                FLY, HEL, SEC, TAC</B> are enabled by the <B>Use FAA database &amp; charts</B>
+                checkbox on the <B><A HREF="p_options.html">Options</A></B> page.
+            <LI><B><FONT COLOR=GREEN><SUP>*</SUP></FONT> Waypoints OA</B> is enabled by the <B>Use
+                ourairports.com database</B> checkbox on the
+                <B><A HREF="p_options.html">Options</A></B> page.
+            <LI><B><FONT COLOR=BLUE><SUP>*</SUP></FONT> Waypoints OFM, OFM</B> are enabled by the
+                <B>Use openflightmaps.org database &amp; charts</B> checkbox on the
+                <B><A HREF="p_options.html">Options</A></B> page.
         </UL>
         <UL>
             <LI>Check the charts/databases you want downloaded to your flash drive

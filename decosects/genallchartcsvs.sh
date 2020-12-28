@@ -32,11 +32,6 @@ function readtiffnames
 
 cd `dirname $0`
 
-if [ GenChartsCSV.exe -ot GenChartsCSV.cs ]
-then
-    mcs -debug -out:GenChartsCSV.exe GenChartsCSV.cs
-fi
-
 cd charts
 
 ls *.tif | readtiffnames

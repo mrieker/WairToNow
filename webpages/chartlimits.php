@@ -23,17 +23,23 @@
      * @brief Aggregate all the charts/*.csv files into one file for downloading.
      *        Output only the latest version of each chart.
      */
+
+    // v<2: no OFM_ charts
+    $v = isset ($_REQUEST["v"]) ? intval ($_REQUEST["v"]) : 0;
+
     $dir_entries = scandir ('charts');
     $charts = array ();
     foreach ($dir_entries as $dir_entry) {
-        $len = strlen ($dir_entry);
-        if (($len > 4) && (substr ($dir_entry, $len - 4) == '.csv')) {
-            $i = strrpos ($dir_entry, '_');
-            if ($i !== FALSE) {
-                $basename = substr ($dir_entry, 0, $i ++);
-                $version  = substr ($dir_entry, $i, $len - 4 - $i);
-                if (!isset ($charts[$basename]) || (intval ($charts[$basename]) < intval ($version))) {
-                    $charts[$basename] = $version;
+        if (($v >= 2) || (strpos ($dir_entry, "OFM_") !== 0)) {
+            $len = strlen ($dir_entry);
+            if (($len > 4) && (substr ($dir_entry, $len - 4) == '.csv')) {
+                $i = strrpos ($dir_entry, '_');
+                if ($i !== FALSE) {
+                    $basename = substr ($dir_entry, 0, $i ++);
+                    $version  = substr ($dir_entry, $i, $len - 4 - $i);
+                    if (!isset ($charts[$basename]) || (intval ($charts[$basename]) < intval ($version))) {
+                        $charts[$basename] = $version;
+                    }
                 }
             }
         }

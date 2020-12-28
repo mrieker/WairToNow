@@ -65,6 +65,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Enumeration;
 import java.util.GregorianCalendar;
@@ -76,8 +77,6 @@ import java.util.TreeMap;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
-
-import static android.content.Context.MODE_PRIVATE;
 
 /**
  * Display a menu to download database and charts.
@@ -107,7 +106,9 @@ public class MaintView
     private Category flyCategory;
     private Category helCategory;
     private Category miscCategory;
+    private Category ofmCategory;
     private Category otherCategory;
+    private Category plateCategory;
     private Category secCategory;
     private Category tacCategory;
     private CheckExpdateThread checkExpdateThread;
@@ -120,6 +121,7 @@ public class MaintView
     private LinkedList<Runnable> callbacksWhenChartsLoaded = new LinkedList<> ();
     private final Object postDLProgLock = new Object ();
     private ObstructionsCheckBox obstructionsCheckBox;
+    private RingedBox faaChartRingedBox;
     private ScrollView itemsScrollView;
     private StateMapView stateMapView;
     private String postDLProcText;
@@ -131,7 +133,9 @@ public class MaintView
     private UnloadThread unloadThread;
     public  WairToNow wairToNow;
     public  Waypoint.Airport downloadingRunwayDiagram;
-    private WaypointsCheckBox waypointsCheckBox;
+    public  WaypointsCheckBox waypointsFAACheckBox;
+    public  WaypointsCheckBox waypointsOACheckBox;
+    public  WaypointsCheckBox waypointsOFMCheckBox;
 
     private static final int MaintViewHandlerWhat_OPENDLPROG   = 0;
     private static final int MaintViewHandlerWhat_UPDATEDLPROG = 1;
@@ -144,12 +148,11 @@ public class MaintView
     private static final int MaintViewHandlerWhat_OPENDELPROG  = 8;
 
     private final static String PARTIAL = ".tmp";
-    private final static String[] columns_apt_faaid_faciluse = new String[] { "apt_faaid", "apt_faciluse" };
-    private final static String[] columns_count_rp_faaid     = new String[] { "COUNT(rp_faaid)" };
-    private final static String[] columns_cp_legs            = new String[] { "cp_legs" };
+    private final static String[] columns_count_rp_icaoid = new String[] { "COUNT(rp_icaoid)" };
+    private final static String[] columns_cp_legs         = new String[] { "cp_legs" };
 
     // get the URL we download from
-    // this URL contains things like chartedlims.csv, chartlimits.php, etc
+    // this URL contains things like chartedlims2.csv, chartlimits.php, etc
     private static String GetDLDir ()
     {
         try {
@@ -207,24 +210,37 @@ public class MaintView
         addView (unloadButton);
 
         miscCategory  = new Category ("Misc");
-        Category plateCategory = new Category ("Plates");
+        plateCategory = new Category ("Plates");
         enrCategory   = new Category ("ENR");
         flyCategory   = new Category ("FLY");
         helCategory   = new Category ("HEL");
         secCategory   = new Category ("SEC");
         tacCategory   = new Category ("TAC");
+        ofmCategory   = new Category ("OFM");
         otherCategory = new Category ("Other");
 
+        RingedBox rb1 = new RingedBox (ctx);
+        rb1.addView (miscCategory.selButton);
+
+        faaChartRingedBox = new RingedBox (ctx);
+        faaChartRingedBox.setRingColor (Color.WHITE);
+        faaChartRingedBox.ringText = "FAA";
+        faaChartRingedBox.addView (plateCategory.selButton);
+        faaChartRingedBox.addView (enrCategory.selButton);
+        faaChartRingedBox.addView (flyCategory.selButton);
+        faaChartRingedBox.addView (helCategory.selButton);
+        faaChartRingedBox.addView (secCategory.selButton);
+        faaChartRingedBox.addView (tacCategory.selButton);
+
+        RingedBox rb3 = new RingedBox (ctx);
+        rb3.addView (ofmCategory.selButton);
+        rb3.addView (otherCategory.selButton);
+
         LinearLayout ll1 = new LinearLayout (ctx);
-        ll1.setOrientation (LinearLayout.HORIZONTAL);
-        ll1.addView (miscCategory.selButton);
-        ll1.addView (plateCategory.selButton);
-        ll1.addView (enrCategory.selButton);
-        ll1.addView (helCategory.selButton);
-        ll1.addView (secCategory.selButton);
-        ll1.addView (tacCategory.selButton);
-        ll1.addView (flyCategory.selButton);
-        ll1.addView (otherCategory.selButton);
+        ll1.setOrientation (HORIZONTAL);
+        ll1.addView (rb1);
+        ll1.addView (faaChartRingedBox);
+        ll1.addView (rb3);
 
         DetentHorizontalScrollView hs1 = new DetentHorizontalScrollView (ctx);
         wairToNow.SetDetentSize (hs1);
@@ -234,10 +250,14 @@ public class MaintView
         itemsScrollView = new ScrollView (ctx);
         addView (itemsScrollView);
 
-        waypointsCheckBox = new WaypointsCheckBox ();
+        waypointsFAACheckBox = new WaypointsCheckBox ("Waypoints FAA", DBase.FAA, "waypoints_");
+        waypointsOACheckBox  = new WaypointsCheckBox ("Waypoints OA",  DBase.OA,  "waypointsoa_");
+        waypointsOFMCheckBox = new WaypointsCheckBox ("Waypoints OFM", DBase.OFM, "waypointsofm_");
         obstructionsCheckBox = new ObstructionsCheckBox ();
 
-        miscCategory.addView (waypointsCheckBox);
+        miscCategory.addView (waypointsFAACheckBox);
+        miscCategory.addView (waypointsOACheckBox);
+        miscCategory.addView (waypointsOFMCheckBox);
         miscCategory.addView (obstructionsCheckBox);
         miscCategory.addView (new TopographyCheckBox ());
         miscCategory.addView (new TextView (wairToNow));
@@ -295,13 +315,13 @@ public class MaintView
         chartedLims = new HashMap<> ();
         FileReader limFileReader;
         try {
-            limFileReader = new FileReader (WairToNow.dbdir + "/chartedlims.csv");
+            limFileReader = new FileReader (WairToNow.dbdir + "/chartedlims2.csv");
         } catch (FileNotFoundException fnfe) {
             DownloadChartedLimsCSVThread dclt = new DownloadChartedLimsCSVThread ();
             dclt.start ();
             dclt.join ();
             if (dclt.ioe != null) throw dclt.ioe;
-            limFileReader = new FileReader (WairToNow.dbdir + "/chartedlims.csv");
+            limFileReader = new FileReader (WairToNow.dbdir + "/chartedlims2.csv");
         }
         BufferedReader limBufferedReader = new BufferedReader (limFileReader, 4096);
         String limLine;
@@ -315,20 +335,20 @@ public class MaintView
         limBufferedReader.close ();
 
         /*
-         * Read all possible chart names from chartlimits.csv.
+         * Read all possible chart names from chartlimits2.csv.
          * It is an aggregation of all charts/<undername>.csv files on the server.
          * It maps the lat/lon <-> chart pixels.
          */
         final TreeMap<String,ChartCheckBox> possibleCharts = new TreeMap<> ();
         FileReader csvFileReader;
         try {
-            csvFileReader = new FileReader (WairToNow.dbdir + "/chartlimits.csv");
+            csvFileReader = new FileReader (WairToNow.dbdir + "/chartlimits2.csv");
         } catch (FileNotFoundException fnfe) {
             DownloadChartLimitsCSVThread dclt = new DownloadChartLimitsCSVThread ();
             dclt.start ();
             dclt.join ();
             if (dclt.ioe != null) throw dclt.ioe;
-            csvFileReader = new FileReader (WairToNow.dbdir + "/chartlimits.csv");
+            csvFileReader = new FileReader (WairToNow.dbdir + "/chartlimits2.csv");
         }
         BufferedReader csvReader = new BufferedReader (csvFileReader, 4096);
         String csvLine;
@@ -349,15 +369,23 @@ public class MaintView
                 for (ChartCheckBox chartCheckBox : possibleCharts.values ()) {
                     AirChart airChart = chartCheckBox.GetCurentAirChart ();
                     if (airChart.spacenamenr.contains ("TAC")) {
+                        airChart.chartdb = DBase.FAA;
                         tacCategory.addView (chartCheckBox);
                     } else if (airChart.spacenamenr.contains ("ENR")) {
+                        airChart.chartdb = DBase.FAA;
                         enrCategory.addView (chartCheckBox);
                     } else if (airChart.spacenamenr.contains ("FLY")) {
+                        airChart.chartdb = DBase.FAA;
                         flyCategory.addView (chartCheckBox);
                     } else if (airChart.spacenamenr.contains ("HEL")) {
+                        airChart.chartdb = DBase.FAA;
                         helCategory.addView (chartCheckBox);
                     } else if (airChart.spacenamenr.contains ("SEC")) {
+                        airChart.chartdb = DBase.FAA;
                         secCategory.addView (chartCheckBox);
+                    } else if (airChart.spacenamenr.contains ("OFM")) {
+                        airChart.chartdb = DBase.OFM;
+                        ofmCategory.addView (chartCheckBox);
                     } else {
                         otherCategory.addView (chartCheckBox);
                     }
@@ -518,7 +546,7 @@ public class MaintView
                                         (now.get (Calendar.MONTH) - Calendar.JANUARY + 1) * 100 +
                                         now.get (Calendar.DAY_OF_MONTH);
 
-                                final SharedPreferences prefs = wairToNow.getPreferences (MODE_PRIVATE);
+                                final SharedPreferences prefs = wairToNow.getPreferences (Context.MODE_PRIVATE);
                                 final int chartMaintDelay = prefs.getInt ("chartMaintDelay", 0);
 
                                 // don't prompt more than once per day
@@ -571,6 +599,29 @@ public class MaintView
                 sleeper.sleep (sleepfor);
             }
         }
+    }
+
+    /**
+     * Show/hide some checkboxes based on database enable options.
+     */
+    private void UpdateDatabaseEnables ()
+    {
+        boolean isoa  = wairToNow.optionsView.dbOAOption.checkBox.isChecked  ();
+        boolean isofm = wairToNow.optionsView.dbOFMOption.checkBox.isChecked ();
+        int visfaa = wairToNow.optionsView.dbFAAOption.checkBox.isChecked () ? VISIBLE : GONE;
+        int visoa  = isoa  ? VISIBLE : GONE;
+        int visofm = isofm ? VISIBLE : GONE;
+
+        waypointsFAACheckBox.setVisibility (visfaa);
+        waypointsOACheckBox.setVisibility  (visoa);
+        waypointsOFMCheckBox.setVisibility (visofm);
+        obstructionsCheckBox.setVisibility (visfaa);
+
+        faaChartRingedBox.setRingColor ((isoa | isofm) ? Color.WHITE : Color.TRANSPARENT);
+        faaChartRingedBox.setVisibility (visfaa);
+        ofmCategory.selButton.setVisibility (visofm);
+
+        miscCategory.onClick (null);
     }
 
     /**
@@ -639,6 +690,8 @@ public class MaintView
     @Override  // WairToNow.CanBeMainView
     public void OpenDisplay ()
     {
+        UpdateDatabaseEnables ();
+
         UpdateAllButtonColors ();
 
         // make sure runway diagram download status is up to date
@@ -833,15 +886,15 @@ public class MaintView
         }
 
         /*
-         * Count the records in the rwypreloads table, as it is updated as tiles are downloaded.
+         * Count the records in the rwypreloads2 table, as it is updated as tiles are downloaded.
          */
         int latestexpdate = GetLatestPlatesExpDate ();
         String dbname = "nobudb/plates_" + latestexpdate + ".db";
         SQLiteDBs sqldb = SQLiteDBs.open (dbname);
         if (sqldb != null) {
-            if (sqldb.tableExists ("rwypreloads")) {
+            if (sqldb.tableExists ("rwypreloads2")) {
                 Cursor cursor = sqldb.query (
-                        "rwypreloads", columns_count_rp_faaid,
+                        "rwypreloads2", columns_count_rp_icaoid,
                         null, null, null, null, null, null);
                 try {
                     int n = 0;
@@ -889,11 +942,13 @@ public class MaintView
      * - georef, cifp csv files
      * Returns null if state file not downloaded
      * @param ss = 2-letter state code, eg, "MA"
+     *             we can get other things for international airports
      */
     public ZipFile getCurentStateZipFile (String ss)
             throws IOException
     {
-        return stateMapView.stateCheckBoxes.nnget (ss).getCurentStateZipFile ();
+        StateCheckBox cb = stateMapView.stateCheckBoxes.get (ss);
+        return (cb == null) ? null : cb.getCurentStateZipFile ();
     }
 
     /**
@@ -912,6 +967,18 @@ public class MaintView
             wairToNow.SetTextSize (selButton);
             selButton.setVisibility (GONE);
             allCategories.addLast (this);
+        }
+
+        private boolean somethingChecked ()
+        {
+            for (int i = getChildCount (); -- i >= 0;) {
+                View v = getChildAt (i);
+                if (v instanceof Downloadable) {
+                    Downloadable dcb = (Downloadable) v;
+                    if (dcb.IsChecked ()) return true;
+                }
+            }
+            return false;
         }
 
         /**
@@ -1218,15 +1285,70 @@ public class MaintView
     }
 
     /**
+     * Get iterator suitable for a foreach statement:
+     *  for (SQLiteDBs sqldb : maintView.getWaypointDBs ()) {
+     *      ...
+     *  }
+     */
+    public Iterable<SQLiteDBs> getWaypointDBs ()
+    {
+        return new WaypointDBs ();
+    }
+
+    public SQLiteDBs getWaypointDB (DBase dbtagname)
+    {
+        switch (dbtagname) {
+            case FAA: return waypointsFAACheckBox.openWayptDB ();
+            case OA:  return waypointsOACheckBox.openWayptDB ();
+            case OFM: return waypointsOFMCheckBox.openWayptDB ();
+        }
+        return null;
+    }
+
+    private class WaypointDBs implements Iterable<SQLiteDBs> {
+        @NonNull
+        @Override
+        public Iterator<SQLiteDBs> iterator ()
+        {
+            ArrayList<SQLiteDBs> wpdbs = new ArrayList<> (3);
+            if (wairToNow.optionsView.dbFAAOption.checkBox.isChecked ()) {
+                SQLiteDBs wpdb0 = waypointsFAACheckBox.openWayptDB ();
+                if (wpdb0 != null) wpdbs.add (wpdb0);
+            }
+            if (wairToNow.optionsView.dbOAOption.checkBox.isChecked ()) {
+                SQLiteDBs wpdb1 = waypointsOACheckBox.openWayptDB ();
+                if (wpdb1 != null) wpdbs.add (wpdb1);
+            }
+            if (wairToNow.optionsView.dbOFMOption.checkBox.isChecked ()) {
+                SQLiteDBs wpdb2 = waypointsOFMCheckBox.openWayptDB ();
+                if (wpdb2 != null) wpdbs.add (wpdb2);
+            }
+            return wpdbs.iterator ();
+        }
+    }
+
+    /**
      * Enable download waypoints files.
      * datums/waypoints_<expdate>.db.gz
      */
     private class WaypointsCheckBox extends DownloadCheckBox {
+        private DBase tagname;
         private int curentenddate;
         private int latestenddate;
+        private String filenameprefix;
+        private String spacenamenorev;
 
-        public WaypointsCheckBox ()
+        // snnr = "Waypoints FAA"   for maint screen download checkbox
+        //        "Waypoints OFM"
+        // tn   = "faa"             for displaying by waypoint ident
+        //        "ofm"             ...so user can see which db it came from
+        // fnp  = "waypoints_"      for database filename
+        //        "waypointsofm_"
+        public WaypointsCheckBox (String snnr, DBase tn, String fnp)
         {
+            spacenamenorev = snnr;
+            tagname        = tn;
+            filenameprefix = fnp;
             DeleteDownloadedFiles (false);
         }
 
@@ -1248,13 +1370,13 @@ public class MaintView
         @Override  // DownloadCheckBox
         public String GetSpaceNameNoRev ()
         {
-            return "Waypoints";
+            return spacenamenorev;
         }
 
         @Override  // DownloadCheckBox
         public synchronized void DeleteDownloadedFiles (boolean all)
         {
-            int[] last2 = PurgeDownloadedDatabases (all, "nobudb/waypoints_");
+            int[] last2 = PurgeDownloadedDatabases (all, "nobudb/" + filenameprefix);
             curentenddate = last2[0];
             latestenddate = last2[1];
         }
@@ -1271,6 +1393,9 @@ public class MaintView
             if (!servername.startsWith ("datums/waypoints_") || !servername.endsWith (".db.gz")) {
                 throw new IOException ("bad waypoint filename " + servername);
             }
+
+            // maybe change the 'waypoints_' to 'waypointsofm_'
+            servername = servername.replace ("waypoints_", filenameprefix);
 
             /*
              * Download that file and gunzip it iff we don't already have it.
@@ -1346,15 +1471,60 @@ public class MaintView
                 SQLiteDBs.created (dbname);
             }
         }
+
+        /**
+         * Open current version of waypoint database.
+         * Returns null if not downloaded.
+         */
+        public SQLiteDBs openWayptDB ()
+        {
+            int waypointexpdate = GetCurentEndDate ();
+            String dbname = "nobudb/" + filenameprefix + waypointexpdate + ".db";
+            SQLiteDBs sqldb = SQLiteDBs.open (dbname);
+            if (sqldb != null) {
+                sqldb.dbaux = tagname;
+                synchronized (this) {
+                    if (! sqldb.columnExists ("airports", "apt_metaf")) {
+                        sqldb.execSQL ("ALTER TABLE airports ADD COLUMN apt_metaf TEXT NOT NULL DEFAULT ''");
+                        sqldb.execSQL ("BEGIN");
+                        Cursor result = sqldb.query (true, "runways", new String[] { "rwy_faaid" }, "rwy_length>=1500", null, null, null, null, null);
+                        try {
+                            if (result.moveToFirst ()) do {
+                                sqldb.execSQL ("UPDATE airports SET apt_metaf='?' WHERE apt_faaid='" + result.getString (0) + "'");
+                            } while (result.moveToNext ());
+                        } finally {
+                            result.close ();
+                        }
+                        sqldb.execSQL ("COMMIT");
+                    }
+                    if (! sqldb.columnExists ("airports", "apt_tzname")) {
+                        sqldb.execSQL ("ALTER TABLE airports ADD COLUMN apt_tzname TEXT NOT NULL DEFAULT ''");
+                    }
+                    if (! sqldb.columnExists ("runways", "rwy_icaoid")) {
+                        sqldb.execSQL ("BEGIN");
+                        sqldb.execSQL ("ALTER TABLE runways ADD COLUMN rwy_icaoid TEXT NOT NULL DEFAULT ''");
+                        sqldb.execSQL ("UPDATE runways SET rwy_icaoid=(SELECT apt_icaoid FROM airports WHERE apt_faaid=rwy_faaid)");
+                        sqldb.execSQL ("CREATE INDEX runways_icaoids ON runways (rwy_icaoid)");
+                        sqldb.execSQL ("COMMIT");
+                    }
+                }
+            }
+            return sqldb;
+        }
     }
 
     /**
      * Get name of current valid waypoint file (28-day cycle).
      * @return 0: no such file; else: expiration date of file
      */
-    public int GetCurentWaypointExpDate ()
+    public int GetCurentWaypointExpDate (DBase dbtagname)
     {
-        return waypointsCheckBox.GetCurentEndDate ();
+        switch (dbtagname) {
+            case FAA: return waypointsFAACheckBox.GetCurentEndDate ();
+            case OA:  return waypointsOACheckBox.GetCurentEndDate ();
+            case OFM: return waypointsOFMCheckBox.GetCurentEndDate ();
+        }
+        return 0;
     }
 
     /**
@@ -1388,7 +1558,7 @@ public class MaintView
         @Override  // DownloadCheckBox
         public String GetSpaceNameNoRev ()
         {
-            return "Obstructions";
+            return "Obstructions FAA";
         }
 
         @Override  // DownloadCheckBox
@@ -1712,6 +1882,44 @@ public class MaintView
             String localname = WairToNow.dbdir + "/" + servername;
             if (new File (localname).exists ()) return;
             DownloadBigFile (servername, localname);
+
+            /*
+             * For all OFM charts, download runway diagrams for airports within their boundaries.
+             * But only airports with runway at least 1000 ft
+             */
+            if (undername.contains ("OFM")) {
+                SQLiteDBs wpdb = waypointsOFMCheckBox.openWayptDB ();
+                if (wpdb != null) {
+                    Cursor result = wpdb.query ("airports,runways",
+                            new String[] { "apt_icaoid", "apt_state", },
+                            "apt_lat>" + latestAirChart.chartedSouthLat +
+                                    " AND apt_lon<" + latestAirChart.chartedNorthLat +
+                                    " AND apt_lon>" + latestAirChart.chartedWestLon +
+                                    " AND apt_lon<" + latestAirChart.chartedEastLon +
+                                    " AND rwy_icaoid=apt_icaoid AND rwy_length>=1000",
+                            null, null, null, null, null);
+                    try {
+                        int platesexpdate = GetLatestPlatesExpDate ();
+                        String rpname = "nobudb/plates_" + platesexpdate + ".db";
+                        SQLiteDBs rpdb = SQLiteDBs.create (rpname);
+                        RwyPreloads rwypreloads = new RwyPreloads (rpdb);
+                        rpdb.beginTransaction ();
+                        if (result.moveToFirst ()) do {
+                            String icaoid = result.getString (0);
+                            String state  = result.getString (1);
+                            rwypreloads.write (icaoid, DBase.OFM, state);
+                        } while (result.moveToNext ());
+                        rpdb.setTransactionSuccessful ();
+                        rpdb.endTransaction ();
+                    } finally {
+                        result.close ();
+                    }
+
+                    // start prefetching runway diagram tyles
+                    wairToNow.openStreetMap.StartPrefetchingRunwayTiles ();
+                    UpdateRunwayDiagramDownloadStatus ();
+                }
+            }
         }
 
         /**
@@ -1747,6 +1955,7 @@ public class MaintView
 
     /**
      * Iterate through air charts, downloaded or not.
+     * Skip charts that aren't enabled on the options page.
      */
     public Iterator<AirChart> GetCurentAirChartIterator ()
     {
@@ -1774,10 +1983,15 @@ public class MaintView
         {
             if (getChartNamesBusy) return false;
             if (nextOne != null) return true;
+            boolean enfaa = wairToNow.optionsView.dbFAAOption.checkBox.isChecked ();
+            boolean enofm = wairToNow.optionsView.dbOFMOption.checkBox.isChecked ();
             while (pcit.hasNext ()) {
                 Downloadable d = pcit.next ();
                 if (d instanceof ChartCheckBox) {
-                    nextOne = ((ChartCheckBox) d).curentAirChart;
+                    AirChart ac = ((ChartCheckBox) d).curentAirChart;
+                    if ((ac.chartdb == DBase.FAA) && ! enfaa) continue;
+                    if ((ac.chartdb == DBase.OFM) && ! enofm) continue;
+                    nextOne = ac;
                     return true;
                 }
             }
@@ -1929,7 +2143,7 @@ public class MaintView
                         setName ("AirportsFor" + ss);
 
                         // get airports from database, sorted by ICAO id
-                        TreeMap<String,Waypoint.Airport> apts = Waypoint.GetAptsInState (ss, wairToNow);
+                        TreeMap<String,Waypoint.Airport> apts = Waypoint.GetAptsInState (ss, DBase.FAA, wairToNow);
 
                         // make list of airports in scrollable list
                         LinearLayout ll = new LinearLayout (wairToNow);
@@ -2219,9 +2433,9 @@ public class MaintView
                     if (sqldb.tableEmpty ("plates")) sqldb.execSQL ("DROP TABLE plates");
                     else dbempty = false;
                 }
-                if (sqldb.tableExists ("rwypreloads")) {
-                    sqldb.execSQL ("DELETE FROM rwypreloads WHERE rp_state='" + ss + "'");
-                    if (sqldb.tableEmpty ("rwypreloads")) sqldb.execSQL ("DROP TABLE rwypreloads");
+                if (sqldb.tableExists ("rwypreloads2")) {
+                    sqldb.execSQL ("DELETE FROM rwypreloads2 WHERE rp_state='" + ss + "'");
+                    if (sqldb.tableEmpty ("rwypreloads2")) sqldb.execSQL ("DROP TABLE rwypreloads2");
                     else dbempty = false;
                 }
                 if (dbempty) sqldb.markForDelete ();
@@ -2267,44 +2481,16 @@ public class MaintView
                 sqldb.execSQL ("CREATE INDEX plate_faaid ON plates (pl_faaid);");
                 sqldb.execSQL ("CREATE UNIQUE INDEX plate_unique ON plates (pl_faaid,pl_descrip);");
             }
-            if (!sqldb.tableExists ("rwypreloads")) {
-                sqldb.execSQL ("DROP INDEX IF EXISTS rwypld_lastry;");
-                sqldb.execSQL ("DROP TABLE IF EXISTS rwypreloads;");
-                sqldb.execSQL ("CREATE TABLE rwypreloads (rp_faaid TEXT NOT NULL PRIMARY KEY, rp_state TEXT NOT NULL, rp_lastry INTEGER NOT NULL);");
-                sqldb.execSQL ("CREATE INDEX rwypld_lastry ON rwypreloads (rp_lastry);");
-            }
+            RwyPreloads rwypreloads = new RwyPreloads (sqldb);
 
             sqldb.beginTransaction ();
             try {
                 int numAdded = 0;
 
                 // get list of all airports in the state and request OpenStreetMap tiles for runway diagrams
-                SQLiteDBs wpdb = SQLiteDBs.open ("nobudb/waypoints_" + expdate + ".db");
-                if (wpdb != null) {
-                    Cursor result = wpdb.query (
-                            true, "airports", columns_apt_faaid_faciluse,
-                            "apt_state=?", new String[] { statecode },
-                            null, null, null, null);
-                    try {
-                        if (result.moveToFirst ()) {
-                            do {
-                                if (result.getString (1).equals ("PU")) {
-                                    ContentValues values = new ContentValues (3);
-                                    values.put ("rp_faaid", result.getString (0));
-                                    values.put ("rp_state", statecode);
-                                    values.put ("rp_lastry", 0);
-                                    sqldb.insertWithOnConflict ("rwypreloads", values, SQLiteDatabase.CONFLICT_IGNORE);
-
-                                    if (++ numAdded == 256) {
-                                        sqldb.yieldIfContendedSafely ();
-                                        numAdded = 0;
-                                    }
-                                }
-                            } while (result.moveToNext ());
-                        }
-                    } finally {
-                        result.close ();
-                    }
+                TreeMap<String,Waypoint.Airport> apts = Waypoint.GetAptsInState (statecode, DBase.FAA, wairToNow);
+                for (Waypoint.Airport apt : apts.values ()) {
+                    rwypreloads.write (apt.ident, DBase.FAA, statecode);
                 }
 
                 // set up records for all FAA plates for all airports in the state that have plates
@@ -2503,16 +2689,50 @@ public class MaintView
     }
 
     /**
+     * Write records to rwypreloads2 which downloads OpenStreetMap tiles for a runway diagram.
+     */
+    private static class RwyPreloads {
+        private SQLiteDBs sqldb;
+
+        public RwyPreloads (SQLiteDBs sqldb)
+        {
+            this.sqldb = sqldb;
+            if (!sqldb.tableExists ("rwypreloads2")) {
+                sqldb.execSQL ("DROP INDEX IF EXISTS rwypld_lastry;");
+                sqldb.execSQL ("DROP TABLE IF EXISTS rwypreloads2;");
+                sqldb.execSQL ("CREATE TABLE rwypreloads2 (rp_icaoid TEXT NOT NULL, " +
+                        "rp_dbase TEXT NOT NULL, rp_state TEXT NOT NULL, " +
+                        "rp_lastry INTEGER NOT NULL, PRIMARY KEY (rp_icaoid,rp_dbase));");
+                sqldb.execSQL ("CREATE INDEX rwypld_lastry ON rwypreloads2 (rp_lastry);");
+            }
+        }
+
+        public void write (String icaoid, DBase dbase, String state)
+        {
+            ContentValues values = new ContentValues (4);
+            values.put ("rp_icaoid", icaoid);
+            values.put ("rp_dbase",  dbase.toString ());
+            values.put ("rp_state",  state);
+            values.put ("rp_lastry", 0);
+            sqldb.insertWithOnConflict ("rwypreloads2", values, SQLiteDatabase.CONFLICT_IGNORE);
+        }
+    }
+
+    /**
      * Get expiration date of the current airport plates for the airports of a given state (28-day cycle).
-     * @return 0 if state not downloaded, else expiration date yyyymmdd
+     * @return -1: no such state (ie, OFM country)
+     *          0: state not downloaded
+     *       else: expiration date yyyymmdd
      */
     public int GetCurrentPlatesExpDate (String ss)
     {
-        return stateMapView.stateCheckBoxes.nnget (ss).curentenddate;
+        StateCheckBox scb = stateMapView.stateCheckBoxes.get (ss);
+        return (scb == null) ? -1 : scb.curentenddate;
     }
     public int GetLatestPlatesExpDate (String ss)
     {
-        return stateMapView.stateCheckBoxes.nnget (ss).latestenddate;
+        StateCheckBox scb = stateMapView.stateCheckBoxes.get (ss);
+        return (scb == null) ? -1 : scb.latestenddate;
     }
 
     /**
@@ -2580,8 +2800,16 @@ public class MaintView
 
                 // if we don't have any waypoint database,
                 // force downloading it along with whatever user wants
-                if (waypointsCheckBox.GetCurentEndDate () == 0) {
-                    waypointsCheckBox.checkBox.setChecked (true);
+                if (plateCategory.somethingChecked () ||
+                    enrCategory.somethingChecked () ||
+                    helCategory.somethingChecked () ||
+                    secCategory.somethingChecked () ||
+                    tacCategory.somethingChecked () ||
+                    flyCategory.somethingChecked ()) {
+                    waypointsFAACheckBox.checkBox.setChecked (true);
+                }
+                if (ofmCategory.somethingChecked ()) {
+                    waypointsOFMCheckBox.checkBox.setChecked (true);
                 }
 
                 // start download thread going
@@ -2747,17 +2975,17 @@ public class MaintView
     // N,S,E,W lat/lon limits displayed by the charts
     private void DownloadChartedLimsCSV () throws IOException
     {
-        Log.i (TAG, "downloading chartedlims.csv");
-        String csvname = WairToNow.dbdir + "/chartedlims.csv";
-        DownloadFile ("chartedlims.csv", csvname);
+        Log.i (TAG, "downloading chartedlims2.csv");
+        String csvname = WairToNow.dbdir + "/chartedlims2.csv";
+        DownloadFile ("chartedlims2.csv", csvname);
     }
 
     // aggregate of all the latest .csv files (lat/lon<->pixel mapping)
     private void DownloadChartLimitsCSV () throws IOException
     {
-        Log.i (TAG, "downloading chartlimits.csv");
-        String csvname = WairToNow.dbdir + "/chartlimits.csv";
-        DownloadFile ("chartlimits.php", csvname);
+        Log.i (TAG, "downloading chartlimits2.csv");
+        String csvname = WairToNow.dbdir + "/chartlimits2.csv";
+        DownloadFile ("chartlimits.php?v=2", csvname);
     }
 
     // pixel outlines of mapped enroute charts

@@ -109,7 +109,7 @@ public class RWYPlateImage extends GRPlateImage implements DisplayableChart.Inva
             String[] infoLine = rwy.getInfoLine ();
             surfColor = Color.LTGRAY;
             for (String infoWord : infoLine) {
-                if (infoWord.contains ("TURF")) {
+                if (infoWord.contains ("TURF") || infoWord.contains ("GRASS")) {
                     surfColor = Color.GREEN;
                     break;
                 }
@@ -204,7 +204,7 @@ public class RWYPlateImage extends GRPlateImage implements DisplayableChart.Inva
 
         // find waypoints within the area depicted
         // we don't want fixes as there are a lot of them adding clutter
-        Collection<Waypoint> wps = new Waypoint.Within (wairToNow).Get (minlat, maxlat, minlon, maxlon);
+        Collection<Waypoint> wps = new WaypointsWithin (wairToNow).Get (minlat, maxlat, minlon, maxlon);
         for (Waypoint wp : wps) {
             String type = wp.GetType ();
             if (!type.startsWith ("FIX")) waypoints.put (wp.ident, new WpInfo (wp));
@@ -251,7 +251,14 @@ public class RWYPlateImage extends GRPlateImage implements DisplayableChart.Inva
             canvas.translate ((canwidth - diswidth) / 2.0F, (canheight - disheight) / 2.0F);
 
             // draw tiles and copyright message
-            wairToNow.openStreetMap.Draw (canvas, pmap, this, (canwidth + diswidth) / 2.0F, (canheight + disheight) / 2.0F);
+            wairToNow.openStreetMap.Draw (canvas, pmap, this);
+            String[] copyrt = wairToNow.openStreetMap.getCopyright ();
+            if (copyrt != null) {
+                float copyrtx = (canwidth  + diswidth)  / 2.0F - 5;
+                float copyrty = (canheight + disheight) / 2.0F - 5;
+                canvas.drawText (copyrt[0], copyrtx, copyrty, wairToNow.copyrtBGPaint);
+                canvas.drawText (copyrt[0], copyrtx, copyrty, wairToNow.copyrtTxPaint);
+            }
 
             /*
              * Show debugging lines through airport reference point.

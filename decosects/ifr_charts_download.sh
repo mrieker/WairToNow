@@ -128,16 +128,6 @@ function scanifrchartshtm
     done
 }
 
-if [ cureffdate -ot cureffdate.c ]
-then
-    cc -o cureffdate cureffdate.c
-fi
-
-if [ GetIFRChartNames.exe -ot GetIFRChartNames.cs ]
-then
-    mcs -debug -out:GetIFRChartNames.exe GetIFRChartNames.cs
-fi
-
 effdate_mm=`./cureffdate -28 'mm-dd-yyyy'`
 effdate_mmm=`./cureffdate -28 'mmm dd yyyy'`
 expdate_mmm=`./cureffdate -28 -x 'mmm dd yyyy'`

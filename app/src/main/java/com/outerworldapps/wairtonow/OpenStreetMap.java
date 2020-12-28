@@ -24,9 +24,7 @@ import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
-import android.graphics.Color;
 import android.graphics.Matrix;
-import android.graphics.Paint;
 import android.graphics.Path;
 import android.support.annotation.NonNull;
 import android.support.v4.util.LongSparseArray;
@@ -78,11 +76,15 @@ public class OpenStreetMap {
      * @param canvas = canvas that draws to the view
      * @param pmap = maps canvas/view pixels to lat/lon
      * @param inval = what to call in an arbitrary thread when a tile gets loaded
-     * @param copyrty = where to put copyright message
      */
-    public void Draw (@NonNull Canvas canvas, @NonNull PixelMapper pmap, @NonNull DisplayableChart.Invalidatable inval, float copyrtx, float copyrty)
+    public void Draw (@NonNull Canvas canvas, @NonNull PixelMapper pmap, @NonNull DisplayableChart.Invalidatable inval)
     {
-        mainTileDrawer.Draw (canvas, pmap, inval, copyrtx, copyrty);
+        mainTileDrawer.Draw (canvas, pmap, inval);
+    }
+
+    public String[] getCopyright ()
+    {
+        return new String[] { "[" + mainTileDrawer.zoom + "] \u00A9 OpenStreetMap contributors" };
     }
 
     /**
@@ -101,8 +103,6 @@ public class OpenStreetMap {
         private DisplayableChart.Invalidatable redrawView;
         private float[] bitmappts = new float[8];
         private Matrix matrix = new Matrix ();
-        private Paint copyrtBGPaint = new Paint ();
-        private Paint copyrtTxPaint = new Paint ();
         private Path canvasclip = new Path ();
 
         private final LongSparseArray<TileBitmap> openedBitmaps = new LongSparseArray<> ();
@@ -112,19 +112,7 @@ public class OpenStreetMap {
         private final LongSparseArray<DisplayableChart.Invalidatable> downloadBitmaps = new LongSparseArray<> ();
         private TileDownloaderThread tileDownloaderThread;
 
-        public MainTileDrawer ()
-        {
-            copyrtBGPaint.setColor (Color.WHITE);
-            copyrtBGPaint.setStyle (Paint.Style.FILL_AND_STROKE);
-            copyrtBGPaint.setTextSize (wairToNow.textSize * 3 / 4);
-            copyrtBGPaint.setStrokeWidth (wairToNow.thickLine);
-            copyrtBGPaint.setTextAlign (Paint.Align.RIGHT);
-            copyrtTxPaint.setColor (Color.BLACK);
-            copyrtTxPaint.setTextSize (wairToNow.textSize * 3 / 4);
-            copyrtTxPaint.setTextAlign (Paint.Align.RIGHT);
-        }
-
-        public void Draw (@NonNull Canvas canvas, @NonNull PixelMapper pmap, @NonNull DisplayableChart.Invalidatable inval, float copyrtx, float copyrty)
+        public void Draw (@NonNull Canvas canvas, @NonNull PixelMapper pmap, @NonNull DisplayableChart.Invalidatable inval)
         {
             redrawView = inval;
             this.canvas = canvas;
@@ -138,11 +126,7 @@ public class OpenStreetMap {
                 }
             }
 
-            if (DrawTiles (wairToNow, pmap)) {
-                String copyrtMessage = "[" + zoom + "]  Copyright OpenStreetMap contributors";
-                canvas.drawText (copyrtMessage, copyrtx - 5, copyrty - 5, copyrtBGPaint);
-                canvas.drawText (copyrtMessage, copyrtx - 5, copyrty - 5, copyrtTxPaint);
-            }
+            DrawTiles (wairToNow, pmap);
 
             synchronized (openedBitmaps) {
                 for (int i = openedBitmaps.size (); -- i >= 0;) {
@@ -156,21 +140,20 @@ public class OpenStreetMap {
         }
 
         @Override  // TileDrawer
-        public boolean DrawTile ()
+        public void DrawTile ()
         {
             /*
              * Try to draw the bitmap or start downloading it if we don't have it.
              * Meanwhile, try to draw zoomed out tile if we have one (but don't download them).
              */
-            if (TryToDrawTile (canvas, zoom, tileX, tileY, true)) return true;
+            if (TryToDrawTile (canvas, zoom, tileX, tileY, true)) return;
             int tileXOut = tileX;
             int tileYOut = tileY;
             for (int zoomOut = zoom; -- zoomOut >= 0;) {
                 tileXOut /= 2;
                 tileYOut /= 2;
-                if (TryToDrawTile (canvas, zoomOut, tileXOut, tileYOut, false)) return true;
+                if (TryToDrawTile (canvas, zoomOut, tileXOut, tileYOut, false)) return;
             }
-            return false;
         }
 
         /**
@@ -425,7 +408,7 @@ public class OpenStreetMap {
         protected PointD southeastcanpix = new PointD ();
 
         // draw tile zoom/tileX/tileY.png
-        public abstract boolean DrawTile ();
+        public abstract void DrawTile ();
 
         /**
          * Draw OpenStreetMap tiles that fill the given pmap area.
@@ -433,9 +416,8 @@ public class OpenStreetMap {
          * @param wairToNow = our activity
          * @param pmap = what pixels to draw to and the corresponding lat/lon mapping
          */
-        public boolean DrawTiles (WairToNow wairToNow, PixelMapper pmap)
+        public void DrawTiles (WairToNow wairToNow, PixelMapper pmap)
         {
-            boolean gotatile = false;
 
             /*
              * Get drawing area size in pixels.
@@ -544,10 +526,9 @@ public class OpenStreetMap {
                     canvaspts[5] = (float) southeastcanpix.y;
                     canvaspts[6] = (float) southwestcanpix.x;
                     canvaspts[7] = (float) southwestcanpix.y;
-                    gotatile |= DrawTile ();
+                    DrawTile ();
                 }
             }
-            return gotatile;
         }
 
         /**
@@ -594,7 +575,7 @@ public class OpenStreetMap {
     }
 
     private final Object runwayDownloadThreadLock = new Object ();
-    private final static String[] rpcolumns = new String[] { "rp_faaid", "rp_lastry" };
+    private final static String[] rpcolumns = new String[] { "rp_icaoid", "rp_dbase" };
     private class RunwayDownloadThread extends Thread {
         private HashSet<String> bulkDownloads = new HashSet<> ();
 
@@ -628,12 +609,12 @@ public class OpenStreetMap {
                         SQLiteDBs sqldb = SQLiteDBs.open (dbname);
                         Cursor result;
                         synchronized (runwayDownloadThreadLock) {
-                            if ((sqldb == null) || !sqldb.tableExists ("rwypreloads")) {
+                            if ((sqldb == null) || !sqldb.tableExists ("rwypreloads2")) {
                                 runwayDownloadThread = null;
                                 break;
                             }
                             result = sqldb.query (
-                                    "rwypreloads", rpcolumns,
+                                    "rwypreloads2", rpcolumns,
                                     null, null, null, null,
                                     "rp_lastry", "25");
                             if (!result.moveToFirst ()) {
@@ -646,10 +627,11 @@ public class OpenStreetMap {
                             do {
                                 rwyPrefecthTileDrawer.successful = true;
 
-                                String faaid = result.getString (0);
+                                String icaoid = result.getString (0);
+                                DBase  dbase  = DBase.fromString (result.getString (1));
 
                                 // get airport information
-                                Waypoint.Airport apt = Waypoint.Airport.GetByFaaID (faaid, wairToNow);
+                                Waypoint.Airport apt = Waypoint.GetAirportByIdent (icaoid, wairToNow, dbase);
                                 if (apt != null) {
                                     Log.i (TAG, "preloading runway diagram background for " + apt.ident);
                                     if (wairToNow.maintView != null) {
@@ -668,10 +650,10 @@ public class OpenStreetMap {
 
                                     // if successfully downloaded all the tiles, mark that airport as complete
                                     if (FetchTiles (apt.ident)) {
-                                        sqldb.execSQL ("DELETE FROM rwypreloads WHERE rp_faaid='" + faaid + "'");
+                                        sqldb.execSQL ("DELETE FROM rwypreloads2 WHERE rp_icaoid='" + icaoid + "' AND rp_dbase='" + dbase + "'");
                                     } else {
                                         long now = System.currentTimeMillis ();
-                                        sqldb.execSQL ("UPDATE rwypreloads SET rp_lastry=" + now + " WHERE rp_faaid='" + faaid + "'");
+                                        sqldb.execSQL ("UPDATE rwypreloads2 SET rp_lastry=" + now + " WHERE rp_icaoid='" + icaoid + "' AND rp_dbase='" + dbase + "'");
                                     }
                                 }
 
@@ -701,11 +683,10 @@ public class OpenStreetMap {
             public boolean successful;
 
             @Override
-            public boolean DrawTile ()
+            public void DrawTile ()
             {
                 String tilename = zoom + "/" + tileX + "/" + tileY + ".png";
                 bulkDownloads.add (tilename);
-                return false;
             }
         }
 

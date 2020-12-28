@@ -21,6 +21,7 @@
 package com.outerworldapps.wairtonow;
 
 import android.annotation.SuppressLint;
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
@@ -30,6 +31,7 @@ import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.Rect;
 import android.support.annotation.NonNull;
+import android.net.Uri;
 import android.util.Log;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -81,6 +83,7 @@ public abstract class AirChart implements DisplayableChart {
 
     private AirTile[] tilez;    // list of tiles that make up the chart at the given scaling and with/without legends
     private boolean legends;    // whether or not tilez contains tiles with legend pixels
+    public  DBase chartdb = DBase.UNDEF;
     private float[] drawOnCanvasPoints = new float[16];
     private int hstep;          // heightwise pixel step for each tile
     private int ntilez;         // number of entries in tilez that are valid
@@ -101,17 +104,17 @@ public abstract class AirChart implements DisplayableChart {
     private Rect canvasBounds       = new Rect (0, 0, 0, 0);
     public  String spacenamewr; // eg, "New York SEC 92"
     public  String spacenamenr; // eg, "New York SEC"
-    private WairToNow wairToNow;
+    protected WairToNow wairToNow;
 
     private int leftMacroChartPix;
     private int riteMacroChartPix;
     private int topMacroChartPix;
     private int botMacroChartPix;
 
-    private double chartedEastLon;  // lat/lon limits of charted (non-legend) area
-    private double chartedWestLon;
-    private double chartedNorthLat;
-    private double chartedSouthLat;
+    public  double chartedEastLon;  // lat/lon limits of charted (non-legend) area
+    public  double chartedWestLon;
+    public  double chartedNorthLat;
+    public  double chartedSouthLat;
     public  int autoOrder;
     public  int begdate;
     public  int enddate;            // date this version of this chart expires
@@ -1613,6 +1616,16 @@ public abstract class AirChart implements DisplayableChart {
             return values[4] + ',' + values[5] + ',' + values[14];
         }
 
+        @Override  // DisplayableChart
+        public String[] getCopyright ()
+        {
+            return null;
+        }
+
+        @Override  // DisplayableChart
+        public void copyrightClicked ()
+        { }
+
         /**
          * Given a lat/lon, compute pixel within the chart
          *
@@ -1710,6 +1723,16 @@ public abstract class AirChart implements DisplayableChart {
             return values[12];
         }
 
+        @Override  // DisplayableChart
+        public String[] getCopyright ()
+        {
+            return null;
+        }
+
+        @Override  // DisplayableChart
+        public void copyrightClicked ()
+        { }
+
         @Override  // AirChart
         public boolean LatLon2ChartPixelExact (double lat, double lon, @NonNull PointD p)
         {
@@ -1777,6 +1800,16 @@ public abstract class AirChart implements DisplayableChart {
             return values[4];
         }
 
+        @Override  // DisplayableChart
+        public String[] getCopyright ()
+        {
+            return null;
+        }
+
+        @Override  // DisplayableChart
+        public void copyrightClicked ()
+        { }
+
         @Override  // AirChart
         public boolean LatLon2ChartPixelExact (double lat, double lon, @NonNull PointD p)
         {
@@ -1823,6 +1856,7 @@ public abstract class AirChart implements DisplayableChart {
         private double factor;
         private double leftedgepix;
         private double topedgepix;
+        private String[] copyrt;
 
         @Override  // AirChart
         protected String ParseParams (String csvLine)
@@ -1836,6 +1870,11 @@ public abstract class AirChart implements DisplayableChart {
             int zoom  = Integer.parseInt (values[4]);
             int size  = Integer.parseInt (values[5]);
 
+            copyrt = new String[] {
+                    "Click to report errors/omissions to OpenFlightMaps",
+                    "[" + zoom + "] \u00A9 OpenFlightMaps, OpenStreetMap contributors"
+            };
+
             factor = size << zoom;
 
             topedgepix  = lorow * size;
@@ -1845,6 +1884,22 @@ public abstract class AirChart implements DisplayableChart {
             int chartheight = (hirow - lorow + 1) * size;
 
             return chartwidth + "," + chartheight + "," + values[6];
+        }
+
+        @Override  // DisplayableChart
+        public String[] getCopyright ()
+        {
+            return spacenamenr.startsWith ("OFM ") ? copyrt : null;
+        }
+
+        @Override  // DisplayableChart
+        public void copyrightClicked ()
+        {
+            if (spacenamenr.startsWith ("OFM ")) {
+                Intent intent = new Intent (Intent.ACTION_VIEW);
+                intent.setData (Uri.parse ("https://www.openflightmaps.org"));
+                wairToNow.startActivity (intent);
+            }
         }
 
         @Override  // AirChart

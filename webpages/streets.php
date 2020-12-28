@@ -26,6 +26,9 @@
 
     $datadir = "../webdata/streets";
 
+    $basemod = fileperms ($datadir);
+    if (! $basemod) $basemod = 0700;
+
     writelog ("ip=" . $_SERVER["REMOTE_ADDR"] . " uri=" . $_SERVER["REQUEST_URI"]);
 
     // single download
@@ -60,7 +63,7 @@
 
     function download ($tile)
     {
-        global $datadir;
+        global $basemod, $datadir;
 
         if (strpos ($tile, "..") !== FALSE) return FALSE;
 
@@ -79,6 +82,9 @@
             $lockfile = fopen ("$datadir/streets.lock", "c+");
             if (! $lockfile) writelog ("error opening lock file", TRUE);
             if (! flock ($lockfile, LOCK_EX)) writelog ("error locking lock file", TRUE);
+            if ((fileperms ("$datadir/streets.lock") & 0777) != ($basemod & 0666)) {
+                chmod ("$datadir/streets.lock", $basemod & 0666);
+            }
             $lastdownload = fgets ($lockfile);
             $lastdownload = $lastdownload ? floatval ($lastdownload) : 0;
             writelog ("lastdownload=$lastdownload");
@@ -149,7 +155,7 @@
                 writelog ("- missing content-length", TRUE);
             }
 
-            makedirectories ($tempath);
+            makedirectories ($tempath, $basemod & 0777);
             $of = fopen ($tempath, "w");
             if (!$of) {
                 fclose ($fp);
@@ -172,6 +178,7 @@
             fclose ($fp);
             fclose ($of);
 
+            chmod ($tempath, $basemod & 0666);
             rename ($tempath, $newpath);
             writelog ("newpath=$newpath - success");
 
@@ -184,7 +191,7 @@
     }
 
     // given a/b/c/d, make sure directories a/, a/b/, a/b/c/ exist
-    function makedirectories ($file)
+    function makedirectories ($file, $mode)
     {
         $parts = explode ("/", $file);
         $n = count ($parts);
@@ -194,6 +201,7 @@
             if (!file_exists ($path)) {
                 writelog ("mkdir $path");
                 mkdir ($path);
+                chmod ($path, $mode);
             }
         }
     }

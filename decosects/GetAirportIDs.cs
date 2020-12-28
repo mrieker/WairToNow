@@ -22,7 +22,7 @@
  * @brief Writes airports.csv and runways.csv summary files
  *        and per-airport information files.
  *
- * mcs -debug -out:GetAirportIDs.exe GetAirportIDs.cs -reference:System.Data.dll -reference:Mono.Data.Sqlite.dll
+ * mcs -debug -out:GetAirportIDs.exe GetAirportIDs.cs GetTZForLL.cs -reference:System.Data.dll -reference:Mono.Data.Sqlite.dll
  * cat APT.txt TWR.txt | mono --debug GetAirportIDs.exe airports.csv runways.csv aptinfo aptinfo.html stations.txt
  */
 
@@ -135,7 +135,7 @@ public class GetAirportIDs {
                 apt.aptlon  = ParseLon (line.Substring (565, 12));
                 apt.variatn = ParseVar (line.Substring (586, 3));   // bvy is '16W'
                 apt.elevatn = line.Substring (578, 7).Trim ();
-                apt.tzname  = GetTZForLL (apt.aptlat, apt.aptlon);
+                apt.tzname  = GetTZForLL.Get (double.Parse (apt.aptlat), double.Parse (apt.aptlon));
 
                 string distfromcity = line.Substring (627, 2).Trim ();
                 while ((distfromcity.Length > 1) && (distfromcity[0] == '0')) distfromcity = distfromcity.Substring (1);
@@ -542,36 +542,5 @@ public class GetAirportIDs {
         }
         sb.Append (quote);
         return sb.ToString ();
-    }
-
-    private static IDbConnection tzdbcon = null;
-
-    public static string GetTZForLL (string slat, string slon)
-    {
-        if ((tzdbcon == null) && File.Exists ("../webdata/tzforlatlon.db")) {
-            tzdbcon = new SqliteConnection ("URI=file:../webdata/tzforlatlon.db");
-            tzdbcon.Open ();
-        }
-        if (tzdbcon != null) {
-            IDbCommand dbcmd = tzdbcon.CreateCommand ();
-            double dlat = double.Parse (slat);
-            double dlon = double.Parse (slon);
-            int ilat = (int) (dlat * 1000000.0);
-            int ilon = (int) (dlon * 1000000.0);
-            dbcmd.CommandText = "SELECT tzname FROM timezones WHERE lat=" + ilat + " AND lon=" + ilon;
-            string tzname = (string) dbcmd.ExecuteScalar ();
-            if (tzname != null) return tzname;
-            tzdbcon.Close ();
-            tzdbcon = null;
-        }
-
-        ProcessStartInfo psi = new ProcessStartInfo ("php", "gettzforllcsharp.php '" + slat + "' '" + slon + "'");
-        psi.RedirectStandardOutput = true;
-        psi.UseShellExecute = false;
-        psi.CreateNoWindow = true;
-        Process p = new Process ();
-        p.StartInfo = psi;
-        p.Start ();
-        return p.StandardOutput.ReadToEnd ().Trim ();
     }
 }

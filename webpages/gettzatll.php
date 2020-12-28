@@ -21,6 +21,13 @@
 
     function getTZAtLL ($lat, $lon)
     {
+        $i100lat = round ($lat * 100.0);
+        $i100lon = round ($lon * 100.0);
+        return getTZAtI100LL ($i100lat, $i100lon);
+    }
+
+    function getTZAtI100LL ($i100lat, $i100lon)
+    {
         $dbdir = __DIR__ . "/../webdata";
 
         $lockfile = fopen ("$dbdir/tzforlatlon.lock", "c");
@@ -30,22 +37,22 @@
         $sqldb = new SQLite3 ("$dbdir/tzforlatlon.db");
         if (!$sqldb) diedie ("error opening tzforlatlon.db\n");
 
-        $ilat = intval ($lat * 1000000.0);
-        $ilon = intval ($lon * 1000000.0);
+        $sqldb->exec ("CREATE TABLE IF NOT EXISTS timezones (i100lat INTEGER NOT NULL, i100lon INTEGER NOT NULL, tzname TEXT NOT NULL, saved INTEGER NOT NULL, PRIMARY KEY (i100lat, i100lon))");
 
-        $sqldb->exec ("CREATE TABLE IF NOT EXISTS timezones (lat INTEGER NOT NULL, lon INTEGER NOT NULL, tzname TEXT NOT NULL, PRIMARY KEY (lat, lon))");
-
-        $row = $sqldb->querySingle ("SELECT tzname FROM timezones WHERE lat=$ilat AND lon=$ilon");
+        $row = $sqldb->querySingle ("SELECT tzname FROM timezones WHERE i100lat=$i100lat AND i100lon=$i100lon");
 
         if (!$row) {
             sleep (3);
+            $lat  = sprintf ("%.2f", $i100lat / 100.0);
+            $lon  = sprintf ("%.2f", $i100lon / 100.0);
             $user = trim (file_get_contents ("$dbdir/geonames_username.txt"));
             $repl = file_get_contents ("http://api.geonames.org/timezoneJSON?lat=$lat&lng=$lon&username=$user");
             if (!$repl) exit;
             $json = json_decode ($repl);
             $tzname = isset ($json->timezoneId) ? addslashes (trim ($json->timezoneId)) : "";
             if ($tzname == "") $tzname = "-";
-            $sqldb->exec ("INSERT INTO timezones (lat,lon,tzname) VALUES ($ilat,$ilon,'$tzname')");
+            $now = time ();
+            $sqldb->exec ("INSERT INTO timezones (i100lat,i100lon,tzname,saved) VALUES ($i100lat,$i100lon,'$tzname',$now)");
         } else {
             $tzname = $row;
         }

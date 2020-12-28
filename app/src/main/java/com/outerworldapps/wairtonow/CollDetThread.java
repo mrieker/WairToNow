@@ -55,7 +55,6 @@ public class CollDetThread extends Thread {
     private int[] badllmins = new int[0];
     private LinkedList<LatLon> nearbyaptlatlons;
     private SQLiteDBs obssqldb;
-    private SQLiteDBs wptsqldb;
     private WairToNow wairToNow;
 
     private final static String[] ob_cols = new String[] { "ob_msl" };
@@ -116,11 +115,6 @@ public class CollDetThread extends Thread {
                         if (expdate > 0) {
                             obssqldb = SQLiteDBs.open ("nobudb/obstructions_" + expdate + ".db");
                         }
-                    }
-
-                    // likewise for waypoints
-                    if (wptsqldb == null) {
-                        wptsqldb = Waypoint.openWayptDB (wairToNow);
                     }
 
                     if (! nearbyairport (curlat, curlon)) {
@@ -216,8 +210,6 @@ public class CollDetThread extends Thread {
     // see if there is an airport nearby
     private boolean nearbyairport (double curlat, double curlon)
     {
-        if (wptsqldb == null) return false;
-
         int ilatmin = (int) Math.round (curlat * 60.0);
         int ilonmin = (int) Math.round (curlon * 60.0);
 
@@ -230,25 +222,27 @@ public class CollDetThread extends Thread {
             double dlon  = (nearbyaptnm + 2) / Lib.NMPerDeg / Math.cos (Math.toRadians (curlat));
             double lolon = ilonmin / 60.0 - dlon;
             double hilon = ilonmin / 60.0 + dlon;
-            Cursor result = wptsqldb.query ("runways", rwy_cols,
-                    "rwy_beglat>=" + lolat + " AND rwy_beglat<=" + hilat + " AND rwy_beglon>=" +
-                            lolon + " AND rwy_beglon<=" + hilon, null, null, null, null, null);
-            try {
-                if (result.moveToFirst ()) do {
-                    double beglat = result.getDouble (0);
-                    double beglon = result.getDouble (1);
-                    double endlat = result.getDouble (2);
-                    double endlon = result.getDouble (3);
-                    double lennm  = Lib.LatLonTC (beglat, beglon, endlat, endlon);
-                    if (lennm >= minrwylenft / Lib.FtPerNM) {
-                        LatLon ll = new LatLon ();
-                        ll.lat = beglat;
-                        ll.lon = beglon;
-                        nearbyaptlatlons.add (ll);
-                    }
-                } while (result.moveToNext ());
-            } finally {
-                result.close ();
+            for (SQLiteDBs wptsqldb : wairToNow.maintView.getWaypointDBs ()) {
+                Cursor result = wptsqldb.query ("runways", rwy_cols,
+                        "rwy_beglat>=" + lolat + " AND rwy_beglat<=" + hilat + " AND rwy_beglon>=" +
+                                lolon + " AND rwy_beglon<=" + hilon, null, null, null, null, null);
+                try {
+                    if (result.moveToFirst ()) do {
+                        double beglat = result.getDouble (0);
+                        double beglon = result.getDouble (1);
+                        double endlat = result.getDouble (2);
+                        double endlon = result.getDouble (3);
+                        double lennm  = Lib.LatLonTC (beglat, beglon, endlat, endlon);
+                        if (lennm >= minrwylenft / Lib.FtPerNM) {
+                            LatLon ll = new LatLon ();
+                            ll.lat = beglat;
+                            ll.lon = beglon;
+                            nearbyaptlatlons.add (ll);
+                        }
+                    } while (result.moveToNext ());
+                } finally {
+                    result.close ();
+                }
             }
         }
 
@@ -303,11 +297,11 @@ public class CollDetThread extends Thread {
         ce.elevmet = elev_met;
 
         // see if it is a runway
-        if (wptsqldb != null) {
-            double minlat = Lib.LatHdgDist2Lat (lat, 180.0, 1.0);
-            double maxlat = Lib.LatHdgDist2Lat (lat,   0.0, 1.0);
-            double minlon = Lib.LatLonHdgDist2Lon (lat, lon, -90.0, 1.0);
-            double maxlon = Lib.LatLonHdgDist2Lon (lat, lon,  90.0, 1.0);
+        double minlat = Lib.LatHdgDist2Lat (lat, 180.0, 1.0);
+        double maxlat = Lib.LatHdgDist2Lat (lat,   0.0, 1.0);
+        double minlon = Lib.LatLonHdgDist2Lon (lat, lon, -90.0, 1.0);
+        double maxlon = Lib.LatLonHdgDist2Lon (lat, lon,  90.0, 1.0);
+        for (SQLiteDBs wptsqldb : wairToNow.maintView.getWaypointDBs ()) {
             Cursor result = wptsqldb.query ("runways", rwy_cols,
                     "rwy_beglat>" + minlat + " AND rwy_beglat<" + maxlat +
                     " AND rwy_beglon>" + minlon + " AND rwy_beglon<" + maxlon,

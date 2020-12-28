@@ -28,6 +28,8 @@ import android.content.Intent;
 import android.util.Log;
 import android.util.TypedValue;
 import android.view.View;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
 import android.widget.CheckBox;
 import android.widget.CompoundButton;
 import android.widget.LinearLayout;
@@ -68,7 +70,9 @@ public class OptionsView
 
     public  CheckOption  capGridOption;
     public  CheckOption  collDetOption;
-    public  CheckOption  faaWPOption;
+    public  CheckOption  dbFAAOption;
+    public  DbEnOption   dbOAOption;
+    public  DbEnOption   dbOFMOption;
     public  CheckOption  gpsCompassOption;
     public  CheckOption  invPlaColOption;
     public  CheckOption  powerLockOption;
@@ -77,8 +81,9 @@ public class OptionsView
     public  CheckOption  showWxSumDot;
     public  CheckOption  synthILSDMEOption;
     public  CheckOption  tfrPDOverOption;
-    public  CheckOption  userWPOption;
     public  CheckOption  typeBOption;
+    public  CheckOption  userWPOption;
+    public  CheckOption  wayptOption;
     public  DefAltOption ktsMphOption;
     public  DefAltOption magTrueOption;
     public  FontOption   fontSizeOption;
@@ -87,7 +92,8 @@ public class OptionsView
     public  IntOption    gpsUpdateOption;
     public  IntOption    latLonOption;
     public  IntOption    tfrFilterOption;
-    private WairToNow    wairToNow;
+
+    private WairToNow wairToNow;
 
     private final static int LLO_DDMMMM = 0;
     private final static int LLO_DDMMSS = 1;
@@ -144,34 +150,42 @@ public class OptionsView
 
         wairToNow = ctx;
 
+        setOrientation (LinearLayout.VERTICAL);
+
         TextView tv1 = new TextView (ctx);
         tv1.setText ("Options");
         wairToNow.SetTextSize (tv1);
         addView (tv1);
 
-        capGridOption     = new CheckOption  ("Show CAP grids",              false);
-        collDetOption     = new CheckOption  ("Show obstacle/terrain collision", false);
-        faaWPOption       = new CheckOption  ("Show FAA waypoints",          false);
-        userWPOption      = new CheckOption  ("Show User waypoints",         true);
-        invPlaColOption   = new CheckOption  ("Invert plate colors",         false);
-        synthILSDMEOption = new CheckOption  ("Show Synth ILS/DME Plates",   false);
-        typeBOption       = new TypeBOption  ();
-        powerLockOption   = new CheckOption  ("Power Lock",                  false);
-        gpsCompassOption  = new CheckOption  ("GPS status compass",          false);
-        showNexrad        = new CheckOption  ("Show ADS-B Nexrad (2D only)", false);
-        showTraffic       = new CheckOption  ("Show ADS-B Traffic",          false);
-        showWxSumDot      = new CheckOption  ("Show Wx Summary Dots",        false);
-        magTrueOption     = new DefAltOption ("Magnetic", "True");
-        ktsMphOption      = new DefAltOption ("Kts", "MPH");
+        capGridOption     = new CheckOption ("Show CAP grids",              false);
+        collDetOption     = new CheckOption ("Show obstacle/terrain collision", false);
+        wayptOption       = new CheckOption ("Show Database waypoints",     false);
+        userWPOption      = new CheckOption ("Show User waypoints",         true);
+        invPlaColOption   = new CheckOption ("Invert plate colors",         false);
+        synthILSDMEOption = new CheckOption ("Show Synth ILS/DME Plates",   false);
+        typeBOption       = new TypeBOption ();
+        powerLockOption   = new CheckOption ("Power Lock",                  false);
+        gpsCompassOption  = new CheckOption ("GPS status compass",          false);
+        showNexrad        = new CheckOption ("Show ADS-B Nexrad (2D only)", false);
+        showTraffic       = new CheckOption ("Show ADS-B Traffic",          false);
+        showWxSumDot      = new CheckOption ("Show Wx Summary Dots",        false);
+        dbFAAOption       = new CheckOption ("Use FAA database & charts",   true);
+        dbOAOption        = new DbEnOption ("Use ourairports.com database", "file:///android_asset/oawayptwarning.html");
+        dbOFMOption       = new DbEnOption ("Use openflightmaps.org database & charts", "file:///android_asset/ofmwayptwarning.html");
+        tfrPDOverOption   = new CheckOption ("TFR PD Overlay shading", PDOVERLAYWORKS);
 
-        fontSizeOption    = new FontOption ();
+        magTrueOption = new DefAltOption ("Magnetic", "True");
+        ktsMphOption  = new DefAltOption ("Kts", "MPH");
+
+        fontSizeOption  = new FontOption ();
 
         tfrFilterOption = new IntOption ("TFR Filter",
                 new String[] { "TFR: ALL", "TFR: 3DAYS", "TFR: TODAY", "TFR: ACTIVE", "TFR: NONE" },
                 new int[] { TFR_ALL, TFR_3DAYS, TFR_TODAY, TFR_ACTIVE, TFR_NONE });
-        tfrPDOverOption = new CheckOption ("TFR PD Overlay shading", PDOVERLAYWORKS);
+        tfrFilterOption.setKeyNoWrite (tfrFilterOption.keys[1]);
 
-        latLonOption      = new IntOption ("LatLon Format",
+
+        latLonOption    = new IntOption ("LatLon Format",
             new String[] {
                 "ddd" + (char)0xB0 + "mm'ss.ss\"",
                 "ddd" + (char)0xB0 + "mm.mmmm'",
@@ -179,16 +193,9 @@ public class OptionsView
             new int[] { LLO_DDMMSS, LLO_DDMMMM, LLO_DDDDDD });
 
         chartTrackOption = new IntOption ("Chart Up",
-            new String[] {
-                "Course Up",
-                "Finger Rotate",
-                "North Up",
-                "Track Up" },
-            new int[] {
-                CTO_COURSEUP,
-                CTO_FINGEROT,
-                CTO_NORTHUP,
-                CTO_TRACKUP });
+            new String[] { "Course Up", "Finger Rotate", "North Up", "Track Up" },
+            new int[] { CTO_COURSEUP, CTO_FINGEROT, CTO_NORTHUP, CTO_TRACKUP });
+        chartTrackOption.setKeyNoWrite (chartTrackOption.keys[2]);
 
         gpsUpdateOption = new IntOption ("GPS Update Rate",
                 new String[] {
@@ -215,11 +222,16 @@ public class OptionsView
         ll1.setOrientation (LinearLayout.VERTICAL);
 
         ll1.addView (fontSizeOption);
+        ll1.addView (dbFAAOption);
+        ll1.addView (dbOAOption);
+        ll1.addView (dbOAOption.warning);
+        ll1.addView (dbOFMOption);
+        ll1.addView (dbOFMOption.warning);
         ll1.addView (tfrFilterOption);
         ll1.addView (tfrPDOverOption);
         ll1.addView (capGridOption);
         ll1.addView (collDetOption);
-        ll1.addView (faaWPOption);
+        ll1.addView (wayptOption);
         ll1.addView (userWPOption);
         ll1.addView (invPlaColOption);
         ll1.addView (synthILSDMEOption);
@@ -352,63 +364,55 @@ public class OptionsView
     private void ReadOptionsCsvFile ()
     {
         try {
-            BufferedReader csvreader = new BufferedReader (new FileReader (WairToNow.dbdir + "/options.csv"), 1024);
             try {
-                String csvline;
-                while ((csvline = csvreader.readLine ()) != null) {
-                    int i = csvline.indexOf (',');
-                    String name = csvline.substring (0, i);
-                    String valu = csvline.substring (++ i);
-                    if (name.equals ("capGrid"))      capGridOption.setCheckedNoWrite     (valu.equals (boolTrue));
-                    if (name.equals ("collDet"))      collDetOption.setCheckedNoWrite     (valu.equals (boolTrue));
-                    if (name.equals ("faaWPs"))       faaWPOption.setCheckedNoWrite       (valu.equals (boolTrue));
-                    if (name.equals ("userWPs"))      userWPOption.setCheckedNoWrite      (valu.equals (boolTrue));
-                    if (name.equals ("invPlaCol"))    invPlaColOption.setCheckedNoWrite   (valu.equals (boolTrue));
-                    if (name.equals ("synthILSDMEs")) synthILSDMEOption.setCheckedNoWrite (valu.equals (boolTrue));
-                    if (name.equals ("typeB"))        typeBOption.setCheckedNoWrite       (valu.equals (boolTrue));
-                    if (name.equals ("powerLock"))    powerLockOption.setCheckedNoWrite   (valu.equals (boolTrue));
-                    if (name.equals ("gpsCompass"))   gpsCompassOption.setCheckedNoWrite  (valu.equals (boolTrue));
-                    if (name.equals ("showNexrad"))   showNexrad.setCheckedNoWrite        (valu.equals (boolTrue));
-                    if (name.equals ("showTraffic"))  showTraffic.setCheckedNoWrite       (valu.equals (boolTrue));
-                    if (name.equals ("showWxSumDot")) showWxSumDot.setCheckedNoWrite      (valu.equals (boolTrue));
-                    if (name.equals ("chartTrack"))   chartTrackOption.setKeyNoWrite      (valu);
-                    if (name.equals ("magtrueAlt"))   magTrueOption.setAltNoWrite         (valu.equals (boolTrue));
-                    if (name.equals ("latlonAlt"))    latLonOption.setKeyNoWrite          (valu);
-                    if (name.equals ("ktsMphAlt"))    ktsMphOption.setAltNoWrite          (valu.equals (boolTrue));
-                    if (name.equals ("gpsUpdate"))    gpsUpdateOption.setKeyNoWrite       (valu);
-                    if (name.equals ("circCat"))      circCatOption.setKeyNoWrite         (valu);
-                    if (name.equals ("fontSize"))     fontSizeOption.setKeyNoWrite        (valu);
-                    if (name.equals ("tfrFilter"))    tfrFilterOption.setKeyNoWrite       (valu);
-                    if (name.equals ("tfrPDOver"))    tfrPDOverOption.setCheckedNoWrite   (valu.equals (boolTrue));
-                }
-            } finally {
-                csvreader.close ();
+                ReadOptionsCsvFileWork ();
+            } catch (FileNotFoundException fnfe) {
+                Log.i (TAG, "no options.csv file yet", fnfe);
+                WriteOptionsCsvFile ();
+                ReadOptionsCsvFileWork ();
             }
-        } catch (FileNotFoundException fnfe) {
-            Log.i (TAG, "no options file yet");
-            capGridOption.setCheckedNoWrite     (false);
-            collDetOption.setCheckedNoWrite     (false);
-            faaWPOption.setCheckedNoWrite       (false);
-            userWPOption.setCheckedNoWrite      (true);
-            invPlaColOption.setCheckedNoWrite   (false);
-            synthILSDMEOption.setCheckedNoWrite (false);
-            typeBOption.setCheckedNoWrite       (false);
-            powerLockOption.setCheckedNoWrite   (true);
-            gpsCompassOption.setCheckedNoWrite  (true);
-            showNexrad.setCheckedNoWrite        (true);
-            showTraffic.setCheckedNoWrite       (true);
-            showWxSumDot.setCheckedNoWrite      (true);
-            chartTrackOption.setKeyNoWrite      (chartTrackOption.keys[2]);   // north up
-            magTrueOption.setAltNoWrite         (false);
-            latLonOption.setKeyNoWrite          (latLonOption.keys[0]);
-            ktsMphOption.setAltNoWrite          (false);
-            gpsUpdateOption.setKeyNoWrite       (gpsUpdateOption.keys[0]);
-            circCatOption.setKeyNoWrite         (circCatOption.keys[0]);
-            fontSizeOption.setKeyNoWrite        (fontSizeDefault);
-            tfrFilterOption.setKeyNoWrite       ("TFR: 3DAYS");
-            tfrPDOverOption.setCheckedNoWrite   (PDOVERLAYWORKS);
         } catch (Exception e) {
             Log.w (TAG, "error reading options.csv", e);
+        }
+    }
+
+    private void ReadOptionsCsvFileWork ()
+            throws IOException
+    {
+        BufferedReader csvreader = new BufferedReader (new FileReader (WairToNow.dbdir + "/options.csv"), 1024);
+        try {
+            String csvline;
+            while ((csvline = csvreader.readLine ()) != null) {
+                int i = csvline.indexOf (',');
+                String name = csvline.substring (0, i);
+                String valu = csvline.substring (++ i);
+                if (name.equals ("capGrid"))      capGridOption.setCheckedNoWrite     (valu.equals (boolTrue));
+                if (name.equals ("collDet"))      collDetOption.setCheckedNoWrite     (valu.equals (boolTrue));
+                if (name.equals ("waypts"))       wayptOption.setCheckedNoWrite       (valu.equals (boolTrue));
+                if (name.equals ("userWPs"))      userWPOption.setCheckedNoWrite      (valu.equals (boolTrue));
+                if (name.equals ("invPlaCol"))    invPlaColOption.setCheckedNoWrite   (valu.equals (boolTrue));
+                if (name.equals ("synthILSDMEs")) synthILSDMEOption.setCheckedNoWrite (valu.equals (boolTrue));
+                if (name.equals ("typeB"))        typeBOption.setCheckedNoWrite       (valu.equals (boolTrue));
+                if (name.equals ("powerLock"))    powerLockOption.setCheckedNoWrite   (valu.equals (boolTrue));
+                if (name.equals ("gpsCompass"))   gpsCompassOption.setCheckedNoWrite  (valu.equals (boolTrue));
+                if (name.equals ("showNexrad"))   showNexrad.setCheckedNoWrite        (valu.equals (boolTrue));
+                if (name.equals ("showTraffic"))  showTraffic.setCheckedNoWrite       (valu.equals (boolTrue));
+                if (name.equals ("showWxSumDot")) showWxSumDot.setCheckedNoWrite      (valu.equals (boolTrue));
+                if (name.equals ("chartTrack"))   chartTrackOption.setKeyNoWrite      (valu);
+                if (name.equals ("magtrueAlt"))   magTrueOption.setAltNoWrite         (valu.equals (boolTrue));
+                if (name.equals ("latlonAlt"))    latLonOption.setKeyNoWrite          (valu);
+                if (name.equals ("ktsMphAlt"))    ktsMphOption.setAltNoWrite          (valu.equals (boolTrue));
+                if (name.equals ("gpsUpdate"))    gpsUpdateOption.setKeyNoWrite       (valu);
+                if (name.equals ("circCat"))      circCatOption.setKeyNoWrite         (valu);
+                if (name.equals ("fontSize"))     fontSizeOption.setKeyNoWrite        (valu);
+                if (name.equals ("tfrFilter"))    tfrFilterOption.setKeyNoWrite       (valu);
+                if (name.equals ("tfrPDOver"))    tfrPDOverOption.setCheckedNoWrite   (valu.equals (boolTrue));
+                if (name.equals ("dbFAAEnab"))    dbFAAOption.setCheckedNoWrite       (valu.equals (boolTrue));
+                if (name.equals ("dbOAEnab"))     dbOAOption.setCheckedNoWrite        (valu.equals (boolTrue));
+                if (name.equals ("dbOFMEnab"))    dbOFMOption.setCheckedNoWrite       (valu.equals (boolTrue));
+            }
+        } finally {
+            csvreader.close ();
         }
     }
 
@@ -423,7 +427,7 @@ public class OptionsView
             try {
                 csvwriter.write ("capGrid,"      + capGridOption.checkBox.isChecked ()     + "\n");
                 csvwriter.write ("collDet,"      + collDetOption.checkBox.isChecked ()     + "\n");
-                csvwriter.write ("faaWPs,"       + faaWPOption.checkBox.isChecked ()       + "\n");
+                csvwriter.write ("waypts,"       + wayptOption.checkBox.isChecked ()       + "\n");
                 csvwriter.write ("userWPs,"      + userWPOption.checkBox.isChecked ()      + "\n");
                 csvwriter.write ("invPlaCol,"    + invPlaColOption.checkBox.isChecked ()   + "\n");
                 csvwriter.write ("synthILSDMEs," + synthILSDMEOption.checkBox.isChecked () + "\n");
@@ -442,6 +446,9 @@ public class OptionsView
                 csvwriter.write ("fontSize,"     + fontSizeOption.getKey ()                + "\n");
                 csvwriter.write ("tfrFilter,"    + tfrFilterOption.getKey ()               + "\n");
                 csvwriter.write ("tfrPDOver,"    + tfrPDOverOption.checkBox.isChecked ()   + "\n");
+                csvwriter.write ("dbFAAEnab,"    + dbFAAOption.checkBox.isChecked ()       + "\n");
+                csvwriter.write ("dbOAEnab,"     + dbOAOption.checkBox.isChecked ()        + "\n");
+                csvwriter.write ("dbOFMEnab,"    + dbOFMOption.checkBox.isChecked ()       + "\n");
             } finally {
                 csvwriter.close ();
             }
@@ -476,7 +483,10 @@ public class OptionsView
      */
     @Override  // WairToNow.CanBeMainView
     public void OpenDisplay ()
-    { }
+    {
+        dbOAOption.warning.setVisibility (GONE);
+        dbOFMOption.warning.setVisibility (GONE);
+    }
 
     @Override  // CanBeMainView
     public void OrientationChanged ()
@@ -545,6 +555,44 @@ public class OptionsView
         {
             super.onCheckedChanged (buttonView, isChecked);
             wairToNow.UpdateTabVisibilities ();
+        }
+    }
+
+    /**
+     * Database enable checkbox that has an associated warning box.
+     */
+    public class DbEnOption extends CheckOption {
+        public Warning warning;
+
+        public DbEnOption (String name, String warn)
+        {
+            super (name, false);
+            warning = new Warning (warn);
+        }
+
+        @Override
+        public void onCheckedChanged (CompoundButton buttonView, boolean isChecked)
+        {
+            super.onCheckedChanged (buttonView, isChecked);
+            warning.setVisibility (isChecked ? VISIBLE : GONE);
+        }
+
+        private class Warning extends WebView {
+            public Warning (String html)
+            {
+                super (wairToNow);
+
+                WebSettings settings = getSettings ();
+                //settings.setBuiltInZoomControls (true);
+                //settings.setDomStorageEnabled (true);
+                //settings.setJavaScriptEnabled (true);
+                settings.setDefaultFontSize (Math.round (wairToNow.textSize / 2.0F));
+                settings.setDefaultFixedFontSize (Math.round (wairToNow.textSize / 2.0F));
+                //settings.setSupportZoom (true);
+                //addJavascriptInterface (new PlanView.JavaScriptObject (), "pvjso");
+
+                loadUrl (html);
+            }
         }
     }
 

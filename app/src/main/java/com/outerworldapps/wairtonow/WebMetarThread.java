@@ -40,7 +40,7 @@ import java.util.TreeMap;
 /**
  * Thread runs in background forever fetching METARs and TAFs from internet for airports displayed on chart.
  * Feeds same list as METARs and TAFs received from ADSB.
- * Shows up a cyan text on FAAWP page for associated airport and as green/blue/red dot over airport.
+ * Shows up a cyan text on Waypt page for associated airport and as green/blue/red dot over airport.
  */
 public class WebMetarThread extends Thread {
     public final static int INTERVALMS = 987654;    // refetch for same airport after this time
@@ -49,6 +49,7 @@ public class WebMetarThread extends Thread {
     public final static int WEBDELAYMS = 123;       // this much time between individual web requests
     public final static String TAG = "WairToNow";
 
+    public boolean started;
     private double fetchednorthlat;
     private double fetchedsouthlat;
     private double fetchedeastlon;
@@ -99,26 +100,33 @@ public class WebMetarThread extends Thread {
                             ") AND (apt_lon BETWEEN " + fetchedwestlon + " AND " + fetchedeastlon +
                             ") AND (apt_metaf<>'')";
 
+                    boolean havewpdb = false;
                     double centerlat = (fetchednorthlat + fetchedsouthlat) / 2.0;
                     double centerlon = (fetchedeastlon + fetchedwestlon) / 2.0;
                     TreeMap<Double,Waypoint.Airport> apts = new TreeMap<> ();
-                    SQLiteDBs sqldb = Waypoint.openWayptDB (wairToNow);
-                    Cursor result = sqldb.query ("airports",
-                            Waypoint.Airport.dbcols, where, null, null, null, null, null);
-                    try {
-                        if (result.moveToFirst ()) do {
-                            synchronized (lastfetcheds) {
-                                // assumes Waypoint.Airport.dbcols[0].equals("apt_icaoid")
-                                if (! lastfetcheds.containsKey (result.getString (0))) {
-                                    Waypoint.Airport apt = new Waypoint.Airport (result, wairToNow);
-                                    double distnm = Lib.LatLonDist (apt.lat, apt.lon, centerlat, centerlon);
-                                    while (apts.containsKey (distnm)) distnm += 0.000001;
-                                    apts.put (distnm, apt);
+                    for (SQLiteDBs sqldb : wairToNow.maintView.getWaypointDBs ()) {
+                        havewpdb = true;
+                        Cursor result = sqldb.query ("airports",
+                                Waypoint.Airport.dbcols, where, null, null, null, null, null);
+                        try {
+                            if (result.moveToFirst ()) do {
+                                synchronized (lastfetcheds) {
+                                    // assumes Waypoint.Airport.dbcols[0].equals("apt_icaoid")
+                                    if (! lastfetcheds.containsKey (result.getString (0))) {
+                                        Waypoint.Airport apt = new Waypoint.Airport (result, (DBase) sqldb.dbaux, wairToNow);
+                                        double distnm = Lib.LatLonDist (apt.lat, apt.lon, centerlat, centerlon);
+                                        while (apts.containsKey (distnm)) distnm += 0.000001;
+                                        apts.put (distnm, apt);
+                                    }
                                 }
-                            }
-                        } while (result.moveToNext ());
-                    } finally {
-                        result.close ();
+                            } while (result.moveToNext ());
+                        } finally {
+                            result.close ();
+                        }
+                    }
+
+                    if (! havewpdb) {
+                        throw new Exception ("no waypoint database");
                     }
 
                     // read metars from web
@@ -190,8 +198,8 @@ public class WebMetarThread extends Thread {
     private void fetchMetars (Waypoint.Airport apt)
             throws Exception
     {
-        // read METARs and TAFs from FAA
-        String uri = MaintView.dldir + "/webmetaf.php?icaoids=" + apt.ident;
+        // read METARs and TAFs from FAA or MetoStar
+        String uri = MaintView.dldir + "/webmetaf.php?icaoid=" + apt.ident + "&dbase=" + apt.dbtagname;
         Log.d (TAG, "fetching " + uri);
         try { Thread.sleep (WEBDELAYMS); } catch (InterruptedException ignored) { }
         URL url = new URL (uri);
@@ -219,23 +227,16 @@ public class WebMetarThread extends Thread {
 
     // process internet reply to metar/taf request
     // can be called from any thread
+    //   METAR: icaoid ddhhmmZ ...
+    //     TAF: icaoid ddhhmmZ ... FMddhhmm ... FMddhhmm ...
     private void processMetarReply (Waypoint.Airport apt, StringBuilder sb)
     {
-        for (int i = 0; (i = sb.indexOf ("<", i)) >= 0;) {
-            int j = sb.indexOf (">", i);
-            sb.replace (i, ++ j, " ");
-        }
-        String st = sb.toString ().replace ("&nbsp;", " ").trim ().replaceAll ("\\s+", " ");
-        Log.d (TAG, "webmetar " + st);
-        String[] words = st.split (" ");
+        String[] words = sb.toString ().trim ().split (" ");
         int nwords = words.length;
         int lasti = -1;
         for (int i = 0; i < nwords; i ++) {
             String word = words[i];
-
-            // both METARs and TAFs begin with icaoid ddhhmmZ ...
-            // TAFs have words FMddhhmm
-            if (word.equalsIgnoreCase (apt.ident)) {
+            if (word.equals ("METAR:") || word.equals ("TAF:")) {
                 if (lasti >= 0) {
                     insertMetarOrTaf (apt, words, lasti, i);
                 }
@@ -250,30 +251,33 @@ public class WebMetarThread extends Thread {
     // insert METAR or TAF for an airport
     //  input:
     //   apt = airport waypoint
-    //   words[i] = airport icaoid
-    //   words[i+1] = ddhhmmZ
-    //   words[i+2..j-1] = METAR or TAF text
+    //   words[i] = METAR: or TAF:
+    //   words[i+1] = airport icaoid
+    //   words[i+2] = ddhhmmZ
+    //   words[i+3..j-1] = METAR or TAF text
     //  output:
     //   entry added to wairToNow.metarRepos
     private void insertMetarOrTaf (Waypoint.Airport apt, String[] words, int i, int j)
     {
+        if (i + 2 >= j) return;
+        String type = words[i].replace (":", "");
+        if (! words[++i].equals (apt.ident)) return;
         synchronized (lastfetcheds) {
             lastfetcheds.put (apt.ident, nowtime);
         }
         long time;
-        String type;
         try {
-            time = parseMetarTime (words[i+1]);
+            time = parseMetarTime (words[++i]);
         } catch (NumberFormatException nfe) {
             // this happens when we get an error message saying no metar/taf report for this airport
             return;
         }
-        type = "METAR";
         StringBuilder sb = new StringBuilder ();
-        while (++ i < j) {
-            String word = words[i];
-            if ((word.length () == 8) && word.startsWith ("FM")) {
-                type = "TAF";
+        while (i < j) {
+            String word = words[i++];
+            if ((word.length () == 8) && word.startsWith ("FM") && decimalDigits (word.substring (2))) {
+                sb.append ('\n');
+            } else if (word.equals ("BECMG") || word.equals ("TEMPO")) {
                 sb.append ('\n');
             }
             if (sb.length () > 0) sb.append (' ');
@@ -290,6 +294,15 @@ public class WebMetarThread extends Thread {
             Log.d (TAG, "webmetar " + apt.ident + " cig=" + repo.ceilingft + " vis=" + repo.visibsm);
         }
         wairToNow.chartView.backing.getView ().postInvalidate ();
+    }
+
+    private static boolean decimalDigits (String s)
+    {
+        try {
+            return Integer.parseInt (s, 10) >= 0;
+        } catch (NumberFormatException nfe) {
+            return false;
+        }
     }
 
     // convert given ddhhmmZ string to millisecond time

@@ -33,11 +33,11 @@ function getzip
 
 function getoa
 {
-    if [ ! -f datums/oa_$expdate/$2.csv ]
+    if [ ! -f datums/oa_$expdate/$2 ]
     then
-        rm -f datums/oa_$expdate/$2.csv.tmp
-        wget -nv --no-check-certificate https://ourairports.com/data/$1.csv -O datums/oa_$expdate/$2.csv.tmp
-        mv -f datums/oa_$expdate/$2.csv.tmp datums/oa_$expdate/$2.csv
+        rm -f datums/oa_$expdate/$2.tmp
+        wget -nv --no-check-certificate https://ourairports.com/$1 -O datums/oa_$expdate/$2.tmp
+        mv -f datums/oa_$expdate/$2.tmp datums/oa_$expdate/$2
     fi
 }
 
@@ -57,49 +57,6 @@ function moveaptinfofiles
 #
 cd `dirname $0`
 set -e
-
-#
-#  Compile needed utilities
-#
-if [ cureffdate -ot cureffdate.c ]
-then
-    cc -o cureffdate cureffdate.c
-fi
-
-if [ GetAirportIDs.exe -ot GetAirportIDs.cs ]
-then
-    mcs -debug -out:GetAirportIDs.exe GetAirportIDs.cs -reference:System.Data.dll -reference:Mono.Data.Sqlite.dll
-fi
-
-if [ GetFixes.exe -ot GetFixes.cs ]
-then
-    mcs -debug -out:GetFixes.exe GetFixes.cs
-fi
-
-if [ WriteAirwaysCsv.exe -ot WriteAirwaysCsv.cs ]
-then
-    mcs -debug -out:WriteAirwaysCsv.exe WriteAirwaysCsv.cs
-fi
-
-if [ WriteLocalizersCsv.exe -ot WriteLocalizersCsv.cs ]
-then
-    mcs -debug -out:WriteLocalizersCsv.exe WriteLocalizersCsv.cs Topography.cs
-fi
-
-if [ WriteNavaidsCsv.exe -ot WriteNavaidsCsv.cs ]
-then
-    mcs -debug -out:WriteNavaidsCsv.exe WriteNavaidsCsv.cs Topography.cs
-fi
-
-if [ MakeWaypoints.exe -ot MakeWaypoints.cs ]
-then
-    mcs -debug -out:MakeWaypoints.exe MakeWaypoints.cs -reference:System.Data.dll -reference:Mono.Data.Sqlite.dll
-fi
-
-if [ MakeObstructions.exe -ot MakeObstructions.cs ]
-then
-    mcs -debug -out:MakeObstructions.exe MakeObstructions.cs -reference:System.Data.dll -reference:Mono.Data.Sqlite.dll
-fi
 
 #
 #  See if we already have this 28-day cycle done
@@ -138,10 +95,10 @@ then
     #
     #  Fetch ourairports.com info
     #
-    getoa airports airports
-    getoa airport-frequencies aptfreqs
-    getoa navaids navaids
-    getoa runways runways
+    getoa airports.hxl airports.hxl
+    getoa data/airport-frequencies.csv aptfreqs.csv
+    getoa data/navaids.csv navaids.csv
+    getoa data/runways.csv runways.csv
 
     #
     #  Generate airport and runway info

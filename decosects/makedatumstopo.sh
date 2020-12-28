@@ -15,16 +15,6 @@ function doit
 set -e
 cd `dirname $0`
 
-if [ maketopodatafiles -ot maketopodatafiles.c ]
-then
-    cc -g -Wall -O2 -o maketopodatafiles maketopodatafiles.c
-fi
-
-if [ SelectTopoZips.exe -ot SelectTopoZips.cs ]
-then
-    mcs -debug -out:SelectTopoZips.exe -reference:System.Drawing.dll SelectTopoZips.cs ChartTiff.cs
-fi
-
 if [ ! -f datums/topo/0.zip.save ]
 then
     # use grid-registered, ie, centered on the lat,lon minute point

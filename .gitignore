@@ -17,6 +17,8 @@ captures
 cureffdate
 decosects/charts
 decosects/datums
+decosects/oldcharts
+decosects/olddatums
 decosects/ReadArptDgmPng_learnt.png
 .DS_Store
 .gradle

@@ -37,6 +37,8 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.RadioButton;
+import android.widget.RadioGroup;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
@@ -81,12 +83,14 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
     private double startingLat;
     private double startingLon;
     private int goodColor;
+    private RadioGroup dbaseSelectRG;
     private RouteStep firstStep;
     private RouteStep lastStep;
     private SpannableStringBuilder msgBuilder;
     private String editTextRHint;
     private String loadedFromName;
     private TextView textViewC;
+    private TreeMap<DBase,RadioButton> dbaseSelectRBs;
     private WairToNow wairToNow;
 
     public RouteView (WairToNow ctx)
@@ -103,6 +107,8 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
         removeAllViews ();
         addView (routeView);
 
+        dbaseSelectRG  = findViewById (R.id.dbaseSelectRG);
+        dbaseSelectRBs = new TreeMap<> ();
         editTextD = findViewById (R.id.editTextD);
         editTextR = findViewById (R.id.editTextR);
         editTextA = findViewById (R.id.editTextA);
@@ -256,15 +262,11 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
             lat = startingLat;
             lon = startingLon;
         }
-        public String MenuKey ()
-        {
-            return GetDetailText ();
-        }
         public String GetType ()
         {
             return "@PP";
         }
-        public String GetName () { return GetDetailText (); }
+        public String GetName () { return "present position"; }
         public String GetDetailText ()
         {
             return "present position";
@@ -382,6 +384,19 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
         msgBuilder = new SpannableStringBuilder ();
 
         /*
+         * See which database to get waypoints from (FAA, OA, OFM).
+         */
+        DBase selecteddbase = getSelectedDBase ();
+        if (selecteddbase == null) {
+            AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
+            adb.setTitle ("Route Planner");
+            adb.setMessage ("No database selected");
+            adb.setPositiveButton ("OK", null);
+            adb.show ();
+            return;
+        }
+
+        /*
          * Parse entered string into a list of waypoints and airways.
          */
         firstStep = null;
@@ -416,7 +431,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
             // @ anything else is an airport
             if (word.startsWith ("@")) {
                 String aptid = word.substring (1);
-                Waypoint aptwp = Waypoint.GetAirportByIdent (aptid, wairToNow);
+                Waypoint aptwp = Waypoint.GetAirportByIdent (aptid, wairToNow, selecteddbase);
                 if (aptwp == null) {
                     appendErrorMessage ("unknown airport " + aptid + "\n");
                 } else {
@@ -427,7 +442,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
                 continue;
             }
 
-            // see if given a valid waypoint name (user or FAA defined)
+            // see if given a valid waypoint name (user or database defined)
             UserWPView.UserWP uwp = wairToNow.userWPView.waypoints.get (word);
             if (uwp != null) {
                 LinkedList<Waypoint> pps = new LinkedList<> ();
@@ -435,13 +450,14 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
                 insertOnEnd (new RouteStepWaypt (uwp.ident, pps));
                 continue;
             }
-            LinkedList<Waypoint> wps = Waypoint.GetWaypointsByIdent (word, wairToNow);
+            LinkedList<Waypoint> wps = Waypoint.GetWaypointsByIdent (word, wairToNow, selecteddbase);
             if ((wps != null) && !wps.isEmpty ()) {
                 insertOnEnd (new RouteStepWaypt (wps.iterator ().next ().ident, wps));
                 continue;
             }
 
             // see if given an valid airway name
+            //TODO pass selecteddbase to GetAirways()
             Collection<Waypoint.Airway> awys = Waypoint.Airway.GetAirways (word, wairToNow);
             if (awys != null) {
                 insertOnEnd (new RouteStepAirwy (word, awys));
@@ -465,7 +481,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
         editTextD.setText (destid);
         if (!destid.equals ("")) {
             Waypoint destwp = wairToNow.userWPView.waypoints.get (destid);
-            if (destwp == null) destwp = Waypoint.GetAirportByIdent (destid, wairToNow);
+            if (destwp == null) destwp = Waypoint.GetAirportByIdent (destid, wairToNow, selecteddbase);
             if (destwp == null) {
                 appendErrorMessage ("unknown destination " + destid + "\n");
             } else {
@@ -729,7 +745,7 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
                     // save matching waypoint if name and lat/lon matches
                     if (rswptwp.equals (rsawywp)) {
                         commonWaypoints.addLast (rsawywp);
-                    } else if (!(rsawywp instanceof Waypoint.Intersection)) {
+                    } else {
 
                         // otherwise, save it sorted by ascending distance from given waypoint
                         // don't save any of the numbered airway intersection waypoints
@@ -762,6 +778,15 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
 
         // return what was found.  if nothing, return empty set.
         return commonWaypoints;
+    }
+
+    // get which database is selected by the radio buttons
+    private DBase getSelectedDBase ()
+    {
+        for (RadioButton rb : dbaseSelectRBs.values ()) {
+            if (rb.isChecked ()) return (DBase) rb.getTag ();
+        }
+        return null;
     }
 
     private void appendErrorMessage (String string)
@@ -858,13 +883,38 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
         return false;
     }
 
+    @SuppressLint("SetTextI18n")
     @Override  // WairToNow.CanBeMainView
     public void OpenDisplay ()
     {
         displayOpen = true;
+
+        // don't do tracking if Type B is turned on
         boolean typeB = wairToNow.optionsView.typeBOption.checkBox.isChecked ();
         if (typeB) ShutTrackingOff ();
         buttonTrack.setVisibility (typeB ? GONE : VISIBLE);
+
+        // set up database radio buttons based on which databases are enabled
+        dbaseSelectRG.removeAllViews ();
+        RadioButton firstrb = null;
+        for (SQLiteDBs wptdb : wairToNow.maintView.getWaypointDBs ()) {
+            DBase dbase = (DBase) wptdb.dbaux;
+            RadioButton rb = dbaseSelectRBs.get (dbase);
+            if (rb == null) {
+                rb = new RadioButton (wairToNow);
+                rb.setTag (dbase);
+                rb.setText (dbase.toString () + "    ");
+                dbaseSelectRBs.put (dbase, rb);
+                wairToNow.SetTextSize (rb);
+            }
+            dbaseSelectRG.addView (rb);
+            if (firstrb == null) firstrb = rb;
+        }
+        if ((firstrb != null) && (getSelectedDBase () == null)) {
+            firstrb.setChecked (true);
+        }
+
+        // maybe update tracking display
         if (trackingOn) UpdateTrackingDisplay ();
     }
 

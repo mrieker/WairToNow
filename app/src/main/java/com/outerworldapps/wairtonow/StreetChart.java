@@ -109,7 +109,7 @@ public class StreetChart implements DisplayableChart {
     public void DrawOnCanvas (@NonNull PixelMapper pmap, @NonNull Canvas canvas, @NonNull Invalidatable inval, double canvasHdgRads)
     {
         osm = wairToNow.openStreetMap;
-        osm.Draw (canvas, pmap, inval, canvas.getWidth (), canvas.getHeight ());
+        osm.Draw (canvas, pmap, inval);
 
         /* TODO too cluttered
 
@@ -169,6 +169,17 @@ public class StreetChart implements DisplayableChart {
         }
         too cluttered TODO */
     }
+
+    @Override
+    public String[] getCopyright ()
+    {
+        osm = wairToNow.openStreetMap;
+        return osm.getCopyright ();
+    }
+
+    @Override
+    public void copyrightClicked ()
+    { }
 
     /**
      * Screen is being closed, close all open bitmaps.

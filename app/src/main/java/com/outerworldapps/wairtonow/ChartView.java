@@ -87,6 +87,8 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
         autoAirChartSEC = new AutoAirChart (wairToNow, "SEC");
         autoAirCharts = new AutoAirChart[] {
             new AutoAirChart (wairToNow, "ENR"),
+            new AutoAirChart (wairToNow, "OFM Street"),
+            new AutoAirChart (wairToNow, "OFM White"),
             autoAirChartSEC
         };
 

@@ -1,12 +1,13 @@
 <HTML>
     <BODY>
-        <H2>FAAWP1 and FAAWP2 Pages</H2>
-        <P>These pages are used to view information related to FAA-defined waypoints.
+        <H2>Waypt1 and Waypt2 Pages</H2>
+        <P>These pages are used to view information related to database-defined waypoints.
             They consist of airports, fixes, localizers and navaids.  Each page is
             independent (like NAV1/NAV2 radios) and can be used to select different
-            waypoints.  The history list is common to both however, so FAAWP2 can be used
-            to select something that was in FAAWP1 a while ago and vice versa.</P>
-        <P>NOTE:  If you click the FAAWP1 or FAAWP2 button and see a diagram or plate (secondary
+            waypoints.  The history list is common to both however, so Waypt2 can be used
+            to select something that was in Waypt1 a while ago and vice versa.</P>
+
+        <P>NOTE:  If you click the Waypt1 or Waypt2 button and see a diagram or plate (secondary
             page), click the same button again to get back to the waypoint selection page (primary
             page).</P>
         <TABLE>
@@ -16,7 +17,7 @@
             </TR>
             <TR>
                 <TD ALIGN=LEFT VALIGN=TOP>
-                    <P><IMG SRC="faawp-beverly-400.png"></P>
+                    <P><IMG SRC="waypt-beverly-400.png"></P>
                     <UL>
                         <LI>Enter the identifier of the desired waypoint in the text box at the top and
                             click the <B>Find</B> button.
@@ -29,6 +30,12 @@
                                     treated as spaces separating words.
                                 <LI>The first word given must be found whole, the other words may be
                                     partials.
+                                <LI>It searches the FAA, OA, OFM databases depending on which
+                                    databases are enabled on the
+                                    <B><A HREF="p_options.html">Options</A></B> page.  Consequently,
+                                    when searching for a particular waypoint, you may get duplicates
+                                    if there is more than one database currently enabled.  You must
+                                    then choose which one you want from the presented menu.
                             </UL>
                         <LI>You may also click one of the history buttons listed below the text box
                             to get a recent waypoint.  Long-click the button to delete it from the list.
@@ -36,7 +43,10 @@
                             and a line will be drawn from the airplane to the destination location
                             on the <B><A HREF="p_chart.html">Chart</A></B> page.
                         <LI>The <B>Locate</B> button will center the moving map of the
-                            <B><A HREF="p_chart.html">Chart</A></B> page on the waypoint.
+                            <B><A HREF="p_chart.html">Chart</A></B> page on the waypoint.  If the
+                            screen goes black, it just means the waypoint is not on the current
+                            chart, so you must click the <B>Chart</B> button to select a different
+                            chart.
                         <LI>The <B>RNAV</B> button will allow entry of an RNAV-like offset from the
                             current waypoint to create a new waypoint.
                         <LI>Description information for the waypoint will be displayed next.
@@ -62,7 +72,7 @@
                     <P><IMG SRC="synth-rwy-diagram-kpym-400.png"></P>
                     <UL>
                         <LI>Get to primary page by either clicking Android's <B>Back</B>
-                            button or the corresponding <B>FAAWP1/2</B> button.
+                            button or the corresponding <B>Waypt1/2</B> button.
                     </UL>
                 </TD>
             </TR>

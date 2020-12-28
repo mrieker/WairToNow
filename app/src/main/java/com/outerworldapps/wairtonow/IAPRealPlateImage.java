@@ -212,23 +212,25 @@ public class IAPRealPlateImage extends IAPPlateImage {
     public void ReadCIFPs ()
     {
         SQLiteDBs sqldb = openPlateDB ();
-        try {
-            Cursor result1 = sqldb.query (
-                    "iapcifps", columns_cp_misc,
-                    "cp_icaoid=?", new String[] { airport.ident },
-                    null, null, null, null);
+        if (sqldb != null) {
             try {
-                if (result1.moveToFirst ()) do {
-                    String appid = result1.getString (0);
-                    String segid = result1.getString (1);
-                    String legs  = result1.getString (2);
-                    plateCIFP.ParseCIFPSegment (appid, segid, legs);
-                } while (result1.moveToNext ());
-            } finally {
-                result1.close ();
+                Cursor result1 = sqldb.query (
+                        "iapcifps", columns_cp_misc,
+                        "cp_icaoid=?", new String[] { airport.ident },
+                        null, null, null, null);
+                try {
+                    if (result1.moveToFirst ()) do {
+                        String appid = result1.getString (0);
+                        String segid = result1.getString (1);
+                        String legs  = result1.getString (2);
+                        plateCIFP.ParseCIFPSegment (appid, segid, legs);
+                    } while (result1.moveToNext ());
+                } finally {
+                    result1.close ();
+                }
+            } catch (Exception e) {
+                plateCIFP.errorMessage ("error reading " + sqldb.mydbname, e);
             }
-        } catch (Exception e) {
-            plateCIFP.errorMessage ("error reading " + sqldb.mydbname, e);
         }
     }
 
@@ -262,7 +264,7 @@ public class IAPRealPlateImage extends IAPPlateImage {
     {
         String[] grkey = new String[] { airport.ident, plateid };
         SQLiteDBs machinedb = openPlateDB ();
-        if (machinedb.tableExists ("iapgeorefs2")) {
+        if ((machinedb != null) && machinedb.tableExists ("iapgeorefs2")) {
             if (!machinedb.columnExists ("iapgeorefs2", "gr_circtype")) {
                 machinedb.execSQL ("ALTER TABLE iapgeorefs2 ADD COLUMN gr_circtype INTEGER NOT NULL DEFAULT " + CRT_UNKN);
             }
@@ -529,7 +531,9 @@ public class IAPRealPlateImage extends IAPPlateImage {
                 values.put ("gr_circtype", circradtype);
                 String[] whargs = new String[] { airport.ident, plateid };
                 SQLiteDBs machinedb = openPlateDB ();
-                machinedb.update ("iapgeorefs2", values, "gr_icaoid=? AND gr_plate=?", whargs);
+                if (machinedb != null) {
+                    machinedb.update ("iapgeorefs2", values, "gr_icaoid=? AND gr_plate=?", whargs);
+                }
             }
 
             // maybe we need to compute circling ring endpoints
@@ -640,7 +644,9 @@ public class IAPRealPlateImage extends IAPPlateImage {
                 values.put ("gr_circrweps", circrwyepts);
                 String[] whargs = new String[] { airport.ident, plateid };
                 SQLiteDBs machinedb = openPlateDB ();
-                machinedb.update ("iapgeorefs2", values, "gr_icaoid=? AND gr_plate=?", whargs);
+                if (machinedb != null) {
+                    machinedb.update ("iapgeorefs2", values, "gr_icaoid=? AND gr_plate=?", whargs);
+                }
             }
 
             // get circling radius in tenths of a nautical mile based on circling MDA MSL and category
@@ -848,6 +854,7 @@ public class IAPRealPlateImage extends IAPPlateImage {
     private SQLiteDBs openPlateDB ()
     {
         int expdate = wairToNow.maintView.GetCurrentPlatesExpDate (airport.state);
+        if (expdate <= 0) return null;
         String dbname = "nobudb/plates_" + expdate + ".db";
         return SQLiteDBs.open (dbname);
     }

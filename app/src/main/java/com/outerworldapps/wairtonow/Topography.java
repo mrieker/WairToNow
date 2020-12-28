@@ -25,8 +25,14 @@ import android.util.SparseArray;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.RandomAccessFile;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.HashSet;
+import java.util.Iterator;
 
 /**
  * Contains topography info (ground elevation at a given lat/lon).
@@ -40,6 +46,25 @@ public class Topography {
     private static String topoZipName;
     private static TopoZipFile topoZipFile;
 
+    // if some .zip.temp files from before, try to download them again
+    public static void startup ()
+    {
+        synchronized (loadedTopos) {
+            File[] files = new File (WairToNow.dbdir + "/datums/topo").listFiles ();
+            if (files != null) {
+                for (File file : files) {
+                    String name = file.getName ();
+                    if (name.endsWith (".zip.temp")) {
+                        int ilatdeg = Integer.parseInt (name.substring (name.length () - 9));
+                        TopoDownloadThread.enqueue (ilatdeg);
+                    }
+                }
+            }
+        }
+    }
+
+    // close all files and release all used memory
+    // let download thread keep running cuz we will probably need those files again soon
     public static void purge () {
         synchronized (loadedTopos) {
             loadedTopos.clear ();
@@ -143,10 +168,17 @@ public class Topography {
                 topoZipName = null;
             }
 
-            // null files are for areas not covered by air charts
+            // non-existant file means topo not downloaded
             // so just return INVALID_ELEV
             File file = new File (name);
-            if (! file.exists () || (file.length () == 0)) return null;
+            if (! file.exists ()) return null;
+
+            // null files are for areas not covered by air charts
+            // try to download in background and return INVALID_ELEV for now
+            if (file.length () == 0) {
+                TopoDownloadThread.enqueue (ilatdeg);
+                return null;
+            }
 
             // otherwise, open the zip file
             try {
@@ -183,6 +215,96 @@ public class Topography {
         } catch (Exception e) {
             Log.e (TAG, "error reading topo " + ilatdeg + "/" + ilondeg, e);
             return null;
+        }
+    }
+
+    private static class TopoDownloadThread extends Thread {
+        private final static HashSet<Integer> ilatdegs = new HashSet<> ();
+        private static TopoDownloadThread thread;
+
+        public static void enqueue (int ilatdeg)
+        {
+            ilatdegs.add (ilatdeg);
+            if (thread == null) {
+                thread = new TopoDownloadThread ();
+                thread.start ();
+            }
+        }
+
+        @Override
+        public void run ()
+        {
+            setName ("TopoDownload");
+
+            while (true) {
+
+                // check for an empty topo zip that was needed
+                // exit thread if none queued
+                int ilatdeg;
+                synchronized (loadedTopos) {
+                    Iterator<Integer> it = ilatdegs.iterator ();
+                    if (! it.hasNext ()) {
+                        thread = null;
+                        break;
+                    }
+                    ilatdeg = it.next ();
+                    it.remove ();
+                }
+
+                try {
+
+                    // download from server
+                    String permname = WairToNow.dbdir + "/datums/topo/" + ilatdeg + ".zip";
+                    if (new File (permname).length () == 0) {
+                        String tempname = permname + ".temp";
+                        Log.i (TAG, "downloading " + permname);
+                        URL url = new URL (MaintView.dldir + "/datums/topo/" + ilatdeg + ".zip.save");
+                        FileOutputStream fos = new FileOutputStream (tempname);
+                        try {
+                            HttpURLConnection httpCon = (HttpURLConnection)url.openConnection ();
+                            try {
+                                httpCon.setRequestMethod ("GET");
+                                httpCon.connect ();
+                                int rc = httpCon.getResponseCode ();
+                                if (rc != HttpURLConnection.HTTP_OK) {
+                                    throw new IOException ("http response code " + rc);
+                                }
+                                InputStream his = httpCon.getInputStream ();
+                                byte[] buf = new byte[4096];
+                                while ((rc = his.read (buf)) > 0) {
+                                    fos.write (buf, 0, rc);
+                                }
+                            } finally {
+                                httpCon.disconnect ();
+                            }
+                        } finally {
+                            fos.close ();
+                        }
+
+                        // download complete
+                        Lib.RenameFile (tempname, permname);
+                        Log.i (TAG, "downloaded " + permname);
+                    }
+
+                    // tell main to read from newly downloaded zip
+                    synchronized (loadedTopos) {
+                        for (int i = loadedTopos.size (); -- i >= 0;) {
+                            int key = loadedTopos.keyAt (i);
+                            if (key >> 16 == ilatdeg) loadedTopos.removeAt (i);
+                        }
+                    }
+                } catch (Exception e) {
+
+                    // probably no internet
+                    Log.w (TAG, "exception downloading topography zip", e);
+
+                    // try again in a minute
+                    synchronized (loadedTopos) {
+                        ilatdegs.add (ilatdeg);
+                    }
+                    try { Thread.sleep (65432); } catch (InterruptedException ignored) { }
+                }
+            }
         }
     }
 }

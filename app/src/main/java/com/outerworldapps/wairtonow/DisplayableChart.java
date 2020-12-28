@@ -40,6 +40,8 @@ public interface DisplayableChart {
         void postInvalidate ();
     }
     void DrawOnCanvas (@NonNull PixelMapper pmap, @NonNull Canvas canvas, @NonNull Invalidatable inval, double canvasHdgRads);
+    String[] getCopyright ();
+    void copyrightClicked ();
     boolean LatLon2CanPixExact (double lat, double lon, @NonNull PointD canpix);
     boolean CanPix2LatLonExact (double canpixx, double canpixy, @NonNull LatLon ll);
 

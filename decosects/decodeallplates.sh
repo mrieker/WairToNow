@@ -66,48 +66,6 @@ unset DISPLAY
 export CLASSPATH=DecodePlate2.jar:pdfbox-1.8.10.jar:commons-logging-1.2.jar
 
 #
-# Make sure we have all the necessary jar files.
-# Two apache libraries and the DecodePlate jar file itself.
-#
-if [ ! -f pdfbox-1.8.10.jar ]
-then
-    wget -nv http://archive.apache.org/dist/pdfbox/1.8.10/pdfbox-1.8.10.jar
-fi
-
-if [ ! -f commons-logging-1.2.jar ]
-then
-    wget -nv http://apache.mirrors.lucidnetworks.net//commons/logging/binaries/commons-logging-1.2-bin.tar.gz
-    tar xzfO commons-logging-1.2-bin.tar.gz \
-            commons-logging-1.2/commons-logging-1.2.jar > \
-            commons-logging-1.2.jar
-    rm commons-logging-1.2-bin.tar.gz
-fi
-
-if [ DecodePlate2.jar -ot DecodePlate2.java ]
-then
-    rm -f DecodePlate2.jar DecodePlate2*.class Lib*.class
-    javac -Xlint:deprecation DecodePlate2.java Lib.java
-    jar cf DecodePlate2.jar DecodePlate2*.class Lib*.class
-    rm -f DecodePlate2*.class Lib*.class
-fi
-
-if [ readoneline -ot readoneline.c ]
-then
-    cc -O2 -Wall -o readoneline readoneline.c
-fi
-
-if [ ReadArptDgmPng.exe -ot ReadArptDgmPng.cs ]
-then
-    mcs -debug -out:ReadArptDgmPng.exe -reference:Mono.Data.Sqlite.dll -reference:System.Data.dll \
-        -reference:System.Drawing.dll ReadArptDgmPng.cs FindWaypoints.cs
-fi
-
-if [ cureffdate -ot cureffdate.c ]
-then
-    cc -o cureffdate cureffdate.c
-fi
-
-#
 # Create output directories
 #
 cycles28=`./cureffdate -28 -x yyyymmdd`

@@ -56,18 +56,7 @@ function downloadfiles
 cd `dirname $0`
 pwd=`pwd`
 
-export CLASSPATH=$pwd:$pwd/jsoup-1.9.2.jar
-
-if [ ! -f jsoup-1.9.2.jar ]
-then
-    wget -nv https://jsoup.org/packages/jsoup-1.9.2.jar
-fi
-
-if [ ParseChartList.class -ot ParseChartList.java ]
-then
-    rm -f ParseChartList.class
-    javac -Xlint:deprecation ParseChartList.java
-fi
+export CLASSPATH=$pwd/ParseChartList.jar:$pwd/jsoup-1.9.2.jar
 
 mkdir -p charts
 cd charts

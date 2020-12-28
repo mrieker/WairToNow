@@ -47,11 +47,6 @@ function splittiffnames
 
 cd `dirname $0`
 
-if [ ReadTiffFile.exe -ot ReadTiffFile.cs ]
-then
-    mcs -debug -out:ReadTiffFile.exe -reference:System.Drawing.dll ReadTiffFile.cs ChartTiff.cs
-fi
-
 cd charts
 
 rm -f readalltiffs.tmp.*

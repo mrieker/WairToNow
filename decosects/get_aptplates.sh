@@ -38,18 +38,6 @@ then
     exit
 fi
 
-if [ cureffdate -ot cureffdate.c ]
-then
-    cc -o cureffdate cureffdate.c
-fi
-if [ ProcessPlates.jar -ot ProcessPlates.java ]
-then
-    rm -f *.class
-    javac ProcessPlates.java Lib.java
-    jar cf ProcessPlates.jar *.class
-    rm -f *.class
-fi
-
 effdate=`./cureffdate -28 yyyymmdd`
 expdate=`./cureffdate -28 -x yyyymmdd`
 if [ "$expdate" == "" ]

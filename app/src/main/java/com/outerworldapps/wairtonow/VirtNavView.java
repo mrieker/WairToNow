@@ -227,7 +227,7 @@ public class VirtNavView extends LinearLayout
     }
 
     /**
-     * One of the FAAWP1, FAAWP2 buttons was clicked to select
+     * One of the Waypt1, Waypt2 buttons was clicked to select
      * the waypoint selected by that page.
      *
      * If it is an airport, ask the user if they want the airport,
@@ -235,7 +235,7 @@ public class VirtNavView extends LinearLayout
      * selected, ask if they want the plate's navaid or if a CIFP
      * is current, do they want the CIFP route.
      *
-     * @param wpv = FAAWP1 or FAAWP2
+     * @param wpv = Waypt1 or Waypt2
      */
     @SuppressLint("SetTextI18n")
     private void useWaypointViewButtonClicked (WaypointView wpv)
@@ -246,11 +246,11 @@ public class VirtNavView extends LinearLayout
         // turn dial OFF so it doesn't have an incorrect mode selected for new waypoint
         // eg, old was in LOC mode when navving to a new VOR
         // whilst in landscape:
-        //  FAAWP1 -> KSFM -> VOR-25 -> VirtNav1 -> FAAWP1 -> CIFP -> ENE -> FAAWP1
-        //    CIFP(long click) -> DISCONTINUE -> FAAWP1 (used to crash here)
+        //  Waypt1 -> KSFM -> VOR-25 -> VirtNav1 -> Waypt1 -> CIFP -> ENE -> Waypt1
+        //    CIFP(long click) -> DISCONTINUE -> Waypt1 (used to crash here)
         useWaypointButtonClicked (null);
 
-        // if FAAWP1,2 doesn't have an airport waypoint selected,
+        // if Waypt1,2 doesn't have an airport waypoint selected,
         // just select whatever waypoint it has selected (VOR, NDB, etc)
         Waypoint wp = wpv.selectedWaypoint;
         if (!(wp instanceof Waypoint.Airport)) {
@@ -259,7 +259,7 @@ public class VirtNavView extends LinearLayout
             return;
         }
 
-        // FAAWP1,2 has an airport selected, see if it is displaying an IAP plate
+        // Waypt1,2 has an airport selected, see if it is displaying an IAP plate
         // update this screen (right-hand part of landscape mode) with plate if so
         rightHalfView = wpv.selectedPlateView;
         orientationChanged ();  // update right-hand part of landscape mode
@@ -396,20 +396,29 @@ public class VirtNavView extends LinearLayout
         if (selectedPlateCIFP == null) {
 
             // normal navigating to waypoint, allow separate DME waypoint
-            Waypoint.ShowWaypointDialog (wairToNow, "Enter DME Waypoint",
-                    waypoint.lat, waypoint.lon, waypoint.GetAirport (),
+            WaypointDialog wd = new WaypointDialog (
+                    wairToNow,
+                    "Enter DME Waypoint",
+                    waypoint.GetAirport (),
                     (dmeWaypoint == null) ? waypoint.ident : dmeWaypoint.ident,
-                    new Waypoint.Selected () {
-                        @Override
-                        public void wpSeld (Waypoint wp)
-                        {
-                            dmeWaypoint = wp;
-                            dmeDisplay ();
-                        }
-                        @Override
-                        public void noWPSeld () { }
-                    },
-            null);
+                    null) {
+                @Override
+                public void wpSeld (Waypoint wp)
+                {
+                    dmeWaypoint = wp;
+                    dmeDisplay ();
+                }
+                @Override
+                public int compare (Waypoint a, Waypoint b)
+                {
+                    double lat = waypoint.lat;
+                    double lon = waypoint.lon;
+                    double dista = Lib.LatLonDist (a.lat, a.lon, lat, lon);
+                    double distb = Lib.LatLonDist (b.lat, b.lon, lat, lon);
+                    return Double.compare (dista, distb);
+                }
+            };
+            wd.show ();
         }
     }
 
@@ -458,7 +467,7 @@ public class VirtNavView extends LinearLayout
          * Get all the widget pointers for whichever we load.
          * Only landscape orientation has the plate view frame.
          */
-        Button useChart, useFAAWP1, useFAAWP2, useUserWP;
+        Button useChart, useWaypt1, useWaypt2, useUserWP;
         FrameLayout plateViewFrame;
         if (oldLandscape) {
             @SuppressLint("InflateParams")
@@ -473,8 +482,8 @@ public class VirtNavView extends LinearLayout
             modeButton   = findViewById (R.id.modebuttonland);
             hsiCheckBox  = findViewById (R.id.hsicheckboxland);
             useChart     = findViewById (R.id.use_chartland);
-            useFAAWP1    = findViewById (R.id.use_faawp1land);
-            useFAAWP2    = findViewById (R.id.use_faawp2land);
+            useWaypt1    = findViewById (R.id.use_waypt1land);
+            useWaypt2    = findViewById (R.id.use_waypt2land);
             useUserWP    = findViewById (R.id.use_userwpland);
 
             wpIdent      = findViewById (R.id.wpidentland);
@@ -495,8 +504,8 @@ public class VirtNavView extends LinearLayout
             modeButton   = findViewById (R.id.modebuttonport);
             hsiCheckBox  = findViewById (R.id.hsicheckboxport);
             useChart     = findViewById (R.id.use_chartport);
-            useFAAWP1    = findViewById (R.id.use_faawp1port);
-            useFAAWP2    = findViewById (R.id.use_faawp2port);
+            useWaypt1    = findViewById (R.id.use_waypt1port);
+            useWaypt2    = findViewById (R.id.use_waypt2port);
             useUserWP    = findViewById (R.id.use_userwpport);
 
             wpIdent      = findViewById (R.id.wpidentport);
@@ -548,8 +557,8 @@ public class VirtNavView extends LinearLayout
             }
         });
 
-        wairToNow.SetTextSize (useFAAWP1);
-        useFAAWP1.setOnClickListener (new OnClickListener () {
+        wairToNow.SetTextSize (useWaypt1);
+        useWaypt1.setOnClickListener (new OnClickListener () {
             @Override
             public void onClick (View view)
             {
@@ -557,8 +566,8 @@ public class VirtNavView extends LinearLayout
             }
         });
 
-        wairToNow.SetTextSize (useFAAWP2);
-        useFAAWP2.setOnClickListener (new OnClickListener () {
+        wairToNow.SetTextSize (useWaypt2);
+        useWaypt2.setOnClickListener (new OnClickListener () {
             @Override
             public void onClick (View view)
             {
@@ -584,8 +593,8 @@ public class VirtNavView extends LinearLayout
          */
         String rhvtn = (rightHalfView instanceof WairToNow.CanBeMainView) ? ((WairToNow.CanBeMainView)rightHalfView).GetTabName () : null;
         useChart.setTextColor  ("Chart".equals  (rhvtn) ? Color.RED : Color.BLACK);
-        useFAAWP1.setTextColor ("FAAWP1".equals (rhvtn) ? Color.RED : Color.BLACK);
-        useFAAWP2.setTextColor ("FAAWP2".equals (rhvtn) ? Color.RED : Color.BLACK);
+        useWaypt1.setTextColor ("Waypt1".equals (rhvtn) ? Color.RED : Color.BLACK);
+        useWaypt2.setTextColor ("Waypt2".equals (rhvtn) ? Color.RED : Color.BLACK);
         useUserWP.setTextColor ("UserWP".equals (rhvtn) ? Color.RED : Color.BLACK);
 
         /*
@@ -632,20 +641,28 @@ public class VirtNavView extends LinearLayout
      */
     private void wpIdentClicked ()
     {
-        Waypoint.ShowWaypointDialog (wairToNow, "Enter Nav Waypoint",
-                wairToNow.currentGPSLat, wairToNow.currentGPSLon,
+        WaypointDialog wd = new WaypointDialog (
+                wairToNow,
+                "Enter Nav Waypoint",
                 (waypoint == null) ? null : waypoint.GetAirport (),
                 (waypoint == null) ? "" : waypoint.ident,
-                new Waypoint.Selected () {
-                    @Override
-                    public void wpSeld (Waypoint wp)
-                    {
-                        useWaypointButtonClicked (wp);
-                    }
-                    @Override
-                    public void noWPSeld () { }
-                },
-        null);
+                null) {
+            @Override
+            public void wpSeld (Waypoint wp)
+            {
+                useWaypointButtonClicked (wp);
+            }
+            @Override
+            public int compare (Waypoint a, Waypoint b)
+            {
+                double lat = wairToNow.currentGPSLat;
+                double lon = wairToNow.currentGPSLon;
+                double dista = Lib.LatLonDist (a.lat, a.lon, lat, lon);
+                double distb = Lib.LatLonDist (b.lat, b.lon, lat, lon);
+                return Double.compare (dista, distb);
+            }
+        };
+        wd.show ();
     }
 
     /**

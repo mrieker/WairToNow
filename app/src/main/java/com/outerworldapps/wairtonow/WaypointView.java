@@ -53,7 +53,7 @@ import java.util.Iterator;
 import java.util.LinkedList;
 
 /**
- * This view presents a menu so the user can select a FAA waypoint by name.
+ * This view presents a menu so the user can select a database waypoint by name.
  * It can also pick a waypoint that is nearby a given lat/lon.
  */
 @SuppressLint({ "SetTextI18n", "ViewConstructor" })
@@ -76,7 +76,7 @@ public class WaypointView extends LinearLayout
     private TextView titleText;
     public  WairToNow wairToNow;
     public  Waypoint selectedWaypoint;
-    public  Waypoint.Within waypointsWithin;
+    public WaypointsWithin waypointsWithin;
     private WebView waypointWebView;
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -92,7 +92,7 @@ public class WaypointView extends LinearLayout
          * Start with window title.
          */
         titleText = new TextView (ctx);
-        titleText.setText ("FAA Waypoints");
+        titleText.setText ("Database Waypoints");
         wairToNow.SetTextSize (titleText);
 
         /*
@@ -150,7 +150,7 @@ public class WaypointView extends LinearLayout
         /*
          * Reset waypoint area search database.
          */
-        waypointsWithin = new Waypoint.Within (wairToNow);
+        waypointsWithin = new WaypointsWithin (wairToNow);
     }
 
     /**
@@ -437,7 +437,7 @@ public class WaypointView extends LinearLayout
         // get all waypoints within box from given lat/lon
         double delat = radiusnm / Lib.NMPerDeg;
         double delon = delat / Math.cos (Math.toRadians (lat));
-        Collection<Waypoint> wpcollection = new Waypoint.Within (wairToNow).Get (lat - delat, lat + delat, lon - delon, lon + delon);
+        Collection<Waypoint> wpcollection = new WaypointsWithin (wairToNow).Get (lat - delat, lat + delat, lon - delon, lon + delon);
 
         // remove all waypoints greater than radius from the collection
         for (Iterator<Waypoint> it = wpcollection.iterator (); it.hasNext ();) {
@@ -496,10 +496,10 @@ public class WaypointView extends LinearLayout
                 names[i++] = wp.MenuKey ();
             }
             AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
-            adb.setTitle ("Select waypoint");
+            adb.setTitle ("Select Waypoint");
             adb.setItems (names, new OpenWaypointAtLatLonSelected (waypoints));
             adb.setNegativeButton ("Cancel", null);
-            adb.create ().show ();
+            adb.show ();
         }
     }
 

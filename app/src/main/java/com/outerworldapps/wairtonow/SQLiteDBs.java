@@ -56,6 +56,9 @@ public class SQLiteDBs {
     @NonNull
     public final String mydbname;
 
+    // for use by client
+    public Object dbaux;
+
     // list of all databases we have in our directory
     private final static NNTreeMap<String,SQLiteDBs> databases = MakeEmptyTreeMap ();
 

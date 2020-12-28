@@ -70,12 +70,15 @@ public class StateView extends View {
     private double centerInfoScaling;
     private double courseInfoArrowLat, courseInfoArrowLon;
     private double courseInfoDstLat, courseInfoDstLon;
+    private float copyrtboxleftx;
+    private float copyrtboxtopy;
     private int canvasWidth, canvasHeight;
     private int centerInfoCanvasHeight;
     private int centerInfoLLOption;
     private int courseInfoCanvasWidth;
-    private long downOnCenterInfo   = 0;
-    private long downOnCourseInfo   = 0;
+    private long downOnCenterInfo;
+    private long downOnCopyrtInfo;
+    private long downOnCourseInfo;
     private Paint centerBGPaint     = new Paint ();
     private Paint centerTuPaint     = new Paint ();
     private Paint centerTvPaint     = new Paint ();
@@ -185,6 +188,11 @@ public class StateView extends View {
                 int y = Math.round (event.getY ());
                 long now = System.currentTimeMillis ();
 
+                if ((chartView.selectedChart != null) && (x > copyrtboxleftx) && (y > copyrtboxtopy)) {
+                    downOnCopyrtInfo = now;
+                    return true;
+                }
+
                 if (centerInfoBounds.contains (x, y)) {
                     downOnCenterInfo = now;
                     return true;
@@ -217,6 +225,14 @@ public class StateView extends View {
                 int x = Math.round (event.getX ());
                 int y = Math.round (event.getY ());
                 long now = System.currentTimeMillis ();
+
+                if ((chartView.selectedChart != null) && (x > copyrtboxleftx) && (y > copyrtboxtopy)) {
+                    if (now - downOnCopyrtInfo < 500) {
+                        chartView.selectedChart.copyrightClicked ();
+                    }
+                    downOnCopyrtInfo = 0;
+                    return true;
+                }
 
                 if (centerInfoBounds.contains (x, y)) {
                     showCenterInfo ^= (now - downOnCenterInfo < 500);
@@ -323,6 +339,28 @@ public class StateView extends View {
             } else {
                 DrawCenterTriangle (canvas, centerBGPaint);
                 DrawCenterTriangle (canvas, centerTuPaint);
+            }
+        }
+
+        /*
+         * Draw copyright message.
+         */
+        copyrtboxleftx = 999999999;
+        copyrtboxtopy  = 999999999;
+        if (chartView.selectedChart != null) {
+            String[] copyrt = chartView.selectedChart.getCopyright ();
+            if (copyrt != null) {
+                float copyrtx = canvasWidth;
+                copyrtboxleftx = copyrtx / 2;
+                for (int j = 0; j < 2; j ++) {
+                    Paint p = (j == 0) ? wairToNow.copyrtBGPaint : wairToNow.copyrtTxPaint;
+                    float copyrty = canvasHeight;
+                    for (int i = copyrt.length; -- i >= 0;) {
+                        canvas.drawText (copyrt[i], copyrtx - 5, copyrty - 5, p);
+                        copyrty -= wairToNow.copyrtTxPaint.getTextSize ();
+                    }
+                    copyrtboxtopy = copyrty;
+                }
             }
         }
 

@@ -37,18 +37,23 @@ import java.util.Iterator;
 import java.util.TreeSet;
 
 /**
- * Group of same-scaled air (eg, SEC) charts (that are downloaded) sown together.
+ * Group of similar formatted air (eg, SEC) charts (that are downloaded) sown together.
+ * Charts must be listed in chartedlims.csv and given a drawing order (autoOrder).
  */
 public class AutoAirChart implements DisplayableChart, Comparator<AirChart> {
+    private AirChart copyrtclicked;
     private double macroNLat, macroSLat;
     private double macroELon, macroWLon;
     private HashSet<String> dontAskAboutDownloading = new HashSet<> ();
     private long viewDrawCycle;
-    private NNTreeMap<AirChart,Long> airChartsAsync = new NNTreeMap<> (this);
-    private NNTreeMap<AirChart,Long> airChartsSync = new NNTreeMap<> (this);
     private String basename;
     private String category;
+    private String[] copyrtstring;
     private WairToNow wairToNow;
+
+    // sorted by autoOrder given in chartedlims.csv
+    private NNTreeMap<AirChart,Long> airChartsAsync = new NNTreeMap<> (this);
+    private NNTreeMap<AirChart,Long> airChartsSync = new NNTreeMap<> (this);
 
     public AutoAirChart (WairToNow wtn, String cat)
     {
@@ -59,12 +64,17 @@ public class AutoAirChart implements DisplayableChart, Comparator<AirChart> {
 
     /**
      * See if the named chart belongs in this AutoAirChart cagegory.
-     * @param spacename = space name, with or without revision number
+     * @param sn = space name, with or without revision number
      */
-    public boolean Matches (String spacename)
+    public boolean Matches (String sn)
     {
-        if (category.equals ("ENR")) return spacename.startsWith ("ENR E");
-        return spacename.contains (category);
+        switch (category) {
+            case "ENR":        return sn.startsWith ("ENR E");
+            case "OFM Street": return sn.startsWith ("OFM") && sn.contains ("Street");
+            case "OFM White":  return sn.startsWith ("OFM") && sn.contains ("White");
+            case "SEC":        return sn.contains ("SEC");
+            default: throw new IllegalArgumentException ("bad category " + category);
+        }
     }
 
     @Override  // DisplayableChart
@@ -119,11 +129,30 @@ public class AutoAirChart implements DisplayableChart, Comparator<AirChart> {
         SelectCharts (airChartsAsync, pmap);
 
         // draw all downloaded selected charts
+        copyrtstring = null;
+        copyrtclicked = null;
         for (AirChart ac : airChartsAsync.keySet ()) {
             if (ac.IsDownloaded ()) {
                 ac.DrawOnCanvas (pmap, canvas, inval, false);
+                String[] c = ac.getCopyright ();
+                if (c != null) {
+                    copyrtstring = c;
+                    copyrtclicked = ac;
+                }
             }
         }
+    }
+
+    @Override  // DisplayableChart
+    public String[] getCopyright ()
+    {
+        return copyrtstring;
+    }
+
+    @Override  // DisplayableChart
+    public void copyrightClicked ()
+    {
+        if (copyrtclicked != null) copyrtclicked.copyrightClicked ();
     }
 
     /**

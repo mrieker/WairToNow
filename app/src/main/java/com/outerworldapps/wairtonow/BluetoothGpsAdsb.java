@@ -803,18 +803,6 @@ public class BluetoothGpsAdsb extends GpsAdsbReceiver {
         try {
 
             /*
-             * Make sure discovery is not in progress or the connect will fail.
-             * Requires android.permission.BLUETOOTH_ADMIN.
-             */
-            BluetoothAdapter btAdapter = BluetoothAdapter.getDefaultAdapter ();
-            if (!btAdapter.isEnabled ()) {
-                throw new IOException ("bluetooth not enabled");
-            }
-            if (btAdapter.isDiscovering () && !btAdapter.cancelDiscovery ()) {
-                Log.w (TAG, "bluetooth cancel discovery failed");
-            }
-
-            /*
              * Get socket, secure or insecure according to checkbox.
              */
             BluetoothSocket socket;

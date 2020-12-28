@@ -5,11 +5,6 @@
 #   $1 = ICAOID
 #
 set -e -x
-if [ ReadArptDgmPng.exe -ot ReadArptDgmPng.cs ]
-then
-    mcs -debug -out:ReadArptDgmPng.exe -reference:Mono.Data.Sqlite.dll -reference:System.Data.dll \
-        -reference:System.Drawing.dll ReadArptDgmPng.cs FindWaypoints.cs
-fi
 
 icaoid=$1
 

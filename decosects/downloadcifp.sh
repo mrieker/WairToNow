@@ -15,17 +15,6 @@ cd `dirname $0`
 airac28=`./cureffdate -28 airac`
 cycles28=`./cureffdate -x -28 yyyymmdd`
 
-# compile programs
-
-if [ ParseCifp.jar -ot ParseCifp.java ]
-then
-    rm -rf datums/iapcifps_faa_$cycles28
-    rm -f ParseCifp.jar *.class
-    javac ParseCifp.java
-    jar cf ParseCifp.jar *.class
-    rm -f *.class
-fi
-
 # download data file from FAA
 
 if [ ! -f datums/iapcifps_$cycles28.gz ]
