@@ -23,7 +23,7 @@
  *        and per-airport information files.
  *
  * mcs -debug -out:GetAirportIDs.exe GetAirportIDs.cs GetTZForLL.cs -reference:System.Data.dll -reference:Mono.Data.Sqlite.dll
- * cat APT.txt TWR.txt | mono --debug GetAirportIDs.exe airports.csv runways.csv aptinfo aptinfo.html stations.txt
+ * cat APT.txt TWR.txt | mono --debug GetAirportIDs.exe airports.csv runways.csv aptinfo stations.txt
  */
 
 // https://nfdc.faa.gov/xwiki -> automatic redirect
@@ -374,7 +374,7 @@ public class GetAirportIDs {
             }
         }
 
-        StreamReader stationsfile = new StreamReader (args[4]);
+        StreamReader stationsfile = new StreamReader (args[3]);
         int icaopos  = -1;
         int metarpos = -1;
         int tafpos   = -1;
@@ -394,10 +394,6 @@ public class GetAirportIDs {
             }
         }
         stationsfile.Close ();
-
-        string htmlfile = File.ReadAllText (args[3]);
-        string htmlbeg  = htmlfile.Substring (0, htmlfile.IndexOf ("%%%%"));
-        string htmlend  = htmlfile.Substring (htmlfile.IndexOf ("%%%%") + 4);
 
         foreach (Airport apt in aptsbyfaaid.Values) {
 
@@ -423,7 +419,6 @@ public class GetAirportIDs {
 
             // this goes into the aptinfo_<expdate>/f/aaid.html.gz file and is displayed when the Info button is clicked
             StreamWriter infofile = new StreamWriter (args[2] + "/" + apt.faaid + ".html");
-            infofile.WriteLine (htmlbeg);
             infofile.WriteLine ("apt = [];");
             foreach (String key in apt.nvp.Keys) {
                 String val = apt.nvp[key];
@@ -438,7 +433,6 @@ public class GetAirportIDs {
                     infofile.WriteLine ("rwps['" + key + "']['" + key2 + "'] = " + QuotedString (val, '\'') + ";");
                 }
             }
-            infofile.WriteLine (htmlend);
             infofile.Close ();
         }
 

@@ -19,6 +19,8 @@
 //
 //    http://www.gnu.org/licenses/gpl-2.0.html
 
+    require_once 'quotedcsvsplit.php';
+
     $thisscript = $_SERVER['PHP_SELF'];
 
     if (!isset ($skippwcheck) || !$skippwcheck) {
@@ -384,41 +386,6 @@ END;
         return getAiracCycle ($time28);
     }
 
-    /**
-     * Split a comma-separated value string into its various substrings.
-     * @param line = comma-separated line
-     * @return array of the various substrings
-     */
-    function QuotedCSVSplit ($line)
-    {
-        $len    = strlen ($line);
-        $cols   = array ();
-        $quoted = FALSE;
-        $escapd = FALSE;
-        $sb     = '';
-        for ($i = 0;; $i ++) {
-            $c = ($i < $len) ? $line[$i] : FALSE;
-            if (!$escapd && ($c == '"')) {
-                $quoted = !$quoted;
-                continue;
-            }
-            if (!$escapd && ($c == '\\')) {
-                $escapd = TRUE;
-                continue;
-            }
-            if ((!$escapd && !$quoted && ($c == ',')) || ($c === FALSE)) {
-                $cols[] = $sb;
-                if ($c === FALSE) break;
-                $sb = '';
-                continue;
-            }
-            if ($escapd && ($c == 'n')) $c = "\n";
-            if ($escapd && ($c == 'z')) $c = 0;
-            $sb .= $c;
-            $escapd = FALSE;
-        }
-        return $cols;
-    }
     /**
      * Compute great-circle distance between two lat/lon co-ordinates
      * @return distance between two points (in nm)

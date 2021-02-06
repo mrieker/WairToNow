@@ -369,7 +369,7 @@ public class RWYPlateImage extends GRPlateImage implements DisplayableChart.Inva
             /*
              * Draw airplane.
              */
-            DrawLocationArrow (canvas, true);
+            DrawLocationArrow (canvas, 0.0, true);
         } finally {
             canvas.restore ();
         }

@@ -99,6 +99,7 @@ public class WairToNow extends Activity {
     public  float dotsPerInch, dotsPerInchX, dotsPerInchY;
     public  float textSize, thickLine, thinLine;
     private GlassView glassView;
+    public  HelpView helpView;
     public  volatile InputStream downloadStream;
     public  int displayWidth;
     public  int displayHeight;
@@ -143,6 +144,7 @@ public class WairToNow extends Activity {
     public  TextView downloadStatusText;
     public  final TrafficRepo trafficRepo = new TrafficRepo ();
     public  UserWPView userWPView;
+    public  View iapGeoRefInputRow;
     public  VirtNavView virtNav1View, virtNav2View;
     public  WaypointView waypointView1, waypointView2;
     private Waypoint pendingCourseSetWP;
@@ -397,7 +399,7 @@ public class WairToNow extends Activity {
         /*
          * Create a view that displays help pages.
          */
-        HelpView helpView = new HelpView (this);
+        helpView = new HelpView (this);
 
         /*
          * Create a view that simulates a glass cockpit.
@@ -742,6 +744,7 @@ public class WairToNow extends Activity {
             }
 
             // show the new view
+            iapGeoRefInputRow = null;
             currentTabButton = this;
             SetCurrentView ();
 
@@ -795,7 +798,7 @@ public class WairToNow extends Activity {
     /**
      * Build display with selected tab view and button row.
      */
-    private void SetCurrentView ()
+    public void SetCurrentView ()
     {
         tabViewLayout.removeAllViews ();
         tabViewLayout.addView (downloadStatusRow);
@@ -806,6 +809,9 @@ public class WairToNow extends Activity {
                 ((ViewGroup) p).removeView (v);
             }
             tabViewLayout.addView (v, ctvllp);
+        }
+        if (iapGeoRefInputRow != null) {
+            tabViewLayout.addView (iapGeoRefInputRow);
         }
         if (tabsVisible) {
             tabViewLayout.addView (tabButtonScroller, tbsllp);
@@ -1160,9 +1166,9 @@ public class WairToNow extends Activity {
 
     /**
      * Draw the airplane location arrow symbol.
-     * @param canvas     = canvas to draw it on
-     * @param pt         = where on canvas to draw symbol
-     * @param canHdgRads = true heading on canvas that is up
+     * @param canvas        = canvas to draw it on
+     * @param pt            = where on canvas to draw symbol
+     * @param canTrueUpRads = true heading on canvas that is up
      * Other inputs:
      *   heading = true heading for the arrow symbol (degrees, latest gps sample)
      *   speed = airplane speed (mps, latest gps sample)
@@ -1171,7 +1177,7 @@ public class WairToNow extends Activity {
      *   lastGPSTimestamp = time of previous gps sample
      *   lastGPSHeading = true heading for the arrow symbol (previous gps sample)
      */
-    public void DrawLocationArrow (Canvas canvas, PointD pt, double canHdgRads, float scale)
+    public void DrawLocationArrow (Canvas canvas, PointD pt, double canTrueUpRads, float scale)
     {
         /*
          * If not receiving GPS signal, blink the icon.
@@ -1190,7 +1196,7 @@ public class WairToNow extends Activity {
         /*
          * Heading angle relative to UP on screen.
          */
-        double hdg = currentGPSHdg - Math.toDegrees (canHdgRads);
+        double hdg = currentGPSHdg - Math.toDegrees (canTrueUpRads);
 
         /*
          * Draw the icon.

@@ -3,6 +3,9 @@ BINS = \
 	DecodePlate2.jar \
 	readoneline \
 	ReadArptDgmPng.exe \
+	ReadEuroIAPPng.exe \
+	TrimEuroIAPPng.exe \
+	trimeuroiappng \
 	cureffdate \
 	DiffArptDgmCsvs.exe \
 	ParseCifp.jar \
@@ -24,7 +27,8 @@ BINS = \
 	ParseChartList.jar \
 	ReadSlippies.jar \
 	IntlMetafsDaemon.exe \
-	UpdateOaOfmMetafs.exe
+	UpdateOaOfmMetafs.exe \
+	EuroPlateList.jar
 
 LIBS = \
 	jsoup-1.9.2.jar \
@@ -48,6 +52,16 @@ readoneline: readoneline.c
 ReadArptDgmPng.exe: ReadArptDgmPng.cs FindWaypoints.cs
 	mcs -debug -out:ReadArptDgmPng.exe -reference:Mono.Data.Sqlite.dll -reference:System.Data.dll \
 		-reference:System.Drawing.dll ReadArptDgmPng.cs FindWaypoints.cs
+
+ReadEuroIAPPng.exe: ReadEuroIAPPng.cs FindWaypoints.cs
+	mcs -debug -out:ReadEuroIAPPng.exe -reference:Mono.Data.Sqlite.dll -reference:System.Data.dll \
+		-reference:System.Drawing.dll ReadEuroIAPPng.cs FindWaypoints.cs
+
+TrimEuroIAPPng.exe: TrimEuroIAPPng.cs
+	mcs -debug -out:TrimEuroIAPPng.exe -reference:System.Drawing.dll TrimEuroIAPPng.cs
+
+trimeuroiappng: trimeuroiappng.c
+	cc -Wall -Werror -std=c99 -O2 -g -o trimeuroiappng trimeuroiappng.c -lpng
 
 cureffdate: cureffdate.c
 	cc -o cureffdate cureffdate.c
@@ -80,7 +94,7 @@ WriteNavaidsCsv.exe: WriteNavaidsCsv.cs Topography.cs
 	mcs -debug -out:WriteNavaidsCsv.exe WriteNavaidsCsv.cs Topography.cs
 
 MakeWaypoints.exe: MakeWaypoints.cs GeoContext.cs GetTZForLL.cs Topography.cs
-	mcs -debug -out:MakeWaypoints.exe MakeWaypoints.cs GeoContext.cs GetTZForLL.cs Topography.cs -reference:System.Data.dll -reference:Mono.Data.Sqlite.dll
+	mcs -debug -out:MakeWaypoints.exe MakeWaypoints.cs GeoContext.cs GetTZForLL.cs Topography.cs -reference:System.Data.dll -reference:Mono.Data.Sqlite.dll -reference:System.IO.Compression.dll -reference:System.IO.Compression.FileSystem.dll
 
 MakeObstructions.exe: MakeObstructions.cs
 	mcs -debug -out:MakeObstructions.exe MakeObstructions.cs -reference:System.Data.dll -reference:Mono.Data.Sqlite.dll
@@ -126,6 +140,12 @@ IntlMetafsDaemon.exe: IntlMetafsDaemon.cs
 
 UpdateOaOfmMetafs.exe: UpdateOaOfmMetafs.cs
 	mcs -debug -out:UpdateOaOfmMetafs.exe UpdateOaOfmMetafs.cs -reference:System.Data.dll -reference:Mono.Data.Sqlite.dll
+
+EuroPlateList.jar: EuroPlateList.java
+	rm -f EuroPlateList.jar *.class
+	javac EuroPlateList.java
+	jar cf EuroPlateList.jar *.class
+	rm -f *.class
 
 jsoup-1.9.2.jar:
 	wget -nv https://jsoup.org/packages/jsoup-1.9.2.jar

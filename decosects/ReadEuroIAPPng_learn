@@ -1,0 +1,40 @@
+#!/bin/bash -v
+#
+#  Build learnt.csv from airport diagram images
+#
+rm -f ReadEuroIAPPng_learnt.csv
+
+time mono --debug ReadEuroIAPPng.exe ReadEuroIAPPng_learnpngs/ED_AD_2_EDBC_4-2-1_en_2016-07-21.png -givens \
+    265,853=5   278,852=2   263,889=0   278,889=0   \
+    264,1728=5  279,1726=1  264,1765=5  277,1765=0  \
+    2365,848=5  2379,849=2  2365,886=0  2379,885=0  \
+    2365,1723=5 2380,1724=1 2365,1762=5 2378,1761=0 \
+    511,402=1   526,402=1   564,402=2   578,402=0   \
+    1051,402=1  1065,402=1  1102,402=3  1117,402=0  \
+    1590,402=1  1604,402=1  1641,402=4  1656,402=0  \
+    2129,387=1  2143,387=1  2181,387=5  2195,387=0  \
+    1053,2185=1 1067,2185=1 1104,2185=3 1119,2185=0 \
+    1596,2185=1 1610,2185=1 1648,2185=4 1662,2185=0 \
+    2139,2185=1 2154,2185=1 2191,2185=5 2206,2185=0
+
+time mono --debug ReadEuroIAPPng.exe ReadEuroIAPPng_learnpngs/LA_AD_2_LATI_24-23_en_2016-12-08.png -givens \
+    507,418=9   833,419=9   1489,420=9  472,2196=9  804,2195=9  1134,2196=9 1468,2195=9
+
+time mono --debug ReadEuroIAPPng.exe ReadEuroIAPPng_learnpngs/BG_AD_2_BGAA_NDB_DME_29_en_2016-04-28.png -givens \
+    262,733=6   275,733=8   262,753=5   275,753=0   \
+    258,1172=6  271,1172=8  258,1192=4  271,1193=0
+
+time mono --debug ReadEuroIAPPng.exe ReadEuroIAPPng_learnpngs/ES_AD_2_ESCM_5_1_en_2019-06-20.png -givens \
+    532,437=7   968,437=7   1406,438=7  1844,437=7  2280,437=8  \
+    531,2348=7  967,2348=7  1405,2348=7 1841,2348=7 2282,2346=8
+
+time mono --debug ReadEuroIAPPng.exe ReadEuroIAPPng_learnpngs/UM_AD_2_UMMS_17_en_2020-12-31.png -givens \
+    399,483=E   830,483=E   1239,483=E  1686,484=E  2115,483=E  \
+    404,499=N   540,833=N   439,942=N   373,1167=N  419,1892=N
+
+time mono --debug ReadEuroIAPPng.exe ReadEuroIAPPng_learnpngs/ED_AD_2_EDDF_4-2-13_en_2020-11-05.png -givens \
+    352,445=A   373,445=R   414,445=G   457,445=A   534,445=R   \
+    551,445=A   588,446=K   627,445=A   646,446=R   727,445=G
+
+##cat ReadEuroIAPPng_learnt.csv
+cp ReadEuroIAPPng_learnt.png ../webpages/learnt.png

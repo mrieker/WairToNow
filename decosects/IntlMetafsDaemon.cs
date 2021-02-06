@@ -43,6 +43,7 @@ public class IntlMetafsDaemon {
 
         long gap = 0;
 
+        long whenms = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds ();
         while (true) {
             long when = DateTimeOffset.UtcNow.ToUnixTimeSeconds ();
 
@@ -76,8 +77,20 @@ public class IntlMetafsDaemon {
                 dbcmd2.ExecuteNonQuery ();
             }
 
-            // try next in 30 seconds
-            Thread.Sleep (seconds * 1000);
+            if (seconds > 0) {
+                // try next in given seconds
+                whenms += seconds * 1000;
+            } else {
+                // pace to go through them all every 27 days
+                IDbCommand dbcmd3 = intlmetafsdbcon.CreateCommand ();
+                dbcmd3.CommandText = "SELECT COUNT(iamt_icaoid) FROM intlmetafs";
+                int count = int.Parse (dbcmd3.ExecuteScalar ().ToString ());
+                long ms = (count > 0) ? 27L * 86400L * 1000L / count : 999999999;
+                if (ms > 3600 * 1000) ms = 3600 * 1000;
+                whenms += ms;
+            }
+            long nowms = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds ();
+            if (whenms > nowms) Thread.Sleep ((int) (whenms - nowms));
         }
     }
 

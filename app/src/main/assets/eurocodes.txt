@@ -1,0 +1,48 @@
+LA Albania
+UD Armenia
+LO Austria
+UB Azerbaijan
+UM Belarus
+EB Belgium
+LQ Bosnia/Herzeg.
+LB Bulgaria
+LD Croatia
+LC Cyprus
+LK Czech Republic
+EK Denmark
+EE Estonia
+XX Faroe Islands
+EF Finland
+LF France
+UG Georgia
+ED Germany
+LG Greece
+BG Greenland
+LH Hungary
+BI Iceland
+EI Ireland
+LI Italy
+OJ Jordan
+BK KFOR SECTOR
+UA Kazakhstan
+UC Kyrgyzstan
+EV Latvia
+EY Lithuania
+LM Malta
+LU Moldova
+EH Netherlands
+EN Norway
+RP Philippines
+EP Poland
+LP Portugal
+LW Republic of North Macedonia
+LR Romania
+LY Serbia and Montenegro
+LZ Slovakia
+LJ Slovenia
+LE Spain
+ES Sweden
+LS Switzerland
+LT Turkey
+UK Ukraine
+EG United Kingdom

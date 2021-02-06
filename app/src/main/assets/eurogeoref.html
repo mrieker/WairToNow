@@ -1,0 +1,87 @@
+<HTML>
+    <BODY>
+        <H3> European Plate Georeferencing </H3>
+        <P>Some of the plates have georeference information provided by the server.  Plates that
+            do not have server georeferencing can be manually georeferenced.  You can download
+            manual georeferences contributed by other users and you may contribute georeference
+            information that you create.</P>
+        <H3> Plate Georeference Status </H3>
+        <UL>
+            <LI><A HREF="eurogeoref_self.html">manually georeferenced plates saved locally</A></LI>
+            <LI><A HREF="eurogeoref_cont.html">manually georeferenced plates contributed</A></LI>
+            <LI><A HREF="eurogeoref_auto.html">plates automatically georeferenced by server</A></LI>
+        </UL>
+        <P>There are two types of manual georeferencing:</P>
+        <UL>
+            <LI><B>Four Point:</B> This method can be used when the lat/lon lines on the plate to
+                be georeferenced are vertical and horizontal, ie, no noticeable rotation or pinching
+                is present.  Two of the points must define latitudes and the other two must define
+                longitudes.
+                <UL>
+                    <LI>Place the two latitude points anywhere with the greatest separation of
+                        latitude values.  Likewise with longitude points.</LI>
+                </UL>
+            <LI><B>Eight Point:</B> This method must be used when the <B>Four Point</B> method can
+                not, ie, there is some rotation and/or pinching.  Four of the points must define
+                latitudes and the other four must define longitudes.
+                <UL>
+                    <LI>Place two points close to each of the four edges of the plate.  The points
+                        along any one edge should be separated as much as possible.
+                </UL>
+        </UL>
+        <H3> Entering a Point </H3>
+        <OL>
+            <LI>Open the georeference editing buttons by clicking the triangle button
+                <IMG SRC="eurogeoref-openbutton.png"> near the bottom of the screen.
+                A red triangle indicates that some more points are needed for georef
+                to be valid.  Green means there are enough points to georef the plate.
+                Gray means there is server-provided georeferencing for the plate, but
+                you can override it by entering manual georefencing information.</LI>
+            <LI>Click the arrow buttons to move the
+                magenta cursor lines to the georeference point to be entered.
+                Long hold press for large jumps; quick taps for small steps.<BR>
+                <IMG SRC="eurogeoref-cursorbuttons.png" WIDTH=128 HEIGHT=193></LI>
+            <LI>Use the <B>deg</B> <B>min</B> <B>sec</B> buttons to enter either a latitude or
+                longitude for the given point.  Use <B>FreeForm</B> to enter minute or second
+                values with the keyboard.</LI>
+            <LI>Click <B>SAVE</B> to write the point to flash storage.  A triangle will be placed
+                at the saved point with the saved numeric value.  If no triangle appears, make sure
+                that degrees, minutes and seconds have been entered.</LI>
+            <LI>Repeat until all 4 or 8 points have been entered.  The triangles will turn green
+                when a valid mapping has been entered.  You may get 4 green on the way to entering
+                8 points, but the mapping with the 4 is probably not correct and you should proceed
+                to enter a total of 8.
+        </OL>
+        <H3> Deleting a Point </H3>
+        <OL>
+            <LI>Use arrow buttons to move cursor somewhere on the triangle of the point to be
+                deleted.  The triangle should turn yellow.</LI>
+            <LI>Click the <B>DELETE</B> button.</LI>
+        </OL>
+        <H3> Contributing a Georeference </H3>
+        <P>Once you have completed a georeference and it shows the markers in green, you can
+            contribute the mapping for others to use by clicking the <B>CONTRIB</B> button.
+            Internet connectivity is required for this to work.  If you do not have connectivity
+            at the moment, you can contribute it later.</P>
+        <H3> 4 Point Example </H3>
+        <P>This example only needs 4 points because the latitude and longitude lines are horizontal
+            and vertical within a couple pixels.  It's easy to tell that they are vertical and
+            horizontal by placing the magenta cursor lines over the latitude and longitude lines.</P>
+        <P>There are 2 latitude markers along the left edge and 2 longitude markers along the
+            bottom edge.</P>
+        <IMG SRC="eurogeoref-4ptexample.png" WIDTH=300 HEIGHT=480>
+        <H3> 8 Point Example </H3>
+        <P>This example requires 8 points because the latitude and longitude lines are not horizontal
+            and vertical.  There are 2 markers along each of the 4 edges.  If only 4 points were given,
+            the aircraft placement wouldn't be correct when a distance away from the 4 given points.</P>
+        <IMG SRC="eurogeoref-8ptexample.png" WIDTH=300 HEIGHT=480>
+        <H3> 4 Point Aerodrome Example </H3>
+        <P>This example of using 4 points uses 4 runway ends to give a good spread of latitude and
+            longitude inputs.  The east/west runway gives a good spread of longitude, and the
+            north/south runway gives a good spread of latitude.</P>
+        <P>It is valid to use 4 points because the diagram is oriented East up, so the lines of
+            latitude and longitude are vertical and horizontal.  If the diagram were slightly
+            rotated, eg, 100&#176; up, 8 points would be needed.</P>
+        <IMG SRC="eurogeoref-4ptaeroex.png" WIDTH=300 HEIGHT=480>
+    </BODY>
+</HTML>

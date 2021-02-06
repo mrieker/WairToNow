@@ -58,7 +58,7 @@ import java.util.zip.ZipFile;
 /**
  * Contains one aeronautical chart, whether or not it is downloaded.
  */
-public abstract class AirChart implements DisplayableChart {
+public abstract class AirChart implements DisplayableChart, IExactMapper {
     private final static String TAG = "WairToNow";
     private final static boolean showtilenames = false;
 
@@ -128,8 +128,8 @@ public abstract class AirChart implements DisplayableChart {
 
     // methods a projection-specific implementation must provide
     protected abstract String ParseParams (String csvLine);
-    public abstract boolean LatLon2ChartPixelExact (double lat, double lon, @NonNull PointD p);
-    protected abstract void ChartPixel2LatLonExact (double x, double y, @NonNull LatLon ll);
+    public abstract void LatLon2ChartPixelExact (double lat, double lon, @NonNull PointD p);
+    public abstract void ChartPixel2LatLonExact (double x, double y, @NonNull LatLon ll);
 
     // instantiate based on what projection is required for the chart
     public static AirChart Factory (MaintView maintView, String csvLine)
@@ -1535,7 +1535,8 @@ public abstract class AirChart implements DisplayableChart {
          * It is within lat/lon limits, check pixel limits too.
          */
         PointD pt = ptPerThread.nnget ();
-        return LatLon2ChartPixelExact (lat, lon, pt) &&
+        LatLon2ChartPixelExact (lat, lon, pt);
+        return (pt.x >= 0) && (pt.x < chartwidth) && (pt.y >= 0) && (pt.y < chartheight) &&
                 TestPixelIsCharted (pt.x, pt.y);
     }
 
@@ -1594,21 +1595,11 @@ public abstract class AirChart implements DisplayableChart {
              * Set up LCC projection transform.
              */
             String[] values = csvLine.split (",", 15);
-            double centerLat = Double.parseDouble (values[0]);
-            double centerLon = Double.parseDouble (values[1]);
-            double stanPar1  = Double.parseDouble (values[2]);
-            double stanPar2  = Double.parseDouble (values[3]);
-            double rada      = Double.parseDouble (values[6]);
-            double radb      = Double.parseDouble (values[7]);
-            double[] tfws = new double[] {
-                Double.parseDouble (values[ 8]),
-                Double.parseDouble (values[ 9]),
-                Double.parseDouble (values[10]),
-                Double.parseDouble (values[11]),
-                Double.parseDouble (values[12]),
-                Double.parseDouble (values[13])
+            String[] csvs = new String[] {
+                    values[0], values[1], values[ 2], values[ 3], values[ 6], values[ 7],
+                    values[8], values[9], values[10], values[11], values[12], values[13]
             };
-            lcc = new Lambert (centerLat, centerLon, stanPar1, stanPar2, rada, radb, tfws);
+            lcc = new Lambert (csvs, 0);
 
             /*
              * Return common parameter portion of csvLine.
@@ -1632,13 +1623,11 @@ public abstract class AirChart implements DisplayableChart {
          * @param lat = latitude within the chart
          * @param lon = longitude within the chart
          * @param p   = where to return corresponding pixel
-         * @return p filled in
          */
         @Override  // AirChart
-        public boolean LatLon2ChartPixelExact (double lat, double lon, @NonNull PointD p)
+        public void LatLon2ChartPixelExact (double lat, double lon, @NonNull PointD p)
         {
             lcc.LatLon2ChartPixelExact (lat, lon, p);
-            return (p.x >= 0) && (p.x < chartwidth) && (p.y >= 0) && (p.y < chartheight);
         }
 
         /**
@@ -1649,7 +1638,7 @@ public abstract class AirChart implements DisplayableChart {
          * @param ll = where to return corresponding lat/lon
          */
         @Override  // AirChart
-        protected void ChartPixel2LatLonExact (double x, double y, @NonNull LatLon ll)
+        public void ChartPixel2LatLonExact (double x, double y, @NonNull LatLon ll)
         {
             lcc.ChartPixel2LatLonExact (x, y, ll);
         }
@@ -1734,7 +1723,7 @@ public abstract class AirChart implements DisplayableChart {
         { }
 
         @Override  // AirChart
-        public boolean LatLon2ChartPixelExact (double lat, double lon, @NonNull PointD p)
+        public void LatLon2ChartPixelExact (double lat, double lon, @NonNull PointD p)
         {
             double beta = Math.toRadians (90.0 - lat);
             double pixelsFromNorthPole  = Math.tan (beta / 2.0) * earthDiameterPixels;
@@ -1743,11 +1732,10 @@ public abstract class AirChart implements DisplayableChart {
             double y = pixelsFromNorthPole * Math.cos (angleCCWFromVertical) + northPoleY;
             p.x = x;
             p.y = y;
-            return (x >= 0) && (x < chartwidth) && (y >= 0) && (y < chartheight);
         }
 
         @Override  // AirChart
-        protected void ChartPixel2LatLonExact (double x, double y, @NonNull LatLon ll)
+        public void ChartPixel2LatLonExact (double x, double y, @NonNull LatLon ll)
         {
             double pixelsFromNorthPole = Math.hypot (x - northPoleX, y - northPoleY);
             double beta = Math.atan (pixelsFromNorthPole / earthDiameterPixels) * 2.0;
@@ -1811,7 +1799,7 @@ public abstract class AirChart implements DisplayableChart {
         { }
 
         @Override  // AirChart
-        public boolean LatLon2ChartPixelExact (double lat, double lon, @NonNull PointD p)
+        public void LatLon2ChartPixelExact (double lat, double lon, @NonNull PointD p)
         {
             while (lon < lonw - 180.0) lon += 360.0;
             while (lon > lonw + 180.0) lon -= 360.0;
@@ -1820,11 +1808,10 @@ public abstract class AirChart implements DisplayableChart {
             double y = (latn - lat) / (latn - lats) * chartheight;
             p.x = x;
             p.y = y;
-            return (x >= 0) && (x < chartwidth) && (y >= 0) && (y < chartheight);
         }
 
         @Override  // AirChart
-        protected void ChartPixel2LatLonExact (double x, double y, @NonNull LatLon ll)
+        public void ChartPixel2LatLonExact (double x, double y, @NonNull LatLon ll)
         {
             ll.lat = y * (lats - latn) / chartheight + latn;
             ll.lon = x * (lone - lonw) / chartwidth  + lonw;
@@ -1903,15 +1890,14 @@ public abstract class AirChart implements DisplayableChart {
         }
 
         @Override  // AirChart
-        public boolean LatLon2ChartPixelExact (double lat, double lon, @NonNull PointD p)
+        public void LatLon2ChartPixelExact (double lat, double lon, @NonNull PointD p)
         {
             p.x = lon2TileX (lon) - leftedgepix;
             p.y = lat2TileY (lat) - topedgepix;
-            return (p.x >= 0) && (p.x < chartwidth) && (p.y >= 0) && (p.y < chartheight);
         }
 
         @Override  // AirChart
-        protected void ChartPixel2LatLonExact (double x, double y, @NonNull LatLon ll)
+        public void ChartPixel2LatLonExact (double x, double y, @NonNull LatLon ll)
         {
             ll.lat = tileY2Lat (y + topedgepix);
             ll.lon = tileX2Lon (x + leftedgepix);

@@ -7,6 +7,7 @@
 #  $5 = chart code
 #  $6 = chart name
 #  $7 = pdf name
+#  $8 = output dir
 #
 ##echo = = = = = = = = = =
 ##set -x
@@ -17,6 +18,7 @@ icaoid=$4                               ## KBVY
 chartcode=$5                            ## ALT
 chartname=$6                            ## ALTERNATE MINIMUMS
 pdfbase=$7                              ## 00026POUNC.PDF
+dirout=$8                               ## datums/aptplates_20190103
 pdfsplit=${pdfbase:0:3}/${pdfbase:3}    ## 000/26POUNC.PDF
 
 ##echo "streamid=[$streamid] statecode=[$statecode] faaid=[$faaid] icaoid=[$icaoid] chartcode=[$chartcode] chartname=[$chartname] pdfbase=[$pdfbase]"
@@ -60,18 +62,15 @@ function convertpngtemptogifperm
 # Start of script
 
 set -e
-airac=`./cureffdate -28 airac`          ## 1813
-aixd=`./cureffdate -28 -x yyyymmdd`     ## 20190103
-expdate=`./cureffdate -28 -x yyyymmdd`  ## 20190103
-if [ "$expdate" == "" ]
+if [ "$dirout" == "" ]
 then
-    exit
+    echo missing dirout
+    exit 1
 fi
 
-dir=datums/aptplates_$expdate       ## datums/aptplates_20190103
-pdfdir=$dir/pdftemp                 ## datums/aptplates_20190103/pdftemp
-pngdir=$dir/pngtemp                 ## datums/aptplates_20190103/pngtemp
-gifdir=$dir/gif_150                 ## datums/aptplates_20190103/gif_150
+pdfdir=$dirout/pdftemp              ## datums/aptplates_20190103/pdftemp
+pngdir=$dirout/pngtemp              ## datums/aptplates_20190103/pngtemp
+gifdir=$dirout/gif_150              ## datums/aptplates_20190103/gif_150
 
 case $chartcode in
 
@@ -144,7 +143,7 @@ case $chartcode in
             ## Maybe we already have the corresponding GIF file(s)
             ## If not, convert from the PNG file(s)
             gifname=${pdfsplit/[.]PDF/.gif}
-            gifperm=$dir/gif_150/$gifname
+            gifperm=$dirout/gif_150/$gifname
             if [ ! -f $gifperm.p1 ]
             then
                 mkdir -p `dirname $gifperm`

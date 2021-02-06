@@ -38,8 +38,10 @@
 //                  datums/oa_<expdate>/airports.hxl
 //                  datums/oa_<expdate>/navaids.csv
 //                  datums/oa_<expdate>/runways.csv
+//                  datums/statezips_<expdate>/EUR-<eurocontrolstatecode>.zip/aptplates2.csv
 //           2 : openflightmap.org files
 //                  datums/ofmwaypts_<expdate>.xml.gz
+//                  datums/statezips_<expdate>/EUR-<eurocontrolstatecode>.zip/aptplates2.csv
 
 // testing openflightmaps:
 //  php downloadofmtiles.php  # to create datums/ofmwaypts_20201231.xml.gz
@@ -157,6 +159,9 @@ public class Airport : Waypoint {
                 }
                 dbcmd1.Parameters.Add (new SqliteParameter ("@apt_desc2"   , sb.ToString ().Trim ()));
             } else {
+                if ((MakeWaypoints.eurostates != null) && MakeWaypoints.eurostates.ContainsKey (ident)) {
+                    apt_state = MakeWaypoints.eurostates[ident];
+                }
                 dbcmd1.CommandText = "INSERT INTO airports (apt_icaoid,apt_faaid,apt_elev,apt_name,apt_lat,apt_lon,apt_desc,apt_state,apt_faciluse,apt_metaf,apt_tzname) " +
                         "VALUES (@apt_icaoid,@apt_faaid,@apt_elev,@apt_name,@apt_lat,@apt_lon,@apt_desc,@apt_state,@apt_faciluse,@apt_metaf,@apt_tzname); " +
                         "SELECT last_insert_rowid ()";
@@ -668,6 +673,7 @@ public class MakeWaypoints {
     public static bool debug;
     public static int infmt;
     public static Dictionary<string,LinkedList<Waypoint>> waypointss = new Dictionary<string,LinkedList<Waypoint>> ();
+    public static Dictionary<string,string> eurostates = new Dictionary<string,string> ();
     public static string dbname;
     public static string expdate;
 
@@ -977,6 +983,8 @@ public class MakeWaypoints {
         StreamReader csvrdr;
         string csv;
 
+        ReadEuroPlateCsvs ();
+
         DoCommand (dbcon, "BEGIN;");
 
         /*
@@ -1247,6 +1255,8 @@ public class MakeWaypoints {
         OFM_AptFreq aptfreq = null;
         OFM_RwyPair rwypair = null;
         OFM_Runway  runway  = null;
+
+        ReadEuroPlateCsvs ();
 
         // read table that translates 2-letter and 4-letter region code to country name
 
@@ -1897,5 +1907,30 @@ public class MakeWaypoints {
     {
         intlmetafsdbcon.Close ();
         intlmetafsdbcon = null;
+    }
+
+    // for all airports what have plates from eurocontrol,
+    // make sure their state code is EUR-<eurocontrolstatecode>.
+    // sets up eurostates[icaoid] = EUR-<eurocontrolstatecode>
+    //  ...to match datums/statezips_<expdate>/EUR-<eurocontrolstatecode>.zip
+    public static void ReadEuroPlateCsvs ()
+    {
+        string[] zipfiles = Directory.GetFiles ("datums/statezips_" + expdate);
+        foreach (string zipfile in zipfiles) {
+            int i = zipfile.LastIndexOf ('/');
+            string zipname = zipfile.Substring (++ i);
+            if (zipname.StartsWith ("EUR-") && zipname.EndsWith (".zip")) {
+                string ccode = zipname.Substring (0, zipname.Length - 4);
+                ZipArchive ziparch = ZipFile.OpenRead (zipfile);
+                ZipArchiveEntry zipentry = ziparch.GetEntry ("aptplates2.csv");
+                StreamReader rdr = new StreamReader (zipentry.Open ());
+                for (String line; (line = rdr.ReadLine ()) != null;) {
+                    int j = line.IndexOf (',');
+                    string icaoid = line.Substring (0, j);
+                    eurostates[icaoid] = ccode;
+                }
+                rdr.Close ();
+            }
+        }
     }
 }

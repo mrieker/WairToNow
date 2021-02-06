@@ -45,6 +45,9 @@
             (eg, <TT>BOSOX</TT>), and runway thresholds given by <TT>RW<I>number</I></TT>
             (eg, <TT>RW04R</TT>).  You can enter them in upper or lower case, it doesn't
             matter.</P>
+        <P>You can also enter the ident of a <A HREF="p_userwp.html">User Waypoint</A>
+            that you have manually entered.  This is useful for European plates that have
+            depicted waypoints that are not in any of the databases.</P>
         <P>There are also 3 checkboxes provided for each waypoint selected:</P>
         <UL>
             <LI><B>D</B> - display distance information, always in nautical miles
@@ -162,6 +165,7 @@
         <P><IMG WIDTH=400 HEIGHT=640 SRC="cifp-sample-400.png"></P>
 
         <A NAME="georefing"></A><H3>Georeferencing</H3>
+        <H4>FAA Plates</H4>
         <P><IMG WIDTH=128 HEIGHT=128 SRC="iap_rwy_verify_example.png" ALIGN=LEFT>
             The FAA is providing georeference information for most approach procedures.
             WairToNow will attempt to use this information where available to do things like
@@ -177,6 +181,11 @@
             used for the approach would be off the plate if drawn to scale.  Such a condition is
             <I>usually</I> indicated on the plate but sometimes is not.  <I>ALWAYS use your
             aircraft's approved navigation systems to verify your position!</I></P>
+        <H4>Eurocontrol Plates</H4>
+        <P><A HREF="eurogeoref_auto.html">Some</A> of the Eurocontrol plates have georeferencing,
+            but so far, most do not.  However,
+            you can manually provide georeference information <A HREF="eurogeoref.html">using
+            this procedure</A>, or the plate can be used without georeferencing.</P>
 
         <A NAME="circling"></A><H3>Circling</H3>
         <P><IMG WIDTH=160 HEIGHT=160 SRC="circle_A.png" ALIGN=LEFT>

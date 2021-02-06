@@ -80,7 +80,7 @@ public abstract class GRPlateImage extends PlateImage implements ExactMapper {
      * Draw airplane icon showing current location on plate.
      * Also draw collision circles.
      */
-    protected boolean DrawLocationArrow (Canvas canvas, boolean isAptDgm)
+    protected boolean DrawLocationArrow (Canvas canvas, double canTrueUpRads, boolean isAptDgm)
     {
         if (!LatLon2BitmapOK ()) return false;
 
@@ -91,7 +91,7 @@ public abstract class GRPlateImage extends PlateImage implements ExactMapper {
             double bitmapY = LatLon2BitmapY (wairToNow.currentGPSLat, wairToNow.currentGPSLon);
             canPoint.x = BitmapX2CanvasX (bitmapX);
             canPoint.y = BitmapY2CanvasY (bitmapY);
-            wairToNow.DrawLocationArrow (canvas, canPoint, 0.0, 0.50F);
+            wairToNow.DrawLocationArrow (canvas, canPoint, canTrueUpRads, 0.50F);
         }
         return true;
     }

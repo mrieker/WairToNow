@@ -22,20 +22,31 @@ package com.outerworldapps.wairtonow;
 
 import android.annotation.SuppressLint;
 import android.app.AlarmManager;
+import android.app.AlertDialog;
 import android.app.PendingIntent;
+import android.content.ContentValues;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
+import android.database.Cursor;
+import android.text.InputType;
+import android.text.method.HideReturnsTransformationMethod;
+import android.text.method.PasswordTransformationMethod;
 import android.util.Log;
 import android.util.TypedValue;
 import android.view.View;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
+import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.CompoundButton;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.ScrollView;
+import android.widget.TableLayout;
+import android.widget.TableRow;
 import android.widget.TextView;
 
 import java.io.BufferedReader;
@@ -44,10 +55,14 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLEncoder;
 import java.util.Locale;
 
 /**
- * Display a menu to download database and charts.
+ * Display a page of selectable options.
  */
 @SuppressLint("ViewConstructor")
 public class OptionsView
@@ -93,6 +108,7 @@ public class OptionsView
     public  IntOption    latLonOption;
     public  IntOption    tfrFilterOption;
 
+    private TableLayout mangeoreftable;
     private WairToNow wairToNow;
 
     private final static int LLO_DDMMMM = 0;
@@ -218,6 +234,8 @@ public class OptionsView
                 new int[] { 0, 1, 2, 3, 4, -1 }
         );
 
+        mangeoreftable = new TableLayout (wairToNow);
+
         LinearLayout ll1 = new LinearLayout (ctx);
         ll1.setOrientation (LinearLayout.VERTICAL);
 
@@ -247,6 +265,7 @@ public class OptionsView
         ll1.addView (ktsMphOption);
         ll1.addView (gpsUpdateOption);
         ll1.addView (circCatOption);
+        ll1.addView (mangeoreftable);
 
         LayoutParams llp = new LayoutParams (LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
         ScrollView sv1 = new ScrollView (ctx);
@@ -486,6 +505,7 @@ public class OptionsView
     {
         dbOAOption.warning.setVisibility (GONE);
         dbOFMOption.warning.setVisibility (GONE);
+        buildManGeoRefTable ();
     }
 
     @Override  // CanBeMainView
@@ -505,6 +525,367 @@ public class OptionsView
     @Override  // WairToNow.CanBeMainView
     public void ReClicked ()
     { }
+
+    /**
+     * Build the manual georeference contribution registration table for display.
+     */
+    @SuppressLint("SetTextI18n")
+    private void buildManGeoRefTable ()
+    {
+        mangeoreftable.removeAllViews ();
+        SQLiteDBs sqldb = SQLiteDBs.open ("manualiapgeorefs.db");
+        if (sqldb != null) {
+            Cursor result = sqldb.query ("register", new String[] { "mr_username", "mr_password", "mr_emailaddr"}, null, null, null, null, null, null);
+            try {
+                if (result.moveToFirst ()) {
+                    String unold = result.getString (0);
+                    String pwold = result.getString (1);
+                    String emold = result.getString (2);
+
+                    TextView hdglbl  = new TextView (wairToNow);
+                    wairToNow.SetTextSize (hdglbl);
+                    hdglbl.setText ("Manual GeoRef Contribution");
+
+                    TextView unlabel = new TextView (wairToNow);
+                    wairToNow.SetTextSize (unlabel);
+                    unlabel.setText ("   Username:");
+
+                    TextView pwlabel = new TextView (wairToNow);
+                    wairToNow.SetTextSize (pwlabel);
+                    pwlabel.setText ("   Password:");
+
+                    TextView emlabel = new TextView (wairToNow);
+                    wairToNow.SetTextSize (emlabel);
+                    emlabel.setText ("   Email Addr:");
+
+                    final EditText pwvalue = new EditText (wairToNow);
+                    final EditText emvalue = new EditText (wairToNow);
+                    pwvalue.setSingleLine ();
+                    emvalue.setSingleLine ();
+                    pwvalue.setEms (10);
+                    emvalue.setEms (10);
+                    pwvalue.setInputType (InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+                    emvalue.setInputType (InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
+                    wairToNow.SetTextSize (pwvalue);
+                    wairToNow.SetTextSize (emvalue);
+
+                    CheckBox pwvisib = new CheckBox (wairToNow);
+                    wairToNow.SetTextSize (pwvisib);
+                    pwvisib.setText ("show");
+                    pwvisib.setOnCheckedChangeListener (new CompoundButton.OnCheckedChangeListener () {
+                        @Override
+                        public void onCheckedChanged (CompoundButton compoundButton, boolean b)
+                        {
+                            pwvalue.setTransformationMethod (b ?
+                                    HideReturnsTransformationMethod.getInstance () :
+                                    PasswordTransformationMethod.getInstance ());
+                        }
+                    });
+
+                    TableRow unrow = new TableRow (wairToNow);
+                    TableRow pwrow = new TableRow (wairToNow);
+                    TableRow emrow = new TableRow (wairToNow);
+                    mangeoreftable.addView (hdglbl);
+                    mangeoreftable.addView (unrow);
+                    mangeoreftable.addView (pwrow);
+                    mangeoreftable.addView (emrow);
+
+                    unrow.addView (unlabel);
+                    pwrow.addView (pwlabel);
+                    emrow.addView (emlabel);
+
+                    if (unold.equals ("")) {
+                        // register new username, password, email address
+                        final EditText unvalue = new EditText (wairToNow);
+                        Button rgbuttn = new Button (wairToNow);
+                        unvalue.setSingleLine ();
+                        unvalue.setEms (10);
+                        unvalue.setInputType (InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+                        wairToNow.SetTextSize (unvalue);
+                        wairToNow.SetTextSize (rgbuttn);
+                        rgbuttn.setText ("REGISTER");
+                        unrow.addView (unvalue);
+                        unrow.addView (rgbuttn);
+                        pwrow.addView (pwvalue);
+                        pwrow.addView (pwvisib);
+                        emrow.addView (emvalue);
+                        rgbuttn.setOnClickListener (new OnClickListener () {
+                            @Override
+                            public void onClick (View view)
+                            {
+                                rgbuttonClicked (unvalue, pwvalue, emvalue);
+                            }
+                        });
+                    } else {
+                        // modify password or email address
+                        TextView unvalue = new TextView (wairToNow);
+                        Button   clbuttn = new Button (wairToNow);
+                        Button   prbuttn = new Button (wairToNow);
+                        Button   pwbuttn = new Button (wairToNow);
+                        Button   embuttn = new Button (wairToNow);
+                        wairToNow.SetTextSize (unvalue);
+                        wairToNow.SetTextSize (clbuttn);
+                        wairToNow.SetTextSize (prbuttn);
+                        wairToNow.SetTextSize (pwbuttn);
+                        wairToNow.SetTextSize (embuttn);
+                        unvalue.setText (unold);
+                        pwvalue.setText (pwold);
+                        emvalue.setText (emold);
+                        clbuttn.setText ("CLEAR");
+                        prbuttn.setText ("PW RESET");
+                        pwbuttn.setText ("SAVE");
+                        embuttn.setText ("SAVE");
+                        unrow.addView (unvalue);
+                        unrow.addView (clbuttn);
+                        unrow.addView (prbuttn);
+                        pwrow.addView (pwvalue);
+                        pwrow.addView (pwbuttn);
+                        pwrow.addView (pwvisib);
+                        emrow.addView (emvalue);
+                        emrow.addView (embuttn);
+                        clbuttn.setOnClickListener (new OnClickListener () {
+                            @Override
+                            public void onClick (View view)
+                            {
+                                clbuttonClicked ();
+                            }
+                        });
+                        prbuttn.setOnClickListener (new OnClickListener () {
+                            @Override
+                            public void onClick (View view)
+                            {
+                                prbuttonClicked ();
+                            }
+                        });
+                        pwbuttn.setOnClickListener (new OnClickListener () {
+                            @Override
+                            public void onClick (View view) {
+                                pwbuttonClicked (pwvalue);
+                            }
+                        });
+                        embuttn.setOnClickListener (new OnClickListener () {
+                            @Override
+                            public void onClick (View view) {
+                                embuttonClicked (emvalue);
+                            }
+                        });
+                    }
+                }
+            } finally {
+                result.close ();
+            }
+        }
+    }
+
+    /**
+     * REGISTER contribution user button clicked.
+     */
+    private void rgbuttonClicked (EditText unvalue, EditText pwvalue, EditText emvalue)
+    {
+        String username  = unvalue.getText ().toString ().trim ();
+        String password  = pwvalue.getText ().toString ().trim ();
+        String emailaddr = emvalue.getText ().toString ().trim ();
+        if (username.equals ("") || password.equals ("") || emailaddr.equals ("")) {
+            alertMessage ("Fill in username, password and email address");
+        } else {
+            RegisterContributionUser rcu = new RegisterContributionUser (wairToNow) {
+                @Override
+                public void reprompt ()
+                { }
+                @Override
+                public void success ()
+                {
+                    buildManGeoRefTable ();
+                }
+            };
+            rcu.username  = username;
+            rcu.password  = password;
+            rcu.emailaddr = emailaddr;
+            rcu.start ();
+        }
+    }
+
+    /**
+     * CLEAR contribution user button clicked.
+     * Clear the database registration.
+     */
+    private void clbuttonClicked ()
+    {
+        AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
+        adb.setTitle ("Clear Contribution Registration");
+        adb.setMessage ("This will clear your registration.  You can re-register with a " +
+                "different username or re-register with the same username and password.");
+        adb.setPositiveButton ("OK", new DialogInterface.OnClickListener () {
+            @Override
+            public void onClick (DialogInterface dialogInterface, int i)
+            {
+                SQLiteDBs sqldb = SQLiteDBs.open ("manualiapgeorefs.db");
+                if (sqldb != null) {
+                    RegisterContributionUser.createRegisterTable (sqldb, "", "", "");
+                    buildManGeoRefTable ();
+                }
+            }
+        });
+        adb.setNegativeButton ("Cancel", null);
+        adb.show ();
+    }
+
+    /**
+     * PW RESET contribution password button clicked.
+     * Tell server to send an email with a link to reset the password.
+     */
+    private void prbuttonClicked ()
+    {
+        new Thread () {
+            @Override
+            public void run ()
+            {
+                SQLiteDBs sqldb = SQLiteDBs.open ("manualiapgeorefs.db");
+                if (sqldb != null) {
+                    Cursor result = sqldb.query ("register", new String[] { "mr_username" }, null, null, null, null, null, null);
+                    try {
+                        if (result.moveToFirst ()) {
+                            String username = result.getString (0);
+                            try {
+                                oneLineHttpReplyOK ("/manualgeoref.php?func=pwreset&username=" + URLEncoder.encode (username));
+                                alertMessage ("password reset email sent - check email (including spam folder) then click link therein");
+                            } catch (Exception e) {
+                                alertMessage ("error resetting password: " + e.getMessage ());
+                            }
+                        }
+                    } finally {
+                        result.close ();
+                    }
+                }
+                SQLiteDBs.CloseAll ();
+            }
+        }.start ();
+    }
+
+    /**
+     * SAVE contribution password button clicked.
+     * Send it to server.  If server says OK, save it to database.
+     */
+    private void pwbuttonClicked (EditText pwvalue)
+    {
+        final String pwnew = pwvalue.getText ().toString ().trim ();
+        pwvalue.setText (pwnew);
+        new Thread () {
+            @Override
+            public void run ()
+            {
+                SQLiteDBs sqldb = SQLiteDBs.open ("manualiapgeorefs.db");
+                if (sqldb != null) {
+                    Cursor result = sqldb.query ("register", new String[] { "mr_username", "mr_password" }, null, null, null, null, null, null);
+                    try {
+                        if (result.moveToFirst ()) {
+                            String unold = result.getString (0);
+                            String pwold = result.getString (1);
+                            try {
+                                oneLineHttpReplyOK ("/manualgeoref.php?func=modpass" +
+                                        "&username=" + URLEncoder.encode (unold) +
+                                        "&oldpw=" + URLEncoder.encode (pwold) +
+                                        "&newpw=" + URLEncoder.encode (pwnew));
+                                ContentValues values = new ContentValues (1);
+                                values.put ("mr_password", pwnew);
+                                sqldb.update ("register", values, null, null);
+                                alertMessage ("password updated");
+                            } catch (Exception e) {
+                                Log.w (TAG, "error updating contribution password", e);
+                                alertMessage ("error updating password: " + e.getMessage ());
+                            }
+                        }
+                    } finally {
+                        result.close ();
+                    }
+                }
+                SQLiteDBs.CloseAll ();
+            }
+        }.start ();
+    }
+
+    /**
+     * SAVE contribution email button clicked.
+     * Send it to server.  If server says OK, save it to database.
+     */
+    private void embuttonClicked (EditText emvalue)
+    {
+        final String emnew = emvalue.getText ().toString ().trim ();
+        emvalue.setText (emnew);
+        new Thread () {
+            @Override
+            public void run ()
+            {
+                SQLiteDBs sqldb = SQLiteDBs.open ("manualiapgeorefs.db");
+                if (sqldb != null) {
+                    Cursor result = sqldb.query ("register", new String[] { "mr_username", "mr_password" }, null, null, null, null, null, null);
+                    try {
+                        if (result.moveToFirst ()) {
+                            String unold = result.getString (0);
+                            String pwold = result.getString (1);
+                            try {
+                                oneLineHttpReplyOK ("/manualgeoref.php?func=modemail" +
+                                        "&username="  + URLEncoder.encode (unold) +
+                                        "&password="  + URLEncoder.encode (pwold) +
+                                        "&emailaddr=" + URLEncoder.encode (emnew));
+                                ContentValues values = new ContentValues (1);
+                                values.put ("mr_emailaddr", emnew);
+                                sqldb.update ("register", values, null, null);
+                                alertMessage ("email address updated - check email (including spam folder) for confirmation");
+                            } catch (Exception e) {
+                                Log.w (TAG, "error updating contribution emailaddr", e);
+                                alertMessage ("error updating email address: " + e.getMessage ());
+                            }
+                        }
+                    } finally {
+                        result.close ();
+                    }
+                }
+                SQLiteDBs.CloseAll ();
+            }
+        }.start ();
+    }
+
+    /**
+     * Send the given URL string to the server.
+     * The server should send a one-line reply of 'OK'
+     */
+    private static void oneLineHttpReplyOK (String urlstr)
+            throws Exception
+    {
+        URL url = new URL (MaintView.dldir + urlstr);
+        HttpURLConnection httpcon = (HttpURLConnection) url.openConnection ();
+        try {
+            int rc = httpcon.getResponseCode ();
+            if (rc != HttpURLConnection.HTTP_OK) throw new IOException ("http reply code " + rc);
+            BufferedReader br = new BufferedReader (new InputStreamReader (httpcon.getInputStream ()));
+            String line = br.readLine ();
+            if (line == null) throw new IOException ("server reply empty");
+            line = line.trim ();
+            if (line.equals ("")) throw new IOException ("server reply empty");
+            if (! line.equals ("OK")) throw new IOException (line);
+        } finally {
+            httpcon.disconnect ();
+        }
+    }
+
+    /**
+     * Display the given message in an alert dialog.
+     * Can be called from any thread.
+     */
+    private void alertMessage (final String msg)
+    {
+        wairToNow.runOnUiThread (new Runnable () {
+            @Override
+            public void run ()
+            {
+                AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
+                adb.setMessage (msg);
+                adb.setPositiveButton ("OK", null);
+                adb.show ();
+            }
+        });
+    }
 
     /**
      * Present a checkbox selection of an option.

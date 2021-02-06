@@ -28,4 +28,8 @@ then
     processchart $1
 else
     find charts -maxdepth 1 -name \*.csv -print0 | xargs -0 -n 1 -P 8 -r ./makewtnzipfiles.sh
+    rm -f charts/*.htm
+    rm -f charts/*.tfw
+    rm -f charts/*.tif
+    find charts -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} \;
 fi

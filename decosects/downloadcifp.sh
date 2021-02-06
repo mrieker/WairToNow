@@ -21,8 +21,14 @@ if [ ! -f datums/iapcifps_$cycles28.gz ]
 then
     effyyyymmdd=`./cureffdate -28 yyyymmdd`
     effyymmdd=${effyyyymmdd:2}
-    wget -nv --no-check-certificate https://www.aeronav.faa.gov/Upload_313-d/cifp/cifp_$effyymmdd.zip -O datums/iapcifps_$cycles28.zip
-    unzip -p datums/iapcifps_$cycles28.zip 'FAACIFP18' | gzip -c > datums/iapcifps_$cycles28.gz.tmp
+    if [ ! -f datums/iapcifps_$cycles28.zip ]
+    then
+        rm -f datums/iapcifps_$cycles28.zip.tmp
+        wget -nv --no-check-certificate https://www.aeronav.faa.gov/Upload_313-d/cifp/cifp_$effyymmdd.zip -O datums/iapcifps_$cycles28.zip.tmp
+        mv datums/iapcifps_$cycles28.zip.tmp datums/iapcifps_$cycles28.zip
+    fi
+    rm -f datums/iapcifps_$cycles28.gz.tmp
+    unzip -p datums/iapcifps_$cycles28.zip FAACIFP18_$airac28.ari | gzip -c > datums/iapcifps_$cycles28.gz.tmp
     if [ `stat -c %s datums/iapcifps_$cycles28.gz.tmp` -lt 100000 ]
     then
         echo error downloading cifp file

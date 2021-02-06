@@ -1,0 +1,48 @@
+<HTML>
+    <HEAD>
+        <SCRIPT LANGUAGE=JAVASCRIPT>
+            var ar_airports;
+            function openautorow (apti)
+            {
+                var html = '';
+                var airport = ar_airports[apti];
+                airport.opened = ! airport.opened;
+                if (airport.opened) {
+                    var plates = airport.plates;
+                    for (var plti = 0; plti < plates.length; plti ++) {
+                        if (plti > 0) html += '<BR>';
+                        html += plates[plti].id;
+                    }
+                    html += '</UL>';
+                } else {
+                    html = '(' + airport.plates.length + ')';
+                }
+                var td = document.getElementById ('ar_' + apti);
+                td.innerHTML = html;
+            }
+        </SCRIPT>
+    </HEAD>
+    <BODY>
+        <H3> Plates Automatically Georeferenced By Server </H3>
+        <P>Plates for the country of interest must be downloaded in <B>Europe Plates</B> on <B>Maint</B> page to show up here.</P>
+        <SCRIPT LANGUAGE=JAVASCRIPT>
+
+            // get json string for the category being displayed
+            var jsontxt = hvjso.getManualGeoRefs ('auto');
+            //document.write ('<P>' + jsontxt + '</P>\n');
+            var jsonobj = JSON.parse (jsontxt);
+            //document.write ('<P> parsed </P>');
+
+            ar_airports = jsonobj.airports;
+            document.write ('<TABLE><TH WIDTH=1%>ICAOID</TH><TH WIDTH=99%>Plate</TH></TR>');
+            for (var i = 0; i < ar_airports.length; i ++) {
+                var airport = ar_airports[i];
+                airport.opened = false;
+                document.write ('<TR><TH VALIGN=TOP><A HREF="javascript:openautorow(' + i + ')">' +
+                        airport.icaoid + '</A></TH><TD ID=ar_' + i + ' VALIGN=TOP>(' +
+                        airport.plates.length + ')</TD></TR>');
+            }
+            document.write ('</TABLE>');
+        </SCRIPT>
+    </BODY>
+</HTML>

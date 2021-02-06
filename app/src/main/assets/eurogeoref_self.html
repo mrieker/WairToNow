@@ -1,0 +1,30 @@
+<HTML>
+    <BODY>
+        <H3> Plate Georefencing Saved On Local Device </H3>
+        <SCRIPT LANGUAGE=JAVASCRIPT>
+
+            // get json string for the category being displayed
+            var jsontxt = hvjso.getManualGeoRefs ('self');
+            //document.write ('<P>' + jsontxt + '</P>\n');
+            var jsonobj = JSON.parse (jsontxt);
+            //document.write ('<P> parsed </P>');
+
+            document.write ('<TABLE><TH>ICAOID</TH><TH>Plate</TH><TH>EffDate</TH><TH>Contributions</TH></TR>');
+            var plates = jsonobj.plates;
+            for (var i = 0; i < plates.length; i ++) {
+                var plate = plates[i];
+                document.write ('<TR><TD>' + plate.icaoid + '</TD><TD>' + plate.plate + '</TD><TD>' + plate.effdate + '</TD><TD>');
+                if ('contribs' in plate) {
+                    var contribs = plate.contribs;
+                    for (var j = 0; j < contribs.length; j ++) {
+                        var contrib = contribs[j];
+                        if (j < 0) document.write ('<BR>');
+                        document.write (contrib.entdate + '&nbsp;' + contrib.username);
+                    }
+                }
+                document.write ('</TD></TR>');
+            }
+            document.write ('</TABLE>');
+        </SCRIPT>
+    </BODY>
+</HTML>

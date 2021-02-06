@@ -26,7 +26,6 @@ import android.graphics.Canvas;
 import android.graphics.RectF;
 import android.util.Log;
 
-import java.io.IOException;
 import java.util.Enumeration;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -67,8 +66,8 @@ public class NGRPlateImage extends PlateImage {
                     if (numPages < p) numPages = p;
                 }
             }
-        } catch (IOException ioe) {
-            Log.w (TAG, "error scanning state " + airport.state + " zip file", ioe);
+        } catch (Exception e) {
+            Log.w (TAG, "error scanning state " + airport.state + " zip file", e);
         }
         bitmaps = new Bitmap[numPages];
     }
@@ -100,6 +99,8 @@ public class NGRPlateImage extends PlateImage {
     @Override  // View
     public void onDraw (Canvas canvas)
     {
+        if (numPages == 0) return;
+
         /*
          * Get single page's bitmap size.
          * Assume all pages are same size.

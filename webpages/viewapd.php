@@ -52,7 +52,10 @@
                 if (($markdtime < $cleantime) || ($markdtime < $exetime)) {
                     $rwyname = "$mydir/datums/runways_$cycles28.csv";
                     $csvname = "$mydir/apdreview/$icaoid.csv";
-                    $cvtfile = popen ("cd ../decosects ; umask 0002 ; mono --debug ReadArptDgmPng.exe $cleanname -faaid $faaid -runways $rwyname -markedpng $markdname -csvoutfile $csvname -csvoutid $icaoid 2>&1", "r");
+                    $cmdline = "cd ../decosects ; umask 0002 ; mono --debug ReadArptDgmPng.exe $cleanname " .
+                                        "-faaid $faaid -runways $rwyname -markedpng $markdname " .
+                                        "-csvoutfile $csvname -csvoutid $icaoid 2>&1";
+                    $cvtfile = popen ($cmdline, "r");
                     if (!$cvtfile) {
                         echo "<P>error starting ReadArptDgmPng.exe</P>\n";
                     } else {

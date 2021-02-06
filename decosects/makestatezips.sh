@@ -83,15 +83,20 @@ mydir=`pwd`
 datums=$mydir/datums
 
 set -e
-cycles28=`./cureffdate -28 -x yyyymmdd`
-zipdir=$datums/statezips_$cycles28
-
 if [ "$1" != "" ]
 then
-    statecsv=$1
+    cycles28=$1
+else
+    cycles28=`./cureffdate -28 -x yyyymmdd`
+fi
+zipdir=$datums/statezips_$cycles28
+
+if [ "$2" != "" ]
+then
+    statecsv=$2
     processastate ${statecsv%.csv}
 else
     mkdir -p $zipdir
     cd $datums/aptplates_$cycles28/state
-    ls *.csv | xargs -n 1 -P 8 -r $mydir/makestatezips.sh
+    ls *.csv | xargs -n 1 -P 8 -r $mydir/makestatezips.sh $cycles28
 fi

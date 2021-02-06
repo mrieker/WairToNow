@@ -98,6 +98,11 @@
                     $a[] = $w[0];
                 }
                 fclose ($f);
+                $f = fopen ("../app/src/main/assets/eurocodes.txt", "r");
+                while ($l = fgets ($f)) {
+                    $w = explode (" ", trim ($l));
+                    $a[] = "EUR-" . $w[0];
+                }
                 sort ($a);
                 return $a;
             }

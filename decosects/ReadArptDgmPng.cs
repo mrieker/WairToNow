@@ -434,6 +434,7 @@ public class ReadArptDgmPng {
         badStrings["KABY:31^32.0'"]   = "31^32.0'N";
         badStrings["KACK:1^15.0'N"]   = "41^15.0'N";
         badStrings["KATL:33^39'"]     = "33^39'N";
+        badStrings["KASE:106^51.30'W"] = "106^51.50'W";
         badStrings["KAVL:86^32.0'W"]  = "82^32.0'W";
         badStrings["KAVP:41^20.0\"N"] = "41^20.0'N";
         badStrings["KAVP:41^20.5\"N"] = "41^20.5'N";
@@ -482,7 +483,6 @@ public class ReadArptDgmPng {
         badStrings["KMCO:8^25'N"]     = "28^25'N";
         badStrings["KMDW:1^46.5'N"]   = "41^46.5'N";
         badStrings["KMIA:47'N"]       = "25^47'N";
-        badStrings["KMSY:90^16'W"]    = "90^17'W";
         badStrings["KNSI:33'^14'N"]   = "33^14'N";
         badStrings["KNSI:33^1S"]      = "33^15'N";
         badStrings["KOGS:75^27'N"]    = "75^27'W";
@@ -2559,25 +2559,25 @@ public class ReadArptDgmPng {
                     }
                 }
 
-                // maybe draw line between waypoints
-                if ((pointa != null) && (pointb != null) && (wayptdb != null)) {
-                    FindWaypoints.Waypoint waypta = FindWaypoints.FindOne (wayptdb, pointa);
-                    FindWaypoints.Waypoint wayptb = FindWaypoints.FindOne (wayptdb, pointb);
-
-                    double lat1 = waypta.lat;
-                    double lon1 = waypta.lon;
-                    double lat2 = wayptb.lat;
-                    double lon2 = wayptb.lon;
-
-                    int x1 = (int)(wftA * lon1 + wftC * lat1 + wftE + 0.5);
-                    int y1 = (int)(wftB * lon1 + wftD * lat1 + wftF + 0.5);
-                    int x2 = (int)(wftA * lon2 + wftC * lat2 + wftE + 0.5);
-                    int y2 = (int)(wftB * lon2 + wftD * lat2 + wftF + 0.5);
-
-                    DrawLine (x1, y1, x2, y2, 2, Color.Blue);
-                }
-
                 file.Close ();
+            }
+
+            // maybe draw line between waypoints
+            if ((pointa != null) && (pointb != null) && (wayptdb != null)) {
+                FindWaypoints.Waypoint waypta = FindWaypoints.FindOne (wayptdb, pointa);
+                FindWaypoints.Waypoint wayptb = FindWaypoints.FindOne (wayptdb, pointb);
+
+                double lat1 = waypta.lat;
+                double lon1 = waypta.lon;
+                double lat2 = wayptb.lat;
+                double lon2 = wayptb.lon;
+
+                int x1 = (int)(wftA * lon1 + wftC * lat1 + wftE + 0.5);
+                int y1 = (int)(wftB * lon1 + wftD * lat1 + wftF + 0.5);
+                int x2 = (int)(wftA * lon2 + wftC * lat2 + wftE + 0.5);
+                int y2 = (int)(wftB * lon2 + wftD * lat2 + wftF + 0.5);
+
+                DrawLine (x1, y1, x2, y2, 2, Color.Blue);
             }
 
             bmp.Save (markedpng);
@@ -2975,13 +2975,8 @@ public class Cluster {
             string r = new String (chars, 0, i);
             string g;
             if (ReadArptDgmPng.badStrings.TryGetValue (ReadArptDgmPng.csvoutid + ":" + r, out g)) {
-                // KMSY has two 90^16'W strings
-                // the one at 1600,741 is correct
-                // the one at 1027,2721 should be 90^17'W
-                if ((ReadArptDgmPng.csvoutid != "KMSY") || (lox < 1200)) {
-                    if (ReadArptDgmPng.verbose) Console.WriteLine ("replacing bad string " + r + " with " + g + " at lox,y=" + lox + "," + loy);
-                    r = g;
-                }
+                if (ReadArptDgmPng.verbose) Console.WriteLine ("replacing bad string " + r + " with " + g + " at lox,y=" + lox + "," + loy);
+                r = g;
             }
             return r;
         }
@@ -3134,11 +3129,6 @@ public class Cluster {
         int j = r.IndexOf ('\'');
         string minstr = r.Substring (i, j ++ - i);
         double min = double.Parse (minstr);
-        if (minstr.EndsWith (".30")) {
-            // KASE 106^51.30'W
-            if (ReadArptDgmPng.verbose) Console.WriteLine ("assuming .30 in " + r + " is really .5");
-            min += 0.20;
-        }
 
         /*
          * Seconds is optional if digits present following the '.

@@ -277,7 +277,7 @@ public class Chart2DView extends View
      * See how much to rotate chart by.
      */
     @Override  // Backing
-    public double GetCanvasHdgRads ()
+    public double GetCanvasTrueUpRads ()
     {
         if (canvasHdgRadOverride != -99999.0) return canvasHdgRadOverride;
 
@@ -492,7 +492,7 @@ public class Chart2DView extends View
          */
         latStart = chartView.centerLat;
         lonStart = chartView.centerLon;
-        rotStart = GetCanvasHdgRads ();
+        rotStart = GetCanvasTrueUpRads ();
         scaStart = chartView.scaling;
 
         /*
@@ -778,7 +778,7 @@ public class Chart2DView extends View
          * Draw map image as background.
          */
         try {
-            chartView.selectedChart.DrawOnCanvas (chartView.pmap, canvas, this, GetCanvasHdgRads ());
+            chartView.selectedChart.DrawOnCanvas (chartView.pmap, canvas, this, GetCanvasTrueUpRads ());
         } catch (OutOfMemoryError oome) {
             // sometimes fast panning gives bitmap oom errors
             // force all bitmaps closed, garbage collect and give up for now
@@ -839,7 +839,7 @@ public class Chart2DView extends View
                     } else {
                         // if moving, draw arrow with thickness proportional to speed
                         trailPaint.setStrokeWidth ((float) ((Math.log10 (mps) + 1.0) * sw));
-                        double a = Math.toRadians (pos.heading) - GetCanvasHdgRads ();
+                        double a = Math.toRadians (pos.heading) - GetCanvasTrueUpRads ();
                         double s = Math.sin (a);
                         double c = Math.cos (a);
                         double dxr = dx * c - dy * s;
@@ -910,7 +910,7 @@ public class Chart2DView extends View
          */
         if (!wairToNow.optionsView.typeBOption.checkBox.isChecked () &&
                 LatLon2CanPixExact (wairToNow.currentGPSLat, wairToNow.currentGPSLon, pt)) {
-            wairToNow.DrawLocationArrow (canvas, pt, GetCanvasHdgRads (), 0.75F);
+            wairToNow.DrawLocationArrow (canvas, pt, GetCanvasTrueUpRads (), 0.75F);
         }
     }
 
@@ -1498,7 +1498,7 @@ public class Chart2DView extends View
         /*
          * Do the monsterous calculations only if something significant has changed since last time.
          */
-        if ((mappingCanvasHdgRads == GetCanvasHdgRads ()) &&
+        if ((mappingCanvasHdgRads == GetCanvasTrueUpRads ()) &&
             (mappingCenterLat     == centerLat)     &&
             (mappingCenterLon     == centerLon)     &&
             (mappingCanvasHeight  == ch)            &&
@@ -1506,7 +1506,7 @@ public class Chart2DView extends View
             (mappingPixelHeightM  == pixelHeightM)  &&
             (mappingPixelWidthM   == pixelWidthM)) return;
 
-        mappingCanvasHdgRads = GetCanvasHdgRads ();
+        mappingCanvasHdgRads = GetCanvasTrueUpRads ();
         mappingCenterLat     = centerLat;
         mappingCenterLon     = centerLon;
         mappingCanvasHeight  = ch;

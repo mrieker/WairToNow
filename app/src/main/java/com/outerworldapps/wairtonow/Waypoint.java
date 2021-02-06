@@ -60,7 +60,7 @@ public abstract class Waypoint {
 
     private final static String[] columns_apt_desc = new String[] { "apt_desc" };
     private final static String[] columns_kw_rowid = new String[] { "kw_rowid" };
-    private final static String[] columns_pl_descrip_pl_filename = new String[] { "pl_descrip", "pl_filename" };
+    private final static String[] columns_pl_descrip_pl_filename = new String[] { "pl_descrip", "pl_filename", "pl_effdate" };
 
     private static ArrayList<Class<? extends Waypoint>> GetWaypointClasses ()
     {
@@ -579,7 +579,7 @@ public abstract class Waypoint {
 
         public  final String name;       // eg, "BEVERLY MUNI"
         public  final String faaident;   // non-ICAO ident
-        public  final String state;      // eg, "MA"
+        public  final String state;      // eg, "MA" or "EUR-ED"
         public  final String tzname;     // eg, "America/New_York"
 
         public boolean hasmet;      // METARs can be retrieved from aviationweather.gov
@@ -600,12 +600,15 @@ public abstract class Waypoint {
             name     = result.getString (3);
             lat      = result.getDouble (4);
             lon      = result.getDouble (5);
-            state    = result.getString (7);  // two letters
             String metaf = result.getString (8);
             hasmet   = metaf.contains ("M");
             hastaf   = metaf.contains ("T");
             tzname   = result.getString (9);
             dbtagname = dbtn;
+
+            String st = result.getString (7);   // "MA", "EUR-BG", "US-MA"
+            if (st.startsWith ("US-")) st = st.substring (3);  // OA database
+            state = st;                         // "MA", "EUR-BG"
 
             wairToNow = wtn;
         }
@@ -701,6 +704,7 @@ public abstract class Waypoint {
             return GetDetailText ();
         }
 
+        private NNHashMap<String,Integer> latesteffdates;
         private NNHashMap<String,Integer> latestexpdates;
         private TreeMap<String,String> latestplates;
         private WaypointView waypointView;
@@ -712,36 +716,38 @@ public abstract class Waypoint {
         @JavascriptInterface
         public String getPlates ()
         {
-            // get list of plates from database and the corresponding .gif file name
+            // get list of plates from database and the corresponding .gif file names
             String[] dbnames = SQLiteDBs.Enumerate ();
             int latestexpdate = 0;
             latestplates = new TreeMap<> ();
+            latesteffdates = new NNHashMap<> ();
             latestexpdates = new NNHashMap<> ();
 
-            if (dbtagname == DBase.FAA) {
-                for (String dbname : dbnames) {
-                    if (dbname.startsWith ("nobudb/plates_") && dbname.endsWith (".db")) {
-                        int expdate = Integer.parseInt (dbname.substring (14, dbname.length () - 3));
-                        if (latestexpdate < expdate) {
-                            SQLiteDBs sqldb = SQLiteDBs.open (dbname);
-                            if ((sqldb != null) && sqldb.tableExists ("plates")) {
-                                Cursor result = sqldb.query (
-                                        "plates", columns_pl_descrip_pl_filename,
-                                        "pl_faaid=?", new String[] { this.faaident },
-                                        null, null, null, null);
-                                try {
-                                    if (result.moveToFirst ()) {
-                                        latestplates.clear ();
-                                        do {
-                                            String descrip = result.getString (0);
-                                            latestplates.put (descrip, result.getString (1));
-                                            latestexpdates.put (descrip, expdate);
-                                        } while (result.moveToNext ());
-                                        latestexpdate = expdate;
-                                    }
-                                } finally {
-                                    result.close ();
+            for (String dbname : dbnames) {
+                if (dbname.startsWith ("nobudb/plates_") && dbname.endsWith (".db")) {
+                    int expdate = Integer.parseInt (dbname.substring (14, dbname.length () - 3));
+                    if (latestexpdate < expdate) {
+                        SQLiteDBs sqldb = SQLiteDBs.open (dbname);
+                        if (sqldb != null) {
+                            MaintView.createPlates2Table (sqldb);
+                            Cursor result = sqldb.query (
+                                    "plates2", columns_pl_descrip_pl_filename,
+                                    "pl_faaid=? OR pl_icaoid=?",
+                                    new String[] { this.faaident, this.ident },
+                                    null, null, null, null);
+                            try {
+                                if (result.moveToFirst ()) {
+                                    latestplates.clear ();
+                                    do {
+                                        String descrip = result.getString (0);
+                                        latestplates.put (descrip, result.getString (1));
+                                        latesteffdates.put (descrip, result.getInt (2));
+                                        latestexpdates.put (descrip, expdate);
+                                    } while (result.moveToNext ());
+                                    latestexpdate = expdate;
                                 }
+                            } finally {
+                                result.close ();
                             }
                         }
                     }
@@ -752,6 +758,7 @@ public abstract class Waypoint {
             // give it a way-in-the-future expiration date cuz we build it on the fly
             // and so don't need to download anything for it
             latestplates.put   ("RWY-RUNWAY DIAGRAM", "-");
+            latesteffdates.put ("RWY-RUNWAY DIAGRAM", 0);
             latestexpdates.put ("RWY-RUNWAY DIAGRAM", 99999999);
 
             // maybe make up synthetic ILS/DME plate for each runway
@@ -759,6 +766,7 @@ public abstract class Waypoint {
                 for (String rwyno : GetRunways ().keySet ()) {
                     String plateid = IAPSynthPlateImage.prefix + rwyno;
                     latestplates.put (plateid, "-");
+                    latesteffdates.put (plateid, 0);
                     latestexpdates.put (plateid, 99999999);
                 }
             }
@@ -799,8 +807,9 @@ public abstract class Waypoint {
                 public void run ()
                 {
                     String filename = latestplates.get (descrip);
+                    int effdate = latesteffdates.nnget (descrip);
                     int expdate = latestexpdates.nnget (descrip);
-                    PlateView pv = new PlateView (waypointView, filename, Airport.this, descrip, expdate, true);
+                    PlateView pv = new PlateView (waypointView, filename, Airport.this, descrip, expdate, true, effdate);
                     waypointView.selectedPlateView = pv;
                     wairToNow.SetCurrentTab (pv);
                 }

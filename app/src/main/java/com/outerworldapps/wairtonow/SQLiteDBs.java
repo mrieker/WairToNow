@@ -308,11 +308,11 @@ public class SQLiteDBs {
         }
     }
 
-    public long insert (String table, String dummy1, ContentValues values)
+    public long insert (String table, ContentValues values)
     {
         dblock.lock ();
         try {
-            return tlsqldb.nnget ().insert (table, dummy1, values);
+            return tlsqldb.nnget ().insert (table, null, values);
         } finally {
             dblock.unlock ();
         }

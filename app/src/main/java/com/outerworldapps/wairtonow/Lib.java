@@ -298,7 +298,7 @@ public class Lib {
      */
     public static double LatLonTC (double srcLat, double srcLon, double dstLat, double dstLon)
     {
-        return LatLonTC_rad (srcLat, srcLon, dstLat, dstLon) * 180.0 / Math.PI;
+        return Math.toDegrees (LatLonTC_rad (srcLat, srcLon, dstLat, dstLon));
     }
     public static double LatLonTC_rad (double srcLat, double srcLon, double dstLat, double dstLon)
     {

@@ -49,7 +49,7 @@ public class ChartView extends FrameLayout implements WairToNow.CanBeMainView {
         void ChartSelected ();
         void SetGPSLocation ();
         void ReCenter ();
-        double GetCanvasHdgRads ();
+        double GetCanvasTrueUpRads ();
         void recycle ();
         boolean LatLonAlt2CanPixExact (double lat, double lon, double alt, PointD pix);
         void drawOverlay (Canvas canvas);

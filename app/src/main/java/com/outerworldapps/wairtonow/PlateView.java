@@ -35,16 +35,16 @@ public class PlateView extends LinearLayout implements WairToNow.CanBeMainView {
     private WairToNow wairToNow;
     private WaypointView waypointView;  // airport waypoint page we are part of
 
-    public PlateView (WaypointView wv, String fn, Waypoint.Airport aw, String pd, int ex, boolean fu)
+    public PlateView (WaypointView wv, String fn, Waypoint.Airport aw, String pd, int ex, boolean fu, int ef)
     {
         super (wv.wairToNow);
         waypointView = wv;
         wairToNow = wv.wairToNow;
-        construct (fn, aw, pd, ex, fu);
+        construct (fn, aw, pd, ex, fu, ef);
     }
-    private void construct (String fn, Waypoint.Airport aw, String pd, int ex, boolean fu)
+    private void construct (String fn, Waypoint.Airport aw, String pd, int ex, boolean fu, int ef)
     {
-        plateImage = PlateImage.Create (wairToNow, aw, pd, ex, fn, fu);
+        plateImage = PlateImage.Create (wairToNow, aw, pd, ex, fn, fu, ef);
 
         plateImage.setLayoutParams (new LayoutParams (LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
         addView (plateImage);

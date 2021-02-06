@@ -111,7 +111,7 @@ then
     gunzip -c datums/stations_$expdate.gz > stations.txt
     mkdir aptinfo.tmp
     # - APT.txt must be first
-    cat APT.txt AFF.txt AWOS.txt TWR.txt | mono --debug GetAirportIDs.exe airports.tmp runways.tmp aptinfo.tmp aptinfo.html stations.txt
+    cat APT.txt AFF.txt AWOS.txt TWR.txt | mono --debug GetAirportIDs.exe airports.tmp runways.tmp aptinfo.tmp stations.txt
     rm -f APT.txt AFF.txt AWOS.txt TWR.txt stations.txt
 
     #
@@ -166,11 +166,15 @@ then
     mono --debug MakeWaypoints.exe $expdate datums/wayptabbs_$expdate.db 1 0
     mono --debug MakeWaypoints.exe $expdate datums/waypointsoa_$expdate.db 0 1
     mono --debug MakeWaypoints.exe $expdate datums/wayptabbsoa_$expdate.db 1 1
-    rm -f datums/wayp*_$expdate.db.gz
-    gzip datums/waypoints_$expdate.db
-    gzip datums/wayptabbs_$expdate.db
-    gzip datums/waypointsoa_$expdate.db
-    gzip datums/wayptabbsoa_$expdate.db
+    rm -f datums/wayp*_$expdate.db.gz.tmp
+    gzip -c datums/waypoints_$expdate.db   > datums/waypoints_$expdate.db.gz.tmp
+    gzip -c datums/wayptabbs_$expdate.db   > datums/wayptabbs_$expdate.db.gz.tmp
+    gzip -c datums/waypointsoa_$expdate.db > datums/waypointsoa_$expdate.db.gz.tmp
+    gzip -c datums/wayptabbsoa_$expdate.db > datums/wayptabbsoa_$expdate.db.gz.tmp
+    mv -f datums/waypoints_$expdate.db.gz.tmp   datums/waypoints_$expdate.db.gz
+    mv -f datums/wayptabbs_$expdate.db.gz.tmp   datums/wayptabbs_$expdate.db.gz
+    mv -f datums/waypointsoa_$expdate.db.gz.tmp datums/waypointsoa_$expdate.db.gz
+    mv -f datums/wayptabbsoa_$expdate.db.gz.tmp datums/wayptabbsoa_$expdate.db.gz
 fi
 
 #

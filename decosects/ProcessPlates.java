@@ -24,7 +24,7 @@
 // rm -rf aptplates.tmp
 // mkdir aptplates.tmp
 // export CLASSPATH=ProcessPlates.jar
-// java ProcessPlates <nthreads> <xmlfile> airports_<expdate>.csv
+// java ProcessPlates <nthreads> <xmlfile> airports_<expdate>.csv datums/aptplates_<expdate>
 
 // reads:
 //  <xmlfile>  (d-TPP_Metafile.xml from DTPPE_<expdate>.zip)
@@ -68,6 +68,7 @@ public class ProcessPlates {
     public static int nrunning;
     public static HashMap<String,String> statecodes = new HashMap<> ();
     public static LinkedList<WorkItem> contpages = new LinkedList<> ();
+    public static String dirout;
     public static TreeMap<String,WorkItem> workqueue = new TreeMap<> ();
 
     /*
@@ -101,6 +102,8 @@ public class ProcessPlates {
     public static void main (String[] args)
             throws Exception
     {
+        dirout = args[3];
+
         // read airports_<expdate>.csv to get airport ICAO id -> state code
         // these came from APT_<expdate>.zip and the state codes are different
         // than those in the .xml file (eg, PGRO)
@@ -262,14 +265,14 @@ public class ProcessPlates {
             }
         }
 
-        // process a plate by spawning ./processplate.sh <streamid> <statecode> <faaid> <icaoid> <chartcode> <chartname> <pdfname>
+        // process a plate by spawning ./processplate.sh <streamid> <statecode> <faaid> <icaoid> <chartcode> <chartname> <pdfname> <dirout>
         public void processWorkItem (WorkItem wi)
                 throws Exception
         {
             /*System.out.println ("./processplate.sh " + streamid + " " + wi.state_code + " " + wi.faaid + " " + wi.icaoid +
                     " " + wi.chart_code + " '" + wi.chart_name + "' " + wi.pdf_name);*/
             ProcessBuilder pb = new ProcessBuilder ("./processplate.sh",
-                    Integer.toString (streamid), wi.state_code, wi.faaid, wi.icaoid, wi.chart_code, wi.chart_name, wi.pdf_name);
+                    Integer.toString (streamid), wi.state_code, wi.faaid, wi.icaoid, wi.chart_code, wi.chart_name, wi.pdf_name, dirout);
             Process p = pb.inheritIO ().start ();
             p.waitFor ();
             int ec = p.exitValue ();

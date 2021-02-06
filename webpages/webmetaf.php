@@ -84,6 +84,7 @@
     exit;
 
     // get upper case words
+    // strip out HTML tags and runs of slashes
     function wordize ($str)
     {
         $str   = strtoupper ($str);
@@ -106,6 +107,8 @@
             }
 
             // space or something like it, append word to array
+            // get rid of stray slashes at beg and end of word
+            $word = trim ($word, "/");
             if ($word != "") {
                 $words[] = $word;
                 $word = "";
@@ -113,6 +116,7 @@
         }
 
         // append last word to array
+        $word = trim ($word, "/");
         if ($word != "") $words[] = $word;
 
         return $words;

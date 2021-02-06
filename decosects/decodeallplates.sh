@@ -68,7 +68,12 @@ export CLASSPATH=DecodePlate2.jar:pdfbox-1.8.10.jar:commons-logging-1.2.jar
 #
 # Create output directories
 #
-cycles28=`./cureffdate -28 -x yyyymmdd`
+if [ "$1" == "" ]
+then
+    cycles28=`./cureffdate -28 -x yyyymmdd`
+else
+    cycles28=$1
+fi
 apdoutdir=datums/apdgeorefs_$cycles28
 iap2outdir=datums/iapgeorefs2_$cycles28
 mkdir -p $apdoutdir $iap2outdir

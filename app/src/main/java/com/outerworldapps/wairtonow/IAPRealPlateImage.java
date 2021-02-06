@@ -41,6 +41,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Locale;
@@ -160,34 +161,55 @@ public class IAPRealPlateImage extends IAPPlateImage {
     private final static Object shadeCirclingAreaLock = new Object ();
     private static ShadeCirclingAreaThread shadeCirclingAreaThread;
 
-    private Bitmap fgbitmap;              // single plate page
+    public  Bitmap       fgbitmap;              // single plate page
     private boolean      hasDMEArcs;
     private byte         circradtype;
     private byte[]       circrwyepts;
     private double       bitmapLat, bitmapLon;
     private double       bmxy2llx = Double.NaN;
     private double       bmxy2lly = Double.NaN;
+    private HashMap<String,NavaidPoint> navaidPoints;
+    private IExactMapper dbasemapper;           // non-null: georef data from FAA/ReadEuroIAPPng.cs
+    private IExactMapper inusemapper;
     private int          circradopt;
-    private Lambert      lccmap;                // non-null: FAA-provided georef data
+    public  int          plateff;               // effective date
+                                                // - FAA plates: 0; disables manual georef editor
+                                                // - EUROCONTROL: yyyymmdd date plate was originally created
+                                                //                enables manual georef editor
     private LatLon       bmxy2latlon = new LatLon ();
     private LinkedList<DMEArc> dmeArcs;
+    private ManualGeoRef manualGeoRef;
+    private Paint navaidbgpaint = new Paint ();
+    private Paint navaidfgpaint = new Paint ();
     private PointD       bitmapPt = new PointD ();
     private String       filename;              // name of gifs on flash, without ".p<pageno>" suffix
 
     private final static String[] columns_cp_misc = new String[] { "cp_appid", "cp_segid", "cp_legs" };
 
-    private final static String[] columns_georefs21 = new String[] { "gr_clat", "gr_clon", "gr_stp1", "gr_stp2", "gr_rada", "gr_radb",
-            "gr_tfwa", "gr_tfwb", "gr_tfwc", "gr_tfwd", "gr_tfwe", "gr_tfwf", "gr_circtype", "gr_circrweps" };
+    private final static String[] columns_georefs21 = new String[] { "gr_csvs", "gr_circtype", "gr_circrweps" };
 
-    public IAPRealPlateImage (WairToNow wtn, Waypoint.Airport apt, String pid, int exp, String fnm, boolean ful)
+    public IAPRealPlateImage (WairToNow wtn, Waypoint.Airport apt, String pid, int exp, String fnm, boolean ful, int eff)
     {
         super (wtn, apt, pid, exp, ful);
         filename = fnm;
+        plateff  = eff;
+
+        navaidbgpaint.setColor (Color.WHITE);
+        navaidbgpaint.setStyle (Paint.Style.FILL_AND_STROKE);
+        navaidfgpaint.setColor (Color.MAGENTA);
+        navaidfgpaint.setStyle (Paint.Style.FILL_AND_STROKE);
+        navaidfgpaint.setTextSize (wairToNow.textSize);
 
         /*
          * Get any georeference points in database.
          */
         GetIAPGeoRefPoints ();
+
+        /*
+         * Allow manual entry of waypoints for georeferencing.
+         * Also get any previously manually entered georeferencing.
+         */
+        manualGeoRef = new ManualGeoRef (this);
 
         /*
          * Init CIFP class.
@@ -258,46 +280,141 @@ public class IAPRealPlateImage extends IAPPlateImage {
     }
 
     /**
-     * Check for FAA-supplied georeference information.
+     * Check for FAA-supplied or ReadEuroIAPPng.cs-derived and manual entry georeference information.
      */
     private void GetIAPGeoRefPoints ()
     {
         String[] grkey = new String[] { airport.ident, plateid };
         SQLiteDBs machinedb = openPlateDB ();
-        if ((machinedb != null) && machinedb.tableExists ("iapgeorefs2")) {
-            if (!machinedb.columnExists ("iapgeorefs2", "gr_circtype")) {
-                machinedb.execSQL ("ALTER TABLE iapgeorefs2 ADD COLUMN gr_circtype INTEGER NOT NULL DEFAULT " + CRT_UNKN);
-            }
-            if (!machinedb.columnExists ("iapgeorefs2", "gr_circrweps")) {
-                machinedb.execSQL ("ALTER TABLE iapgeorefs2 ADD COLUMN gr_circrweps BLOB");
-            }
-            Cursor result = machinedb.query ("iapgeorefs2", columns_georefs21,
+        if (machinedb != null) {
+            cvtiapgeorefs (machinedb);
+            Cursor result = machinedb.query ("iapgeorefs3", columns_georefs21,
                     "gr_icaoid=? AND gr_plate=?", grkey,
                     null, null, null, null);
             try {
                 if (result.moveToFirst ()) {
-                    lccmap = new Lambert (
-                            result.getDouble (0),
-                            result.getDouble (1),
-                            result.getDouble (2),
-                            result.getDouble (3),
-                            result.getDouble (4),
-                            result.getDouble (5),
-                            new double[] {
-                                result.getDouble (6),
-                                result.getDouble (7),
-                                result.getDouble (8),
-                                result.getDouble (9),
-                                result.getDouble (10),
-                                result.getDouble (11)
-                            }
-                    );
-                    circradtype = (byte) result.getInt (12);
-                    circrwyepts = result.getBlob (13);
+                    String[] csvs = Lib.QuotedCSVSplit (result.getString (0));
+                    switch (csvs[0]) {
+                        case "BIL": {
+                            dbasemapper = new BiLinProj (csvs, 1);
+                            break;
+                        }
+                        case "LAM": {
+                            dbasemapper = new Lambert (csvs, 1);
+                            break;
+                        }
+                        default: {
+                            Log.w (TAG, "unknown IAP projection " + csvs[0]);
+                            break;
+                        }
+                    }
+                    circradtype = (byte) result.getInt (1);
+                    circrwyepts = result.getBlob (2);
                 }
             } finally {
                 result.close ();
             }
+        }
+    }
+
+    /**
+     * Set up the given manual georef mapper
+     * @param mm = null: revert to database mapper if any
+     *             else: use this manual georef mapper
+     */
+    public void setManualMapper (IExactMapper mm)
+    {
+        inusemapper = (mm == null) ? dbasemapper : mm;
+        navaidPoints = null;
+        iapTrueUpRads = 0.0;
+        if ((inusemapper != null) && (fgbitmap != null)) {
+
+            // compute plate's true up heading
+            double ctrx = fgbitmap.getWidth  () / 2.0;
+            double ctry = fgbitmap.getHeight () / 2.0;
+            LatLon ll = new LatLon ();
+            inusemapper.ChartPixel2LatLonExact (ctrx, ctry, ll);
+            double clat = ll.lat;
+            double clon = ll.lon;
+            inusemapper.ChartPixel2LatLonExact (ctrx, ctry / 2.0, ll);
+            iapTrueUpRads = Lib.LatLonTC_rad (clat, clon, ll.lat, ll.lon);
+        }
+
+        invalidate ();
+    }
+
+    // edit button is open, draw navaid points on the plate if mapping (database or manual) is complete
+    public void drawNavaidPoints (Canvas canvas)
+    {
+        // find all waypoints on the plate and set up to draw them while editor is open
+        // just save airports and navaids
+        if ((navaidPoints == null) && (inusemapper != null) && (fgbitmap != null)) {
+            double northlat = -999;
+            double southlat =  999;
+            double eastlon  = -999;
+            double westlon  =  999;
+            int width  = fgbitmap.getWidth  ();
+            int height = fgbitmap.getHeight ();
+            LatLon ll = new LatLon ();
+            for (int y = 0; y <= height; y += height) {
+                for (int x = 0; x <= width; x += width) {
+                    inusemapper.ChartPixel2LatLonExact (x, y, ll);
+                    if (northlat < ll.lat) northlat = ll.lat;
+                    if (southlat > ll.lat) southlat = ll.lat;
+                    if (eastlon  < ll.lon) eastlon  = ll.lon;
+                    if (westlon  > ll.lon) westlon  = ll.lon;
+                }
+            }
+            WaypointsWithin ww = new WaypointsWithin (wairToNow);
+            Collection<Waypoint> wps = ww.Get (southlat, northlat, westlon, eastlon);
+            navaidPoints = new HashMap<> ();
+            for (Waypoint wp : wps) {
+                if (wp.ident.equals (airport.ident) || (wp instanceof Waypoint.Navaid)) {
+                    NavaidPoint np = new NavaidPoint ();
+                    np.ident = wp.ident;
+                    inusemapper.LatLon2ChartPixelExact (wp.lat, wp.lon, np);
+                    navaidPoints.put (np.ident, np);
+                }
+            }
+
+            for (Waypoint wp : wairToNow.userWPView.waypoints.values ()) {
+                NavaidPoint np = new NavaidPoint ();
+                np.ident = wp.ident;
+                inusemapper.LatLon2ChartPixelExact (wp.lat, wp.lon, np);
+                if ((np.x >= 0) && (np.y >= 0) && (np.x < fgbitmap.getWidth ()) && (np.y < fgbitmap.getHeight ())) {
+                    navaidPoints.put (np.ident, np);
+                }
+            }
+        }
+
+        // draw navaid points
+        if (navaidPoints != null) {
+            for (NavaidPoint nav : navaidPoints.values ()) {
+                nav.draw (canvas);
+            }
+        }
+    }
+
+    /**
+     * Make sure the database has an iapgeorefs3 table.
+     * And if there is an old iapgeorefs2 table, convert to iapgeorefs3 and drop it.
+     * @param machinedb = plates database to convert
+     */
+    public static void cvtiapgeorefs (SQLiteDBs machinedb)
+    {
+        if (! machinedb.tableExists ("iapgeorefs3")) {
+            machinedb.execSQL ("BEGIN");
+            machinedb.execSQL ("CREATE TABLE iapgeorefs3 (gr_icaoid TEXT NOT NULL, gr_state TEXT NOT NULL, " +
+                    "gr_plate TEXT NOT NULL, gr_csvs TEXT NOT NULL, gr_circtype INTEGER NOT NULL DEFAULT " + CRT_UNKN +
+                    ", gr_circrweps BLOB, PRIMARY KEY (gr_icaoid,gr_plate))");
+            if (machinedb.tableExists ("iapgeorefs2")) {
+                machinedb.execSQL ("INSERT INTO iapgeorefs3 (gr_icaoid,gr_state,gr_plate,gr_circtype,gr_circrweps,gr_csvs) " +
+                        "SELECT gr_icaoid,gr_state,gr_plate,gr_circtype,gr_circrweps," +
+                        "'LAM,'||gr_clat||','||gr_clon||','||gr_stp1||','||gr_stp2||','||gr_rada||','||gr_radb||','||" +
+                        "gr_tfwa||','||gr_tfwb||','||gr_tfwc||','||gr_tfwd||','||gr_tfwe||','||gr_tfwf FROM iapgeorefs2");
+                machinedb.execSQL ("DROP TABLE iapgeorefs2");
+            }
+            machinedb.execSQL ("COMMIT");
         }
     }
 
@@ -333,14 +450,25 @@ public class IAPRealPlateImage extends IAPPlateImage {
                 bm.recycle ();
             }
 
+            // maybe test manual mapping now that we have bitmap loaded
+            manualGeoRef.tryManualMapping ();
+
             // add DME arcs if any defined
             if (hasDMEArcs) {
                 DrawDMEArcsOnBitmap ();
             }
 
             // shade circling area
-            if (lccmap != null) {
-                ShadeCirclingArea ();
+            if (inusemapper != null) {
+                @SuppressLint("DrawAllocation")
+                LatLon ll = new LatLon ();
+                inusemapper.ChartPixel2LatLonExact (0, 0, ll);
+                double topedgelat = ll.lat;
+                inusemapper.ChartPixel2LatLonExact (0, fgbitmap.getHeight (), ll);
+                double botedgelat = ll.lat;
+                if (topedgelat - botedgelat > 10.0 / Lib.NMPerDeg) {
+                    ShadeCirclingArea ();
+                }
             }
         }
 
@@ -350,9 +478,17 @@ public class IAPRealPlateImage extends IAPPlateImage {
         ShowSinglePage (canvas, fgbitmap);
 
         /*
+         * Draw little triangle button at top to hide/show IAP georef edit buttons.
+         * Also draw editing crosshairs if turned on.
+         */
+        if (full && (plateff > 0) && ! wairToNow.optionsView.typeBOption.checkBox.isChecked ()) {
+            manualGeoRef.DrawEditButton (canvas, dbasemapper != null);
+        }
+
+        /*
          * Draw runways if FAA-provided georef present.
          */
-        if ((lccmap != null) && (SystemClock.uptimeMillis () - plateLoadedUptime < 2000)) {
+        if ((inusemapper != null) && (SystemClock.uptimeMillis () - plateLoadedUptime < 2000)) {
             DrawRunwayCenterlines (canvas);
         }
 
@@ -369,27 +505,27 @@ public class IAPRealPlateImage extends IAPPlateImage {
     @Override  // GRPPlateImage
     protected boolean LatLon2BitmapOK ()
     {
-        return lccmap != null;
+        return inusemapper != null;
     }
 
     @Override  // GRPPlateImage
     public double LatLon2BitmapX (double lat, double lon)
     {
-        if (lccmap == null) return Double.NaN;
+        if (inusemapper == null) return Double.NaN;
         bitmapLat = lat;
         bitmapLon = lon;
-        lccmap.LatLon2ChartPixelExact (lat, lon, bitmapPt);
+        inusemapper.LatLon2ChartPixelExact (lat, lon, bitmapPt);
         return bitmapPt.x;
     }
 
     @Override  // GRPPlateImage
     public double LatLon2BitmapY (double lat, double lon)
     {
-        if (lccmap == null) return Double.NaN;
+        if (inusemapper == null) return Double.NaN;
         if ((bitmapLat != lat) || (bitmapLon != lon)) {
             bitmapLat = lat;
             bitmapLon = lon;
-            lccmap.LatLon2ChartPixelExact (lat, lon, bitmapPt);
+            inusemapper.LatLon2ChartPixelExact (lat, lon, bitmapPt);
         }
         return bitmapPt.y;
     }
@@ -397,11 +533,11 @@ public class IAPRealPlateImage extends IAPPlateImage {
     @Override  // GRPPlateImage
     public double BitmapXY2Lat (double bmx, double bmy)
     {
-        if (lccmap == null) return Double.NaN;
+        if (inusemapper == null) return Double.NaN;
         if ((bmx != bmxy2llx) || (bmy != bmxy2lly)) {
             bmxy2llx = bmx;
             bmxy2lly = bmy;
-            lccmap.ChartPixel2LatLonExact (bmx, bmy, bmxy2latlon);
+            inusemapper.ChartPixel2LatLonExact (bmx, bmy, bmxy2latlon);
         }
         return bmxy2latlon.lat;
     }
@@ -409,11 +545,11 @@ public class IAPRealPlateImage extends IAPPlateImage {
     @Override  // GRPPlateImage
     public double BitmapXY2Lon (double bmx, double bmy)
     {
-        if (lccmap == null) return Double.NaN;
+        if (inusemapper == null) return Double.NaN;
         if ((bmx != bmxy2llx) || (bmy != bmxy2lly)) {
             bmxy2llx = bmx;
             bmxy2lly = bmy;
-            lccmap.ChartPixel2LatLonExact (bmx, bmy, bmxy2latlon);
+            inusemapper.ChartPixel2LatLonExact (bmx, bmy, bmxy2latlon);
         }
         return bmxy2latlon.lon;
     }
@@ -532,7 +668,7 @@ public class IAPRealPlateImage extends IAPPlateImage {
                 String[] whargs = new String[] { airport.ident, plateid };
                 SQLiteDBs machinedb = openPlateDB ();
                 if (machinedb != null) {
-                    machinedb.update ("iapgeorefs2", values, "gr_icaoid=? AND gr_plate=?", whargs);
+                    machinedb.update ("iapgeorefs3", values, "gr_icaoid=? AND gr_plate=?", whargs);
                 }
             }
 
@@ -645,7 +781,7 @@ public class IAPRealPlateImage extends IAPPlateImage {
                 String[] whargs = new String[] { airport.ident, plateid };
                 SQLiteDBs machinedb = openPlateDB ();
                 if (machinedb != null) {
-                    machinedb.update ("iapgeorefs2", values, "gr_icaoid=? AND gr_plate=?", whargs);
+                    machinedb.update ("iapgeorefs3", values, "gr_icaoid=? AND gr_plate=?", whargs);
                 }
             }
 
@@ -857,5 +993,41 @@ public class IAPRealPlateImage extends IAPPlateImage {
         if (expdate <= 0) return null;
         String dbname = "nobudb/plates_" + expdate + ".db";
         return SQLiteDBs.open (dbname);
+    }
+
+    @Override  // IAPPlateImage
+    protected void GotMouseDown (double x, double y)
+    {
+        if (full && (plateff > 0)) {
+            manualGeoRef.maybeShowHideEditToolbar (x, y);
+        }
+        super.GotMouseDown (x, y);
+    }
+
+    /**
+     * Draw Navaids (and the airport) on plate when editor is open
+     * ...so user can verify the mapping looks good
+     */
+    private class NavaidPoint extends PointD {
+        public String ident;
+
+        private RectF dot = new RectF ();
+
+        public void draw (Canvas canvas)
+        {
+            int cx = (int) Math.round (BitmapX2CanvasX (x));
+            int cy = (int) Math.round (BitmapY2CanvasY (y));
+            dot.left   = cx - 7;
+            dot.right  = cx + 7;
+            dot.top    = cy - 7;
+            dot.bottom = cy + 7;
+            canvas.drawOval (dot, navaidfgpaint);
+            float tx = cx + 9;
+            float ty = cy - 9;
+            float tw = navaidfgpaint.measureText (ident);
+            float th = navaidfgpaint.getTextSize ();
+            canvas.drawRect (tx, ty - th + 2, tx + tw, ty + 2, navaidbgpaint);
+            canvas.drawText (ident, tx, ty, navaidfgpaint);
+        }
     }
 }

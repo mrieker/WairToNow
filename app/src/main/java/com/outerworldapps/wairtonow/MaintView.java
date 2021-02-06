@@ -66,7 +66,9 @@ import java.net.URL;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
+import java.util.Comparator;
 import java.util.Enumeration;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
@@ -119,11 +121,12 @@ public class MaintView
     private LinkedList<Category> allCategories = new LinkedList<> ();
     private LinkedList<Downloadable> allDownloadables = new LinkedList<> ();
     private LinkedList<Runnable> callbacksWhenChartsLoaded = new LinkedList<> ();
+    private NNTreeMap<String,StateCheckBox> stateCheckBoxes = new NNTreeMap<> ();
     private final Object postDLProgLock = new Object ();
     private ObstructionsCheckBox obstructionsCheckBox;
+    private RingedBox eurChartRingedBox;
     private RingedBox faaChartRingedBox;
     private ScrollView itemsScrollView;
-    private StateMapView stateMapView;
     private String postDLProcText;
     private String updateDLProgTitle;
     private TextView runwayDiagramDownloadStatus;
@@ -216,7 +219,8 @@ public class MaintView
         helCategory   = new Category ("HEL");
         secCategory   = new Category ("SEC");
         tacCategory   = new Category ("TAC");
-        ofmCategory   = new Category ("OFM");
+        ofmCategory   = new Category ("Charts");
+        Category eurCategory = new Category ("Plates");
         otherCategory = new Category ("Other");
 
         RingedBox rb1 = new RingedBox (ctx);
@@ -232,14 +236,20 @@ public class MaintView
         faaChartRingedBox.addView (secCategory.selButton);
         faaChartRingedBox.addView (tacCategory.selButton);
 
+        eurChartRingedBox = new RingedBox (ctx);
+        eurChartRingedBox.setRingColor (Color.WHITE);
+        eurChartRingedBox.ringText = "Europe";
+        eurChartRingedBox.addView (ofmCategory.selButton);
+        eurChartRingedBox.addView (eurCategory.selButton);
+
         RingedBox rb3 = new RingedBox (ctx);
-        rb3.addView (ofmCategory.selButton);
         rb3.addView (otherCategory.selButton);
 
         LinearLayout ll1 = new LinearLayout (ctx);
         ll1.setOrientation (HORIZONTAL);
         ll1.addView (rb1);
         ll1.addView (faaChartRingedBox);
+        ll1.addView (eurChartRingedBox);
         ll1.addView (rb3);
 
         DetentHorizontalScrollView hs1 = new DetentHorizontalScrollView (ctx);
@@ -263,9 +273,8 @@ public class MaintView
         miscCategory.addView (new TextView (wairToNow));
         miscCategory.addView (new UpdateAllButton ());
 
-        stateMapView = new StateMapView ();
-
-        plateCategory.addView (stateMapView);
+        plateCategory.addView (new StateMapView ("statelocation.dat", ""));
+        eurCategory.addView (new StateMapView ("eurocodes.txt", "EUR-"));
 
         enrCategory.addView (new ChartDiagView (R.drawable.low_index_us));
         secCategory.addView (new ChartDiagView (R.drawable.faa_sec_diag));
@@ -619,6 +628,8 @@ public class MaintView
 
         faaChartRingedBox.setRingColor ((isoa | isofm) ? Color.WHITE : Color.TRANSPARENT);
         faaChartRingedBox.setVisibility (visfaa);
+        eurChartRingedBox.setRingColor (Color.WHITE);
+        eurChartRingedBox.setVisibility ((isoa | isofm) ? VISIBLE : GONE);
         ofmCategory.selButton.setVisibility (visofm);
 
         miscCategory.onClick (null);
@@ -941,13 +952,15 @@ public class MaintView
      * - AFD-like html files
      * - georef, cifp csv files
      * Returns null if state file not downloaded
-     * @param ss = 2-letter state code, eg, "MA"
-     *             we can get other things for international airports
+     * @param ssfull = 2-letter state code, eg, "MA"
+     *                 EUR-<code> for europe, eg, "EUR-ED"
      */
-    public ZipFile getCurentStateZipFile (String ss)
+    public ZipFile getCurentStateZipFile (String ssfull)
             throws IOException
     {
-        StateCheckBox cb = stateMapView.stateCheckBoxes.get (ss);
+        // look for a checkbox named for the state
+        // get the zip file from that if so
+        StateCheckBox cb = stateCheckBoxes.get (ssfull);
         return (cb == null) ? null : cb.getCurentStateZipFile ();
     }
 
@@ -2038,19 +2051,24 @@ public class MaintView
 
     /**
      * Start downloading state-specific info.
+     * Input:
+     *  state = state code (2 letters for USA, "EUR-<code>" for europe)
+     *  done = callback when download completes
      */
-    public void StateDwnld (String state, Runnable done)
+    public void StateDwnld (String ssfull, Runnable done)
     {
-        stateMapView.StartDwnld (state, done);
+        stateCheckBoxes.nnget (ssfull).StartDwnld (done);
     }
 
     /**
      * Displays a list of checkboxes for each state for downloading plates for those states.
      */
     private class StateMapView extends HorizontalScrollView {
-        public NNTreeMap<String,StateCheckBox> stateCheckBoxes = new NNTreeMap<> ();
 
-        public StateMapView () throws IOException
+        // input:
+        //  assetname = asset file listing all states in this table
+        //  sp = state prefix ("" for united states, "EUR-" for europe)
+        public StateMapView (String assetname, String sp) throws IOException
         {
             super (wairToNow);
 
@@ -2058,25 +2076,17 @@ public class MaintView
             ll.setOrientation (LinearLayout.VERTICAL);
 
             AssetManager am = wairToNow.getAssets ();
-            BufferedReader rdr = new BufferedReader (new InputStreamReader (am.open ("statelocation.dat")), 1024);
+            BufferedReader rdr = new BufferedReader (new InputStreamReader (am.open (assetname)), 1024);
             String line;
             while ((line = rdr.readLine ()) != null) {
-                StateCheckBox sb = new StateCheckBox (line.substring (0, 2), line.substring (3));
-                stateCheckBoxes.put (sb.ss, sb);
+                int i = line.indexOf (' ');
+                StateCheckBox sb = new StateCheckBox (sp, line.substring (0, i), line.substring (i).trim ());
+                stateCheckBoxes.put (sb.ssfull, sb);
                 ll.addView (sb);
             }
             rdr.close ();
 
             this.addView (ll);
-        }
-
-        /**
-         * Force downloading this state's info asap.
-         * Call the completion routine when done (or on failure).
-         */
-        public void StartDwnld (String state, Runnable done)
-        {
-            stateCheckBoxes.nnget (state).StartDwnld (done);
         }
     }
 
@@ -2086,8 +2096,11 @@ public class MaintView
      */
     @SuppressLint("SetTextI18n")
     private class StateCheckBox extends FrameLayout implements Downloadable, OnClickListener {
-        public String ss;  // two-letter state code (capital letters)
-        public String fullname;  // full name string
+        public String ssfull;   // sspfx+sstwo = what's in waypoint database apt_state, etc.
+                                //   statezips_<expdate>/<ssboth>.zip
+        public String sspfx;    // prefix string
+        public String sstwo;    // two-letter state or country code (capital letters)
+        public String ssdisp;   // display string "Massachusetts" or "Germany"
 
         private AlertDialog aptsinstatedialog;
         private CheckBox cb;
@@ -2097,12 +2110,17 @@ public class MaintView
         private TextView aptsbut;
         private TextView lb;
 
-        public StateCheckBox (String s, String f)
+        // p = prefix code ("" for united states, "EUR-" for europe)
+        // s = 2-letter state or country code (eg, "MA" or "ED")
+        // d = display name (eg, "Massachusetts" or "Germany")
+        public StateCheckBox (String p, String s, String d)
         {
             super (wairToNow);
 
-            ss = s;
-            fullname = f;
+            sspfx  = p;
+            sstwo  = s;
+            ssfull = sspfx + sstwo;
+            ssdisp = d;
 
             allDownloadables.addLast (this);
 
@@ -2113,7 +2131,7 @@ public class MaintView
 
             aptsbut = new TextView (wairToNow);
             wairToNow.SetTextSize (aptsbut);
-            aptsbut.setText (" " + ss);
+            aptsbut.setText (" " + sstwo);
             aptsbut.setTextColor (Color.CYAN);
             aptsbut.setOnClickListener (this);
 
@@ -2140,15 +2158,39 @@ public class MaintView
                     @Override
                     public void run ()
                     {
-                        setName ("AirportsFor" + ss);
+                        setName ("AirportsFor" + ssfull);
 
-                        // get airports from database, sorted by ICAO id
-                        TreeMap<String,Waypoint.Airport> apts = Waypoint.GetAptsInState (ss, DBase.FAA, wairToNow);
+                        // get airports from database
+                        LinkedList<Waypoint.Airport> aptlist = new LinkedList<> ();
+                        for (SQLiteDBs wpdb : getWaypointDBs ()) {
+                            Cursor res = wpdb.query ("airports", Waypoint.Airport.dbcols,
+                                    "apt_state=?", new String[] { ssfull }, null, null, null, null);
+                            try {
+                                while (res.moveToNext ()) {
+                                    Waypoint.Airport apt = new Waypoint.Airport (res, (DBase) wpdb.dbaux, wairToNow);
+                                    aptlist.add (apt);
+                                }
+                            } finally {
+                                res.close ();
+                            }
+                        }
+
+                        // sort by ICAO id
+                        Waypoint.Airport[] aptarray = aptlist.toArray (new Waypoint.Airport[0]);
+                        Arrays.sort (aptarray, new Comparator<Waypoint.Airport> () {
+                            @Override
+                            public int compare (Waypoint.Airport a, Waypoint.Airport b)
+                            {
+                                int cmp = a.ident.compareTo (b.ident);
+                                if (cmp == 0) cmp = a.dbtagname.toString ().compareTo (b.dbtagname.toString ());
+                                return cmp;
+                            }
+                        });
 
                         // make list of airports in scrollable list
                         LinearLayout ll = new LinearLayout (wairToNow);
                         ll.setOrientation (LinearLayout.VERTICAL);
-                        for (Waypoint.Airport apt : apts.values ()) {
+                        for (Waypoint.Airport apt : aptarray) {
                             TextView tv = new TextView (wairToNow);
                             wairToNow.SetTextSize (tv);
                             String detail = apt.GetArptDetails ();
@@ -2167,7 +2209,7 @@ public class MaintView
                             {
                                 // set up and display an alert dialog box to display list
                                 AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
-                                adb.setTitle ("Airports in " + fullname);
+                                adb.setTitle ("Airports in " + ssdisp);
                                 adb.setView (sv);
                                 adb.setNegativeButton ("Close", null);
 
@@ -2222,12 +2264,12 @@ public class MaintView
         {
             int ced = GetCurentEndDate ();
             if (ced <= 0) return null;
-            String zn = WairToNow.dbdir + "/datums/statezips_" + ced + "/" + ss + ".zip";
+            String zn = WairToNow.dbdir + "/datums/statezips_" + ced + "/" + ssfull + ".zip";
             return new ZipFile (zn);
         }
 
         // Downloadable implementation
-        public String GetSpaceNameNoRev () { return "State " + ss; }
+        public String GetSpaceNameNoRev () { return "State " + ssfull; }
         public boolean IsChecked () { return cb.isChecked (); }
         public void CheckBox ()
         {
@@ -2257,10 +2299,10 @@ public class MaintView
         public void DownloadFiles () throws IOException
         {
             // get name of latest per-state zip file from server
-            String servername = ReadSingleLine ("filelist.php?undername=State_" + ss);
+            String servername = ReadSingleLine ("filelist.php?undername=State_" + ssfull);
             if (!servername.startsWith ("datums/statezips_") ||
-                    !servername.endsWith ("/" + ss + ".zip") ||
-                    (servername.length () != 32)) {
+                    !servername.endsWith ("/" + ssfull + ".zip") ||
+                    (servername.length () != 30 + ssfull.length ())) {
                 throw new IOException ("bad state filename " + servername);
             }
             int expdate = Integer.parseInt (servername.substring (17, 25));
@@ -2269,7 +2311,9 @@ public class MaintView
             String permname = WairToNow.dbdir + "/" + servername;
             if (new File (permname).exists ()) return;
             String tempname = permname + PARTIAL;
-            DownloadBigFile (servername, tempname);
+            if (! new File (tempname).exists ()) {
+                DownloadBigFile (servername, tempname);
+            }
 
             // the .csv files should be at the beginning
             // copy them to SQLite database files
@@ -2285,22 +2329,32 @@ public class MaintView
                     try {
                         switch (en) {
                             case "aptplates.csv": {
-                                WritePlatesDatabase (br, expdate, ss);
+                                WritePlatesDatabase (br, expdate);
+                                haveall4 |= 1;
+                                break;
+                            }
+                            case "aptplates2.csv": {
+                                WritePlates2Database (br, expdate);
                                 haveall4 |= 1;
                                 break;
                             }
                             case "apdgeorefs.csv": {
-                                WriteApdGeorefsDatabase (br, expdate, ss);
+                                WriteApdGeorefsDatabase (br, expdate);
                                 haveall4 |= 2;
                                 break;
                             }
                             case "iapgeorefs2.csv": {
-                                WriteIapGeorefsDatabase (br, expdate, ss);
+                                WriteIapGeorefs2Database (br, expdate);
+                                haveall4 |= 4;
+                                break;
+                            }
+                            case "iapgeorefs3.csv": {
+                                WriteIapGeorefs3Database (br, expdate);
                                 haveall4 |= 4;
                                 break;
                             }
                             case "iapcifps.csv": {
-                                WriteCifpsDatabase (br, expdate, ss);
+                                WriteCifpsDatabase (br, expdate);
                                 haveall4 |= 8;
                                 break;
                             }
@@ -2370,7 +2424,7 @@ public class MaintView
             for (File file : files) {
                 String name = file.getName ();
                 if (name.startsWith ("statezips_")) {
-                    File child = new File (file, ss + ".zip");
+                    File child = new File (file, ssfull + ".zip");
                     if (child.exists ()) {
                         int expdate = Integer.parseInt (name.substring (10));
                         expdates[nexpdates++] = expdate;
@@ -2403,7 +2457,7 @@ public class MaintView
             // delete zip file
             // delete parent directory if it is empty
             File parent = new File (WairToNow.dbdir, "datums/statezips_" + expdate);
-            File zipfile = new File (parent, ss + ".zip");
+            File zipfile = new File (parent, ssfull + ".zip");
             Lib.Ignored (zipfile.delete ());
             Lib.Ignored (parent.delete ());
 
@@ -2414,27 +2468,37 @@ public class MaintView
             if (sqldb != null) {
                 boolean dbempty = true;
                 if (sqldb.tableExists ("iapgeorefs2")) {
-                    sqldb.execSQL ("DELETE FROM iapgeorefs2 WHERE gr_state='" + ss + "'");
+                    sqldb.execSQL ("DELETE FROM iapgeorefs2 WHERE gr_state='" + ssfull + "'");
                     if (sqldb.tableEmpty ("iapgeorefs2")) sqldb.execSQL ("DROP TABLE iapgeorefs2");
                     else dbempty = false;
                 }
+                if (sqldb.tableExists ("iapgeorefs3")) {
+                    sqldb.execSQL ("DELETE FROM iapgeorefs3 WHERE gr_state='" + ssfull + "'");
+                    if (sqldb.tableEmpty ("iapgeorefs3")) sqldb.execSQL ("DROP TABLE iapgeorefs3");
+                    else dbempty = false;
+                }
                 if (sqldb.tableExists ("iapcifps")) {
-                    sqldb.execSQL ("DELETE FROM iapcifps WHERE cp_state='" + ss + "'");
+                    sqldb.execSQL ("DELETE FROM iapcifps WHERE cp_state='" + ssfull + "'");
                     if (sqldb.tableEmpty ("iapcifps")) sqldb.execSQL ("DROP TABLE iapcifps");
                     else dbempty = false;
                 }
                 if (sqldb.tableExists ("apdgeorefs")) {
-                    sqldb.execSQL ("DELETE FROM apdgeorefs WHERE gr_state='" + ss + "'");
+                    sqldb.execSQL ("DELETE FROM apdgeorefs WHERE gr_state='" + ssfull + "'");
                     if (sqldb.tableEmpty ("apdgeorefs")) sqldb.execSQL ("DROP TABLE apdgeorefs");
                     else dbempty = false;
                 }
                 if (sqldb.tableExists ("plates")) {
-                    sqldb.execSQL ("DELETE FROM plates WHERE pl_state='" + ss + "'");
+                    sqldb.execSQL ("DELETE FROM plates WHERE pl_state='" + ssfull + "'");
                     if (sqldb.tableEmpty ("plates")) sqldb.execSQL ("DROP TABLE plates");
                     else dbempty = false;
                 }
+                if (sqldb.tableExists ("plates2")) {
+                    sqldb.execSQL ("DELETE FROM plates2 WHERE pl_state='" + ssfull + "'");
+                    if (sqldb.tableEmpty ("plates2")) sqldb.execSQL ("DROP TABLE plates2");
+                    else dbempty = false;
+                }
                 if (sqldb.tableExists ("rwypreloads2")) {
-                    sqldb.execSQL ("DELETE FROM rwypreloads2 WHERE rp_state='" + ss + "'");
+                    sqldb.execSQL ("DELETE FROM rwypreloads2 WHERE rp_state='" + ssfull + "'");
                     if (sqldb.tableEmpty ("rwypreloads2")) sqldb.execSQL ("DROP TABLE rwypreloads2");
                     else dbempty = false;
                 }
@@ -2457,30 +2521,22 @@ public class MaintView
         public void UpdateSingleLinkText (int c, String t)
         {
             lb.setTextColor (c);
-            lb.setText (" " + fullname + ": " + t);
+            lb.setText (" " + ssdisp + ": " + t);
         }
 
         /**
-         * Save a state/<stateid>.csv file that maps an airport ID to its state
-         * and all the plates (airport diagrams, iaps, sids, stars, etc)
-         * for the airports in that state.
+         * Save a statezips/aptplates.csv file that maps an airport ID to its state
+         * and all the plates (airport diagrams, iaps, sids, stars, etc) for the
+         * airports in that state.
+         * This one indexes by airport faaid.
          */
-        private void WritePlatesDatabase (BufferedReader br, int expdate, String statecode)
+        private void WritePlatesDatabase (BufferedReader br, int expdate)
                 throws IOException
         {
             String dbname = "nobudb/plates_" + expdate + ".db";
 
             SQLiteDBs sqldb = SQLiteDBs.create (dbname);
-            if (!sqldb.tableExists ("plates")) {
-                sqldb.execSQL ("DROP INDEX IF EXISTS plate_state;");
-                sqldb.execSQL ("DROP INDEX IF EXISTS plate_faaid;");
-                sqldb.execSQL ("DROP INDEX IF EXISTS plate_unique;");
-                sqldb.execSQL ("DROP TABLE IF EXISTS plates;");
-                sqldb.execSQL ("CREATE TABLE plates (pl_state TEXT NOT NULL, pl_faaid TEXT NOT NULL, pl_descrip TEXT NOT NULL, pl_filename TEXT NOT NULL);");
-                sqldb.execSQL ("CREATE INDEX plate_state ON plates (pl_state);");
-                sqldb.execSQL ("CREATE INDEX plate_faaid ON plates (pl_faaid);");
-                sqldb.execSQL ("CREATE UNIQUE INDEX plate_unique ON plates (pl_faaid,pl_descrip);");
-            }
+            createPlates2Table (sqldb);
             RwyPreloads rwypreloads = new RwyPreloads (sqldb);
 
             sqldb.beginTransaction ();
@@ -2488,9 +2544,9 @@ public class MaintView
                 int numAdded = 0;
 
                 // get list of all airports in the state and request OpenStreetMap tiles for runway diagrams
-                TreeMap<String,Waypoint.Airport> apts = Waypoint.GetAptsInState (statecode, DBase.FAA, wairToNow);
+                TreeMap<String,Waypoint.Airport> apts = Waypoint.GetAptsInState (ssfull, DBase.FAA, wairToNow);
                 for (Waypoint.Airport apt : apts.values ()) {
-                    rwypreloads.write (apt.ident, DBase.FAA, statecode);
+                    rwypreloads.write (apt.ident, DBase.FAA, ssfull);
                 }
 
                 // set up records for all FAA plates for all airports in the state that have plates
@@ -2498,11 +2554,60 @@ public class MaintView
                 while ((csv = br.readLine ()) != null) {
                     String[] cols = Lib.QuotedCSVSplit (csv);
                     ContentValues values = new ContentValues (4);
-                    values.put ("pl_state",    statecode);
+                    values.put ("pl_state",    ssfull);
                     values.put ("pl_faaid",    cols[0]);  // eg, "BVY"
                     values.put ("pl_descrip",  cols[1]);  // eg, "IAP-LOC RWY 16"
-                    values.put ("pl_filename", cols[2]);  // eg, "gif_150/050/39r16.gif"
-                    sqldb.insertWithOnConflict ("plates", values, SQLiteDatabase.CONFLICT_IGNORE);
+                    values.put ("pl_filename", cols[2]);  // eg, "050/39r16.gif"
+                    sqldb.insertWithOnConflict ("plates2", values, SQLiteDatabase.CONFLICT_IGNORE);
+
+                    if (++ numAdded == 256) {
+                        sqldb.yieldIfContendedSafely ();
+                        numAdded = 0;
+                    }
+                }
+
+                sqldb.setTransactionSuccessful ();
+            } finally {
+                sqldb.endTransaction ();
+            }
+        }
+
+        /**
+         * Save a statezips/aptplates2.csv file that maps an airport ID to its state
+         * and all the plates (airport diagrams, iaps, sids, stars, etc) for the
+         * airports in that state.
+         * This one indexes by airport icaoid.
+         */
+        private void WritePlates2Database (BufferedReader br, int expdate)
+                throws IOException
+        {
+            String dbname = "nobudb/plates_" + expdate + ".db";
+
+            SQLiteDBs sqldb = SQLiteDBs.create (dbname);
+            createPlates2Table (sqldb);
+            RwyPreloads rwypreloads = new RwyPreloads (sqldb);
+
+            sqldb.beginTransaction ();
+            try {
+                int numAdded = 0;
+
+                // get list of all airports in the state and request OpenStreetMap tiles for runway diagrams
+                TreeMap<String,Waypoint.Airport> apts = Waypoint.GetAptsInState (ssfull, DBase.FAA, wairToNow);
+                for (Waypoint.Airport apt : apts.values ()) {
+                    rwypreloads.write (apt.ident, DBase.FAA, ssfull);
+                }
+
+                // set up records for all EUROCONTROL plates for all airports in the country that have plates
+                String csv;
+                while ((csv = br.readLine ()) != null) {
+                    String[] cols = Lib.QuotedCSVSplit (csv);
+                    ContentValues values = new ContentValues (4);
+                    values.put ("pl_state",    ssfull);   // eg, "EUR-BG"
+                    values.put ("pl_icaoid",   cols[0]);  // eg, "BGAA"
+                    values.put ("pl_descrip",  cols[1]);  // eg, "IAC NDB+DME 29"
+                    values.put ("pl_effdate",  Integer.parseInt (cols[2].replace ("-", "")));  // eg, "2009-01-25"
+                    values.put ("pl_filename", cols[3]);  // eg, "BG_AD_2_BGAA_NDB_DME_29_en.gif"
+                    sqldb.insertWithOnConflict ("plates2", values, SQLiteDatabase.CONFLICT_IGNORE);
 
                     if (++ numAdded == 256) {
                         sqldb.yieldIfContendedSafely ();
@@ -2519,7 +2624,7 @@ public class MaintView
         /**
          * Save machine-generated airport diagram georef data for the given cycle.
          */
-        private void WriteApdGeorefsDatabase (BufferedReader br, int expdate, String statecode)
+        private void WriteApdGeorefsDatabase (BufferedReader br, int expdate)
                 throws IOException
         {
             String dbname = "nobudb/plates_" + expdate + ".db";
@@ -2541,8 +2646,8 @@ public class MaintView
                 while ((csv = br.readLine ()) != null) {
                     String[] cols = Lib.QuotedCSVSplit (csv);
                     ContentValues values = new ContentValues (14);
-                    values.put ("gr_icaoid", cols[0]);   // eg, "KBVY"
-                    values.put ("gr_state", statecode);  // eg, "MA"
+                    values.put ("gr_icaoid", cols[0]);  // eg, "KBVY"
+                    values.put ("gr_state", ssfull);    // eg, "MA"
                     values.put ("gr_tfwa", Double.parseDouble (cols[ 1]));
                     values.put ("gr_tfwb", Double.parseDouble (cols[ 2]));
                     values.put ("gr_tfwc", Double.parseDouble (cols[ 3]));
@@ -2571,7 +2676,7 @@ public class MaintView
         /**
          * Save FAA-supplied Coded Instrument Flight Procedures data for the given cycle.
          */
-        private void WriteCifpsDatabase (BufferedReader br, int expdate, String statecode)
+        private void WriteCifpsDatabase (BufferedReader br, int expdate)
                 throws IOException
         {
             String dbname = "nobudb/plates_" + expdate + ".db";
@@ -2613,7 +2718,7 @@ public class MaintView
                     // not already there, insert the new record
                     ContentValues values = new ContentValues (6);
                     values.put ("cp_icaoid", icaoid);     // eg, "KBVY"
-                    values.put ("cp_state",  statecode);  // eg, "MA"
+                    values.put ("cp_state",  ssfull);     // eg, "MA"
                     values.put ("cp_appid",  appid);      // eg, "L16"
                     values.put ("cp_segid",  segid);      // eg, "~f~"
                     values.put ("cp_legs",   legs);
@@ -2634,22 +2739,14 @@ public class MaintView
         /**
          * Save FAA-provided georeferencing info.
          * @param expdate = IAP plate expiration date
-         * @param statecode = state the plates belong to
          */
-        private void WriteIapGeorefsDatabase (BufferedReader br, int expdate, String statecode)
+        private void WriteIapGeorefs2Database (BufferedReader br, int expdate)
                 throws IOException
         {
             String dbname = "nobudb/plates_" + expdate + ".db";
 
             SQLiteDBs sqldb = SQLiteDBs.create (dbname);
-            if (! sqldb.tableExists ("iapgeorefs2")) {
-                // gr_circ added dynamically in PlateView.java
-                sqldb.execSQL ("CREATE TABLE iapgeorefs2 (gr_icaoid TEXT NOT NULL, gr_state TEXT NOT NULL, gr_plate TEXT NOT NULL, " +
-                        "gr_clat REAL NOT NULL, gr_clon REAL NOT NULL, gr_stp1 REAL NOT NULL, gr_stp2 REAL NOT NULL, " +
-                        "gr_rada REAL NOT NULL, gr_radb REAL NOT NULL, gr_tfwa REAL NOT NULL, gr_tfwb REAL NOT NULL, " +
-                        "gr_tfwc REAL NOT NULL, gr_tfwd REAL NOT NULL, gr_tfwe REAL NOT NULL, gr_tfwf REAL NOT NULL);");
-                sqldb.execSQL ("CREATE INDEX iapgeorefbyplate2 ON iapgeorefs2 (gr_icaoid,gr_plate);");
-            }
+            IAPRealPlateImage.cvtiapgeorefs (sqldb);
 
             sqldb.beginTransaction ();
             try {
@@ -2657,23 +2754,16 @@ public class MaintView
                 String csv;
                 while ((csv = br.readLine ()) != null) {
                     String[] cols = Lib.QuotedCSVSplit (csv);
-                    ContentValues values = new ContentValues (15);
+                    ContentValues values = new ContentValues (4);
                     values.put ("gr_icaoid", cols[0]);    // eg, "KBVY"
-                    values.put ("gr_state",  statecode);  // eg, "MA"
+                    values.put ("gr_state",  ssfull);     // eg, "MA"
                     values.put ("gr_plate",  cols[1]);    // eg, "IAP-LOC RWY 16"
-                    values.put ("gr_clat",   Double.parseDouble (cols[ 2]));
-                    values.put ("gr_clon",   Double.parseDouble (cols[ 3]));
-                    values.put ("gr_stp1",   Double.parseDouble (cols[ 4]));
-                    values.put ("gr_stp2",   Double.parseDouble (cols[ 5]));
-                    values.put ("gr_rada",   Double.parseDouble (cols[ 6]));
-                    values.put ("gr_radb",   Double.parseDouble (cols[ 7]));
-                    values.put ("gr_tfwa",   Double.parseDouble (cols[ 8]));
-                    values.put ("gr_tfwb",   Double.parseDouble (cols[ 9]));
-                    values.put ("gr_tfwc",   Double.parseDouble (cols[10]));
-                    values.put ("gr_tfwd",   Double.parseDouble (cols[11]));
-                    values.put ("gr_tfwe",   Double.parseDouble (cols[12]));
-                    values.put ("gr_tfwf",   Double.parseDouble (cols[13]));
-                    sqldb.insertWithOnConflict ("iapgeorefs2", values, SQLiteDatabase.CONFLICT_IGNORE);
+                    values.put ("gr_csvs",
+                            "LAM," + cols[2] + "," + cols[3] + "," + cols[4] + "," +
+                                    cols[5] + "," + cols[6] + "," + cols[7] + "," +
+                                    cols[8] + "," + cols[9] + "," + cols[10] + "," +
+                                    cols[11] + "," + cols[12] + "," + cols[13]);
+                    sqldb.insertWithOnConflict ("iapgeorefs3", values, SQLiteDatabase.CONFLICT_REPLACE);
 
                     // if we have added a handful, flush them out
                     if (++ numAdded == 256) {
@@ -2685,6 +2775,65 @@ public class MaintView
             } finally {
                 sqldb.endTransaction ();
             }
+        }
+        private void WriteIapGeorefs3Database (BufferedReader br, int expdate)
+                throws IOException
+        {
+            String dbname = "nobudb/plates_" + expdate + ".db";
+
+            SQLiteDBs sqldb = SQLiteDBs.create (dbname);
+            IAPRealPlateImage.cvtiapgeorefs (sqldb);
+
+            sqldb.beginTransaction ();
+            try {
+                int numAdded = 0;
+                String csv;
+                while ((csv = br.readLine ()) != null) {
+                    String[] cols = Lib.QuotedCSVSplit (csv);
+                    StringBuilder sb = new StringBuilder ();
+                    for (int i = 2; i < cols.length; i ++) {
+                        if (i > 2) sb.append (',');
+                        sb.append (cols[i]);
+                    }
+                    ContentValues values = new ContentValues (4);
+                    values.put ("gr_icaoid", cols[0]);          // eg, "KBVY"
+                    values.put ("gr_state",  ssfull);           // eg, "MA"
+                    values.put ("gr_plate",  cols[1]);          // eg, "IAP-LOC RWY 16"
+                    values.put ("gr_csvs",   sb.toString ());   // eg, "BIL,234,23,..."
+                    sqldb.insertWithOnConflict ("iapgeorefs3", values, SQLiteDatabase.CONFLICT_REPLACE);
+
+                    // if we have added a handful, flush them out
+                    if (++ numAdded == 256) {
+                        sqldb.yieldIfContendedSafely ();
+                        numAdded = 0;
+                    }
+                }
+                sqldb.setTransactionSuccessful ();
+            } finally {
+                sqldb.endTransaction ();
+            }
+        }
+    }
+
+    // create plates2 table if it doesn't exist
+    // convert plates table to plates2 if there's a plates table
+    // a record should have only either pl_faaid or pl_icaoid filled in
+    // ...though it shouldn't hurt if both are filled in
+    public static void createPlates2Table (SQLiteDBs sqldb)
+    {
+        if (! sqldb.tableExists ("plates2")) {
+            sqldb.execSQL ("BEGIN");
+            sqldb.execSQL ("CREATE TABLE plates2 (pl_state TEXT NOT NULL, pl_icaoid TEXT, " +
+                    "pl_faaid TEXT, pl_descrip TEXT NOT NULL, " +
+                    "pl_effdate INTEGER NOT NULL DEFAULT 0, pl_filename TEXT NOT NULL);");
+            sqldb.execSQL ("CREATE INDEX plates2_state ON plates2 (pl_state);");
+            sqldb.execSQL ("CREATE INDEX plates2_icaoid ON plates2 (pl_icaoid);");
+            sqldb.execSQL ("CREATE INDEX plates2_faaid ON plates2 (pl_faaid);");
+            if (sqldb.tableExists ("plates")) {
+                sqldb.execSQL ("INSERT INTO plates2 (pl_state,pl_faaid,pl_descrip,pl_filename) SELECT pl_state,pl_faaid,pl_descrip,pl_filename FROM plates");
+                sqldb.execSQL ("DROP TABLE plates");
+            }
+            sqldb.execSQL ("COMMIT");
         }
     }
 
@@ -2724,15 +2873,17 @@ public class MaintView
      *          0: state not downloaded
      *       else: expiration date yyyymmdd
      */
-    public int GetCurrentPlatesExpDate (String ss)
+    public int GetCurrentPlatesExpDate (String ssboth)
     {
-        StateCheckBox scb = stateMapView.stateCheckBoxes.get (ss);
-        return (scb == null) ? -1 : scb.curentenddate;
+        StateCheckBox scb = stateCheckBoxes.get (ssboth);
+        if (scb != null) return scb.curentenddate;
+        return -1;
     }
-    public int GetLatestPlatesExpDate (String ss)
+    public int GetLatestPlatesExpDate (String ssboth)
     {
-        StateCheckBox scb = stateMapView.stateCheckBoxes.get (ss);
-        return (scb == null) ? -1 : scb.latestenddate;
+        StateCheckBox scb = stateCheckBoxes.get (ssboth);
+        if (scb != null) return scb.latestenddate;
+        return -1;
     }
 
     /**

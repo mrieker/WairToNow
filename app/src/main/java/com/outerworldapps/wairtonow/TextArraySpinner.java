@@ -27,8 +27,11 @@ import android.util.AttributeSet;
 import android.util.TypedValue;
 import android.view.View;
 import android.widget.Button;
+import android.widget.HorizontalScrollView;
+import android.widget.LinearLayout;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
+import android.widget.ScrollView;
 
 /**
  * Our own spinner that selects items from dynamically built text array.
@@ -48,6 +51,7 @@ public class TextArraySpinner extends Button implements View.OnClickListener {
 
     private AlertDialog dialog;
     private int index = NOTHING;
+    private int ncols = 1;
     private String title;
     private String[] unlabels = new String[3];
     private String[] labels = Lib.nullarrayString;
@@ -114,6 +118,15 @@ public class TextArraySpinner extends Button implements View.OnClickListener {
     }
 
     /**
+     * Set number of columns used for selector box.
+     */
+    public void setNumCols (int nc)
+    {
+        if (nc <= 0) throw new IllegalArgumentException ("nc must be .gt. 0");
+        ncols = nc;
+    }
+
+    /**
      * Intercept enabling/disabling.
      */
     @Override
@@ -154,41 +167,61 @@ public class TextArraySpinner extends Button implements View.OnClickListener {
 
         // make a group of radio buttons for the selection
         Context ctx = getContext ();
-        RadioGroup radiogroup = new RadioGroup (ctx);
 
-        // make their text size same as the main button
-        float textSizeSize = getTextSize ();
-        int textSizeUnit = TypedValue.COMPLEX_UNIT_PX;
+        RadioGroup[] radiogroups = new RadioGroup[ncols];
+        int lblpercol = (labels.length + ncols - 1) / ncols;
+        for (int icol = 0; icol < ncols; icol ++) {
+            RadioGroup radiogroup = new RadioGroup (ctx);
+            radiogroups[icol] = radiogroup;
 
-        // set up listener if one of the normal buttons gets clicked
-        OnClickListener itemSelectListener = new OnClickListener () {
-            @Override
-            public void onClick (View view) {
-                selected ((int) view.getTag ());
+            // make their text size same as the main button
+            float textSizeSize = getTextSize ();
+            int textSizeUnit = TypedValue.COMPLEX_UNIT_PX;
+
+            // set up listener if one of the normal buttons gets clicked
+            OnClickListener itemSelectListener = new OnClickListener () {
+                @Override
+                public void onClick (View view) {
+                    selected ((int) view.getTag ());
+                }
+            };
+
+            // loop through the list of normal button labels
+            // create a radio button for each and link to list
+            for (int i = lblpercol * icol; (i < labels.length) && (i < lblpercol * (icol + 1)); i ++) {
+                String label = labels[i];
+
+                RadioButton radiobutton = new RadioButton (ctx);
+                radiobutton.setText (label);
+                radiobutton.setTextSize (textSizeUnit, textSizeSize);
+                radiobutton.setChecked (i == index);
+                radiobutton.setTag (i);
+                radiobutton.setOnClickListener (itemSelectListener);
+
+                radiogroup.addView (radiobutton);
             }
-        };
 
-        // loop through the list of normal button labels
-        // create a radio button for each and link to list
-        for (int i = 0; i < labels.length; i ++) {
-            String label = labels[i];
-
-            RadioButton radiobutton = new RadioButton (ctx);
-            radiobutton.setText (label);
-            radiobutton.setTextSize (textSizeUnit, textSizeSize);
-            radiobutton.setChecked (i == index);
-            radiobutton.setTag (i);
-            radiobutton.setOnClickListener (itemSelectListener);
-
-            radiogroup.addView (radiobutton);
+            adjustRadioGroup (radiogroup);
         }
-
-        adjustRadioGroup (radiogroup);
 
         // throw up an alert dialog with the radio buttons
         AlertDialog.Builder adb = new AlertDialog.Builder (ctx);
         if (title != null) adb.setTitle (title);
-        adb.setView (radiogroup);
+
+        if (ncols == 1) {
+            ScrollView sv = new ScrollView (ctx);
+            sv.addView (radiogroups[0]);
+            adb.setView (sv);
+        } else {
+            LinearLayout collinlay = new LinearLayout (ctx);
+            collinlay.setOrientation (LinearLayout.HORIZONTAL);
+            for (RadioGroup rg : radiogroups) collinlay.addView (rg);
+            ScrollView vsv = new ScrollView (ctx);
+            vsv.addView (collinlay);
+            HorizontalScrollView hsv = new HorizontalScrollView (ctx);
+            hsv.addView (vsv);
+            adb.setView (hsv);
+        }
 
         // maybe do positive/negative buttons too
         if (unlabels[~POSITIVE] != null) {

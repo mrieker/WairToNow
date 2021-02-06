@@ -482,7 +482,7 @@ public class StateView extends View {
 
         // always display scaling and rotation
         double altitude = wairToNow.currentGPSAlt;
-        double chr = wairToNow.chartView.backing.GetCanvasHdgRads ();
+        double chr = wairToNow.chartView.backing.GetCanvasTrueUpRads ();
         if (centerLLChanged || optionsChanged ||
                 (centerInfoScaling       != scaling) ||
                 (centerInfoCanvasHdgRads != chr)     ||
@@ -698,7 +698,7 @@ public class StateView extends View {
 
             // draw traffic starting with farthest away so nearby don't get overdrawn by far away
             float textSize = trafficTxPaint.getTextSize ();
-            double canvasUp = Math.toDegrees (backing.GetCanvasHdgRads ());
+            double canvasUp = Math.toDegrees (backing.GetCanvasTrueUpRads ());
             while (-- ntraf >= 0) {
                 Traffic traffic = trafficArray[ntraf];
 

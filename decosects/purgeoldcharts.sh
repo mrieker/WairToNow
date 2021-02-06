@@ -8,7 +8,12 @@ function purgechart
         then
             rm -rf "$file"
         else
-            mv "$file" "purged-$file"
+            if [ "$file" == "${file%.wtn.zip}" ]
+            then
+                mv "$file" "purged-$file"
+            else
+                rm -rf "$file"
+            fi
         fi
     done
 }

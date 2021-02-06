@@ -37,6 +37,7 @@ import android.view.View;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.LinkedList;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
@@ -70,10 +71,11 @@ public abstract class PlateImage extends View {
      * @param pid = "APD-..." "IAP-..." etc
      * @param exp = plate expiration date yyyymmdd
      * @param fnm = plate image filename
-     * @param ful = plate takes up fill page
+     * @param ful = plate takes up full page
+     * @param eff = plate effective date yyyymmdd
      * @return view of the plate image
      */
-    public static PlateImage Create (WairToNow wtn, Waypoint.Airport apt, String pid, int exp, String fnm, boolean ful)
+    public static PlateImage Create (WairToNow wtn, Waypoint.Airport apt, String pid, int exp, String fnm, boolean ful, int eff)
     {
         if (pid.startsWith (IAPSynthPlateImage.prefix)) {
             return new IAPSynthPlateImage (wtn, apt, pid, exp, ful);
@@ -88,11 +90,11 @@ public abstract class PlateImage extends View {
         if (ngrpi.getNumPages () == 1) {
             // just 1 page, check various georefd types
             if (pid.startsWith ("APD-")) {
+                // uses plates_<expdate> apdgeorefs table and no cifps
                 return new APDPlateImage (wtn, apt, pid, exp, fnm, ful);
             }
-            if (pid.startsWith ("IAP-")) {
-                return new IAPRealPlateImage (wtn, apt, pid, exp, fnm, ful);
-            }
+            // uses plates_<expdate> iapgeorefs and iapcifps tables
+            return new IAPRealPlateImage (wtn, apt, pid, exp, fnm, ful, eff);
         }
         // not georefd
         return ngrpi;
@@ -116,7 +118,26 @@ public abstract class PlateImage extends View {
     // used by PlateCIFP,PlateDME
     public Waypoint FindWaypoint (String wayptid)
     {
-        return airport.GetNearbyWaypoint (wayptid);
+        // check for user waypoint first
+        Waypoint uwp = wairToNow.userWPView.waypoints.get (wayptid);
+        if (uwp != null) return uwp;
+
+        // try to get waypoint in airport's database and context (such as RWnn for runway)
+        Waypoint wp = airport.GetNearbyWaypoint (wayptid);
+        if (wp == null) {
+            // search for waypoint in any database
+            LinkedList<Waypoint> wps = Waypoint.GetWaypointsByIdent (wayptid, wairToNow);
+            // if more than one found, pick one closest to airport
+            double nm = 999999.0;
+            for (Waypoint wpx : wps) {
+                double nmx = Lib.LatLonDist (wpx.lat, wpx.lon, airport.lat, airport.lon);
+                if (nm > nmx) {
+                    nm = nmx;
+                    wp = wpx;
+                }
+            }
+        }
+        return wp;
     }
 
     /**

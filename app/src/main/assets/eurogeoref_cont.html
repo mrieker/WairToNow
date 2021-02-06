@@ -1,0 +1,24 @@
+<HTML>
+    <BODY>
+        <H3> Plates Contributed To Server </H3>
+        <P>List of plate manual georeferencing contributed by other users or yourself.</P>
+        <SCRIPT LANGUAGE=JAVASCRIPT>
+
+            // get json string for the category being displayed
+            var jsontxt = hvjso.getManualGeoRefs ('cont');
+            //document.write ('<P>' + jsontxt + '</P>\n');
+            var jsonobj = JSON.parse (jsontxt);
+            //document.write ('<P> parsed </P>');
+
+            document.write ('<TABLE><TH>ICAOID</TH><TH>Plate</TH><TH>EffDate</TH><TH>EntDate</TH><TH>Username</TH></TR>');
+            var plates = jsonobj.plates;
+            for (var i = 0; i < plates.length; i ++) {
+                var plate = plates[i];
+                document.write ('<TR><TD>' + plate.icaoid + '</TD><TD>' + plate.plate);
+                document.write ('</TD><TD>' + plate.effdate + '</TD><TD>');
+                document.write (plate.entdate + '</TD><TD>' + plate.username + '</TD></TR>');
+            }
+            document.write ('</TABLE>');
+        </SCRIPT>
+    </BODY>
+</HTML>

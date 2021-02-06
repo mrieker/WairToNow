@@ -28,6 +28,7 @@ import android.os.SystemClock;
  */
 public abstract class IAPPlateImage extends GRPlateImage {
     protected boolean    full;
+    protected double     iapTrueUpRads;
     protected long       plateLoadedUptime;
     protected PlateCIFP  plateCIFP;
     protected PlateDME   plateDME;
@@ -65,7 +66,7 @@ public abstract class IAPPlateImage extends GRPlateImage {
         /*
          * Draw airplane and current location info if we have enough georeference info.
          */
-        DrawLocationArrow (canvas, false);
+        DrawLocationArrow (canvas, iapTrueUpRads, false);
         wairToNow.currentCloud.DrawIt (canvas);
 
         /*

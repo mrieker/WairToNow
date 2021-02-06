@@ -421,11 +421,13 @@ public class PlateDME {
                 try {
                     SQLiteDBs sqldb = SQLiteDBs.create (dbname);
                     if (!sqldb.tableExists ("dmecheckboxes")) {
+                        sqldb.execSQL ("BEGIN");
                         sqldb.execSQL ("DROP INDEX IF EXISTS dmecbs_idplate");
                         sqldb.execSQL ("DROP INDEX IF EXISTS dmecbs_idplateid");
                         sqldb.execSQL ("CREATE TABLE dmecheckboxes (dc_icaoid TEXT NOT NULL, dc_plate TEXT NOT NULL, dc_dmeid TEXT NOT NULL, dc_checked INTEGER NOT NULL)");
                         sqldb.execSQL ("CREATE INDEX dmecbs_idplate ON dmecheckboxes (dc_icaoid,dc_plate)");
                         sqldb.execSQL ("CREATE UNIQUE INDEX dmecbs_idplateid ON dmecheckboxes (dc_icaoid,dc_plate,dc_dmeid)");
+                        sqldb.execSQL ("COMMIT");
                     }
 
                     // if a new ident was typed in the box, add it to the checkbox list as checked

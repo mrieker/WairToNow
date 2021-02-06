@@ -25,16 +25,28 @@ import android.support.annotation.NonNull;
 /**
  * Lambert Conic Conformal chart projection.
  */
-public class Lambert {
+public class Lambert implements IExactMapper {
     private double pixelsize;
     private double e_e, e_F_rada, e_lam0, e_n, e_phi0, e_rho0;
     private double tfw_a, tfw_b, tfw_c, tfw_d, tfw_e, tfw_f;
     private double wft_a, wft_b, wft_c, wft_d, wft_e, wft_f;
 
-    public Lambert (double centerLat, double centerLon,
-                    double stanPar1, double stanPar2,
-                    double rada, double radb, double[] tfws)
+    public Lambert (String[] csvs, int i)
     {
+        double centerLat = Double.parseDouble (csvs[i++]);
+        double centerLon = Double.parseDouble (csvs[i++]);
+        double stanPar1  = Double.parseDouble (csvs[i++]);
+        double stanPar2  = Double.parseDouble (csvs[i++]);
+        double rada      = Double.parseDouble (csvs[i++]);
+        double radb      = Double.parseDouble (csvs[i++]);
+
+        tfw_a = Double.parseDouble (csvs[i++]);
+        tfw_b = Double.parseDouble (csvs[i++]);
+        tfw_c = Double.parseDouble (csvs[i++]);
+        tfw_d = Double.parseDouble (csvs[i++]);
+        tfw_e = Double.parseDouble (csvs[i++]);
+        tfw_f = Double.parseDouble (csvs[i]);
+
         /*
          * Compute projection parameters.
          *
@@ -73,13 +85,6 @@ public class Lambert {
         /*
          * tfw_a..f = convert pixel to easting/northing
          */
-        tfw_a = tfws[0];
-        tfw_b = tfws[1];
-        tfw_c = tfws[2];
-        tfw_d = tfws[3];
-        tfw_e = tfws[4];
-        tfw_f = tfws[5];
-
         pixelsize = Math.hypot (tfw_b, tfw_d);
 
         /*

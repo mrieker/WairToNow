@@ -144,7 +144,7 @@ public class Chart3DView extends GLSurfaceView implements ChartView.Backing {
      * Get what we consider to be the 'up' heading.
      */
     @Override  // Backing
-    public double GetCanvasHdgRads ()
+    public double GetCanvasTrueUpRads ()
     {
         double hdg = wairToNow.currentGPSHdg;
         if ((myRenderer != null) && (myRenderer.mWidth != 0)) {

@@ -53,6 +53,8 @@ echo END GENALLCHARTCSVS.SH ; date
 echo END READALLTIFFS.SH ; date
 php downloadofmtiles.php
 echo END DOWNLOADOFMTILES.PHP ; date
+./europlatedownload.sh
+echo END EUROPLATEDOWNLOAD.SH ; date
 
 ./makedatumstopo.sh
 echo END MAKEDATUMSTOPO.SH ; date
