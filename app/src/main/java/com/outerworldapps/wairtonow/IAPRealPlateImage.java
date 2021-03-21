@@ -408,6 +408,12 @@ public class IAPRealPlateImage extends IAPPlateImage {
                     "gr_plate TEXT NOT NULL, gr_csvs TEXT NOT NULL, gr_circtype INTEGER NOT NULL DEFAULT " + CRT_UNKN +
                     ", gr_circrweps BLOB, PRIMARY KEY (gr_icaoid,gr_plate))");
             if (machinedb.tableExists ("iapgeorefs2")) {
+                if (!machinedb.columnExists ("iapgeorefs2", "gr_circtype")) {
+                    machinedb.execSQL ("ALTER TABLE iapgeorefs2 ADD COLUMN gr_circtype INTEGER NOT NULL DEFAULT " + CRT_UNKN);
+                }
+                if (!machinedb.columnExists ("iapgeorefs2", "gr_circrweps")) {
+                    machinedb.execSQL ("ALTER TABLE iapgeorefs2 ADD COLUMN gr_circrweps BLOB");
+                }
                 machinedb.execSQL ("INSERT INTO iapgeorefs3 (gr_icaoid,gr_state,gr_plate,gr_circtype,gr_circrweps,gr_csvs) " +
                         "SELECT gr_icaoid,gr_state,gr_plate,gr_circtype,gr_circrweps," +
                         "'LAM,'||gr_clat||','||gr_clon||','||gr_stp1||','||gr_stp2||','||gr_rada||','||gr_radb||','||" +

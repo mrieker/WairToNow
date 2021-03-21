@@ -598,14 +598,18 @@ public class OptionsView
                         // register new username, password, email address
                         final EditText unvalue = new EditText (wairToNow);
                         Button rgbuttn = new Button (wairToNow);
+                        Button prbuttn = new Button (wairToNow);
                         unvalue.setSingleLine ();
                         unvalue.setEms (10);
                         unvalue.setInputType (InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
                         wairToNow.SetTextSize (unvalue);
                         wairToNow.SetTextSize (rgbuttn);
+                        wairToNow.SetTextSize (prbuttn);
                         rgbuttn.setText ("REGISTER");
+                        prbuttn.setText ("PW RESET");
                         unrow.addView (unvalue);
                         unrow.addView (rgbuttn);
+                        unrow.addView (prbuttn);
                         pwrow.addView (pwvalue);
                         pwrow.addView (pwvisib);
                         emrow.addView (emvalue);
@@ -614,6 +618,13 @@ public class OptionsView
                             public void onClick (View view)
                             {
                                 rgbuttonClicked (unvalue, pwvalue, emvalue);
+                            }
+                        });
+                        prbuttn.setOnClickListener (new OnClickListener () {
+                            @Override
+                            public void onClick (View view)
+                            {
+                                prbuttonClicked (unvalue.getText ().toString ().trim ());
                             }
                         });
                     } else {
@@ -654,7 +665,7 @@ public class OptionsView
                             @Override
                             public void onClick (View view)
                             {
-                                prbuttonClicked ();
+                                prbuttonClicked (null);
                             }
                         });
                         pwbuttn.setOnClickListener (new OnClickListener () {
@@ -734,27 +745,32 @@ public class OptionsView
      * PW RESET contribution password button clicked.
      * Tell server to send an email with a link to reset the password.
      */
-    private void prbuttonClicked ()
+    private void prbuttonClicked (final String unentry)
     {
         new Thread () {
             @Override
             public void run ()
             {
-                SQLiteDBs sqldb = SQLiteDBs.open ("manualiapgeorefs.db");
-                if (sqldb != null) {
-                    Cursor result = sqldb.query ("register", new String[] { "mr_username" }, null, null, null, null, null, null);
-                    try {
-                        if (result.moveToFirst ()) {
-                            String username = result.getString (0);
-                            try {
-                                oneLineHttpReplyOK ("/manualgeoref.php?func=pwreset&username=" + URLEncoder.encode (username));
-                                alertMessage ("password reset email sent - check email (including spam folder) then click link therein");
-                            } catch (Exception e) {
-                                alertMessage ("error resetting password: " + e.getMessage ());
+                String username = unentry;
+                if (username == null) {
+                    SQLiteDBs sqldb = SQLiteDBs.open ("manualiapgeorefs.db");
+                    if (sqldb != null) {
+                        Cursor result = sqldb.query ("register", new String[] { "mr_username" }, null, null, null, null, null, null);
+                        try {
+                            if (result.moveToFirst ()) {
+                                username = result.getString (0);
                             }
+                        } finally {
+                            result.close ();
                         }
-                    } finally {
-                        result.close ();
+                    }
+                }
+                if (username != null) {
+                    try {
+                        oneLineHttpReplyOK ("/manualgeoref.php?func=pwreset&username=" + URLEncoder.encode (username));
+                        alertMessage ("password reset email sent - check email (including spam folder) then click link therein");
+                    } catch (Exception e) {
+                        alertMessage ("error resetting password: " + e.getMessage ());
                     }
                 }
                 SQLiteDBs.CloseAll ();
