@@ -12,26 +12,19 @@ set -e
 
 function downloadgroup
 {
-    java ParseChartList chartlist_all.htm $1 | downloadfiles
+    java ParseChartList chartlist_all.htm $1 $next28 | downloadfiles
 }
 
 function downloadfiles
 {
-    # link = "http://aeronav.faa.gov/content/aeronav/sectional_files/New_York_86.zip"
+    # link = "20210225 https://aeronav.faa.gov/visual/02-25-2021/heli_files/Boston_Heli.zip"
+    # link = "20210225 https://aeronav.faa.gov/visual/02-25-2021/sectional-files/New_York.zip"
+    # link = "20210225 https://aeronav.faa.gov/visual/02-25-2021/tac-files/Boston_TAC.zip"
     while read link
     do
-        link=${link#*href=\"}
-        link=${link%%\"*}
-        echo link=$link
-        if [ "$next28" == "1" ]
-        then
-            linknozip=${link%.zip}
-            linknozipnorev=${linknozip%_*}_
-            oldrev=${linknozip:${#linknozipnorev}}
-            newrev=$((oldrev+1))
-            link=$linknozipnorev$newrev.zip
-        fi
-        zipname=`basename $link`
+        effdate=${link%% *}                         # 20210225
+        link=${link#* }                             # https://aeronav.faa.gov/visual/02-25-2021/sectional-files/New_York.zip
+        zipname=`basename $link .zip`_$effdate.zip  # New_York_20210225.zip
         if [ ! -f $zipname ]
         then
             rm -rf zip.tmp
@@ -47,9 +40,20 @@ function downloadfiles
             rm -rf zip.tmp
             mkdir zip.tmp
             unzip -d zip.tmp -o $zipname
-            find zip.tmp -type f -exec mv {} . \;
+            find zip.tmp -type f | renamefiles $effdate
             rm -rf zip.tmp
         fi
+    done
+}
+
+# rename each file found in the zip to include yyyymmdd effdate on the end
+function renamefiles
+{
+    while read tmppath                      # eg "zip.tmp/New York SEC.htm"
+    do
+        suff=.${tmppath##*.}                # eg ".htm"
+        name=`basename "$tmppath" $suff`    # eg "New York SEC"
+        mv -f "$tmppath" "$name $1$suff"    # eg "New York SEC 20210225.htm"
     done
 }
 
@@ -61,10 +65,12 @@ export CLASSPATH=$pwd/ParseChartList.jar:$pwd/jsoup-1.9.2.jar
 mkdir -p charts
 cd charts
 
-wget -nv http://www.faa.gov/air_traffic/flight_info/aeronav/digital_products/vfr/ -O chartlist_all.htm
-downloadgroup helicopter
-downloadgroup sectional
-downloadgroup terminalArea
+wget -nv https://www.faa.gov/air_traffic/flight_info/aeronav/digital_products/vfr/ -O chartlist_all.htm
+downloadgroup sectional-files
+downloadgroup tac-files
+downloadgroup heli_files
+downloadgroup grand_canyon_files
+downloadgroup Caribbean
 ls -l *Planning*
 rm -f New\ York\ TAC\ VFR\ Planning\ Charts\ *.*
 

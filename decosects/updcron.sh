@@ -15,7 +15,7 @@ newcyc=`./cureffdate -28 -x -do 8 yyyy-mm-dd`
 if [ "$oldcyc" != "$newcyc" ]
 then
     export next28=1
-    ./updateverything.sh > updateverything.log
+    ./updateverything.sh > updateverything.log 2>&1
     if [ "$1" != "" ]
     then
         mail -s 'WairToNow Update' $1 < updateverything.log

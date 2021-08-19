@@ -109,6 +109,7 @@ function runit
     then
         processplates < datums/europlatelist_$expdate.dat
     else
+        export CLASSPATH=EuroPlateList.jar
         java EuroPlateList datums/europlatepdfs_ $expdate | tee datums/europlatelist_$expdate.dat.tmp | processplates
         mv datums/europlatelist_$expdate.dat.tmp datums/europlatelist_$expdate.dat
     fi
@@ -126,26 +127,34 @@ then
     runit | xargs -d '\n' -L 5 -P 12 ./europlatedownload.sh xargscallback
     rm -rf epdtemp*
 
-    # if being re-run for this cycle, re-do the waypoint databases cuz they read the .csv files
+    # create waypoint databases
 
-    if [ -f datums/waypointsoa_$expdate.db.gz ]
+    if [ ! -f datums/waypointsoa_$expdate.db.gz ]
     then
-        echo "europlatedownload recreating waypiontsoa" 1>&2
+        echo "europlatedownload creating waypointsoa" 1>&2
         rm -f datums/waypointsoa_$expdate.db*
         mono --debug MakeWaypoints.exe $expdate datums/waypointsoa_$expdate.db 0 1
         gzip -c datums/waypointsoa_$expdate.db > datums/waypointsoa_$expdate.db.gz.tmp
         mv datums/waypointsoa_$expdate.db.gz.tmp datums/waypointsoa_$expdate.db.gz
     fi
 
-    if [ -f datums/waypointsofm_$expdate.db.gz ]
+    if [ ! -f datums/wayptabbsoa_$expdate.db.gz ]
     then
-        echo "europlatedownload recreating waypiontsofm" 1>&2
+        echo "europlatedownload creating wayptabbsoa" 1>&2
+        rm -f datums/wayptabbsoa_$expdate.db*
+        mono --debug MakeWaypoints.exe $expdate datums/wayptabbsoa_$expdate.db 1 1
+        gzip -c datums/wayptabbsoa_$expdate.db > datums/wayptabbsoa_$expdate.db.gz.tmp
+        mv datums/wayptabbsoa_$expdate.db.gz.tmp datums/wayptabbsoa_$expdate.db.gz
+    fi
+
+    if [ ! -f datums/waypointsofm_$expdate.db.gz ]
+    then
+        echo "europlatedownload creating waypointsofm" 1>&2
         rm -f datums/waypointsofm_$expdate.db*
         mono --debug MakeWaypoints.exe $expdate datums/waypointsofm_$expdate.db 0 2
         gzip -c datums/waypointsofm_$expdate.db > datums/waypointsofm_$expdate.db.gz.tmp
         mv datums/waypointsofm_$expdate.db.gz.tmp datums/waypointsofm_$expdate.db.gz
     fi
-
 fi
 
 if [[ ( "$1" == "xargscallback" ) && ( "$2$3$4$5$6" != "" ) ]]

@@ -5,6 +5,8 @@
 #  Takes about 3 mins to run
 #
 #  https://www.faa.gov/air_traffic/flight_info/aeronav/digital_products/cifp/
+#    Coded Instrument Flight Procedures
+#  https://www.faa.gov/air_traffic/flight_info/aeronav/digital_products/cifp/download/
 #
 #  http://aeronav.faa.gov/Upload_313-d/cifp/cifp_181011.zip
 
@@ -24,11 +26,11 @@ then
     if [ ! -f datums/iapcifps_$cycles28.zip ]
     then
         rm -f datums/iapcifps_$cycles28.zip.tmp
-        wget -nv --no-check-certificate https://www.aeronav.faa.gov/Upload_313-d/cifp/cifp_$effyymmdd.zip -O datums/iapcifps_$cycles28.zip.tmp
+        wget -nv --no-check-certificate https://aeronav.faa.gov/Upload_313-d/cifp/CIFP_$effyymmdd.zip -O datums/iapcifps_$cycles28.zip.tmp
         mv datums/iapcifps_$cycles28.zip.tmp datums/iapcifps_$cycles28.zip
     fi
     rm -f datums/iapcifps_$cycles28.gz.tmp
-    unzip -p datums/iapcifps_$cycles28.zip FAACIFP18_$airac28.ari | gzip -c > datums/iapcifps_$cycles28.gz.tmp
+    unzip -p datums/iapcifps_$cycles28.zip FAACIFP18 | gzip -c > datums/iapcifps_$cycles28.gz.tmp
     if [ `stat -c %s datums/iapcifps_$cycles28.gz.tmp` -lt 100000 ]
     then
         echo error downloading cifp file

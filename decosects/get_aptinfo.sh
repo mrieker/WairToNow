@@ -62,7 +62,7 @@ set -e
 #  See if we already have this 28-day cycle done
 #
 expdate=`./cureffdate -28 -x yyyymmdd`
-if [ ! -f datums/waypoints_$expdate.db.gz ]
+if [ ! -f datums/wayptabbs_$expdate.db.gz ]
 then
 
     #
@@ -162,19 +162,21 @@ then
     #
     #  Generate SQLite databases for downloading
     #
-    mono --debug MakeWaypoints.exe $expdate datums/waypoints_$expdate.db 0 0
-    mono --debug MakeWaypoints.exe $expdate datums/wayptabbs_$expdate.db 1 0
-    mono --debug MakeWaypoints.exe $expdate datums/waypointsoa_$expdate.db 0 1
-    mono --debug MakeWaypoints.exe $expdate datums/wayptabbsoa_$expdate.db 1 1
+    if [ ! -f datums/waypoints_$expdate.db ]
+    then
+        mono --debug MakeWaypoints.exe $expdate datums/waypoints_$expdate.db.tmp 0 0
+        mv -f datums/waypoints_$expdate.db.tmp datums/waypoints_$expdate.db
+    fi
+    if [ ! -f datums/wayptabbs_$expdate.db ]
+    then
+        mono --debug MakeWaypoints.exe $expdate datums/wayptabbs_$expdate.db.tmp 1 0
+        mv -f datums/wayptabbs_$expdate.db.tmp datums/wayptabbs_$expdate.db
+    fi
     rm -f datums/wayp*_$expdate.db.gz.tmp
     gzip -c datums/waypoints_$expdate.db   > datums/waypoints_$expdate.db.gz.tmp
     gzip -c datums/wayptabbs_$expdate.db   > datums/wayptabbs_$expdate.db.gz.tmp
-    gzip -c datums/waypointsoa_$expdate.db > datums/waypointsoa_$expdate.db.gz.tmp
-    gzip -c datums/wayptabbsoa_$expdate.db > datums/wayptabbsoa_$expdate.db.gz.tmp
     mv -f datums/waypoints_$expdate.db.gz.tmp   datums/waypoints_$expdate.db.gz
     mv -f datums/wayptabbs_$expdate.db.gz.tmp   datums/wayptabbs_$expdate.db.gz
-    mv -f datums/waypointsoa_$expdate.db.gz.tmp datums/waypointsoa_$expdate.db.gz
-    mv -f datums/wayptabbsoa_$expdate.db.gz.tmp datums/wayptabbsoa_$expdate.db.gz
 fi
 
 #

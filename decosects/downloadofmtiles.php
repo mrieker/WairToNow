@@ -56,6 +56,8 @@
     $zoom =  10;    // use the zoom 10 slippy tiles
     $size = 256;    // slippy tiles are 256x256
 
+    @mkdir ("datums/statezips_$expdate");
+
     $wpxml = gzopen ("datums/ofmwaypts_$expdate.xml.gz.tmp", "wb9");
     gzputs ($wpxml, "<ofmx>\n");
 

@@ -387,8 +387,12 @@ public class ReadEuroIAPPng {
         foreach (Cluster degclus in clusters) {
             if (! degclus.IsLatLon) continue;
 
+            int deghite = degclus.hiy - degclus.loy;
+            if (verbose) Console.WriteLine ("FindLatLonStrings*: degclus=" + degclus.ToString () + " deghite=" + deghite);
+
             // sometime have just dd^q eg 54^N
-            char clustag = degclus.ClusTag;
+            // ... or can be 5100N or 11230E
+            char clustag = degclus.ClusTagSfx;
             if (clustag != 0) {
                 ClusPair cp = new ClusPair ();
                 cp.degclus = degclus;
@@ -407,7 +411,7 @@ public class ReadEuroIAPPng {
 
                 // text height should be similar
                 int minhite = minclus.hiy - minclus.loy;
-                int deghite = degclus.hiy - degclus.loy;
+                if (verbose) Console.WriteLine ("FindLatLonStrings*:   minclus=" + minclus.ToString () + " minhite=" + minhite);
                 if (minhite < deghite * 3 / 4) continue;
                 if (deghite < minhite * 3 / 4) continue;
                 int avghite = (minhite + deghite) / 2;
@@ -419,7 +423,7 @@ public class ReadEuroIAPPng {
                     ClusPair cp = new ClusPair ();
                     cp.degclus = degclus;
                     cp.minclus = minclus;
-                    cp.cptag   = minclus.ClusTag;
+                    cp.cptag   = (char) (degclus.ClusTag | minclus.ClusTag);
                     double deg = cp.GetDegrees ();
                     if (! double.IsNaN (deg)) {
                         clusPairs.AddLast (cp);
@@ -435,7 +439,7 @@ public class ReadEuroIAPPng {
                     ClusPair cp = new ClusPair ();
                     cp.degclus = degclus;
                     cp.minclus = minclus;
-                    cp.cptag   = minclus.ClusTag;
+                    cp.cptag   = (char) (degclus.ClusTag | minclus.ClusTag);
                     double deg = cp.GetDegrees ();
                     if (! double.IsNaN (deg)) {
                         clusPairs.AddLast (cp);
@@ -470,7 +474,7 @@ public class ReadEuroIAPPng {
             Deco deco = new Deco ();
             foreach (string part in parts) {
                 if (part.StartsWith ("x="))  deco.x = (int) Math.Round (double.Parse (part.Substring (2)) * 300.0 / 72.0);
-                if (part.StartsWith ("y="))  deco.y = (int) Math.Round (double.Parse (part.Substring (2)) * 300.0 / 72.0);
+                if (part.StartsWith ("y="))  deco.y = rotdHeight - (int) Math.Round (double.Parse (part.Substring (2)) * 300.0 / 72.0);
                 if (part.StartsWith ("dx=")) deco.w = (int) Math.Round (double.Parse (part.Substring (3)) * 300.0 / 72.0);
                 if (part.StartsWith ("dy=")) dyzero = double.Parse (part.Substring (3)) == 0.0;
                 if (part.StartsWith ("str=") && (part.Length == 5)) deco.c = part[4];
@@ -497,12 +501,22 @@ public class ReadEuroIAPPng {
                     if (cluster != null) clusters.AddLast (cluster);
                     cluster = new Cluster ();
                 }
-                lastx  = deco.x + deco.w;
-                deco.h = deco.w + 1;
-                deco.y = rotdHeight - deco.y - deco.h;
                 cluster.InsertDeco (deco);
+                lastx = deco.x + deco.w;
             }
             if (cluster != null) clusters.AddLast (cluster);
+        }
+
+        // we don't get actual character height from pdftotext
+        // so make one up based on average character width
+        foreach (Cluster cluster in clusters) {
+            int cluswidth  = cluster.hix - cluster.lox;
+            int decoheight = cluswidth / cluster.decos.Count;
+            cluster.loy   -= decoheight;
+            foreach (Deco deco in cluster.decos) {
+                deco.h  = decoheight;
+                deco.y -= decoheight;
+            }
         }
     }
 
@@ -2118,12 +2132,13 @@ public class ClusPair {
         sb.Append (GetHiX ());
         sb.Append (",");
         sb.Append (GetHiY ());
+        sb.Append (") [");
         sb.Append (degclus.Result);
         if (minclus != null) {
             sb.Append (" ");
             sb.Append (minclus.Result);
         }
-        sb.Append (" (");
+        sb.Append ("] (");
         sb.Append (GetRefX (0));
         sb.Append (",");
         sb.Append (GetRefY (0));
@@ -2259,10 +2274,21 @@ public class Cluster {
     }
 
     /**
-     * Maybe cluster ends with N, S, E, W
+     * Maybe cluster begins or ends with N, S, E, W
      * Return the char if so, or a 0 if not
      */
     public char ClusTag {
+        get {
+            if (decos.Count == 0) return (char)0;
+            string res = Result;
+            char tag = res[0];
+            if ((tag == 'N') || (tag == 'S') || (tag == 'E') || (tag == 'W')) return tag;
+            tag = res[res.Length-1];
+            return ((tag != 'N') && (tag != 'S') && (tag != 'E') && (tag != 'W')) ? (char)0 : tag;
+        }
+    }
+
+    public char ClusTagSfx {
         get {
             if (decos.Count == 0) return (char)0;
             string res = Result;
@@ -2273,8 +2299,10 @@ public class Cluster {
 
     /**
      * @brief Determine if this cluster is a valid lat or lon string.
-     *        digits ^
-     *        digits '
+     *        optionally starts with N, S, E, W
+     *        digits
+     *        optionally followed by ^ or '
+     *        optionally followed by N, S, E, W
      */
     public bool IsLatLon {
         get {
@@ -2285,17 +2313,38 @@ public class Cluster {
             // append null terminator so we don't have to keep checking subscripts
             r += (char)0;
 
-            // must start with a digit
+            // maybe haf N S E W on front
             int i = 0;
-            char c = r[i++];
+            char c = r[i];
+            bool hasnsewpfx = (c == 'N') || (c == 'S') || (c == 'E') || (c == 'W');
+            if (hasnsewpfx) i ++;
+
+            // must start with a digit
+            c = r[i++];
             if ((c < '0') || (c > '9')) return false;
             int ndigs = 0;
+            int ival = 0;
 
             // skip other digits
             do {
+                ival = ival * 10 + (c - '0');
                 ndigs ++;
                 c = r[i++];
             } while ((c >= '0') && (c <= '9'));
+
+            // if 4 or 5 digits,
+            //  might be ddmmq or dddmmq
+            //  like 5100N or 11230E
+            //   or N5100, E11230
+            if ((ndigs == 4) || (ndigs == 5)) {
+                int imin = ival % 100;
+                if (imin > 59) return false;
+                if (! hasnsewpfx) {
+                    if ((c != 'N') && (c != 'S') && (c != 'E') && (c != 'W')) return false;
+                    c = r[i++];
+                }
+                return c == (char)0;
+            }
 
             // must be 2 or 3 digits
             if ((ndigs < 2) || (ndigs > 3)) return false;
@@ -2306,8 +2355,10 @@ public class Cluster {
             }
 
             // maybe have N S E W next
-            if ((c == 'N') || (c == 'S') || (c == 'E') || (c == 'W')) {
-                c = r[i++];
+            if (! hasnsewpfx) {
+                if ((c == 'N') || (c == 'S') || (c == 'E') || (c == 'W')) {
+                    c = r[i++];
+                }
             }
 
             // make sure it's the end of the string
@@ -2317,16 +2368,21 @@ public class Cluster {
 
     // gets value
     // assumes IsLatLon returns true
-    public int Value {
+    public double Value {
         get {
             string r = Result;
             int val = 0;
+            int ndigs = 0;
             for (int i = 0; i < r.Length; i ++) {
                 char c = r[i];
                 if ((c < '0') || (c > '9')) break;
                 val = val * 10 + (c - '0');
+                ndigs ++;
             }
-            return val;
+            if (ndigs < 4) return val;
+            int ideg = val / 100;
+            int imin = val % 100;
+            return ideg + imin / 60.0;
         }
     }
 

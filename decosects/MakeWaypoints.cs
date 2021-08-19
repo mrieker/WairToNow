@@ -696,6 +696,8 @@ public class MakeWaypoints {
         }
         if (argc != 4) throw new Exception ("missing args");
 
+        Console.WriteLine ("creating " + dbname);
+
         File.Delete (dbname);
         IDbConnection dbcon = new SqliteConnection ("URI=file:" + dbname);
         try {
@@ -722,6 +724,8 @@ public class MakeWaypoints {
         } finally {
             dbcon.Close ();
         }
+
+        Console.WriteLine ("created " + dbname);
     }
 
     /**
@@ -990,6 +994,9 @@ public class MakeWaypoints {
         /*
          * Read airport info into memory.
          */
+        Console.WriteLine ("reading airports");
+        long lastms = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds ();
+        int numapts = 0;
         Dictionary<string,OA_Airport> oaidents = new Dictionary<string,OA_Airport> ();
         csvrdr = new StreamReader ("datums/oa_" + expdate + "/airports.hxl");
         colnames = ReadColNames (csvrdr);
@@ -1037,13 +1044,21 @@ public class MakeWaypoints {
                 continue;
             }
 
+            long nowms = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds ();
+            if (nowms >= lastms + 5000) {
+                Console.WriteLine ("airport[" + numapts + "].ident=" + airport.ident);
+                lastms = nowms;
+            }
+
             oaidents[airport.ident] = airport;
+            numapts ++;
         }
         csvrdr.Close ();
 
         /*
          * Load runway info into database and into memory.
          */
+        Console.WriteLine ("reading runways");
         csvrdr = new StreamReader ("datums/oa_" + expdate + "/runways.csv");
         colnames = ReadColNames (csvrdr);
         i = 0;
@@ -1146,6 +1161,7 @@ public class MakeWaypoints {
         /*
          * Read airport frequencies into memory.
          */
+        Console.WriteLine ("reading frequencies");
         csvrdr = new StreamReader ("datums/oa_" + expdate + "/aptfreqs.csv");
         csvrdr.ReadLine ();
         while ((csv = csvrdr.ReadLine ()) != null) {
@@ -1168,6 +1184,7 @@ public class MakeWaypoints {
          * Write airport info into database.
          * Include runway and frequency information.
          */
+        Console.WriteLine ("writing airports, frequencies, runways");
         OpenIntlMetafs ();
         foreach (OA_Airport airport in oaidents.Values) {
             airport.apt_metaf = (airport.oa_longrwyft < 1000) ? "" : GetIntlMetaf (airport.ident);
@@ -1183,6 +1200,7 @@ public class MakeWaypoints {
         /*
          * Load navaid info into database.
          */
+        Console.WriteLine ("reading and writing navaids");
         csvrdr = new StreamReader ("datums/oa_" + expdate + "/navaids.csv");
         csvrdr.ReadLine ();
         while ((csv = csvrdr.ReadLine ()) != null) {
@@ -1223,6 +1241,7 @@ public class MakeWaypoints {
         }
         csvrdr.Close ();
 
+        Console.WriteLine ("done");
         DoCommand (dbcon, "COMMIT;");
     }
 

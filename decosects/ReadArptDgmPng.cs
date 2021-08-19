@@ -469,6 +469,8 @@ public class ReadArptDgmPng {
         badStrings["KFMH:1^40.0'N"]   = "41^40.0'N";
         badStrings["KFRG:73^24.5'"]   = "73^24.5'W";
         badStrings["KFRG:73^25.0'"]   = "73^25.0'W";
+        badStrings["KFTK:37^54.30'N"] = "37^54.5'N";
+        badStrings["KFTK:85^58.30'W"] = "85^58.5'W";
         badStrings["KGTB:44^05'N"]    = "--";
         badStrings["KHDC:90^24.5'N"]  = "90^24.5'W";
         badStrings["KHDC:90^25.0'N"]  = "90^25.0'W";

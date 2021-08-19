@@ -25,94 +25,49 @@
 // javac ParseChartList.java
 
 // wget -q http://www.faa.gov/air_traffic/flight_info/aeronav/digital_products/vfr/ -O chartlist_all.htm
-// java chartlist_all.htm grandCanyon|helicopter|sectional|terminalArea
+// java chartlist_all.htm sectional-files|tac-files|heli_files|grand_canyon_files|Caribbean $next28
+// output is lines of 'effdate htmllink'
 
 import java.io.BufferedReader;
 import java.io.FileReader;
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Document;
-import org.jsoup.nodes.Element;
-import org.jsoup.nodes.TextNode;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Date;
 
 public class ParseChartList {
+
     public static void main (String[] args)
+            throws Exception
     {
-        try {
+        String category = "/" + args[1] + "/";
+        boolean next28 = Integer.parseInt (args[2]) != 0;
 
-            // read chartlist_all.htm into memory
-            // convert the &ndash; to -
-            StringBuilder sb = new StringBuilder ();
-            BufferedReader br = new BufferedReader (new FileReader (args[0]), 4096);
-            for (String st; (st = br.readLine ()) != null;) {
-                sb.append (st.replace ("&ndash;", "-"));
-            }
-            br.close ();
+        Date todate = Calendar.getInstance ().getTime ();
+        String today = new SimpleDateFormat ("yyyy").format (todate) +
+                        new SimpleDateFormat ("MM").format (todate) +
+                        new SimpleDateFormat ("dd").format (todate);
 
-            // parse it
-            Document doc = Jsoup.parse (sb.toString ());
+        // read chartlist_all.htm into memory
+        StringBuilder sb = new StringBuilder ();
+        BufferedReader br = new BufferedReader (new FileReader (args[0]), 4096);
+        for (String st; (st = br.readLine ()) != null;) {
+            sb.append (st);
+        }
+        br.close ();
+        String doc = sb.toString ();
 
-            // maybe dump it out for devel
-            //printElement (doc, "");
+        String baseurl = "https://aeronav.faa.gov/visual/";
 
-            // #sectional > table.striped > tbody > tr:nth-child(1) > td:nth-child(1)
-            // #terminalArea > table.striped > tbody > tr:nth-child(4) > td:nth-child(1)
-
-            Element div   = doc.getElementById (args[1]);               // <DIV CLASS="sectional">
-            Element table = getFirstChildWithTagName (div,   "table");  //   <TABLE>
-            Element tbody = getFirstChildWithTagName (table, "tbody");  //     <TBODY>
-
-            // step through the rows, one per chart
-            for (int rowno = 0;; rowno ++) {
-                Element tableRow;
-                try {
-                    tableRow = tbody.child (rowno);
-                } catch (IndexOutOfBoundsException ioobe) {
-                    break;
+        for (int i = 0; (i = doc.indexOf (baseurl, ++ i)) >= 0;) {
+            String url = doc.substring (i, doc.indexOf (">", i));
+            if (url.contains (category)) {
+                url = url.replace ("\"", "");
+                String eff = url.substring (baseurl.length (), baseurl.length () + 10);   // mm-dd-yyyy
+                eff = eff.substring (6, 10) + eff.substring (0, 2) + eff.substring (3, 5);
+                if (next28 ^ (eff.compareTo (today) <= 0)) {
+                    System.out.println (eff + " " + url);
                 }
-                if (!tableRow.tagName ().equals ("tr")) continue;
-
-                // the current <a href=...> is in column 1
-                // if next28 is in effect, vfr_charts_download.sh will handle it
-                Element tableCol = tableRow.child (1);
-                String ahrefzip = getFirstAHrefZip (tableCol);
-                System.out.println (ahrefzip);
-            }
-        } catch (Exception e) {
-            System.err.println (e.toString ());
-            e.printStackTrace (System.err);
-        }
-    }
-
-    public static void printElement (Element elem, String indent)
-    {
-        System.out.println (indent + "<" + elem.tagName ());
-        System.out.println (indent + "   " + elem.cssSelector () + ">");
-        if (elem.hasText ()) {
-            for (TextNode text : elem.textNodes ()) {
-                System.out.println (indent + "     " + text.text ());
             }
         }
-        String indentchild = indent + "    ";
-        for (Element child : elem.children ()) {
-            printElement (child, indentchild);
-        }
-        System.out.println (indent + "</" + elem.tagName () + ">");
-    }
-
-    public static Element getFirstChildWithTagName (Element elem, String tagName)
-    {
-        for (Element e : elem.children ()) {
-            if (e.tagName ().equals (tagName)) return e;
-        }
-        return null;
-    }
-
-    public static String getFirstAHrefZip (Element elem)
-    {
-        for (Element aelem : elem.getElementsByTag ("a")) {
-            String href = aelem.attr ("href");
-            if (href.endsWith (".zip")) return href;
-        }
-        return null;
     }
 }

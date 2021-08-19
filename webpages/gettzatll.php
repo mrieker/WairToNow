@@ -42,7 +42,7 @@
         $row = $sqldb->querySingle ("SELECT tzname FROM timezones WHERE i100lat=$i100lat AND i100lon=$i100lon");
 
         if (!$row) {
-            sleep (3);
+            sleep (1);
             $lat  = sprintf ("%.2f", $i100lat / 100.0);
             $lon  = sprintf ("%.2f", $i100lon / 100.0);
             $user = trim (file_get_contents ("$dbdir/geonames_username.txt"));

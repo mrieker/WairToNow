@@ -10,12 +10,9 @@ icaoid=$1
 
 cycles28=`./cureffdate -28 -x yyyymmdd`
 
-csvline=`grep "^$icaoid," datums/airports_$cycles28.csv`
-faaid=${csvline#*,}
-faaid=${faaid%%,*}
+faaid=`echo "select apt_faaid from airports where apt_icaoid='$icaoid';" | sqlite3 datums/waypoints_$cycles28.db`
+stateid=`echo "select apt_state from airports where apt_icaoid='$icaoid';" | sqlite3 datums/waypoints_$cycles28.db`
 echo faaid=$faaid
-stateid=${csvline%,*}
-stateid=${stateid##*,}
 echo stateid=$stateid
 
 gifname=`grep "^$faaid,\"APD-AIRPORT" datums/aptplates_$cycles28/state/$stateid.csv`

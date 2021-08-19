@@ -75,14 +75,38 @@ public class Chart {
         /*
          * Read image parameters from HTM file.
          */
-        StreamReader htmreader = new StreamReader (htmname);
-        string htmfile = htmreader.ReadToEnd ();
-        htmreader.Close ();
-        StringBuilder sb = new StringBuilder (htmfile.Length);
-        foreach (char c in htmfile) {
-            if (c > ' ') sb.Append (c);
+        BinaryReader htmreader = new BinaryReader (File.Open (htmname, FileMode.Open));
+        StringBuilder sb = new StringBuilder ();
+        try {
+            bool intag = false;
+            bool needspace = false;
+            while (true) {
+                byte b = htmreader.ReadByte ();
+                if (b > 32) {
+                    if ((b >= 'A') && (b <= 'Z')) b += 'a' - 'A';
+                    if (b == '<') {
+                        intag = true;
+                        needspace = true;
+                        continue;
+                    }
+                    if (b == '>') {
+                        intag = false;
+                        continue;
+                    }
+                    if (! intag) {
+                        if (needspace) {
+                            needspace = false;
+                            sb.Append (' ');
+                        }
+                        sb.Append ((char) b);
+                    }
+                }
+            }
+        } catch (EndOfStreamException) {
         }
-        htmfile = sb.ToString ();
+        htmreader.Close ();
+        string htmfile = sb.ToString ().Replace (" : ", ":").Replace (": ", ":").Replace ("semi- major_axis", "semi-major_axis");
+        //File.WriteAllText ("x.htm", htmfile);
 
         if (spacename.StartsWith ("ENR ")) {
             int j = spacename.LastIndexOf (' ');
@@ -93,21 +117,21 @@ public class Chart {
             dt = dt.AddDays (56);
             enddate = dt.Year * 10000 + dt.Month * 100 + dt.Day;
         } else {
-            begdate = GetMetaInteger (htmfile, "dc.coverage.t.min");
+            begdate = GetColonInteger (htmfile, "beginning_date");
             try {
-                enddate = GetMetaInteger (htmfile, "dc.coverage.t.max");
+                enddate = GetColonInteger (htmfile, "ending_date");
             } catch (FormatException) {
                 if (!spacename.Contains (" HEL ")) throw;
                 enddate = 0;
             }
         }
 
-        centerLon = GetHtmDouble  (htmfile, "Longitude_of_Central_Meridian");
-        centerLat = GetHtmDouble  (htmfile, "Latitude_of_Projection_Origin");
-        stanPar1  = GetHtmDouble  (htmfile, "Standard_Parallel", 1);
-        stanPar2  = GetHtmDouble  (htmfile, "Standard_Parallel", 2);
-        e_width   = GetHtmInteger (htmfile, "Column_Count");
-        e_height  = GetHtmInteger (htmfile, "Row_Count");
+        centerLon = GetHtmDouble  (htmfile, "longitude_of_central_meridian");
+        centerLat = GetHtmDouble  (htmfile, "latitude_of_projection_origin");
+        stanPar1  = GetHtmDouble  (htmfile, "lambert_conformal_conic:standard_parallel");
+        stanPar2  = GetHtmDouble  (htmfile, "standard_parallel");
+        e_width   = GetHtmInteger (htmfile, "column_count");
+        e_height  = GetHtmInteger (htmfile, "row_count");
 
         if (e_width < e_height) {
             int swap = e_height;
@@ -115,8 +139,8 @@ public class Chart {
             e_width  = swap;
         }
 
-        double invflat = GetHtmDouble (htmfile, "Denominator_of_Flattening_Ratio");
-        e_rada = GetHtmDouble  (htmfile, "Semi-major_Axis");
+        double invflat = GetHtmDouble (htmfile, "denominator_of_flattening_ratio");
+        e_rada = GetHtmDouble  (htmfile, "semi-major_axis");
         e_radb = e_rada * (1.0 - 1.0 / invflat);
 
         /*
@@ -125,9 +149,9 @@ public class Chart {
          *   </td>
          *   <td class="std" headers="header2">87 - Jul 25 2013</td>
          */
-        htmreader = new StreamReader (clistname);
-        htmfile = htmreader.ReadToEnd ();
-        htmreader.Close ();
+        StreamReader stmreader = new StreamReader (clistname);
+        htmfile = stmreader.ReadToEnd ();
+        stmreader.Close ();
         string undernons = spacename.Replace (' ', '_');
         if (undernons.EndsWith ("_North") || undernons.EndsWith ("_South")) {
             undernons = undernons.Substring (0, undernons.Length - 6);
@@ -216,12 +240,12 @@ public class Chart {
      * @param tagname = name of double value to extract
      * @returns parsed double value
      *
-     *  <dt><em>Longitude_of_Central_Meridian:</em>-72.833333</dt>
-     *  <dt><em>Latitude_of_Projection_Origin:</em>42.100000</dt>
-     *  <dt><em>Abscissa_Resolution:</em>63.581364</dt>
-     *  <dt><em>Ordinate_Resolution:</em>63.581364</dt>
-     *  <dt><em>Semi-major_Axis:</em>6378137.000000</dt>
-     *  <dt><em>Denominator_of_Flattening_Ratio:</em>298.257222</dt>
+     *  >Longitude_of_Central_Meridian:-72.833333<
+     *  >Latitude_of_Projection_Origin:42.100000<
+     *  >Abscissa_Resolution:63.581364<
+     *  >Ordinate_Resolution:63.581364<
+     *  >Semi-major_Axis:6378137.000000<
+     *  >Denominator_of_Flattening_Ratio:298.257222<
      */
     private static double GetHtmDouble (string htmfile, string tagname)
     {
@@ -253,9 +277,44 @@ public class Chart {
     private static string GetHtmString (string htmfile, string tagname, int index)
     {
         int i = 0;
-        do i = htmfile.IndexOf ("dt><em>" + tagname + ":</em>", i) + tagname.Length + 13;
+        do i = htmfile.IndexOf (" " + tagname + ":", i) + tagname.Length + 2;
         while (-- index > 0);
-        int j = htmfile.IndexOf ("</dt>", i);
+        int j = htmfile.IndexOf (" ", i);
+        return htmfile.Substring (i, j - i);
+    }
+
+    /**
+     * @brief Parse an integet value from the .htm file.
+     * @param htmfile = contents of the .htm file with all whitespace stripped
+     * @param tagname = name of double value to extract
+     * @returns parsed integer value
+     *
+     *  ...beginning_date:20210812 ...
+     */
+    private static int GetColonInteger (string htmfile, string tagname)
+    {
+        String str = GetColonString (htmfile, tagname, 1);
+        if (str.EndsWith (",")) str = str.Substring (0, str.Length - 1);
+        try {
+            return int.Parse (str);
+        } catch (Exception e) {
+            throw new Exception ("tagname=" + tagname + " str=" + str, e);
+        }
+    }
+
+    /**
+     * @brief Parse a string value from the .htm file.
+     * @param htmfile = contents of the .htm file with all whitespace stripped
+     * @param tagname = name of string value to extract
+     * @param index   = which occurrence (1=first, 2=second, etc)
+     * @returns string value
+     */
+    private static string GetColonString (string htmfile, string tagname, int index)
+    {
+        int i = 0;
+        do i = htmfile.IndexOf (tagname + ":", i) + tagname.Length + 1;
+        while (-- index > 0);
+        int j = htmfile.IndexOf (" ", i);
         return htmfile.Substring (i, j - i);
     }
 

@@ -70,6 +70,31 @@ function purgedatum
             mv "$file" "purged-$file"
             continue
         fi
+        if [ "${file:0:21}" == "datums/europlatecsvs_" ]
+        then
+            mv "$file" "purged-$file"
+            continue
+        fi
+        if [ "${file:0:21}" == "datums/europlategeos_" ]
+        then
+            mv "$file" "purged-$file"
+            continue
+        fi
+        if [ "${file:0:21}" == "datums/europlategifs_" ]
+        then
+            mv "$file" "purged-$file"
+            continue
+        fi
+        if [ "${file:0:21}" == "datums/europlatelist_" ]
+        then
+            mv "$file" "purged-$file"
+            continue
+        fi
+        if [ "${file:0:21}" == "datums/europlatepdfs_" ]
+        then
+            mv "$file" "purged-$file"
+            continue
+        fi
         if [ "${file:0:12}" == "datums/fixes" ]
         then
             rm -rf "$file"

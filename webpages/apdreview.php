@@ -46,7 +46,14 @@
                 $cleanname = $_REQUEST['pngname'];
                 $markdname = "../webpages/apdreview/$icaoid.markd.png";
                 $csvname   = "../webpages/apdreview/$icaoid.csv";
-                $cvtfile = popen ("cd ../decosects ; umask 002 ; mono --debug ReadArptDgmPng.exe $cleanname -markedpng $markdname -csvoutfile $csvname -csvoutid $icaoid 2>&1", "r");
+                $runways   = "";
+                $cycles28  = $_REQUEST['cycles28'];
+                if (file_exists ("datums/runways_$cycles28.csv")) {
+                    $runways = " -faaid " . $_REQUEST['faaid'] . " -runways datums/runways_$cycles28.csv";
+                }
+                echo "<P>runways=$runways</P>";
+                $cvtfile = popen ("cd ../decosects ; umask 002 ; " .
+                        "mono --debug ReadArptDgmPng.exe $cleanname -markedpng $markdname -csvoutfile $csvname -csvoutid $icaoid$runways 2>&1", "r");
                 if (!$cvtfile) {
                     echo "<P>error starting ReadArptDgmPng.exe</P>\n";
                 } else {
@@ -123,7 +130,7 @@
                         }
                         if ($gifname != "") {
                             $pngname = str_replace (".gif", ".png.p1", $gifname);
-                            echo "<A HREF=\"$thisscript?icaoid=$lasticaoid&pngname=datums/aptplates_$cycles28/pngtemp/$pngname\" TARGET=_BLANK>\n";
+                            echo "<A HREF=\"$thisscript?icaoid=$lasticaoid&cycles28=$cycles28&faaid=$faaid&pngname=datums/aptplates_$cycles28/pngtemp/$pngname\" TARGET=_BLANK>\n";
                         }
                         echo "<UL>\n";
                     }

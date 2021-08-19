@@ -136,13 +136,33 @@ public class InternalGps extends GpsAdsbReceiver implements GpsStatus.Listener, 
 
         LocationManager locationManager = getLocationManager ();
         if (locationManager != null) {
-            Location lastLoc = locationManager.getLastKnownLocation (LocationManager.GPS_PROVIDER);
-            if (lastLoc == null) {
-                lastLoc = new Location ("InternalGps.start");
+            try {
+                Location lastLoc = locationManager.getLastKnownLocation (LocationManager.GPS_PROVIDER);
+                if (lastLoc == null) {
+                    lastLoc = new Location ("InternalGps.start");
+                }
+                onLocationChanged (lastLoc);
+                locationManager.requestLocationUpdates (LocationManager.GPS_PROVIDER, 333L, 0.0F, this);
+                locationManager.addGpsStatusListener (this);
+            } catch (IllegalArgumentException iae) {
+                Log.w (TAG, "exception starting internal GPS", iae);
+                String newmsg = iae.getMessage ();
+                if (newmsg == null) newmsg = iae.getClass ().getName ();
+                SharedPreferences prefs = wairToNow.getPreferences (Context.MODE_PRIVATE);
+                if (! newmsg.equals (prefs.getString ("notifiednointernalgps", ""))) {
+                    SharedPreferences.Editor editr = prefs.edit ();
+                    editr.putString ("notifiednointernalgps", newmsg);
+                    editr.apply ();
+                    newmsg += "\ngoto Sensors->Internal->Internal GPS to retry";
+                    AlertDialog.Builder adb = new AlertDialog.Builder (wairToNow);
+                    adb.setTitle ("Error starting Internal GPS");
+                    adb.setMessage (newmsg);
+                    adb.setPositiveButton ("OK", null);
+                    adb.show ();
+                }
+                intGPSEnable.setChecked (false);
+                return;
             }
-            onLocationChanged (lastLoc);
-            locationManager.requestLocationUpdates (LocationManager.GPS_PROVIDER, 333L, 0.0F, this);
-            locationManager.addGpsStatusListener (this);
             selected = true;
 
             numLocations = 0;
@@ -207,6 +227,7 @@ public class InternalGps extends GpsAdsbReceiver implements GpsStatus.Listener, 
         SharedPreferences prefs = wairToNow.getPreferences (Context.MODE_PRIVATE);
         SharedPreferences.Editor editr = prefs.edit ();
         editr.putBoolean ("selectedGPSReceiverKey_" + getPrefKey (), selected);
+        editr.putString ("notifiednointernalgps", "");
         editr.apply ();
 
         /*
