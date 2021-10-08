@@ -125,7 +125,7 @@ VerifyOutline.exe: VerifyOutline.cs ChartTiff.cs
 
 ParseChartList.jar: ParseChartList.java jsoup-1.9.2.jar
 	rm -f ParseChartList.jar *.class
-	CLASSPATH=.:jsoup-1.9.2.jar javac -Xlint:deprecation ParseChartList.java
+	javac -Xlint:deprecation ParseChartList.java
 	jar cf ParseChartList.jar *.class
 	rm -f *.class
 

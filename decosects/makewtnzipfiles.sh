@@ -18,10 +18,12 @@ function processchart
         zip -0 -D -q -r ../$chart.tmp.zip *
         cd ..
         mv -f $chart.tmp.zip $chart.wtn.zip
+        rm -rf $chart
     fi
 }
 
 cd `dirname $0`
+set -e
 
 if [ "$1" != "" ]
 then
@@ -31,5 +33,4 @@ else
     rm -f charts/*.htm
     rm -f charts/*.tfw
     rm -f charts/*.tif
-    find charts -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} \;
 fi

@@ -5,25 +5,23 @@
 # http://aeronav.faa.gov/content/aeronav/WAC_files/CF-19_42.zip
 # http://aeronav.faa.gov/content/aeronav/Grand_Canyon_files/Grand_Canyon_3.zip
 #
-#  Takes about 35mins
+#  Takes about 15mins
 #
 
 set -e
 
 function downloadgroup
 {
-    java ParseChartList chartlist_all.htm $1 $next28 | downloadfiles
+    java ParseChartList $effdate $1 < ../ParseChartList.dat | downloadfiles
 }
 
 function downloadfiles
 {
-    # link = "20210225 https://aeronav.faa.gov/visual/02-25-2021/heli_files/Boston_Heli.zip"
-    # link = "20210225 https://aeronav.faa.gov/visual/02-25-2021/sectional-files/New_York.zip"
-    # link = "20210225 https://aeronav.faa.gov/visual/02-25-2021/tac-files/Boston_TAC.zip"
+    # link = "https://aeronav.faa.gov/visual/02-25-2021/heli_files/Boston_Heli.zip"
+    # link = "https://aeronav.faa.gov/visual/02-25-2021/sectional-files/New_York.zip"
+    # link = "https://aeronav.faa.gov/visual/02-25-2021/tac-files/Boston_TAC.zip"
     while read link
     do
-        effdate=${link%% *}                         # 20210225
-        link=${link#* }                             # https://aeronav.faa.gov/visual/02-25-2021/sectional-files/New_York.zip
         zipname=`basename $link .zip`_$effdate.zip  # New_York_20210225.zip
         if [ ! -f $zipname ]
         then
@@ -60,12 +58,13 @@ function renamefiles
 cd `dirname $0`
 pwd=`pwd`
 
-export CLASSPATH=$pwd/ParseChartList.jar:$pwd/jsoup-1.9.2.jar
+effdate=`./cureffdate -28 yyyymmdd`
+
+export CLASSPATH=$pwd/ParseChartList.jar
 
 mkdir -p charts
 cd charts
 
-wget -nv https://www.faa.gov/air_traffic/flight_info/aeronav/digital_products/vfr/ -O chartlist_all.htm
 downloadgroup sectional-files
 downloadgroup tac-files
 downloadgroup heli_files

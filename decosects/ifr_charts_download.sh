@@ -139,7 +139,5 @@ echo expdate_mmm $expdate_mmm
 mkdir -p charts
 cd charts
 
-wget -nv https://www.faa.gov/air_traffic/flight_info/aeronav/digital_products/ifr/ -O ifrcharts.htm
-
-mono --debug ../GetIFRChartNames.exe $effdate_mm < ifrcharts.htm | scanifrchartshtm
+mono --debug ../GetIFRChartNames.exe $effdate_mm | scanifrchartshtm
 

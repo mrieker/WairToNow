@@ -55,8 +55,12 @@ public class Topography {
                 for (File file : files) {
                     String name = file.getName ();
                     if (name.endsWith (".zip.temp")) {
-                        int ilatdeg = Integer.parseInt (name.substring (name.length () - 9));
-                        TopoDownloadThread.enqueue (ilatdeg);
+                        try {
+                            int ilatdeg = Integer.parseInt (name.substring (name.length () - 9));
+                            TopoDownloadThread.enqueue (ilatdeg);
+                        } catch (NumberFormatException nfe) {
+                            Lib.Ignored (file.delete ());
+                        }
                     }
                 }
             }
