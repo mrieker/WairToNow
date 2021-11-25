@@ -655,6 +655,9 @@ public class OpenStreetMap {
                                         long now = System.currentTimeMillis ();
                                         sqldb.execSQL ("UPDATE rwypreloads2 SET rp_lastry=" + now + " WHERE rp_icaoid='" + icaoid + "' AND rp_dbase='" + dbase + "'");
                                     }
+                                } else {
+                                    Log.w (TAG, "apt " + icaoid + " not found in waypoint database");
+                                    sqldb.execSQL ("DELETE FROM rwypreloads2 WHERE rp_icaoid='" + icaoid + "' AND rp_dbase='" + dbase + "'");
                                 }
 
                                 // try to get another airport's runway tiles

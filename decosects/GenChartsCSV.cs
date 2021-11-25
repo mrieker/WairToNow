@@ -149,6 +149,7 @@ public class Chart {
          *   </td>
          *   <td class="std" headers="header2">87 - Jul 25 2013</td>
          */
+        /*
         StreamReader stmreader = new StreamReader (clistname);
         htmfile = stmreader.ReadToEnd ();
         stmreader.Close ();
@@ -177,6 +178,7 @@ public class Chart {
             } catch (Exception) {
             }
         }
+        */
 
         /*
          * Read more image parameters from TFW file.

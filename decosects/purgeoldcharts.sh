@@ -6,13 +6,13 @@ function purgechart
     do
         if [ "$file" == "${file%.zip}" ]
         then
-            rm -rf "$file"
+            echo rm -rf "$file"
         else
             if [ "$file" == "${file%.wtn.zip}" ]
             then
-                mv "$file" "purged-$file"
+                echo mv "$file" "purged-$file"
             else
-                rm -rf "$file"
+                echo rm -rf "$file"
             fi
         fi
     done
@@ -24,200 +24,200 @@ function purgedatum
     do
         if [ "${file:0:15}" == "datums/airports" ]
         then
-            rm -rf "$file"
+            echo rm -rf "$file"
             continue
         fi
         if [ "${file:0:15}" == "datums/airways_" ]
         then
-            mv "$file" "purged-$file"
+            echo mv "$file" "purged-$file"
             continue
         fi
         if [ "${file:0:18}" == "datums/apdgeorefs_" ]
         then
-            mv "$file" "purged-$file"
+            echo mv "$file" "purged-$file"
             continue
         fi
         if [ "${file:0:19}" == "datums/aptdiags_150" ]
         then
-            rm -rf "$file"
+            echo rm -rf "$file"
             continue
         fi
         if [ "${file:0:19}" == "datums/aptdiags_300" ]
         then
-            rm -rf "$file"
+            echo rm -rf "$file"
             continue
         fi
         if [ "${file:0:19}" == "datums/aptdiags_pdf" ]
         then
-            mv "$file" "purged-$file"
+            echo mv "$file" "purged-$file"
             continue
         fi
         if [ "${file:0:14}" == "datums/aptinfo" ]
         then
-            mv "$file" "purged-$file"
+            echo mv "$file" "purged-$file"
             continue
         fi
         if [ "${file:0:16}" == "datums/aptplates" ]
         then
-            rm -rf "$file/gif_150"
-            rm -rf "$file/giftemp"
-            rm -rf "$file/pngtemp"
-            mv "$file" "purged-$file"
+            echo rm -rf "$file/gif_150"
+            echo rm -rf "$file/giftemp"
+            echo rm -rf "$file/pngtemp"
+            echo mv "$file" "purged-$file"
             continue
         fi
         if [ "${file:0:12}" == "datums/DDTPP" ]
         then
-            mv "$file" "purged-$file"
+            echo mv "$file" "purged-$file"
             continue
         fi
         if [ "${file:0:21}" == "datums/europlatecsvs_" ]
         then
-            mv "$file" "purged-$file"
+            echo mv "$file" "purged-$file"
             continue
         fi
         if [ "${file:0:21}" == "datums/europlategeos_" ]
         then
-            mv "$file" "purged-$file"
+            echo mv "$file" "purged-$file"
             continue
         fi
         if [ "${file:0:21}" == "datums/europlategifs_" ]
         then
-            mv "$file" "purged-$file"
+            echo mv "$file" "purged-$file"
             continue
         fi
         if [ "${file:0:21}" == "datums/europlatelist_" ]
         then
-            mv "$file" "purged-$file"
+            echo mv "$file" "purged-$file"
             continue
         fi
         if [ "${file:0:21}" == "datums/europlatepdfs_" ]
         then
-            mv "$file" "purged-$file"
+            echo mv "$file" "purged-$file"
             continue
         fi
         if [ "${file:0:12}" == "datums/fixes" ]
         then
-            rm -rf "$file"
+            echo rm -rf "$file"
             continue
         fi
         if [ "${file:0:20}" == "datums/getaptplates_" ]
         then
-            mv "$file" "purged-$file"
+            echo mv "$file" "purged-$file"
             continue
         fi
         if [ "${file:0:16}" == "datums/iapcifps_" ]
         then
-            mv "$file" "purged-$file"
+            echo mv "$file" "purged-$file"
             continue
         fi
         if [ "${file:0:19}" == "datums/iapgeorefs2_" ]
         then
-            rm -rf "$file"
+            echo rm -rf "$file"
             continue
         fi
         if [ "${file:0:20}" == "datums/intersections" ]
         then
-            rm -rf "$file"
+            echo rm -rf "$file"
             continue
         fi
         if [ "${file:0:17}" == "datums/localizers" ]
         then
-            rm -rf "$file"
+            echo rm -rf "$file"
             continue
         fi
         if [ "${file:0:14}" == "datums/navaids" ]
         then
-            rm -rf "$file"
+            echo rm -rf "$file"
             continue
         fi
         if [ "${file:0:10}" == "datums/oa_" ]
         then
-            mv "$file" "purged-$file"
+            echo mv "$file" "purged-$file"
             continue
         fi
         if [ "${file:0:20}" == "datums/obstructions_" ]
         then
-            rm -rf "$file"
+            echo rm -rf "$file"
             continue
         fi
         if [ "${file:0:17}" == "datums/ofmwaypts_" ]
         then
-            mv "$file" "purged-$file"
+            echo mv "$file" "purged-$file"
             continue
         fi
         if [ "${file:0:12}" == "datums/ofmx_" ]
         then
-            mv "$file" "purged-$file"
+            echo mv "$file" "purged-$file"
             continue
         fi
         if [ "${file:0:14}" == "datums/runways" ]
         then
-            rm -rf "$file"
+            echo rm -rf "$file"
             continue
         fi
         if [ "${file:0:17}" == "datums/statezips_" ]
         then
-            rm -rf "$file"
+            echo rm -rf "$file"
             continue
         fi
         if [ "${file:0:16}" == "datums/stations_" ]
         then
-            mv "$file" "purged-$file"
+            echo mv "$file" "purged-$file"
             continue
         fi
         if [ "${file:0:16}" == "datums/waypoints" ]
         then
-            rm -rf "$file"
+            echo rm -rf "$file"
             continue
         fi
         if [ "${file:0:16}" == "datums/wayptabbs" ]
         then
-            rm -rf "$file"
+            echo rm -rf "$file"
             continue
         fi
         if [ "${file:0:11}" == "datums/AFF_" ]
         then
-            mv "$file" "purged-$file"
+            echo mv "$file" "purged-$file"
             continue
         fi
         if [ "${file:0:11}" == "datums/APT_" ]
         then
-            mv "$file" "purged-$file"
+            echo mv "$file" "purged-$file"
             continue
         fi
         if [ "${file:0:12}" == "datums/AWOS_" ]
         then
-            mv "$file" "purged-$file"
+            echo mv "$file" "purged-$file"
             continue
         fi
         if [ "${file:0:11}" == "datums/AWY_" ]
         then
-            mv "$file" "purged-$file"
+            echo mv "$file" "purged-$file"
             continue
         fi
         if [ "${file:0:11}" == "datums/DOF_" ]
         then
-            mv "$file" "purged-$file"
+            echo mv "$file" "purged-$file"
             continue
         fi
         if [ "${file:0:11}" == "datums/FIX_" ]
         then
-            mv "$file" "purged-$file"
+            echo mv "$file" "purged-$file"
             continue
         fi
         if [ "${file:0:11}" == "datums/ILS_" ]
         then
-            mv "$file" "purged-$file"
+            echo mv "$file" "purged-$file"
             continue
         fi
         if [ "${file:0:11}" == "datums/NAV_" ]
         then
-            mv "$file" "purged-$file"
+            echo mv "$file" "purged-$file"
             continue
         fi
         if [ "${file:0:11}" == "datums/TWR_" ]
         then
-            mv "$file" "purged-$file"
+            echo mv "$file" "purged-$file"
             continue
         fi
     done
