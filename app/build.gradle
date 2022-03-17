@@ -20,12 +20,12 @@ def getGitStatus = { ->
 }
 
 android {
-    compileSdkVersion 29
+    compileSdkVersion 30
 
     defaultConfig {
         //noinspection MinSdkTooLow
         minSdkVersion 11
-        targetSdkVersion 29
+        targetSdkVersion 30
         buildConfigField "String", "GitHash", "\"${getGitHash()}\""
         buildConfigField "String", "GitStatus", "\"${getGitStatus()}\""
     }
