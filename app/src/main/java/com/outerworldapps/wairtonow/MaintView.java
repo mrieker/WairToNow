@@ -513,11 +513,6 @@ public class MaintView
                             }
                         }
                         online = true;
-
-                        /*
-                         * Webserver accessible, maybe there are ACRA reports to send on.
-                         */
-                        AcraApplication.sendReports (wairToNow);
                     } finally {
                         httpCon.disconnect ();
                         SQLiteDBs.CloseAll ();

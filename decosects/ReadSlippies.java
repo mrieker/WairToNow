@@ -204,11 +204,11 @@ public class ReadSlippies {
             } catch (Throwable t) {
                 System.err.println ("error processing region " + infile.getPath ());
                 t.printStackTrace (System.err);
-            }
-
-            synchronized (threadlock) {
-                -- nthreads;
-                threadlock.notifyAll ();
+            } finally {
+                synchronized (threadlock) {
+                    -- nthreads;
+                    threadlock.notifyAll ();
+                }
             }
         }
 
@@ -261,11 +261,17 @@ public class ReadSlippies {
                                     }
                                     if (streetimg == null) {
                                         String streetstr = "http://www.outerworldapps.com/WairToNow/streets.php?tile=" + zoom + "/" + x + "/" + y + ".png";
-                                        URL streeturl = new URL (streetstr);
-                                        streetimg = ImageIO.read (streeturl);
-                                        synchronized (streetimages) {
-                                            streetimages.put (key, streetimg);
-                                            streetimages.notifyAll ();
+                                        try {
+                                            URL streeturl = new URL (streetstr);
+                                            streetimg = ImageIO.read (streeturl);
+                                        } catch (Exception e) {
+                                            URL streeturl = new URL (streetstr);
+                                            streetimg = ImageIO.read (streeturl);
+                                        } finally {
+                                            synchronized (streetimages) {
+                                                streetimages.put (key, streetimg);
+                                                streetimages.notifyAll ();
+                                            }
                                         }
                                     }
                                     if (! graphics.drawImage (streetimg, 0, 0, size, size, Color.WHITE, null)) {

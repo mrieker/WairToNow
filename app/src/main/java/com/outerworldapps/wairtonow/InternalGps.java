@@ -32,6 +32,7 @@ import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Bundle;
+import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.text.SpannableStringBuilder;
@@ -300,7 +301,7 @@ public class InternalGps extends GpsAdsbReceiver implements GpsStatus.Listener, 
     \**********************************************/
 
     @Override  // LocationListener
-    public void onLocationChanged (Location loc)
+    public void onLocationChanged (@NonNull Location loc)
     {
         updateLastReceived ();
         if (selected) {
@@ -314,11 +315,11 @@ public class InternalGps extends GpsAdsbReceiver implements GpsStatus.Listener, 
     }
 
     @Override  // LocationListener
-    public void onProviderDisabled(String arg0)
+    public void onProviderDisabled(@NonNull String arg0)
     { }
 
     @Override  // LocationListener
-    public void onProviderEnabled(String arg0)
+    public void onProviderEnabled(@NonNull String arg0)
     { }
 
     @Override  // LocationListener
