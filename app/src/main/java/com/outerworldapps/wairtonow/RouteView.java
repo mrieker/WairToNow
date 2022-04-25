@@ -474,6 +474,12 @@ public class RouteView extends ScrollView implements WairToNow.CanBeMainView {
             return;
         }
 
+        if (firstStep instanceof RouteStepAirwy) {
+            appendErrorMessage ("route cannot start on an airway (" + firstStep.ident + "), add starting fix\n");
+            showMessages ();
+            return;
+        }
+
         /*
          * Destination is final waypoint of the route.
          */
