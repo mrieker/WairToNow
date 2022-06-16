@@ -10,10 +10,13 @@ Approach plates include an optional on-screen DME display that the user can
 configure, and can draw out the approach path if enabled.
 
 Also included are recent OpenFlightMaps charts and waypoints covering parts
-of Europe.  These are unofficial VFR charts and there are no approach plates.
-There are also the usual WairToNow runway diagrams provided for airports that
-have runway lat,lon information given in the OpenFlightMaps database.  See
-https://www.openflightmaps.org for more information.
+of Europe.  These are unofficial VFR charts.  There are also the usual WairToNow
+runway diagrams provided for airports that have runway lat,lon information given
+in the OpenFlightMaps database.  See https://www.openflightmaps.org for more
+information.
+
+The official approach plates and runway diagrams provided by Eurocontrol are
+available in the app.
 
 There is also access to recent waypoints from ourairports.com giving many
 waypoints around the world.  This database does not include any charts.  And,

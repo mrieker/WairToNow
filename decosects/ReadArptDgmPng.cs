@@ -531,9 +531,10 @@ public class ReadArptDgmPng {
          * Index is the lowestlat,lowestlon given for the airport.
          * Value is the missing lat or lon to add.
          */
-        oneLiners["29^11'N,81^04'W"] = "29^12'N";   // KDAB
-        oneLiners["34^40'N,86^41'W"] = "86^41.5'W"; // KHUA
-        oneLiners["40^02'N,74^21'W"] = "40^02.5'N"; // KNEL
+        oneLiners["29^11'N,81^04'W"] = "29^12'N";       // KDAB
+        oneLiners["34^40'N,86^41'W"] = "86^41.5'W";     // KHUA
+        oneLiners["29^31.0'N,95^14.5'W"] = "95^15.0'W"; // KLVJ
+        oneLiners["40^02'N,74^21'W"] = "40^02.5'N";     // KNEL
 
         /*
          * Take original image and figure out where the lat/lon lines are
