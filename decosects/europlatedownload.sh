@@ -124,8 +124,11 @@ then
 
     rm -rf epdtemp*
     mkdir epdtemp
+    set +e
     runit | xargs -d '\n' -L 5 -P 12 ./europlatedownload.sh xargscallback
+    echo "runit/xargs exit status $?"
     rm -rf epdtemp*
+    set -e
 
     # create waypoint databases
 
@@ -167,7 +170,7 @@ then
     #  $5 = .effdate
     #  $6 = .icaoid     just the . means it didn't download
 
-    echo " <$2> <$3> <$4> <$5> <$6>" 1>&2
+    ##echo " <$2> <$3> <$4> <$5> <$6>" 1>&2
 
     ccode=$2
     if [ "${ccode:0:1}" != "@" ]

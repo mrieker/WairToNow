@@ -12,4 +12,8 @@ function readlogs
     done
 }
 
-exec mono --debug IntlMetafsDaemon.exe 0 2>&1 | readlogs
+while true
+do
+    sleep 5
+    mono --debug IntlMetafsDaemon.exe 0 2>&1 | readlogs
+done

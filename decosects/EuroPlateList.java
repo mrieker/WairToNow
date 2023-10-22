@@ -38,6 +38,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -90,6 +91,7 @@ public class EuroPlateList {
         //System.err.println ("javaxfacesviewstate:" + javaxfacesviewstate);
 
         // loop through all countries
+        try (FileWriter fw = new FileWriter ("aiplib.html")) { fw.write (aiplibhtml); }
         Map<String,String> countries = getCountryList (aiplibhtml);
         for (String key : countries.keySet ()) {
             //System.err.println ("main*: country " + key + "=" + countries.get (key));
@@ -201,10 +203,11 @@ public class EuroPlateList {
             if (k0 < 0) break;
             if (k0 > j) break;
             k0 += 15;
-            int k1 = aiplibhtml.indexOf ("\">", k0);
+            int k1 = aiplibhtml.indexOf ("\"", k0);
             String key = aiplibhtml.substring (k0, k1);
-            int k2 = aiplibhtml.indexOf ("(" + key + ")", k1);
-            String val = aiplibhtml.substring (k1 + 2, k2).trim ();
+            int k3 = aiplibhtml.indexOf (">", k1);
+            int k2 = aiplibhtml.indexOf ("(" + key + ")", k3);
+            String val = aiplibhtml.substring (k3 + 1, k2).trim ();
             map.put (key, val);
             i = k2;
         }

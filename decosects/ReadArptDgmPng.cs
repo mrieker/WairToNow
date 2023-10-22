@@ -486,7 +486,6 @@ public class ReadArptDgmPng {
         badStrings["KMCN:31^41.5'N"]  = "32^41.5'N";
         badStrings["KMCO:8^25'N"]     = "28^25'N";
         badStrings["KMDW:1^46.5'N"]   = "41^46.5'N";
-        badStrings["KMIA:47'N"]       = "25^47'N";
         badStrings["KNSI:33'^14'N"]   = "33^14'N";
         badStrings["KNSI:33^1S"]      = "33^15'N";
         badStrings["KOGS:75^27'N"]    = "75^27'W";
@@ -509,8 +508,10 @@ public class ReadArptDgmPng {
         badStrings["KSBN:41^42.0'"]   = "41^42.0'N";
         badStrings["KSEE:16^58.0'W"]  = "116^58.0'W";
         badStrings["KSEE:6^58.0'W"]   = "116^58.0'W";
+        badStrings["KSFO:7^38'N"]     = "37^38'N";
         badStrings["KSJC:121^55'N"]   = "121^55'W";
         badStrings["KSJC:121^56'N"]   = "121^56'W";
+        badStrings["KTVL:8^53.5'N"]   = "38^53.5'N";
         badStrings["KTVL:8^54.5'N"]   = "38^54.5'N";
         badStrings["KVDF:82^20.05'W"] = "82^20.5'W";
         badStrings["KVPS:586^31'W"]   = "86^31'W";
@@ -521,7 +522,6 @@ public class ReadArptDgmPng {
          * Value is our computed non-square ratio.
          */
         notsquare["KHLR"] = 1.094;
-        notsquare["KMIA"] = 0.843;
         notsquare["KNYG"] = 0.664;
         notsquare["PADQ"] = 0.944;
 
@@ -532,6 +532,7 @@ public class ReadArptDgmPng {
          * Value is the missing lat or lon to add.
          */
         oneLiners["29^11'N,81^04'W"] = "29^12'N";       // KDAB
+        oneLiners["41^15'N,95^46'W"] = "41^16'N";       // KCBF
         oneLiners["34^40'N,86^41'W"] = "86^41.5'W";     // KHUA
         oneLiners["29^31.0'N,95^14.5'W"] = "95^15.0'W"; // KLVJ
         oneLiners["40^02'N,74^21'W"] = "40^02.5'N";     // KNEL
@@ -1538,7 +1539,7 @@ public class ReadArptDgmPng {
             int w = box.Width;
             int h = box.Height;
 
-            bool debug = false; // (x >= 1420) && (x <= 1540) && (y >= 2210) && (y <= 2250);
+            bool debug = false; // (x >= 1234) && (x <= 1240) && (y >= 1078) && (y <= 1086);
             if (debug) Console.WriteLine ("DecodeLatLonStrings*: " + x + "," + y + " " + w + "x" + h);
 
             /*
@@ -1624,7 +1625,7 @@ public class ReadArptDgmPng {
         byte[,] grays = null;
         char ch;
 
-        bool debug = false; // (x >= 1420) && (x <= 1540) && (y >= 2210) && (y <= 2250);
+        bool debug = false; // (x >= 1234) && (x <= 1240) && (y >= 1078) && (y <= 1086);
         if (debug) Console.WriteLine ("DecodeCharacter*: " + x + "," + y + " " + w + "x" + h);
 
         if ((w <= 0) || (w > Deco.MAXWH)) return;
@@ -1632,21 +1633,25 @@ public class ReadArptDgmPng {
 
         // decimal point
         if ((w < 5) && (h < 5)) {
+            if (debug) Console.WriteLine ("DecodeCharacter*: decimal point");
             ch = '.';
         }
 
         // seconds mark
         else if (CheckForSecMark (x, y, w, h)) {
+            if (debug) Console.WriteLine ("DecodeCharacter*: seconds mark");
             ch = '\'';
         }
 
         // degrees mark
         else if ((w < 13) && (h < 13)) {
+            if (debug) Console.WriteLine ("DecodeCharacter*: degrees mark");
             ch = '^';
         }
 
         // digit '1'
         else if (CheckForOneDigit (x, y, w, h)) {
+            if (debug) Console.WriteLine ("DecodeCharacter*: '1' digit");
             ch = '1';
         }
 
@@ -1654,6 +1659,7 @@ public class ReadArptDgmPng {
         else if ((w > 7) && (h > 13)) {
             grays = BuildGraysArray (x, y, w, h);
             ch = DecodeGraysArray (grays, false);
+            if (debug) Console.WriteLine ("DecodeCharacter*: decoded raw digit " + ch);
 
             /*
              * Sometimes we misread what is really a 2 as a 7.
@@ -1664,6 +1670,7 @@ public class ReadArptDgmPng {
                 int nb = blacks[y+h-1,x+w-1] + blacks[y+h-1,x+w-2] + blacks[y+h-1,x+w-3] +
                          blacks[y+h-2,x+w-1] + blacks[y+h-2,x+w-2] + blacks[y+h-2,x+w-3];
                 if (nb > 0) ch = '2';
+                if (debug) Console.WriteLine ("DecodeCharacter*: decoded digit " + ch);
             }
         }
 
@@ -1749,6 +1756,7 @@ public class ReadArptDgmPng {
         if (w >  9) return false;
         if (h < 15) return false;
         if (h > 25) return false;
+        if (w * 16 >= h * 9) return false;
         for (int yy = 1; yy < h - 1; yy ++) {
             if ((blacks[y+yy,x+w-1] | blacks[y+yy,x+w-2] | blacks[y+yy,x+w-3]) == 0) return false;
         }

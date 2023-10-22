@@ -24,7 +24,15 @@
     $dir = "../webdata/webmetaf";
     @mkdir ($dir, 0777, TRUE);
 
-    if (! isset ($_REQUEST["dbase"])) {
+    $name = FALSE;
+
+    if (isset ($argv[2])) {
+
+        // $argv[1] = dbase = IMDB (called from IntlMetafsDaemon.cs)
+        // $argv[2] = icaoid
+        procdbase ($argv[1], $argv[2]);
+
+    } else if (! isset ($_REQUEST["dbase"])) {
 
         // FAA airports only, just copy the FAA format as is
         // input:
@@ -34,54 +42,48 @@
         //  icaoid ddhhmmZ ...                                          < METAR
         //  icaoid ddhhmmZ ... FMddhhmm ... FMddhhmm ... FMddhhmm ...   < TAF
 
+        // https://aviationweather.gov/cgi-bin/data/metar.php?ids=KBVY&hours=0&order=id%2C-obs&sep=true
+        // https://aviationweather.gov/cgi-bin/data/taf.php?ids=KMHT&sep=true
+
         $icaoids = $_REQUEST["icaoids"];
         $icaoids = str_replace ("/", "", $icaoids);
         $icaoids = str_replace (".", "", $icaoids);
         $name = "$dir/$icaoids";
         if (time () - @filemtime ($name) > 300) {
-            $metaf = file_get_contents ("https://aviationweather.gov/taf/data?format=raw&metars=on&layout=off&ids=$icaoids");
-            file_put_contents ("$name.tmp", $metaf);
+            $metar = file_get_contents ("https://aviationweather.gov/cgi-bin/data/metar.php?ids=$icaoids&hours=0&order=id%2C-obs&sep=true");
+            $taf = file_get_contents ("https://aviationweather.gov/cgi-bin/data/taf.php?ids=$icaoids&sep=true");
+            file_put_contents ("$name.tmp", "$metar\n$taf\n");
             rename ("$name.tmp", $name);
         }
     } else {
 
-        // input:
-        //  icaoid = single airport ICAO id
-        //  dbase  = FAA, OA or OFM
-        // output:
-        //  METAR: icaoid ddhhmmZ ...
-        //    TAF: icaoid ddhhmmZ ... FMddhhmm ... FMddhhmm ... FMddhhmm ...
-
-        $icaoid = strtoupper ($_REQUEST["icaoid"]);
-        $dbase  = isset ($_REQUEST["dbase"]) ? $_REQUEST["dbase"] : "";
-        $name   = "$dir/$icaoid.$dbase";
-        if (time () - @filemtime ($name) > 300) {
-            switch ($dbase) {
-
-                // get FAA airports from FAA
-                case "FAA": {
-                    $metaf = file_get_contents ("https://aviationweather.gov/taf/data?format=raw&metars=on&layout=off&ids=$icaoid");
-                    $metaf = decodeFAA ($metaf, $icaoid);
-                    break;
-                }
-
-                // get other (OA and OFM) airports from MeteoStar
-                default: {
-                    $metaf = file_get_contents ("http://wxweb.meteostar.com/cgi-bin/metartafsearch/both.cgi?choice=$icaoid");
-                    //file_put_contents ("$name.htm", $metaf);
-                    $words = wordize ($metaf);
-                    //file_put_contents ("$name.wds", implode (" ", $words));
-                    $metaf = decodeMET ($words, $icaoid);
-                    break;
-                }
-            }
-            file_put_contents ("$name.tmp", $metaf);
-            rename ("$name.tmp", $name);
-        }
+        procdbase ($_REQUEST["dbase"], $_REQUEST["icaoid"]);
     }
 
     readfile ($name);
     exit;
+
+    // input:
+    //  icaoid = single airport ICAO id (eg, EDDB, KBOS)
+    //  dbase  = FAA, OA or OFM
+    // output:
+    //  METAR: icaoid ddhhmmZ ...
+    //    TAF: icaoid ddhhmmZ ... FMddhhmm ... FMddhhmm ... FMddhhmm ...
+    function procdbase ($dbase, $icaoid)
+    {
+        global $dir, $name;
+
+        $icaoid = strtoupper ($icaoid);
+        $name = "$dir/$icaoid.$dbase";
+        if (time () - @filemtime ($name) > 300) {
+            $metar = file_get_contents ("https://aviationweather.gov/cgi-bin/data/metar.php?ids=$icaoid&hours=0&order=id%2C-obs&sep=true");
+            $taf   = file_get_contents ("https://aviationweather.gov/cgi-bin/data/taf.php?ids=$icaoid&sep=true");
+            $metaf = "$metar\n$taf\n";
+            $metaf = decodeFAA ($metaf, $icaoid);
+            file_put_contents ("$name.tmp", $metaf);
+            rename ("$name.tmp", $name);
+        }
+    }
 
     // get upper case words
     // strip out HTML tags and runs of slashes
@@ -152,33 +154,6 @@
                 }
                 $lasti = $i;
             }
-        }
-
-        return $out;
-    }
-
-    // decode meteostar-style output
-    //  METAR: ... icaoid ddhhmmZ ... =
-    //    TAF: ... icaoid ddhhmmZ ... =
-    function decodeMET ($words, $icaoid)
-    {
-        $out = "";
-
-        $count   = count ($words);
-        $started = 0;
-        $type    = "";
-        for ($i = 0; $i < $count; $i ++) {
-            $word = $words[$i];
-            if ($word == "=") $started = 0;
-            if (($word == "METAR:") || ($word == "TAF:")) {
-                $type = $word;
-                $started = 1;
-            }
-            if (($started == 1) && ($word == $icaoid)) {
-                $out .= " $type";
-                $started = 2;
-            }
-            if ($started == 2) $out .= " $word";
         }
 
         return $out;

@@ -885,7 +885,7 @@ public class MakeWaypoints {
             navaid.nav_name   = cols[3];
             navaid.lat        = double.Parse (cols[4]);
             navaid.lon        = double.Parse (cols[5]);
-            navaid.nav_magvar = int.Parse (cols[6]);
+            navaid.nav_magvar = (cols[6] == "") ? -99999 : int.Parse (cols[6]);
             navaid.nav_freq   = (cols[7] == "") ? null : (object) int.Parse (cols[7]);
             navaid.nav_power  = cols[8];
 
@@ -1011,8 +1011,15 @@ public class MakeWaypoints {
             OA_Airport airport = new OA_Airport ();
 
             try {
-                airport.ident        = cols[colnames["ident"]].ToUpperInvariant ();     // EGLL     KBVY
-                airport.apt_faaid    = cols[colnames["iata_code"]];                     // LHR      BVY
+                airport.ident        = cols[colnames["gps_code"]].ToUpperInvariant ();  // EGLL     KBVY
+                if ((airport.ident == "") || (airport.ident == "0")) {
+                    airport.ident    = cols[colnames["ident"]].ToUpperInvariant ();     // EGLL     KBVY
+                }
+                airport.apt_faaid    = cols[colnames["iata_code"]].ToUpperInvariant (); // LHR      BVY
+                if ((airport.apt_faaid == "") || (airport.apt_faaid == "0")) {
+                    airport.apt_faaid = cols[colnames["local_code"]].ToUpperInvariant ();
+                    if (airport.apt_faaid == "0") airport.apt_faaid = "";
+                }
                 airport.apt_name     = cols[colnames["name"]];
                 airport.lat          = double.Parse (cols[colnames["latitude_deg"]]);
                 airport.lon          = double.Parse (cols[colnames["longitude_deg"]]);

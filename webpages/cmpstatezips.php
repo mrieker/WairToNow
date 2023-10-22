@@ -25,7 +25,6 @@
 
     session_name ("PHPSESSID_WairToNow");
     session_start ();
-    $skippwcheck = TRUE;
     require_once 'iaputil.php';
 ?>
 <!DOCTYPE html>

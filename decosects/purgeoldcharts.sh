@@ -6,13 +6,13 @@ function purgechart
     do
         if [ "$file" == "${file%.zip}" ]
         then
-            echo rm -rf "$file"
+            echo rm -rf \"$file\"
         else
             if [ "$file" == "${file%.wtn.zip}" ]
             then
-                echo mv "$file" "purged-$file"
+                echo mv \"$file\" \"purged-$file\"
             else
-                echo rm -rf "$file"
+                echo rm -rf \"$file\"
             fi
         fi
     done

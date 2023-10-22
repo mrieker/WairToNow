@@ -618,7 +618,7 @@ public class ParseCifp {
                     break;
                 }
                 default: {
-                    throw new RuntimeException ("unknown altdesc " + altdesc);
+                    System.out.println (segment.approach.airport.icaoid + "." + segment.approach.appid + "." + segment.segid + ": unknown altdesc " + altdesc);
                 }
             }
         }

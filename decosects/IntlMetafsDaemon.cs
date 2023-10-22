@@ -26,6 +26,7 @@ using Mono.Data.Sqlite;
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Text;
@@ -62,20 +63,21 @@ public class IntlMetafsDaemon {
                 gap -= 5;
                 if (gap < 0) gap = 0;
             }
+            dbcmd1.Dispose ();
 
-            if (icaoid != null) {
+            if (icaoid == null) break;
 
-                // try to read METAR and TAF from internet
-                String metaf = GetIntlMetaf (icaoid);
-                Console.WriteLine (icaoid + " " + when + " " + metaf);
+            // try to read METAR and TAF from internet
+            String metaf = GetIntlMetaf (icaoid);
+            Console.WriteLine (icaoid + " " + when + " " + metaf);
 
-                // write the status to database
-                IDbCommand dbcmd2 = intlmetafsdbcon.CreateCommand ();
-                dbcmd2.CommandText = "UPDATE intlmetafs SET iamt_metaf=@iamt_metaf,iamt_when=" + when + " WHERE iamt_icaoid=@iamt_icaoid";
-                dbcmd2.Parameters.Add (new SqliteParameter ("@iamt_icaoid", icaoid));
-                dbcmd2.Parameters.Add (new SqliteParameter ("@iamt_metaf",  metaf));
-                dbcmd2.ExecuteNonQuery ();
-            }
+            // write the status to database
+            IDbCommand dbcmd2 = intlmetafsdbcon.CreateCommand ();
+            dbcmd2.CommandText = "UPDATE intlmetafs SET iamt_metaf=@iamt_metaf,iamt_when=" + when + " WHERE iamt_icaoid=@iamt_icaoid";
+            dbcmd2.Parameters.Add (new SqliteParameter ("@iamt_icaoid", icaoid));
+            dbcmd2.Parameters.Add (new SqliteParameter ("@iamt_metaf",  metaf));
+            dbcmd2.ExecuteNonQuery ();
+            dbcmd2.Dispose ();
 
             if (seconds > 0) {
                 // try next in given seconds
@@ -85,6 +87,7 @@ public class IntlMetafsDaemon {
                 IDbCommand dbcmd3 = intlmetafsdbcon.CreateCommand ();
                 dbcmd3.CommandText = "SELECT COUNT(iamt_icaoid) FROM intlmetafs";
                 int count = int.Parse (dbcmd3.ExecuteScalar ().ToString ());
+                dbcmd3.Dispose ();
                 long ms = (count > 0) ? 27L * 86400L * 1000L / count : 999999999;
                 if (ms > 3600 * 1000) ms = 3600 * 1000;
                 whenms += ms;
@@ -94,8 +97,7 @@ public class IntlMetafsDaemon {
         }
     }
 
-    // just like webmetaf.php
-    //  http://wxweb.meteostar.com/cgi-bin/metartafsearch/both.cgi?choice=$icaoid
+    // call webmetaf.php to get metars and tafs
     // return 'M' if we get a metar
     //        'T' if we get a taf
     //       'MT' if we get both
@@ -103,86 +105,27 @@ public class IntlMetafsDaemon {
     //        '?' if unable to read web page
     public static String GetIntlMetaf (String icaoid)
     {
-        // get the web page
-        String reply;
         try {
-            HttpWebRequest request = (HttpWebRequest) WebRequest.Create ("http://wxweb.meteostar.com/cgi-bin/metartafsearch/both.cgi?choice=" + icaoid);
-            request.KeepAlive = false;
-            HttpWebResponse response = (HttpWebResponse) request.GetResponse ();
-            StreamReader reader = new StreamReader (response.GetResponseStream ());
-            reply = reader.ReadToEnd ();
-            reader.Close ();
+            ProcessStartInfo psi = new ProcessStartInfo ("php", "../webpages/webmetaf.php IMDB " + icaoid);
+            psi.RedirectStandardOutput = true;
+            psi.UseShellExecute = false;
+            psi.CreateNoWindow = true;
+            Process proc = new Process ();
+            proc.StartInfo = psi;
+            proc.Start ();
+            String reply = proc.StandardOutput.ReadToEnd ().Trim ();
+            proc.StandardOutput.Close ();
+            proc.WaitForExit ();
+            proc.Dispose ();
+
+            bool hasmetar = reply.Contains ("METAR:");
+            bool hastaf   = reply.Contains ("TAF:");
+
+            return ((hasmetar | hastaf) ? "M" : "") + (hastaf ? "T" : "");
         } catch (Exception e) {
             Console.WriteLine (icaoid + ": " + e.Message);
             return "?";
         }
 
-        // break up into words and convert to upper case
-        LinkedList<String> words = Wordize (reply);
-
-        String capitals = ConcatWords (words);
-        Console.WriteLine (icaoid + ": " + capitals);
-        if (capitals.Contains ("OBSERVATION DATABASE IS DOWN")) return "?";
-
-        // look for METAR: ... icaoid ... =
-        //        and TAF: ... icaoid ... =
-        // metars don't always have icaoid and are sometimes just a bunch of numbers
-        // ... but they always seem to have the =
-        // also assume metar present if we see a valid taf
-        String type = "";
-        bool hasmetar  = false;
-        bool hastaf    = false;
-        bool sawicaoid = false;
-        foreach (String word in words) {
-            if ((word == "METAR:") || (word == "TAF:")) {
-                type = word;
-                sawicaoid = false;
-            }
-            if (word == icaoid) sawicaoid = true;
-            if (word == "=") {
-                switch (type) {
-                    case "METAR:": { hasmetar = true; break; }
-                    case "TAF:": { hastaf = sawicaoid; break; }
-                }
-                type = "";
-            }
-        }
-
-        return ((hasmetar | hastaf) ? "M" : "") + (hastaf ? "T" : "");
-    }
-
-    // split string into array of words, converted to upper case
-    // ignore HTML tags and &nbsp;
-    public static LinkedList<String> Wordize (String str)
-    {
-        str = str.ToUpperInvariant ().Replace ("\n", " ").Replace ("&NBSP;", " ");
-        LinkedList<String> words = new LinkedList<String> ();
-        int len = str.Length;
-        String word = "";
-        for (int i = 0; i < len; i ++) {
-            char c = str[i];
-            if (c == '<') {
-                while ((i + 1 < len) && (str[++i] != '>')) { }
-            } else if (c > ' ') {
-                word += c;
-                continue;
-            }
-            if (word != "") {
-                words.AddLast (word);
-                word = "";
-            }
-        }
-        if (word != "") words.AddLast (word);
-        return words;
-    }
-
-    public static String ConcatWords (LinkedList<String> words)
-    {
-        StringBuilder sb = new StringBuilder ();
-        foreach (String word in words) {
-            sb.Append (' ');
-            sb.Append (word);
-        }
-        return sb.ToString ();
     }
 }
